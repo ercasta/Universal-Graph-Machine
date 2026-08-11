@@ -127,6 +127,10 @@ class Chain:
         self.root = Moment(g.instance(self.MOMENT), None, None)
         g.rel(self.IS_MOMENT, self.root.node)
         self.moments: List[Moment] = [self.root]
+        # Entries by the proposition they are about: (seat, position, entry).
+        # Deposit-side, so it indexes what was asserted and never what was
+        # derived -- the condition §12 puts on any index in this design.
+        self._claims: Dict[NodeId, List[Tuple[Moment, int, Entry]]] = {}
 
     def succeed(self, predecessor: Moment, licence: Optional[NodeId]) -> Moment:
         """Succession: the shared core of time and derivation (§4). Which of the
@@ -170,6 +174,13 @@ class Chain:
             self.g.rel(self.DELTA_NEXT, node, seat.delta[-1].node)
         e = Entry(node, locus, proposition, sign, grade, licence, source, consumed, mention)
         seat.delta.append(e)
+        # One index, over what was asserted rather than over what was derived --
+        # the same licence §3 gives the substrate, applied to the chain. `resolve`
+        # is the design's most consequential cost (§4) and it was scanning every
+        # entry ever deposited to answer a question about one proposition;
+        # measured, that was 70% of the engine's runtime after the walk itself
+        # had been fixed. The entries for one proposition are almost always one.
+        self._claims.setdefault(proposition, []).append((seat, len(seat.delta) - 1, e))
         return e
 
     # -- reading (§4) -----------------------------------------------------
@@ -193,16 +204,22 @@ class Chain:
         if seat is None:
             seat = self.moments[-1]
         best: Optional[Entry] = None
-        # Newest deposit first, and newest-within-a-moment first, so an
-        # equal-locus tie is already settled by the order of the walk.
-        for m in seat.ancestors():
-            for e in reversed(m.delta):
-                if e.proposition != proposition:
-                    continue
-                if not locus.at_or_after(e.locus):  # inheritance: locus or earlier
-                    continue
-                if best is None or e.locus.depth > best.locus.depth:
-                    best = e
+        best_key = ()
+        # The two orderings, as one comparison instead of as a walk order. The
+        # old loop went newest-moment-first and newest-within-a-moment-first and
+        # replaced `best` only on a strictly later locus -- so the winner was the
+        # entry with the greatest (locus depth, seat depth, position), and that
+        # is what is computed here. Containment still costs an ancestry test:
+        # a depth comparison cannot replace it once anything forks, and supposing
+        # forks by construction.
+        for m, pos, e in self._claims.get(proposition, ()):
+            if not locus.at_or_after(e.locus):  # inheritance: locus or earlier
+                continue
+            if not seat.at_or_after(m):  # ...and it must be on this branch
+                continue
+            key = (e.locus.depth, m.depth, pos)
+            if best is None or key > best_key:
+                best, best_key = e, key
         return best
 
     def holds(

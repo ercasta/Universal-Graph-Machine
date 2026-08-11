@@ -412,15 +412,58 @@ def current_state(chain: Chain, locus: Moment, seat: Moment) -> List[Entry]:
     return out
 
 
+class Situation:
+    """The current state, plus the one index matching actually asks for.
+
+    §3 gives the substrate exactly one index, over instances by relation, and
+    says why: *a rule whose antecedent names a relation has to start somewhere,
+    and scanning every node is the alternative*. That argument is about the
+    graph; it is just as true of the state, and it was not being made there --
+    every antecedent member was unified against every entry.
+
+    Signed, because a member's sign is fixed and half the entries are the wrong
+    one. A member that is a **bare variable** has no relation to key on and still
+    scans everything, which is correct: `+?p` is a rule that says *believe what
+    this channel reported*, and it genuinely is about anything.
+    """
+
+    def __init__(self, g: Graph, entries: List[Entry]) -> None:
+        self.entries = entries
+        self._by: Dict[Tuple[str, Optional[NodeId]], List[Entry]] = {}
+        for e in entries:
+            key = (e.sign, g.relation_of(e.proposition))
+            self._by.setdefault(key, []).append(e)
+        self._by_sign: Dict[str, List[Entry]] = {}
+        for e in entries:
+            self._by_sign.setdefault(e.sign, []).append(e)
+
+    def candidates(self, g: Graph, want: Member) -> List[Entry]:
+        if g.is_var(want.pattern):
+            return self._by_sign.get(want.sign, [])
+        return self._by.get((want.sign, g.relation_of(want.pattern)), [])
+
+
 def match(
-    g: Graph, chain: Chain, rule: Rule, locus: Moment, seat: Moment
+    g: Graph,
+    chain: Chain,
+    rule: Rule,
+    locus: Moment,
+    seat: Moment,
+    state: Optional["Situation"] = None,
 ) -> List[Application]:
     """Unify a generic moment against an anchored one, over the current state.
 
     Records which entries it matched. That is not overhead: it is what makes a
     misbehaving rule distinguishable from a misresolving chain.
+
+    `state` may be supplied by a caller that is matching several rules at one
+    seat, and the loop does. It is the same walk for all of them -- recomputing
+    it per rule was 86% of the engine's runtime, measured, because every
+    proposition is `resolve`d and `resolve` is itself a walk. Not an
+    optimisation of the read: the read is unchanged, and asked once.
     """
-    state = current_state(chain, locus, seat)
+    if state is None:
+        state = Situation(g, current_state(chain, locus, seat))
     results: List[Application] = []
 
     def step(
@@ -430,9 +473,7 @@ def match(
             results.append(Application(rule, bindings, consumed))
             return
         want = rule.antecedent[i]
-        for e in state:
-            if e.sign != want.sign:
-                continue
+        for e in state.candidates(g, want):
             b = unify(g, want.pattern, e.proposition, bindings)
             if b is not None:
                 step(i + 1, b, consumed + (e,))

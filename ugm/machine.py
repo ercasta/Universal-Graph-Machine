@@ -30,6 +30,7 @@ from .rules import (
     effective_grade,
     match,
     unify,
+    Situation,
     current_state,
     substitute,
 )
@@ -994,7 +995,7 @@ class Machine:
         """
         inside = []
         m: Optional[Moment] = self.focus.seat
-        while m is not None and m is not frame.seat.predecessor:
+        while m is not None and m is not frame.origin.predecessor:
             inside.append(m)
             m = m.predecessor
         assumption_licence = frame.purpose
@@ -1054,10 +1055,16 @@ class Machine:
         # `_leave` when a hypothesis runs out of work and `_wake` when the loop
         # does. Nothing here decides anything a rule could have decided.
         proposed = self._recall()
+        # One walk, for every rule proposed. §4 calls the walk the design's most
+        # consequential cost and it is: measured, it was 86% of runtime, and 16
+        # of every 17 of those walks were the same walk repeated.
+        state = Situation(
+            self.g, current_state(self.chain, self.focus.topic, self.focus.seat)
+        )
         applications: List[Application] = []
         for r in proposed:
             applications.extend(
-                match(self.g, self.chain, r, self.focus.topic, self.focus.seat)
+                match(self.g, self.chain, r, self.focus.topic, self.focus.seat, state)
             )
         # Defeat before quiescence -- see `rules.defeat` for why the order is not
         # interchangeable.
@@ -1269,8 +1276,13 @@ class Machine:
         """
         licence = self.g.rel(self.APPLIED, app.rule.node)
         if app.rule.connective == "causes":
-            seat = self.chain.succeed(self.focus.seat, licence)
-            self.focus = self.gate.frame(seat, purpose=self.focus.purpose)
+            # The register MOVES; it is not replaced. Minting a fresh frame here
+            # dropped the parent, the purpose and the wrap -- so a `causes` rule
+            # applied under a hypothesis orphaned the register, `_leave` could
+            # never fire, and everything concluded under that hypothesis stayed
+            # inside it with nothing saying so. §4 allows one register; advancing
+            # it is a seat move, and §17 says a seat move is what `reseat` is for.
+            self.gate.reseat(self.focus, self.chain.succeed(self.focus.seat, licence))
         frame = self.focus
         mention = self._is_mention(app)
 

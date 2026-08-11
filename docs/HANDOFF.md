@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     201 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     208 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        14/14 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -18,7 +18,8 @@ python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 ```
 
-`ugm.bundle` takes a minute — it re-runs the whole suite once per bundled rule.
+`ugm.bundle` re-runs the whole suite once per bundled rule; it takes ~20s (it took five minutes
+before `theread`).
 
 ---
 
@@ -49,6 +50,7 @@ gone. Ten commits:
 | `norms` | §19's carve-out: a prohibition is a **veto at the gate**, never a competitor in recall |
 | `naming` | a **fact may carry a name**; a named norm is a node rules can retire |
 | `reference` | reference is **binding**; the walk is one order; the naming claim corrected |
+| `theread` | the read indexed — **67× on the goal fixture**; and `causes` was orphaning the register |
 
 ### 1. The spine changed
 
@@ -296,6 +298,63 @@ guarantee.
 so a conclusion *about a rule* drawn under a hypothesis was refused by the gate — §14's propagation
 with a hole in it at the one place conclusions change hands.
 
+### 11. Where the cost actually was — and it was not recall
+
+The question was *what is load-bearing for a working system — recall, learning?* Measured first, and
+the answer was neither.
+
+The goal fixture is an n-rule forward chain with one goal at the end:
+
+| rules | before | after |
+|---|---|---|
+| 2 | 1.56s | 0.07s |
+| 4 | 7.00s | 0.19s |
+| 8 | 54.9s | 0.82s |
+| 16 | ~7 min | 4.68s |
+| 32 | — | 37.1s |
+
+**67× at n=8.** `ugm.selftest` went 19s → 1.8s; `ugm.bundle` five minutes → 19s. Nothing about the
+semantics changed, and 208 checks agree.
+
+**The first attempt was wrong and is worth recording.** The obvious read of the cost was *recall is
+exhaustive*, so recall became a request (`+recall(g)` → `+recalled(<R>, g)`) to make narrowing reach
+inside an antecedent. It made the default **twice as slow** and broke a soundness check. Profiling
+afterwards:
+
+* `chain.resolve` — **86% of runtime**, 415k calls
+* `current_state` — called **2043 times for 123 steps**: once per rule per tick, rebuilding and
+  re-resolving the entire state each time
+
+So three changes, each measured before the next:
+
+1. **the walk, once per tick** instead of once per rule (`match` takes the state) — 8.6×
+2. **the state, indexed by (sign, relation)** — an antecedent member with a fixed relation no longer
+   unifies against every entry. §3 gives the substrate exactly this index and the argument was just as
+   true of the state, where nobody had made it. A bare-variable member still scans everything, which
+   is correct — `+?p` genuinely is about anything.
+3. **the read, indexed by proposition** — `resolve` scanned every entry ever deposited to answer a
+   question about one. Now it scans that proposition's entries, which are almost always one. The two
+   orderings (latest locus, then latest deposit) become a single comparison on
+   `(locus.depth, seat.depth, position)`, and containment still costs a real ancestry test because a
+   depth comparison cannot survive a fork.
+
+⚠ **`_recall` narrowing cannot reach an antecedent, and that stands.** `<ask-fit>` matched **72 ways**
+in one tick with four domain rules. Recall narrows which rules are *proposed*; a cross product in an
+antecedent is unaffected. The recall-as-a-request branch is stashed, not deleted — but it is not
+needed for cost any more, and it should only come back with a measurement behind it.
+
+⚠ **A bug the fixture found while trying to measure something else.** Applying a `causes` rule minted
+a **fresh frame**, dropping the parent, purpose and wrap. Under a hypothesis that orphaned the
+register: `_leave` could never fire, the frame was never discharged, and everything concluded under
+that hypothesis stayed inside it with nothing saying so. §4 allows one register; advancing it is a
+*seat move* (`Gate.reseat`), not a new frame. Discharge then needs the frame's **origin** rather than
+its current seat — those stop being the same thing the moment it moves, and reading it off `seat`
+carried out only the last moment.
+
+The index is gated against a brute-force walk over a world that forks and revises — 2448 comparisons,
+because replacing a walk with an index is exactly the change that is right for a fixture and wrong for
+a fork.
+
 ---
 
 ## The state of the code
@@ -321,11 +380,11 @@ which is the whole of its guarantee.
 
 ## Where I would pick up
 
-**1. Recall, continued.** The seam is open, the first slice is in and the carve-out is done (§7, §8
-below). What is *not*: the table is authored, never learned; `_in_play` is the cheapest key that
-recurs and deserves a measured comparison against alternatives; and the exhaustive pass fires only on
-a dry shortlist, never on novelty or a schedule, which §19 says is what stops recall calcifying
-exactly where it is performing well.
+**1. Recall, continued** — but read §11 first: recall was *not* where the cost was, and narrowing it
+made a goal fixture **slower**. What is still undone: the table is authored, never learned; `_in_play`
+is the cheapest key that recurs and deserves a measured comparison; the exhaustive pass fires only on
+a dry shortlist, never on novelty or a schedule. **Do not start on learning without a workload big
+enough to measure it on** — §11's fixture is a start and it is not a corpus.
 
 **Definite reference — which one.** Binding refers; nothing selects. A rule cannot say *the latest*,
 and `_settle` never reconsiders a binding it took. That is one question wearing three hats: §21's

@@ -53,6 +53,11 @@ class Frame:
         # inside a supposition is ordinary ticks of the ordinary loop, and the
         # frame has to survive between them.
         self.wrap = wrap
+        # Where the frame BEGAN, which stops being the same as `seat` the moment
+        # a `causes` rule applies inside it and the frame advances. Discharge
+        # needs the beginning -- it collects every moment from here to now -- and
+        # reading it off `seat` silently carried out only the last one.
+        self.origin = seat
         self.children: List["Frame"] = []
         self.state: Optional[str] = None  # discharged | exhausted | abandoned
         self.carried: List["Entry"] = []  # what crossed out, wrapped (§17)

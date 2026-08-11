@@ -2611,6 +2611,34 @@ and only its silence counts.
 > **Nothing came to mind is not nothing is left to do.** §15 says only the second should escalate;
 > the first escalates too, but inward — to recalling harder.
 
+### Where the cost was, when it was finally measured
+
+§19 exists because proposing every rule does not scale, and that reading of the cost turned out to be
+wrong about this engine. Setting a budget made a goal fixture **slower**, and profiling said why:
+
+| | |
+|---|---|
+| `chain.resolve` | **86%** of runtime |
+| `current_state` | called **once per rule per tick** — 2043 walks for 123 steps |
+
+The read was the cost, not the search. Three changes, each measured before the next, and none of them
+touching what the read *means*: ask the walk once per tick rather than once per rule; index the state
+by (sign, relation), which is §3's own index applied where nobody had applied it; and index `resolve`
+by proposition, so answering *what does the chain say about p* stops scanning every entry ever
+deposited. Together, 67× on an eight-rule goal fixture, and a suite that ran in nineteen seconds runs
+in under two.
+
+Two things follow that are about the design and not about the implementation.
+
+**Recall narrowing cannot reach an antecedent.** `<ask-fit>` matched 72 ways in a single tick with
+four domain rules, because `+goal(?w), +rule(?r)` is a cross product. §19 narrows which rules are
+*proposed*; it says nothing about how many ways one rule matches. So recall was never going to fix
+this, and the fact that the seam is at the proposal step is a limit of the seam, not of the idea.
+
+**Index what was asserted, never what was derived.** §12's condition, and both new indexes meet it:
+one is built at `deposit`, the other from the state that a single walk already produced. An index over
+derived values would be a cache of something defeasible, which is §16's objection one level up.
+
 ### The carve-out
 
 > **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**

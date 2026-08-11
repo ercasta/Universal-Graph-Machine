@@ -1342,6 +1342,139 @@ def prohibitions_are_not_recalled() -> None:
     )
 
 
+def the_index_agrees_with_the_walk() -> None:
+    """§4's read, indexed -- and checked against the walk it replaced.
+
+    `resolve` used to scan every entry ever deposited to answer a question about
+    one proposition. Measured, that was 86% of the engine's runtime, then 70% of
+    it again after the loop stopped repeating the same walk once per rule. It is
+    now an index over what was asserted, which is the licence §3 gives the
+    substrate and §12 puts a condition on: **index what was asserted, never what
+    was derived.**
+
+    Replacing a walk with an index is exactly the kind of change that is right
+    for a fixture and wrong for a fork, so it is checked against a brute-force
+    walk over a world that has both -- nested suppositions (which fork) and a
+    revision about an earlier moment (which separates the two orderings).
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <a> = causes(  { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "rule <c> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
+        "fact +p(one)",
+        "fact +likely(p(two))",
+        "",
+    ]))
+    m.run(limit=400)
+    # A revision about an earlier moment: same locus, later deposit (§17).
+    old = m.focus.seat.ancestors()[-1]
+    m.gate.write(m.gate.frame(m.focus.seat, topic=old), kb.term("q(one)"), MINUS)
+    m.suppose(kb.term("p(three)"), wrap=kb.term("possible"))
+    m.run(limit=400)
+
+    def brute(proposition, locus, seat):
+        best = None
+        for mo in seat.ancestors():
+            for e in reversed(mo.delta):
+                if e.proposition != proposition or not locus.at_or_after(e.locus):
+                    continue
+                if best is None or e.locus.depth > best.locus.depth:
+                    best = e
+        return best
+
+    props = {e.proposition for mo in m.chain.moments for e in mo.delta}
+    seats = m.chain.moments
+    disagreements, comparisons = [], 0
+    for p in props:
+        for seat in seats:
+            for locus in seat.ancestors():
+                comparisons += 1
+                if m.chain.resolve(p, locus, seat) is not brute(p, locus, seat):
+                    disagreements.append((p, locus, seat))
+
+    check(
+        "§4",
+        f"the indexed read agrees with the walk it replaced, {comparisons} comparisons",
+        not disagreements,
+    )
+    check(
+        "§4",
+        "...over a world that forks and revises, so the comparison could have failed",
+        len(m.chain.moments) > 6
+        and any(f.state == "discharged" for f in _frames(m))
+        and comparisons > 1000,
+    )
+
+
+def a_cause_moves_the_register() -> None:
+    """Found by a fixture that was trying to measure something else.
+
+    A `causes` rule lands in a *later* moment, so applying one advances the seat.
+    That was done by minting a fresh frame -- which dropped the parent, the
+    purpose and the wrap. Under a hypothesis it orphaned the register: `_leave`
+    could never fire, the frame was never discharged, and everything concluded
+    under that hypothesis stayed inside it with nothing anywhere saying so.
+
+    §4 allows exactly one register. Advancing it is a **seat move**, not a new
+    frame, and §17 already says every seat move is a write -- which is what
+    `reseat` is for. Discharge then needs the frame's *origin* rather than its
+    current seat, because those stop being the same thing the moment it moves.
+    """
+    from .text import load
+
+    out = {}
+    for conn in ("implies", "causes"):
+        m = Machine()
+        kb = load(m, f"rule <a> = {conn}( {{ +p(?x) }}, {{ +q(?x) }} )")
+        f = m.suppose(kb.term("p(x)"), wrap=kb.term("likely"))
+        m.run(limit=60)
+        out[conn] = (f, m, kb)
+
+    for conn, (f, m, kb) in out.items():
+        check(
+            "§13",
+            f"a hypothesis whose reasoning used `{conn}` is still left and discharged",
+            f.state == "discharged" and len(f.carried) == 1,
+        )
+        check(
+            "§16",
+            f"...and its conclusion crosses out wrapped, not bare (`{conn}`)",
+            m.holds(kb.term("likely(q(x))")) == PLUS and m.holds(kb.term("q(x)")) is None,
+        )
+
+    # Two moments deep inside one hypothesis: discharge must carry BOTH, which is
+    # what reading the start of the frame off `seat` would have got wrong.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "rule <a> = causes( { +p(?x) }, { +q(?x) } )",
+        "rule <b> = causes( { +q(?x) }, { +r(?x) } )",
+        "",
+    ]))
+    f2 = m2.suppose(kb2.term("p(x)"), wrap=kb2.term("likely"))
+    m2.run(limit=60)
+    check(
+        "§13",
+        "every moment inside a frame is discharged, not just the last one",
+        m2.holds(kb2.term("likely(q(x))")) == PLUS
+        and m2.holds(kb2.term("likely(r(x))")) == PLUS,
+    )
+
+
+def _frames(m) -> list:
+    out, seen = [], []
+    f = m.focus
+    while f is not None:
+        seen.append(f)
+        f = f.parent
+    for f in seen:
+        out.append(f)
+        out.extend(f.children)
+    return out
+
+
 def reference_is_binding() -> None:
     """What a rule can refer to, and how -- measured rather than assumed.
 
@@ -1501,6 +1634,8 @@ def main() -> int:
     callbacks_on_a_hypothesis()
     recall_is_narrowable()
     prohibitions_are_not_recalled()
+    the_index_agrees_with_the_walk()
+    a_cause_moves_the_register()
     reference_is_binding()
     quiescence_is_an_occasion()
     surface()
