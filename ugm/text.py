@@ -325,6 +325,7 @@ class Loader:
         # silently stopped matching what the surface wrote.
         self.atoms.update(self.m.reserved)
         self.OVERRIDES = self.atom("overrides")
+        self.SUPERSEDES = self.atom("supersedes")
         # The bundle, by name. Every section of the design that says *a corpus
         # can override this* depended on it and none of it was true: the loader
         # knew only the names a corpus had declared itself, so `<assert-act>`,
@@ -524,12 +525,17 @@ class Loader:
         that never searches, and because *which rules override which* has to stay
         an ordinary query."""
         g = self.m.g
-        if g.relation_of(prop) != self.OVERRIDES:
+        rel = g.relation_of(prop)
+        if rel not in (self.OVERRIDES, self.SUPERSEDES):
             return
         a, b = g.members(prop)
         by_node = {v.node: v for v in self.rules_by_name.values()}  # type: ignore[attr-defined]
-        if a in by_node and b in by_node:
+        if a not in by_node or b not in by_node:
+            return
+        if rel == self.OVERRIDES:
             self.m.rules.overrides_rule(by_node[a], by_node[b])
+        else:
+            self.m.rules.supersedes_rule(by_node[a], by_node[b])
 
     def _say(self, s: Statement) -> None:
         assert s.member is not None

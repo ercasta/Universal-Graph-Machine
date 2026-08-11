@@ -2904,12 +2904,31 @@ override this* depended on it and none of it was true; the loader knew only the 
 declared itself, so the bundle shipped as data and was reachable only from Python. One table now, so a
 corpus rule may not reuse a bundled name — which is the `<...>` marker doing its job.
 
-⚠ And a limit that only showed once precedence was pointed at something real. **Defeat is about the
-rule and the tick, not about the binding.** `<outcome>` matching for one action defeats `<assert-act>`
-for *every* action in that step, so an act with no declared outcome loses its fallback too. *Substitute
-where an outcome is declared, otherwise assume* is not sayable with precedence, and §12's claim that
-defeat is *about the situation rather than about the rule set* is true only at the coarseness of a
-step.
+#### One relation could not carry both intents
+
+Pointing precedence at that pair exposed a limit in §12. `overrides` is **per step**: a rule
+overridden by another that matched anywhere this tick does not apply at all. So `<outcome>` matching
+for one action defeated `<assert-act>` for *every* action in the step, and an act with no declared
+outcome lost its fallback. *Substitute where an outcome is declared, otherwise assume* was not sayable.
+
+The reflex is to make defeat per-binding, and it does not work: two rules bind different variables, so
+their bindings cannot be lined up. The reflex after that is to compare **evidence** — and that breaks
+the case §12 was written for. `overrides(<why>, <boil>)` defeats a rule that shares *no* consumed entry
+with the winner, and must: a surprise is a rival answer to the whole situation, not to one case in it.
+
+So there are two intents and one relation cannot carry both:
+
+| | |
+|---|---|
+| `overrides(A, B)` | rival answers to **one** situation. B is out for the step if A matched at all. |
+| `supersedes(A, B)` | rival answers to **each of several**. Only B's applications sharing a consumed entry with an application of A are out. |
+
+Evidence is the comparison because it is the only one available and the only honest one: the trail
+already records what each application matched, since R5 needs it, so nothing is measured that was not
+already kept.
+
+Measured: with `supersedes`, the action with a declared outcome is replaced by that outcome and the
+action without one, in the same step, keeps the assumption that it worked.
 
 #### And then no comparison is needed
 

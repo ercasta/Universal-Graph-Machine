@@ -1540,6 +1540,29 @@ def an_action_is_substituted_by_its_outcome() -> None:
         m4.holds(kb4.term("likely(greet(bo))")) == PLUS,
     )
 
+    # So there are two intents and one relation could not carry both.
+    # `overrides` is right when two rules are rival answers to ONE situation --
+    # `overrides(<why>, <boil>)` defeats a rule that shares no evidence with it
+    # at all, and must. `supersedes` is right when they are rival answers to each
+    # of SEVERAL, and defeats only the applications triggered by the same
+    # evidence. Rows, not branches.
+    m5, kb5 = plan(chr(10).join([
+        "fact supersedes(<outcome>, <assert-act>)",
+        "rule <wave> = implies( { +at(work) }, { +doing(greet(bo)) } )",
+        "",
+    ]))
+    check(
+        "§12",
+        "`supersedes` defeats per CASE: the declared act is replaced by its outcome",
+        m5.holds(kb5.term("likely(inside(work))")) == PLUS
+        and m5.holds(kb5.term("likely(travel(work))")) is None,
+    )
+    check(
+        "§12",
+        "...and the undeclared act in the same step keeps its fallback -- which `overrides` could not",
+        m5.holds(kb5.term("likely(greet(bo))")) == PLUS,
+    )
+
 
 def doubt_is_a_tie() -> None:
     """A preference is a **score**, and doubt is what a score makes sayable.

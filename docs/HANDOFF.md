@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     238 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     240 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -653,11 +653,21 @@ and none of it was true — the loader knew only names a corpus declared itself,
 as data and was reachable only from Python. Fixed: the loader seeds its statement table from
 `machine.bundle`, one namespace, so a corpus rule may not reuse a bundled name.
 
-⚠⚠ And a limit that only showed once precedence was pointed at something real: **defeat is rule-level
-and per-tick, not per-binding.** `<outcome>` matching for one action defeats `<assert-act>` for every
-action in that step, so an undeclared act loses its fallback. *Substitute where an outcome is declared,
-otherwise assume* is not sayable with precedence. §12's *defeat is about the situation* holds only at
-the coarseness of a step.
+**One relation could not carry both intents.** `overrides` is per *step*, so `<outcome>` matching for
+one action defeated `<assert-act>` for every action in that step and an undeclared act lost its
+fallback. Per-*binding* does not work either — two rules bind different variables, so their bindings
+cannot be lined up. Comparing **evidence** does, and it breaks the case §12 was written for:
+`overrides(<why>, <boil>)` defeats a rule sharing no consumed entry with the winner, and must, because
+a surprise is a rival answer to the whole situation.
+
+| | |
+|---|---|
+| `overrides(A, B)` | rival answers to **one** situation — B is out for the step if A matched at all |
+| `supersedes(A, B)` | rival answers to **each of several** — only B's applications sharing a consumed entry with an application of A are out |
+
+Evidence is the comparison because the trail already records what each application matched (R5 needs
+it), so nothing is measured that was not already kept. Measured: the action with a declared outcome is
+replaced by it, and the action without one, in the same step, keeps its fallback.
 
 **And then comparison is not needed.** A branch answers *does this lead somewhere unacceptable*, and
 §19's veto already answers it: the hypothesis reaches the prohibition, the write is refused inside the

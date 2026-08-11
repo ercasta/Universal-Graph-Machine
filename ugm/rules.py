@@ -82,6 +82,20 @@ class RuleSet:
         # Authored precedence (§14): the bottom-most arbitrator is a lookup that
         # always returns and never searches.
         self.overrides: List[Tuple[Rule, Rule]] = []
+        # ...and defeat about a CASE. `overrides` is per tick: a rule overridden
+        # by another that matched anywhere this step does not apply at all, which
+        # is right when the two are rival answers to one situation (the boss's
+        # rule and the vice's) and wrong when they are rival answers to each of
+        # several. Pointing `overrides` at a real pair showed it: making the
+        # outcome of an action replace the assumption that the action happened
+        # also suppressed the assumption for every OTHER action in the step.
+        #
+        # Two intents, two relations, rows rather than branches. `supersedes`
+        # defeats only the applications that share **evidence** -- a consumed
+        # entry -- with an application of the higher rule, which is what *about
+        # the same case* means when the two rules bind different variables and
+        # cannot be compared any other way.
+        self.supersedes: List[Tuple[Rule, Rule]] = []
         # What each composed rule collapses. The trail of a shortcut, so
         # `decompose on surprise` knows which sub-steps to re-run (§21).
         self.composed_from: Dict[NodeId, Tuple["Rule", "Rule"]] = {}
@@ -156,6 +170,9 @@ class RuleSet:
 
     def overrides_rule(self, higher: Rule, lower: Rule) -> None:
         self.overrides.append((higher, lower))
+
+    def supersedes_rule(self, higher: Rule, lower: Rule) -> None:
+        self.supersedes.append((higher, lower))
 
     def compose(self, first: Rule, second: Rule, name: str = "") -> Optional[Rule]:
         """Collapse `first` then `second` into one rule (§4).
@@ -573,10 +590,36 @@ def defeat(rs: RuleSet, applications: Sequence[Application]) -> List[Application
     undone by the vice's on the following tick.
     """
     matched = [a.rule for a in applications]
-    surviving = [a for a in applications if not _defeated(rs, a.rule, matched)]
+    surviving = [
+        a
+        for a in applications
+        if not _defeated(rs, a.rule, matched) and not _superseded(rs, a, applications)
+    ]
     # A cycle in `overrides` would defeat everything. Arbitration must stay
     # total (§14), so fall back rather than answer nothing.
     return surviving or list(applications)
+
+
+def _superseded(rs: RuleSet, app: Application, applications: Sequence[Application]) -> bool:
+    """Defeated **for this case** rather than for this step.
+
+    Two applications are about the same case when they were triggered by the
+    same evidence, and a shared consumed entry is the only comparison available:
+    the rules bind different variables, so their bindings cannot be lined up.
+    It is also the honest one -- the trail already records what each application
+    matched, because R5 needs it, so nothing is measured that was not already
+    kept.
+    """
+    if not rs.supersedes:
+        return False
+    mine = {e.node for e in app.consumed}
+    for higher, lower in rs.supersedes:
+        if lower is not app.rule:
+            continue
+        for other in applications:
+            if other.rule is higher and mine & {e.node for e in other.consumed}:
+                return True
+    return False
 
 
 def _defeated(rs: RuleSet, rule: "Rule", matched: Sequence["Rule"]) -> bool:
