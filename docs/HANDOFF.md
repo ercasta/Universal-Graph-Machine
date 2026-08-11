@@ -1,4 +1,63 @@
-# Handoff — 2026-08-11 (second session)
+# Handoff — 2026-08-12
+
+Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
+`docs/rules-design.md` is still the design and the only doc that argues anything. **This file is a
+map, not a source** — where it disagrees with the design doc, the design doc wins.
+
+⚠ Everything below the second `# Handoff` line is the **previous** session, kept for its arguments.
+Where the two disagree, this header block and the sections directly under it win — in particular its
+*state of the code* and *where I would pick up* are superseded by what is here.
+
+## Verify in one go
+
+```
+python -m ugm.selftest     272 checks, 0 failing        the runner; any False is a failure
+python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
+python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
+python -m ugm.backward       0 failing, 0 blind         backward reading, as rules
+python -m ugm.compose        0 failing, n steps -> 1    composition, measured
+python -m ugm.modality       (table)                    grade vs lifted vs supposed
+python -m ugm.workload       0 failing                  the gate is now on STOPPING buying something
+```
+
+## The state of the code
+
+16 modules, ~7.2k lines. `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine;
+`selftest` `agreement` `bundle` `backward` `compose` `modality` `workload` are instruments;
+`stratum0` is the rule-level read.
+
+**No phases.** `tick()` is: read `enough` → recall → match → defeat → **forgone** → quiescence →
+arbitrate → doubt → **forgo** → apply; plus `_leave` when a hypothesis runs out of work and `_wake`
+when the loop does. Nothing in it is a line a rule could have written.
+
+**Seventeen bundled rules** (`Machine._install_bundle`): `intake`, `did`, `taken`, `assert-act`,
+`denial`, four `deviation-*`, `resuming`, `relevant`, and backward reading's `ask-recall`, `ask-fit`,
+`plan`, `expand`, `ask-check`, `give-up`.
+
+**Write-time hooks** (Python callables — honest debt, §21): `_dispatch`, `_enter`, `_fit`, `_settle`,
+`_verdict`.
+
+**Three guards, and they are one move — *escalate before believing a decline*:** `_widen` at a dry
+shortlist, `_forbid` at a write (§19's norm veto), `_notice_open` at a stop. None is a phase; each
+answers one question at one machinery decision.
+
+**Offline, outside the loop:** `review()` / `blame()` / `learned()` — credit and blame from the trail.
+
+## Where I would pick up
+
+Three narrow things forgoing left open, then the older thread:
+
+1. **Rivals are noticed only at the tick the choice is made**, so an alternative that becomes
+   applicable later is not passed up. Unmeasured whether that matters.
+2. **Complementary work must be declared**, and there is no way to declare it beyond denying the
+   deposit. (Two rules that should *both* run for one want.)
+3. **How badly a rule cost something is unsayable** — `harmed` is two-valued and the table's numerals
+   are non-negative, so a small cost cannot be weighed against a large benefit.
+4. Then: *when may a request be re-asked* and *when may a binding be reconsidered* — the two of the
+   original four hats still open. `enough` needed the loop to do **less** and one fact sufficed; these
+   need it to do something **again**.
+
+---
 
 ## Since the last handoff: **an agent that can stop**
 
@@ -284,11 +343,9 @@ with forgoing, a world with a safe alternative no longer produces harm, so it wo
 forgoing rather than the blame. It now has no tap: sometimes the only way costs something, and that is
 the case blame is for.
 
-**Where I would pick up now.** Two narrow things forgoing left open (§21): rivals are noticed **at the
-tick the choice is made**, so an alternative arriving later is not passed up; and *complementary* work
-is now a case a corpus must declare, with no way to declare it beyond denying the deposit. Then the
-older thread: **how badly** a rule cost something is unsayable, because the table's numerals are
-non-negative — so a small cost cannot be weighed against a large benefit. The
+Left open, and carried into the pickup list at the top of this file: rivals are noticed **at the tick
+the choice is made**; *complementary* work is now a case a corpus must declare; and **how badly** a
+rule cost something is unsayable, because the table's numerals are non-negative. The
 open question is not how to implement it but what it *is* — a rule can be defeated (`overrides`,
 `supersedes`), forbidden (the veto), or never proposed (recall), and none of those says *this was a
 live alternative and I am taking the other one*. Constraints the shape must satisfy: not a filter in
@@ -982,7 +1039,10 @@ ranked, nothing weighed. Checked.
 
 ---
 
-## The state of the code
+## The state of the code ⚠ SUPERSEDED — see the top of this file
+
+*(As of the previous session. Counts and the tick's shape have both changed; kept because the
+reasoning around them is referenced above.)*
 
 15 modules, ~4.7k lines. `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine;
 `selftest` `agreement` `bundle` `backward` `compose` `modality` are instruments; `stratum0` is the rule-level
@@ -1003,7 +1063,12 @@ which is the whole of its guarantee.
 
 ---
 
-## Where I would pick up
+## Where I would pick up ⚠ SUPERSEDED — see the top of this file
+
+*(The previous session's list. Item 1 is **done** — `enough`, `stopping`; two of its four hats are
+answered and two remain, carried forward. Item 2's ordering trap is answered by forgoing. Item 3 is
+**done** in outline — `review`/`blame`/`learned`, though the arena it measures in was the real
+finding. Items 4 and 5 stand. Kept for the arguments, not the priorities.)*
 
 **1. A reason to stop.** The measurement that makes this first: an *ideal* recall table reaches the
 goal in **8 ticks instead of 734**, and makes no difference at all to a run that goes to quiescence
