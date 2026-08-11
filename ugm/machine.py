@@ -48,7 +48,7 @@ class Step(NamedTuple):
     matched: int
     applied: Optional[Application]
     wrote: Tuple[Entry, ...]
-    state: str  # applied | quiescent | nothing-matched
+    state: str  # applied | supposed | expanded | quiet | quiescent | nothing-matched
 
 
 class Machine:
@@ -108,6 +108,34 @@ class Machine:
         # claim, and the wrong one.
         self.NOT = self.g.atom("not")
 
+        # Returning from a hypothesis, as an occasion other rules can key on
+        # (§13, §15). Leaving a frame is a register event -- anchored, so
+        # machinery -- and what the machinery deposits is the smallest
+        # unarguable record of it, exactly as `arrived` and `emitted` are for the
+        # boundary. What it MEANS is rules.
+        self.LEFT = self.g.atom("left")
+        # The other silent decline (§5). The loop running out of work is the
+        # third place the machinery declines and the only one that used to say
+        # nothing at all -- so reasoning could stop with goals still open and
+        # nothing in the graph recorded that it had. `quiet(<m>)` is that record,
+        # and a watchdog is then an ORDINARY rule with `+quiet(?m)` in its
+        # antecedent: inert until the loop stops, which is precisely when the
+        # aggregate it wants to compute -- *is anything still open?* -- becomes
+        # legitimate, because the search it is an aggregate over has finished.
+        self.QUIET = self.g.atom("quiet")
+        # A callback: a pointer to a rule, hung on a node. `+resume(h, <R>)` says
+        # *when h returns, R's turn has come* -- and `turn` is the strongest thing
+        # it can say, because §5's wall stands: no rule may apply a rule.
+        self.RESUME = self.g.atom("resume")
+        # A rule that ordinary recall does not propose. Dormancy is what makes a
+        # pointer do any work -- with recall exhaustive, a callback rule would
+        # apply whenever it happened to match and the pointer would be decoration.
+        self.DORMANT = self.g.atom("dormant")
+        # ...and the fact that wakes one. This is directed RECALL, not invocation:
+        # a proposed rule still has to match, can still be defeated, and still
+        # competes in arbitration. Nothing owns the loop (§18).
+        self.DUE = self.g.atom("due")
+
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
         # contestable as anything else, which is what `by(R, boss)` depends on.
@@ -132,6 +160,9 @@ class Machine:
             "binds": self.BINDS, "expands": self.EXPANDS,
             "doing": self.DOING, "did": self.DID,
             "expects": self.EXPECTS, "deviates": self.DEVIATES,
+            "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
+            "dormant": self.DORMANT, "due": self.DUE,
+            "check": self.CHECK, "unmet": self.UNMET,
             "causes": self.rules.CAUSES, "implies": self.rules.IMPLIES,
             "plus": self.rules.SIGN["+"], "minus": self.rules.SIGN["-"],
         }
@@ -147,6 +178,7 @@ class Machine:
         self.expansion_budget = 64
         self._expanded: set = set()
         self._acted: set = set()
+        self._quieted: set = set()
         self._actuators: List[NodeId] = []
         self.emitted: List[NodeId] = []
         # Machinery vocabulary: requests, not claims. Nothing carries these out of
@@ -156,7 +188,9 @@ class Machine:
                              self.PLAN, self.SUBGOAL, self.BINDS, self.EXPANDS,
                              self.EXPECTS, self.DOING, self.DID, self.DEVIATES,
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
-                             self.NEED, self.CHECK, self.UNMET}
+                             self.NEED, self.CHECK, self.UNMET,
+                             self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
+                             self.DUE}
 
         self.bundle: List[Rule] = []
         self._install_bundle()
@@ -244,6 +278,34 @@ class Machine:
                 [Member(PLUS, g.rel(self.NOT, q))],
                 [Member(MINUS, q)],
                 "denial",
+            )
+        )
+
+        # A callback: what to do on the way back out of a hypothesis.
+        #
+        # `+resume(h, <R>)` hangs a pointer to a rule on the hypothesis's own
+        # node, and this rule picks it up when that hypothesis returns. What it
+        # can do with the pointer is the whole finding: **not apply it**. §5's
+        # wall stands -- applying is substitution, substitution is floor, and no
+        # rule crosses it. What a rule can do is say *this one's turn has come*,
+        # and leave the machinery to propose it.
+        #
+        # So a callback is directed RECALL, not invocation, and that is a
+        # stronger result than a call would have been. The woken rule still has
+        # to match, can still be defeated, still competes in arbitration, and
+        # still yields to a surprise -- none of which survives a subroutine call.
+        # §18's *nothing may own the loop* is not weakened by adding
+        # continuations, which is not the usual outcome.
+        f, a, r = g.var("?frame"), g.var("?assumed"), g.var("?rule")
+        self.bundle.append(
+            self.rules.rule(
+                IMPLIES,
+                [
+                    Member(PLUS, g.rel(self.LEFT, f, a)),
+                    Member(PLUS, g.rel(self.RESUME, a, r)),
+                ],
+                [Member(PLUS, g.rel(self.DUE, r))],
+                "resuming",
             )
         )
 
@@ -536,6 +598,52 @@ class Machine:
         if frame.parent is None or frame.wrap is None:
             return False
         self.discharge(frame, frame.wrap)
+        # Returning is an OCCASION, and the smallest unarguable record of it is
+        # that this frame, assuming this, is over. Nothing here says what follows
+        # -- `<resuming>` and whatever a corpus hangs on the hypothesis do that.
+        # This is the same split as `arrived` and `emitted`: crossing is
+        # machinery because a frame is anchored and a rule is generic; what the
+        # crossing MEANS was never the machinery's to say.
+        (assumption,) = self.g.members(frame.purpose) if frame.purpose is not None else (frame.node,)
+        self.gate.write(
+            self.focus, self.g.rel(self.LEFT, frame.node, assumption), PLUS,
+            licence=self.g.rel(self.CONCLUDED, frame.node), source=self.KB,
+        )
+        return True
+
+    def _wake(self) -> bool:
+        """The loop found nothing to do. Say so, in the graph, once per seat.
+
+        §5 named two places the machinery declines -- match and write -- and
+        quiescence is the third. It was the only one that declined *silently*,
+        and silence is what lets reasoning stop with goals still open and nothing
+        anywhere recording that it stopped rather than finished.
+
+        What is deposited is one fact and no interpretation. A watchdog is then
+        an ordinary rule with `+quiet(?m)` in its antecedent: inert until the
+        loop stops, because nothing else ever writes that. No registry of
+        watchdogs, no trigger table, no second loop -- the trigger IS the fact,
+        and the rule that wants it says so in its antecedent like any other rule.
+
+        Two things fall out that are worth having. Quiescence is the moment an
+        **aggregate over a finished search** becomes legitimate, which is where
+        §21's homeless `blocked` belongs -- *no rule fits* is only true of a
+        search that is over, and now there is a fact that says one is. And
+        because waking is an ordinary write, whatever a watchdog concludes is
+        ordinary reasoning: preemptable, defeasible, and in the same trace.
+
+        Once per seat, tracked rather than resolved, because the point of the
+        entry is to be *new* -- writing it a second time at the same seat would
+        make it re-match forever.
+        """
+        seat = self.focus.seat
+        if seat.node in self._quieted:
+            return False
+        self._quieted.add(seat.node)
+        self.gate.write(
+            self.focus, self.g.rel(self.QUIET, seat.node), PLUS,
+            licence=self.g.rel(self.QUIET, seat.node), source=self.KB,
+        )
         return True
 
     # -- acting, and being wrong about it ---------------------------------
@@ -832,6 +940,12 @@ class Machine:
             # subroutine returned.
             if self._leave():
                 return Step(arrivals, len(proposed), 0, None, (), "supposed")
+            # ...and if there is nothing to leave either, the loop has stopped.
+            # Say so before reporting it, so that anything waiting on the loop
+            # stopping gets its turn (`_wake`). This is not a phase: it writes
+            # one fact and decides nothing.
+            if self._wake():
+                return Step(arrivals, len(proposed), 0, None, (), "quiet")
             return Step(
                 arrivals,
                 len(proposed),
@@ -853,7 +967,7 @@ class Machine:
         for _ in range(limit):
             s = self.tick()
             out.append(s)
-            if s.state not in ("applied", "supposed", "expanded"):
+            if s.state not in ("applied", "supposed", "expanded", "quiet"):
                 break
         return out
 
@@ -861,8 +975,37 @@ class Machine:
 
     def _recall(self) -> List[Rule]:
         """Never complete, by design (§15). Exhaustive here, which is the
-        deliberate-reasoning setting: recall with the budget removed."""
-        return list(self.rules.rules)
+        deliberate-reasoning setting: recall with the budget removed -- with one
+        exception, and the exception is the first thing a corpus has ever been
+        able to say to this step.
+
+        A rule claimed `dormant` is not proposed until something claims it `due`.
+        That is all a callback is. §15 argues recall is where experience belongs
+        and where being wrong is recoverable; a pointer hung on a hypothesis is
+        experience the corpus supplies instead of learns, arriving at exactly the
+        seam that was reserved for it.
+
+        Both are ordinary facts, so both are askable, defeasible and attributable
+        -- *which rules is this hypothesis carrying?* is a query, not a field. And
+        both are read at the register's own position, so a callback attached
+        inside a hypothesis wakes only there.
+
+        Cost, stated rather than discovered: two resolves per rule per tick.
+        Cheap now because the rule set is small and `resolve` is a walk; the
+        moment it is not, this is an index over two relations, not a redesign.
+        """
+        out: List[Rule] = []
+        for r in self.rules.rules:
+            if self._claims(self.g.rel(self.DORMANT, r.node)) and not self._claims(
+                self.g.rel(self.DUE, r.node)
+            ):
+                continue
+            out.append(r)
+        return out
+
+    def _claims(self, proposition: NodeId) -> bool:
+        e = self.chain.resolve(proposition, self.focus.topic, self.focus.seat)
+        return e is not None and e.sign == PLUS
 
     def _deliver(self, a: Arrival) -> None:
         """Cross the boundary, and nothing else — when the world speaks, not when
@@ -999,8 +1142,15 @@ class Machine:
         already recorded, because R5 needs them for the trail. This is the trail
         being load-bearing for something other than explanation, which §16 argues
         is the pattern to expect.
+
+        Inheritance has to start somewhere, and `app.rule.mentions` is the
+        source: a rule AUTHORED naming a rule -- `+resume(?h, <cb>)`, the `<...>`
+        marker the surface already reads for facts -- is mentioning. Without it a
+        rule that attaches a rule to something concludes a structurally generic
+        proposition from entries that are not mentions, and quiescence drops it
+        as *nothing to do*.
         """
-        return any(e.mention for e in app.consumed)
+        return app.rule.mentions or any(e.mention for e in app.consumed)
 
     # -- asking -----------------------------------------------------------
 

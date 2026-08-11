@@ -2604,6 +2604,90 @@ episodes accumulate. The second is the real cost, and it is a **rebuild from the
 a patch of the previous index** — an index patched incrementally drifts from the history it claims to
 summarise, and nothing detects it.
 
+### Occasions, and the first thing a corpus can say to recall
+
+Two questions arrive together and turn out to be one mechanism.
+
+*What should happen when the agent comes back out of a hypothesis?* And *what stops reasoning from
+dying quietly with a goal still open?*
+
+Both are asking for something to happen **at a moment the machinery owns and no rule can name**. A
+rule is generic; leaving a frame and running out of work are anchored events, in the same way an
+arrival and an emission are. §17's answer for those two was not to give the loop a phase but to
+deposit the smallest unarguable record and let rules say what it means. The same answer works here,
+and it costs two facts:
+
+    left(<frame>, <assumption>)      this hypothesis, assuming this, is over
+    quiet(<m>)                       the loop found nothing to do at this seat
+
+`quiet` closes §5's third silence. §5 named two places the machinery declines — match and write — and
+quiescence is a third that declined by saying nothing at all. It is also, and this is the part worth
+having, the moment at which an **aggregate over a finished search** becomes legitimate: *no rule
+fits*, *nothing is left to try*, *that goal is still open* are all claims about a search being over,
+and now there is a fact that says one is.
+
+A watchdog needs nothing further. It is an ordinary rule with `+quiet(?m)` in its antecedent — inert
+until the loop stops, because nothing else ever writes that. No trigger table, no second loop, no
+registry: **the trigger is the fact**.
+
+#### A callback is a pointer to a rule, and it may not be a call
+
+`left` is not enough on its own, because a rule keyed on it fires when *any* hypothesis returns. What
+a callback needs is per-hypothesis scope, and the natural way to write that is to hang a pointer on
+the hypothesis:
+
+    resume(h, <R>)                   when h returns, R's turn has come
+
+The temptation is to read `resume` as a call, and §5 forbids it: applying a rule is substitution,
+substitution is floor, and no rule crosses it. So the meta rule that picks the pointer up cannot
+invoke anything. What it can do is say that a rule's **turn** has come —
+
+    { +left(?f, ?a), +resume(?a, ?r) }  ⟹  { +due(?r) }
+
+— and leave the machinery to propose it. A rule claimed `dormant` is not proposed by ordinary recall;
+one claimed `due` is. That is the whole mechanism, and the wall turns out to have been protecting
+something:
+
+> **A callback is directed recall, not invocation.** The woken rule still has to match, can still be
+> defeated, still competes in arbitration, and still yields to a surprise. None of that survives a
+> subroutine call.
+
+Which is the answer to the obvious objection — that continuations are control flow, and §18 spends
+its length arguing nothing may own the loop. They are not, here. Adding continuations does not weaken
+*nothing owns the loop*, which is not the usual outcome of adding continuations to anything.
+
+It also lands where §19 said the seam was. Recall is the step where experience belongs and where
+being wrong is recoverable; `dormant` and `due` are the first thing a corpus has ever been able to say
+to it. A pointer hung on a hypothesis is experience the author supplies instead of the agent learning
+it, arriving at exactly the reserved seam.
+
+|  | a phase that runs callbacks | **occasion + dormant/due** |
+|---|---|---|
+| not leaking | ❌ *what runs on return* is control flow, so nothing can override it | ✅ `resume` is a fact, defeasible and attributable like any claim |
+| not lossy | ❌ a call that returned leaves no record it was made | ✅ `left`, `resume`, `due` are all entries; *why did this rule apply?* answers |
+| readable | ❌ | ✅ *which rules is this hypothesis carrying?* is a query over `resume` |
+| composable | ⚠ a callback that calls owns the loop until it returns | ✅ the woken rule is one candidate among others, preemptable between ticks |
+
+Three costs, stated rather than discovered.
+
+**The occasion persists.** `quiet` is an entry, not an event, so a watchdog is armed from quiescence
+onwards rather than fired once. A watchdog whose conclusion creates new matches for itself —
+`+quiet(?m), +blocked(?g) ⟹ +goal(ask(?g))`, whose new goal is blocked in turn — runs until its
+budget. Quiescence stops the honest ones and is not enough on its own.
+
+**`due` is not consumed.** A woken rule stays awake. Correct while recall is exhaustive; wrong the
+moment recall has a budget, and it is the same open question as when a plan is *settled* (§21).
+
+**Pointing at a rule is a mention, and mention has to start somewhere.** A rule node contains the
+variables of its own patterns, so `+resume(?h, <cb>)` is a ground claim that is structurally generic.
+§14 settles use and mention by inheritance — *mention propagates through bindings* — and inheritance
+needs a source: a pattern authored naming a rule is one. Two things had been getting this wrong
+silently. A rule concluding about a rule was dropped by quiescence as *nothing to do*; and
+substitution, which rebuilds a consequent through the interning constructor, was returning an
+interned **twin** of any rule node it descended into — so the pointer named a rule that did not exist,
+and every question about the real one answered nothing. Both were invisible until something pointed
+at a rule.
+
 ---
 
 # Part IV — Gates and open questions

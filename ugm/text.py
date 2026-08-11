@@ -349,8 +349,15 @@ class Loader:
         scope: Dict[str, NodeId] = {}
         ant = [Member(m.sign, self.build(m.term, scope), m.grade) for m in s.antecedent]
         con = [Member(m.sign, self.build(m.term, scope), m.grade) for m in s.consequent]
+        # A consequent that NAMES a rule drags that rule's own variables in with
+        # it: `+resume(?h, <cb>)` is generic only because `<cb>`'s patterns are.
+        # Those are mentioned, not used, and no antecedent can or should bind
+        # them -- so they are exempt, and every other variable is still checked.
         unbound = [
-            m for m in con if self.m.g.has_var(m.pattern) and not self._covered(m.pattern, ant)
+            m
+            for m, written in zip(con, s.consequent)
+            if self.m.g.has_var(m.pattern)
+            and not self._covered(m.pattern, ant, self._named_rule_vars(written.term))
         ]
         if unbound:
             raise ParseError(
@@ -358,16 +365,33 @@ class Loader:
                 f"never binds -- the gate would refuse to deposit it (§13)."
             )
         r = self.m.rules.rule(s.connective, ant, con, s.name)
+        # The same `<...>` marker `_fact` reads, one level up: a rule authored
+        # naming a rule is mentioning, and everything it concludes inherits that.
+        #
+        # The CONSEQUENT only. An antecedent that names a rule needs nothing: it
+        # matches an entry that was already written as a mention, and §14's
+        # propagation carries it. Flagging that case too would be broader than
+        # the evidence for it.
+        r.mentions = any(_mentions_a_rule(m.term) for m in s.consequent)
         self.rules_by_name[s.name] = r
         self.rule_nodes[s.name] = r.node
 
-    def _covered(self, pattern: NodeId, ant: List[Member]) -> bool:
+    def _covered(self, pattern: NodeId, ant: List[Member], exempt: set = frozenset()) -> bool:
         g = self.m.g
-        wanted = _vars_in(g, pattern)
+        wanted = _vars_in(g, pattern) - set(exempt)
         have = set()
         for m in ant:
             have |= _vars_in(g, m.pattern)
         return wanted <= have
+
+    def _named_rule_vars(self, t: Term) -> set:
+        """The variables a term inherits purely by naming a rule."""
+        out: set = set()
+        if t.is_rule:
+            out |= _vars_in(self.m.g, self.rule_ref(t.head))
+        for a in t.args:
+            out |= self._named_rule_vars(a)
+        return out
 
     def _fact(self, s: Statement) -> None:
         assert s.member is not None

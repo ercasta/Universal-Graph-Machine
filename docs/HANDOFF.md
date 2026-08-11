@@ -1,7 +1,6 @@
-# Handoff — 2026-08-10
+# Handoff — 2026-08-11
 
-Branch `restart`, at `77cf130 denial`, pushed and clean. `main` still holds the old 46-module engine
-on purpose.
+Branch `restart`. `main` still holds the old 46-module engine on purpose.
 
 `docs/rules-design.md` is still the design and still the only doc that argues anything. **This file
 is a map, not a source** — where it disagrees with the design doc, the design doc wins.
@@ -11,9 +10,9 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     161 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     175 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
-python -m ugm.bundle         8/8 bundled rules exercised  is every shipped rule load-bearing?
+python -m ugm.bundle         9/9 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 missing, 0 blind         backward reading as rules vs as a phase
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
@@ -44,6 +43,7 @@ gone. Ten commits:
 | `handoff` | this file |
 | `denial` | §9 settled by measurement: sign **and** `not`, translating one way |
 | `compose` | pattern-against-pattern is **unification, not match**; composition built and measured |
+| `occasions` | leaving a hypothesis and running out of work become **facts**; callbacks and watchdogs |
 
 ### 1. The spine changed
 
@@ -97,6 +97,45 @@ bindings*, checkable because consumed entries are already recorded for the trail
 **`match` from a rule is a request, not a sixth primitive — and it cannot answer with a binding**,
 because a rule cannot apply one. *Match and substitute travel together.*
 
+### 5. Two occasions, one mechanism — and the wall was protecting something
+
+Two questions turned out to be one. *What runs on the way back out of a hypothesis?* and *what stops
+reasoning dying quietly with a goal still open?* Both want something to happen at a moment the
+machinery owns and no rule can name — so both get §17's treatment for arrivals and emissions:
+deposit the smallest unarguable record, let rules say what it means.
+
+    left(<frame>, <assumption>)      written by `_leave`, after discharge
+    quiet(<m>)                       written by `_wake`, once per seat
+
+**`quiet` closes §5's third silence.** Match and write were the two named places the machinery
+declines; quiescence was a third that said nothing at all. It is also the moment an *aggregate over a
+finished search* becomes legitimate — which is where §21's homeless `blocked` belongs. A watchdog
+needs nothing more: it is an ordinary rule with `+quiet(?m)` in its antecedent, inert until the loop
+stops because nothing else writes that. **The trigger is the fact** — no trigger table, no registry.
+
+**A callback is a pointer to a rule, and it may not be a call.** `+resume(h, <R>)` hangs a rule on a
+hypothesis; `<resuming>` picks it up and can only say *this rule's turn has come* (`+due(<R>)`),
+because §5 forbids a rule applying a rule. A `dormant` rule is not proposed by ordinary recall; a
+`due` one is. So a callback is **directed recall, not invocation** — and that is stronger than a call:
+the woken rule still has to match, can still be defeated, still competes, still yields to a surprise.
+Adding continuations did not weaken *nothing owns the loop*.
+
+It also lands on §19's reserved seam: `dormant`/`due` are the first thing a corpus has ever been able
+to say to `_recall`.
+
+Three things this cost, and two of them were bugs that had been invisible:
+
+* **substitution was minting twins.** Rebuilding a consequent goes through the interning constructor,
+  so descending into a rule node returned an interned *copy* — the pointer named a rule that did not
+  exist and every question about the real one answered nothing. Fixed in `substitute`/`ground`: a
+  subterm nothing changed is returned unchanged.
+* **mention had no source.** §14's *mention propagates through bindings* needs somewhere to start; a
+  rule authored naming a rule (`<...>` in its consequent) is it. Without it a rule attaching a rule
+  was dropped by quiescence as *nothing to do*.
+* **the occasion persists.** `quiet` is an entry, not an event, so a watchdog is armed from quiescence
+  onward, not fired once. One whose conclusion re-arms it runs to its budget. Likewise `due` is not
+  consumed — a woken rule stays awake, which is fine only while recall is exhaustive.
+
 ---
 
 ## The state of the code
@@ -106,10 +145,11 @@ because a rule cannot apply one. *Match and substitute travel together.*
 read.
 
 **One phase remains**: `Machine._expand_goal`. Everything else in `tick()` is recall → match →
-defeat → quiescence → arbitrate → apply, plus a `_leave()` when a supposition runs out of work.
+defeat → quiescence → arbitrate → apply, plus a `_leave()` when a supposition runs out of work and a
+`_wake()` when the loop does.
 
-**Eight bundled rules** ship as data (`Machine._install_bundle`): `intake`, `did`, `assert-act`, and
-four `deviation-*`, and `denial`.
+**Nine bundled rules** ship as data (`Machine._install_bundle`): `intake`, `did`, `assert-act`,
+`denial`, `resuming`, and four `deviation-*`.
 
 **Four write-time hooks**: `_dispatch` (acting), `_enter` (supposition), `_fit`, `_settle`. These are
 Python callables, which is honest debt — §21 records it.
@@ -123,8 +163,11 @@ because the phase starves forward reasoning. So retiring it is a **behavioural c
 not a refactor. Two things block a clean swap:
 
 * `blocked` is a **state, not a fact** — no rule can conclude *no rule fits*, which is an aggregate
-  over a finished search. It needs a home.
-* nothing says when a plan is *settled*, which is also §21's backtracking item.
+  over a finished search. **`quiet` is now the home**: an aggregate over a finished search is
+  legitimate exactly when the search is over, and a fact now says one is. Nothing has been moved onto
+  it yet.
+* nothing says when a plan is *settled*, which is also §21's backtracking item, and the same question
+  as *when is a `due` rule done*.
 
 **2. The composition trigger.** Composition is built and measured (n steps -> 1, defeat inherited).
 What is missing is *when*: §4's answer is `compose what has run often and never surprised; decompose

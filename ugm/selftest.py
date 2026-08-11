@@ -982,6 +982,126 @@ def the_loop_closes() -> None:
           m2.holds(kb2.term("blocked(anything(here))")) == PLUS)
 
 
+def callbacks_on_a_hypothesis() -> None:
+    """A pointer to a rule, hung on a hypothesis, picked up when it returns.
+
+    The mechanism is three ordinary facts and one bundled rule. What makes it
+    worth having is what it is NOT: `<cb>` is never called. `<resuming>` reads
+    the pointer and says only *this rule's turn has come*; the machinery then
+    proposes it, and it applies -- or is defeated, or does not match -- like
+    anything else. A continuation, without a call.
+
+    The worked case is reductio: what a hypothesis concluded can only be judged
+    from outside it, after it is over, which is exactly what no rule inside the
+    frame and no generic rule outside it can time for itself.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        # The callback. It names no hypothesis: the pointer supplies that.
+        "rule <cb>     = implies( { +left(?f, ?a), +hyp(?q), -?q }, { -?a } )",
+        "fact dormant(<cb>)",
+        # Attaching it is a rule's job, not the loader's -- a hypothesis is
+        # raised in the middle of reasoning, so its callback has to be too.
+        "rule <start>  = implies( { +testing(?h) },",
+        "                        { +resume(?h, <cb>), +suppose(?h, hyp) } )",
+        "rule <derive> = implies( { +h(?x) }, { +q(?x) } )",
+        "fact -q(a)",
+        "fact +testing(h(a))",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, src)
+    steps = m.run(limit=80)
+
+    check("§13", "a rule attached a rule to a hypothesis", m.holds(kb.term("resume(h(a), <cb>)")) == PLUS)
+    check("§13", "leaving a hypothesis is recorded as an occasion", any(s.state == "supposed" for s in steps))
+    check(
+        "§15",
+        "the pointer woke a dormant rule -- recall, not invocation",
+        m.holds(m.g.rel(m.DUE, kb.rules_by_name["cb"].node)) == PLUS,
+    )
+    check(
+        "§13",
+        "and the callback drew reductio: the hypothesis contradicted a belief, so it is false",
+        m.holds(kb.term("h(a)")) == MINUS,
+    )
+    check(
+        "§17",
+        "what the hypothesis concluded stayed inside it",
+        m.holds(kb.term("q(a)")) == MINUS and m.holds(kb.term("hyp(q(a))")) == PLUS,
+    )
+    check("§14", "and the loop settled", steps[-1].state == "quiescent" and m.exhausted == 0)
+
+    # The pointer is load-bearing, not decoration: without it the same rule is
+    # never proposed, and the same reasoning stops one step short.
+    m2 = Machine()
+    kb2 = load(m2, src.replace("+resume(?h, <cb>), ", ""))
+    m2.run(limit=80)
+    check(
+        "§15",
+        "delete the pointer and the callback never runs -- dormancy is what makes it a pointer",
+        m2.holds(kb2.term("h(a)")) is None,
+    )
+
+
+def quiescence_is_an_occasion() -> None:
+    """§5 named two places the machinery declines. The third is the loop running
+    out of work, and it was the one that declined in silence.
+
+    A watchdog needs no trigger table and no second loop: `quiet(<m>)` is a fact,
+    so a watchdog is an ordinary rule that names it in its antecedent -- inert
+    until the loop stops, because nothing else ever writes it.
+
+    The cost, found by hitting it: **the occasion persists.** `quiet` is an
+    entry, not an event, so a watchdog is armed from quiescence onwards rather
+    than fired once. One whose conclusion creates new matches for itself --
+    `+quiet(?m), +blocked(?g) => +goal(ask(?g))`, where the new goal is blocked
+    in turn -- runs until its budget. Quiescence is what stops the honest ones,
+    and it is not enough on its own.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        "rule <watch> = implies( { +quiet(?m), +blocked(?g) }, { +stuck(?g) } )",
+        "rule <escal> = implies( { +stuck(?g) },               { +doing(ask(user, ?g)) } )",
+        "fact +goal(fixed(pump))",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, src)
+    steps = m.run(limit=60)
+
+    check(
+        "§5",
+        "the loop running out of work is deposited, not merely returned",
+        m.holds(m.g.rel(m.QUIET, m.focus.seat.node)) == PLUS,
+    )
+    check("§5", "and the tick reports which silence it was", any(s.state == "quiet" for s in steps))
+    check(
+        "§15",
+        "a watchdog catches reasoning stopping with a goal still open",
+        m.holds(kb.term("stuck(fixed(pump))")) == PLUS,
+    )
+    check(
+        "§15",
+        "and the agent escalates instead of dying quietly -- an act, not a log line",
+        m.holds(kb.term("did(ask(user, fixed(pump)))")) == PLUS,
+    )
+    check(
+        "§18",
+        "the watchdog is an ordinary rule -- nothing about it is a phase",
+        kb.rules_by_name["watch"] in m.rules.rules,
+    )
+    check(
+        "§14",
+        "waking is once per seat, so the occasion cannot re-arm itself",
+        sum(1 for s in steps if s.state == "quiet") == 1,
+    )
+    check("§14", "and the loop settles after the watchdog has had its say",
+          steps[-1].state == "quiescent")
+
+
 def main() -> int:
     import sys
 
@@ -1009,6 +1129,8 @@ def main() -> int:
     denial_nests()
     mention_propagates()
     surprise_is_four_rows()
+    callbacks_on_a_hypothesis()
+    quiescence_is_an_occasion()
     surface()
     worked_examples()
 

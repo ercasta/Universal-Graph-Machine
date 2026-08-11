@@ -35,12 +35,21 @@ class Rule:
         antecedent: Sequence[Member],
         consequent: Sequence[Member],
         name: str = "",
+        mentions: bool = False,
     ) -> None:
         self.node = node
         self.connective = connective
         self.antecedent = list(antecedent)
         self.consequent = list(consequent)
         self.name = name
+        # Whether this rule was AUTHORED naming a rule -- `+resume(?h, <cb>)`.
+        # A rule node contains the variables of its own patterns, so a consequent
+        # that names one is a ground claim that happens to be generic, and the
+        # gate would otherwise refuse it. §14 settles use/mention by inheritance,
+        # and inheritance has to start somewhere: a pattern written with `<...>`
+        # is the source. Without this a rule that ATTACHES a rule to something is
+        # dropped by quiescence -- silently, and only at `_would_change`.
+        self.mentions = mentions
 
     def __repr__(self) -> str:
         return f"<{self.name or self.connective}>"
@@ -308,7 +317,11 @@ def rename(g: Graph, pattern: NodeId, fresh: Dict[NodeId, NodeId]) -> NodeId:
 
     Two rules written independently both say `?w`, and they mean different
     things. Matching never notices because only one side has variables.
+
+    Ground structures pass through untouched -- same reason as `substitute`.
     """
+    if not g.has_var(pattern):
+        return pattern
     if g.is_var(pattern):
         if pattern not in fresh:
             fresh[pattern] = g.var(f"{g.show(pattern)}'")
@@ -321,26 +334,52 @@ def rename(g: Graph, pattern: NodeId, fresh: Dict[NodeId, NodeId]) -> NodeId:
 
 
 def ground(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
-    """Apply a two-sided substitution, following variable chains."""
+    """Apply a two-sided substitution, following variable chains.
+
+    A subterm nothing changed passes through untouched, for `substitute`'s
+    reason: interning a rebuilt copy of something minted un-interned makes a
+    twin."""
     p = walk(g, pattern, bindings)
     if g.is_var(p) or not g.members(p):
         return p
     r = g.relation_of(p)
     assert r is not None
-    return g.rel(r, *[ground(g, m, bindings) for m in g.members(p)])
+    members = g.members(p)
+    new = [ground(g, m, bindings) for m in members]
+    if p == pattern and all(a == b for a, b in zip(new, members)):
+        return p
+    return g.rel(r, *new)
 
 
 def substitute(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
     """Ground a consequent pattern. Anything still generic afterwards is a rule
     whose consequent names something its antecedent never bound, and the gate
-    refuses it rather than minting a node nobody can read."""
+    refuses it rather than minting a node nobody can read.
+
+    **A subterm nothing changed is returned unchanged**, and that is correctness
+    rather than a shortcut. Rebuilding goes through `g.rel`, which interns, so a
+    subterm minted by `instance` comes back as a *different node*. A rule node is
+    exactly that -- §5 needs a rule to be a node other facts can be about, so
+    rule nodes do not intern.
+
+    The test cannot be *is it ground*, because a rule node is not: it contains
+    the variables of its own patterns. `+resume(?h, <cb>)` binds `?h` and touches
+    nothing inside `<cb>`, whose variables belong to `<cb>` and are bound by
+    nobody. Rebuild it anyway and the conclusion is about an interned **twin** of
+    the rule, so every later question about the real one answers nothing --
+    silently, and only when rules started being pointed at.
+    """
     if g.is_var(pattern):
         return bindings.get(pattern, pattern)
-    if not g.members(pattern):
+    members = g.members(pattern)
+    if not members:
         return pattern
     rel = g.relation_of(pattern)
     assert rel is not None
-    return g.rel(rel, *[substitute(g, m, bindings) for m in g.members(pattern)])
+    new = [substitute(g, m, bindings) for m in members]
+    if all(a == b for a, b in zip(new, members)):
+        return pattern
+    return g.rel(rel, *new)
 
 
 # -- match ------------------------------------------------------------------
