@@ -2639,6 +2639,38 @@ this, and the fact that the seam is at the proposal step is a limit of the seam,
 one is built at `deposit`, the other from the state that a single walk already produced. An index over
 derived values would be a cache of something defeasible, which is §16's objection one level up.
 
+### What recall is worth, and what has to exist before it is worth anything
+
+Measured, on a workload built to have the property recall needs (`ugm.workload`): D domains of
+knowledge, all in play, one goal in one of them.
+
+An **ideal** table — authored, naming exactly the rules the goal's chain needs — reaches the goal in
+**8 ticks instead of 734**, with a fifth of the writes. Recall's prize is real and it is large.
+
+And on the same run it saved **nothing at all**, because the loop went to quiescence and did every
+domain anyway. That is the finding, and it is about the machine rather than about recall:
+
+> **Recall cannot save work in a machine that runs to quiescence.** Narrowing changes the *order* in
+> which everything is done, not how much is done. Only an agent that can **stop** collects the prize.
+
+This design has no account of stopping. §15 bounds reasoning with a *limit*, which is a budget running
+out rather than a reason; nothing says a plan is finished, a woken rule is done, or a question has
+been answered well enough. So the order of work is settled: an agent that can stop, then recall worth
+narrowing, then experience worth learning. Doing them the other way round produces a mechanism whose
+effect nothing can detect.
+
+Two smaller results fall out of building the measurement, and both are about instruments rather than
+about the engine.
+
+**A shortlist pays only where many rules match and are useless.** The obvious fixture — an n-rule
+forward chain — cannot measure recall at any n, because only a handful of rules match per tick and an
+indexed non-match is nearly free. Scale is not the requirement; **selectivity** is. A benchmark that
+cannot fail is worse than none, because it reads as evidence.
+
+**The key must be what the agent is trying to do, not what just changed.** Keying the table on the
+relations in play was the cheapest thing that recurs, and on a goal-directed workload it discriminates
+nothing: every domain is always in play. What separates the useful rules there is the *goal*.
+
 ### The carve-out
 
 > **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**

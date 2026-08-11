@@ -16,6 +16,7 @@ python -m ugm.bundle        14/14 bundled rules exercised  is every shipped rule
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
+python -m ugm.workload       0 failing                  can this workload measure recall at all?
 ```
 
 `ugm.bundle` re-runs the whole suite once per bundled rule; it takes ~20s (it took five minutes
@@ -51,6 +52,7 @@ gone. Ten commits:
 | `naming` | a **fact may carry a name**; a named norm is a node rules can retire |
 | `reference` | reference is **binding**; the walk is one order; the naming claim corrected |
 | `theread` | the read indexed — **67× on the goal fixture**; and `causes` was orphaning the register |
+| `workload` | a workload recall can be measured on — and **recall cannot pay until the agent can stop** |
 
 ### 1. The spine changed
 
@@ -355,6 +357,54 @@ The index is gated against a brute-force walk over a world that forks and revise
 because replacing a walk with an index is exactly the change that is right for a fixture and wrong for
 a fork.
 
+### 12. A workload recall can be measured on — and what it measured instead
+
+The question was *how do we build a big enough workload; should we take `../pystrider`?*
+
+**Not from pystrider's rules.** `pystrider/rules/*.mf` are microfunctions — `ATTR`, `CONST`, `JMPNOT`,
+`DISPATCH` — the ISA-with-opcodes floor this design rejects, and CLAUDE.md is explicit that nothing is
+ported without re-deriving it. It is 532 lines, so it is not "big" either. What *is* worth taking is
+the shape of `experiments/vocabularies/` — business, ux, bridge: **separate worlds that must be
+joined**. (Two memories warn against pystrider; both are about *gating* on it as a consumer of the old
+engine, which this is not.)
+
+**Size was never the problem.** On a 30-rule chain, between one and eight rules match per tick — and
+since `theread` indexed the state, a rule that does not match costs almost nothing. A perfect table
+could not beat exhaustive recall there at any n.
+
+> **A shortlist pays only where many rules MATCH and are useless.** Scale is not the requirement;
+> **selectivity** is.
+
+So `ugm.workload` builds D domains × depth R, all seeded, one goal in one domain — every domain's
+rules match from the first tick, and D−1 of them are irrelevant. And its first result was that an
+ideal, hand-authored table bought **nothing**:
+
+```
+  D  R   recall                   ->goal  ->quiet  w@goal  writes
+  8  8   exhaustive                  734      801    1798    1873
+  8  8   budget 8, no table         1468     1601    1798    1873
+  8  8   budget 8, ideal table         8     1593     346    1881
+```
+
+The table is **perfect** — it reaches the goal in exactly R ticks, 92× fewer, with 5× fewer writes.
+It was invisible because the `->quiet` column is the same for all three:
+
+> **Recall cannot save work in a machine that runs to quiescence.** Narrowing changes the ORDER in
+> which everything is done, not how much is done. The prize is real, and only an agent that can
+> **stop** collects it.
+
+So the thing in front of learning is not a bigger corpus. It is a reason to stop — and that is the
+same question as *when is a plan settled*, *when is a `due` rule done*, *when may a request be
+re-asked*, and §21's backtracking. Four hats, one head.
+
+⚠ Two things `ugm.workload` is not. The table is a **ceiling, not an algorithm** — authored, naming
+the answer, learning nothing. And its gate is that the table must buy something: if it ever stops
+doing so, the workload has become the n-rule chain again with more rules in it.
+
+⚠ **`_in_play` is the wrong key for goal-directed work.** It keys on what just changed, and in this
+workload every domain is always in play. The key that would work here is what the agent is *trying to
+do*. The hand-authored table sidesteps it by naming each rule's own antecedent relation.
+
 ---
 
 ## The state of the code
@@ -380,11 +430,16 @@ which is the whole of its guarantee.
 
 ## Where I would pick up
 
-**1. Recall, continued** — but read §11 first: recall was *not* where the cost was, and narrowing it
-made a goal fixture **slower**. What is still undone: the table is authored, never learned; `_in_play`
-is the cheapest key that recurs and deserves a measured comparison; the exhaustive pass fires only on
-a dry shortlist, never on novelty or a schedule. **Do not start on learning without a workload big
-enough to measure it on** — §11's fixture is a start and it is not a corpus.
+**1. A reason to stop.** §12 measured it: an *ideal* recall table reaches the goal in **8 ticks instead
+of 734**, and it makes no difference at all to a run that goes to quiescence. Everything downstream —
+learning, the composition trigger, any claim that an agent is efficient — is waiting on this and not on
+a bigger corpus. It is the same question as *when is a plan settled*, *when is a `due` rule done*,
+*when may a request be re-asked*, and §21's backtracking. Four hats, one head.
+
+**2. Recall, continued** — but read §11 and §12 first. Recall was not where the cost was, narrowing it
+made a goal fixture *slower*, and its real prize is invisible until an agent can stop. What is still
+undone: the table is authored, never learned; `_in_play` is the wrong key for goal-directed work (§12);
+the exhaustive pass fires only on a dry shortlist, never on novelty or a schedule.
 
 **Definite reference — which one.** Binding refers; nothing selects. A rule cannot say *the latest*,
 and `_settle` never reconsiders a binding it took. That is one question wearing three hats: §21's
