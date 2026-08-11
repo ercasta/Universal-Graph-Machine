@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     193 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     196 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        14/14 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -47,6 +47,7 @@ gone. Ten commits:
 | `nophases` | the last phase deleted. `tick()` has no line a rule could have written |
 | `recall` | §19's first slice: `prefer(<R>, k)` as facts, a budget, and widening |
 | `norms` | §19's carve-out: a prohibition is a **veto at the gate**, never a competitor in recall |
+| `naming` | a **fact may carry a name**; a named norm is a node rules can retire |
 
 ### 1. The spine changed
 
@@ -224,11 +225,35 @@ stops the rule re-applying — otherwise a norm is a livelock); a norm forbids `
 bringing about is asserting; and a norm is still an ordinary belief, resolved at the writer's own
 position.
 
-⚠ **One gap, pinned by a check.** A norm cannot be revised *from the surface*: its argument is a
-description, a description is an authored statement, and §8 scopes a statement's variables to it — so
-a second `-forbidden(doing(harm(?x)))` denies a **different node** that says a similar thing, and the
-denial lands on nothing. Denied at its own node it works, which is checked too. Revising a norm needs
-a way to name one, as `<...>` names a rule.
+### 9. Naming a statement, and what it separated
+
+Stating a norm was not enough. A norm's argument is a **description**, a description is an authored
+statement, and §8 scopes a statement's variables to it — so `forbidden(doing(harm(?x)))` written twice
+is *two nodes that say a similar thing*, and denying the second leaves the first forbidding, silently.
+**Restating is not revising.** That is §8's own rule about rules arriving somewhere it had not been
+noticed.
+
+The repair was already in the surface. A fact may carry a name:
+
+    fact <no-harm> = forbidden(doing(harm(?x)))
+    fact -<no-harm>
+
+`<...>` is the namespace of **statements**, and a rule is a statement — so it is one table, not two.
+A rule and a norm sharing a name would be two things with one name, which is what the marker exists
+to prevent.
+
+The consequence is bigger than retiring a norm:
+
+> **§19 keeps norms out of recall. It never said they were beyond argument.**
+
+A named norm is a node, so a rule can conclude about it. `{+says(fire, evacuate, +)} ⟹ {-<no-harm>}`
+retires a prohibition on evidence, trail intact, with the refusals it made beforehand still on the
+record. **Unconditionally consulted** and **entirely contestable** turn out to be different
+properties; naming is what separated them.
+
+Forced, not chosen: a rule may conclude about a named fact and a named fact may be about a rule, so
+the loader does three passes — name what is self-contained, then rules, then everything else. A name
+needs only its node, and a statement referring to no other statement can be built without one.
 
 ---
 
@@ -261,9 +286,9 @@ recurs and deserves a measured comparison against alternatives; and the exhausti
 a dry shortlist, never on novelty or a schedule, which §19 says is what stops recall calcifying
 exactly where it is performing well.
 
-**Naming a norm.** A norm cannot be revised from the surface, because two descriptions written
-independently are two nodes. It needs the treatment `<...>` gives a rule. Small, well-specified, and
-it is the only thing between norms and being ordinary beliefs.
+**Naming, now that it exists.** A named statement is a node other statements can be about, and only
+norms use it so far. Worth asking what else wants one — a supposition, a plan, a composed rule's
+provenance — before the answer is invented separately three times.
 
 Also still open, and the same question three ways: nothing says when a plan is *settled*, when a `due`
 rule is *done*, or when a request may be *re-asked*.

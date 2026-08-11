@@ -2648,11 +2648,36 @@ Three consequences fall out rather than being arranged:
 * **a norm is still a belief** — resolved at the writer's own position, so it can be denied, dated, or
   held only under a hypothesis. What it cannot do is fail to be consulted.
 
-One gap, and it is pinned by a check rather than left to be found. A norm cannot be revised **from
-the surface**: its argument is a description, a description is an authored statement, and §8 scopes a
-statement's variables to it — so a second `-forbidden(doing(harm(?x)))` denies a different node that
-says a similar thing, and the denial lands on nothing. Revising a norm needs a way to *name* one, as
-`<...>` names a rule. Until then, the only identity a norm has is the node the corpus first built.
+#### A description has no identity but the one an author gives it
+
+Stating a norm was not enough, and the gap is instructive because it is not about norms. A norm's
+argument is a **description**, a description is an authored statement, and §8 scopes a statement's
+variables to it. So `forbidden(doing(harm(?x)))` written twice is *two nodes that say a similar
+thing* — and a denial of the second leaves the first forbidding, silently. Restating is not revising.
+
+That is §8's own rule about rules (*two rules that happen to say the same thing are still two rules*)
+arriving somewhere it had not been noticed, and the repair is the one already in the surface:
+
+    fact <no-harm> = forbidden(doing(harm(?x)))
+    fact -<no-harm>
+
+A fact may carry a name, in the same angle brackets a rule's goes in, because **`<...>` is the
+namespace of statements** and a rule is a statement. One table, not two — a rule and a norm sharing a
+name and meaning different things by position is exactly what the marker exists to prevent.
+
+The consequence is larger than retiring a norm, and it is worth separating from the carve-out:
+
+> **§19 keeps norms out of recall. It never said they were beyond argument.**
+
+A named norm is a node, so a rule can conclude about it — `{+says(fire, evacuate, +)} ⟹ {-<no-harm>}`
+retires a prohibition on evidence, with the whole trail intact and the refusals it made before still
+on the record. A norm is unconditionally *consulted* and entirely *contestable*, and those turn out to
+be different properties. Naming is what separated them.
+
+One consequence for the loader, and it is forced rather than chosen: a rule may conclude about a named
+fact and a named fact may be about a rule, so neither can simply be resolved first. What breaks the
+cycle is that a name needs only its **node**, and a statement that refers to no other statement can be
+built without one — so three passes: name what is self-contained, then rules, then the rest.
 
 ### Scoring and price
 

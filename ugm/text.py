@@ -21,6 +21,15 @@ Three statements, with the author saying which, so the loader branches on nothin
     fact  +on(a, b)                    standing knowledge, stamped source=kb
     say   user: +raining(here)         an arrival on the channel `user`
     fact  overrides(<boil>, <cool>)        an ordinary claim, and it seeds precedence
+    fact  <no-harm> = forbidden(doing(harm(?x)))   a named statement
+    fact  -<no-harm>                       ...which other statements can be about
+
+A fact may carry a name, in the same angle brackets a rule's goes in, because
+`<...>` is the namespace of **statements** and a rule is a statement. It earns its
+place on descriptions: `forbidden(doing(harm(?x)))` contains variables, and §8
+scopes a statement's variables to it, so writing it twice writes two nodes that
+say a similar thing. A description has no identity but the one an author gives it,
+and without a name a norm could be stated and never retired.
 
 The notation is the design document's own, in ASCII: `-` for the minus sign it
 writes as an en dash, `->` for its arrow. §8's worked rules parse as printed.
@@ -178,7 +187,20 @@ class Parser:
         if t.text == "rule":
             return self.rule(t.line)
         if t.text == "fact":
-            return Statement("fact", "", "", (), (), self.member(), "", t.line)
+            # A fact may be NAMED, and the name goes in the same angle brackets a
+            # rule's does, because it is the same namespace: names of
+            # *statements*, kept out of the relation namespace.
+            #
+            # It earns its place on descriptions. `forbidden(doing(harm(?x)))`
+            # contains variables, and §8 scopes a statement's variables to it --
+            # so writing it twice writes two nodes that say a similar thing, and
+            # a denial of the second leaves the first forbidding. A description
+            # has no identity but the one the author gives it.
+            name = ""
+            if self.peek() is not None and self.peek().kind == "rulename":  # type: ignore[union-attr]
+                name = self.next().text
+                self.expect("=")
+            return Statement("fact", name, "", (), (), self.member(), "", t.line)
         if t.text == "say":
             ch = self.next()
             if ch.kind != "name":
@@ -293,8 +315,19 @@ class Loader:
         self.OVERRIDES = self.atom("overrides")
 
     def rule_ref(self, name: str) -> NodeId:
+        """What `<n>` denotes: a rule node, or a named fact's proposition.
+
+        One table, because `<...>` names statements and a rule is a statement.
+        Two tables would let a rule and a norm share a name and mean different
+        things depending on where they were written -- two things with one name,
+        which is the mistake the marker exists to prevent.
+        """
         if name not in self.rule_nodes:
-            raise ParseError(f"no rule named <{name}> was declared")
+            raise ParseError(
+                f"no statement named <{name}> was declared -- or it is a fact "
+                f"declared after the one referring to it, which the loader "
+                f"cannot resolve (see `load`)"
+            )
         return self.rule_nodes[name]
 
     def atom(self, name: str) -> NodeId:
@@ -332,10 +365,26 @@ class Loader:
 
     def load(self, src: str) -> List[Statement]:
         statements = Parser(tokenise(src)).program()
-        # Rules first, so a fact may name a rule declared further down the file.
+        named = [s for s in statements if s.kind == "fact" and s.name]
+
+        # Three passes, and the order is forced rather than chosen. A rule may
+        # conclude about a named fact (`{-<no-harm>}` retires a norm), and a
+        # named fact may be about a rule (`overrides(<a>, <b>)`), so neither can
+        # simply come first. What breaks the cycle is that a name only needs its
+        # NODE to be resolvable, and a statement that refers to no other
+        # statement can be built without one.
+        for s in named:
+            if not _mentions_a_rule(s.member.term):  # type: ignore[union-attr]
+                self._name(s)
         for s in statements:
             if s.kind == "rule":
                 self._rule(s)
+        for s in named:
+            if s.name not in self.rule_nodes:
+                self._name(s)
+
+        # Then everything is written, in the order it was authored -- so a
+        # corpus that states a norm and then retires it does so in that order.
         for s in statements:
             if s.kind == "fact":
                 self._fact(s)
@@ -343,9 +392,20 @@ class Loader:
                 self._say(s)
         return statements
 
+    def _name(self, s: Statement) -> None:
+        """Build a named fact's proposition ONCE, and register the name.
+
+        Once, because building it twice would mint fresh variables and produce a
+        second node -- which is the very failure naming exists to prevent.
+        """
+        assert s.member is not None
+        if s.name in self.rule_nodes:
+            raise ParseError(f"line {s.line}: <{s.name}> is already declared")
+        self.rule_nodes[s.name] = self.build(s.member.term, {})
+
     def _rule(self, s: Statement) -> None:
-        if s.name in self.rules_by_name:
-            raise ParseError(f"line {s.line}: rule {s.name!r} is already defined")
+        if s.name in self.rule_nodes:
+            raise ParseError(f"line {s.line}: <{s.name}> is already declared")
         scope: Dict[str, NodeId] = {}
         ant = [Member(m.sign, self.build(m.term, scope), m.grade) for m in s.antecedent]
         con = [Member(m.sign, self.build(m.term, scope), m.grade) for m in s.consequent]
@@ -396,7 +456,9 @@ class Loader:
     def _fact(self, s: Statement) -> None:
         assert s.member is not None
         scope: Dict[str, NodeId] = {}
-        prop = self.build(s.member.term, scope)
+        # A named fact was built when its name was registered, and it must not be
+        # built again: a second build mints fresh variables and a second node.
+        prop = self.rule_nodes[s.name] if s.name else self.build(s.member.term, scope)
         # A fact that NAMES a rule is mentioning it, and a rule node contains the
         # variables of its own patterns. `overrides(<why>, <boil>)` is a ground
         # claim about two rules, not a generic claim -- R3 depends on being able
@@ -411,7 +473,11 @@ class Loader:
         # This is one name in Appendix C's census, and it is the honest price of
         # letting a corpus state a norm at all: a norm about one act would be
         # useless, and a norm expressed as a rule is a competitor in recall.
-        mentions = _mentions_a_rule(s.member.term) or s.member.term.head == "forbidden"
+        mentions = (
+            _mentions_a_rule(s.member.term)
+            or s.member.term.head == "forbidden"
+            or bool(s.name)  # a named statement is one you can be about
+        )
         if not mentions and self.m.g.has_var(prop):
             raise ParseError(
                 f"line {s.line}: a fact may not contain a variable -- only a rule's members "

@@ -1250,25 +1250,57 @@ def prohibitions_are_not_recalled() -> None:
     kb2 = load(m2, src + chr(10) + "fact -forbidden(doing(harm(?x)))" + chr(10))
     m2.run(limit=200)
     check(
-        "§21",
-        "a norm cannot be denied by restating it -- two descriptions are two nodes",
+        "§8",
+        "restating a norm does not deny it -- two descriptions are two nodes",
         m2.holds(kb2.term("doing(harm(pump))")) is None and m2.gate.refusals == 1,
     )
-    # And the same claim, made where the identity IS the same node: consulted as
-    # an ordinary belief, so denying it stops it forbidding.
-    m2b = Machine()
-    kb2b = load(m2b, src)
-    norm = next(
-        e.proposition for mm in m2b.chain.moments for e in mm.delta
-        if m2b.g.relation_of(e.proposition) is m2b.FORBIDDEN
-    )
-    m2b.gate.write(m2b.focus, norm, MINUS, mention=True)
-    m2b.run(limit=200)
+    # Which is what naming is for. `<...>` is the namespace of STATEMENTS, and a
+    # description is a statement, so the same marker that lets a fact be about a
+    # rule lets a fact be about a norm.
+    named = chr(10).join([
+        "rule <fix>  = implies( { +broken(?x) }, { +doing(repair(?x)) } )",
+        "rule <burn> = implies( { +broken(?x) }, { +doing(harm(?x)) } )",
+        "fact <no-harm> = forbidden(doing(harm(?x)))",
+        "fact +broken(pump)",
+        "",
+    ])
+    m3 = Machine()
+    kb3 = load(m3, named + "fact -<no-harm>" + chr(10))
+    m3.run(limit=200)
     check(
         "§12",
-        "denied at its own node, a norm stops forbidding -- it was a belief all along",
-        m2b.holds(kb2b.term("doing(harm(pump))")) == PLUS,
+        "denied by name, a norm stops forbidding -- it was an ordinary belief all along",
+        m3.holds(kb3.term("doing(harm(pump))")) == PLUS and m3.gate.refusals == 0,
     )
+
+    # The payoff, and the reason naming beat a `norm` keyword: a norm is now a
+    # thing rules can reason about. §19 keeps norms out of RECALL; it never said
+    # they were beyond argument.
+    m4 = Machine()
+    kb4 = load(m4, named + chr(10).join([
+        "rule <emergency> = implies( { +says(fire, evacuate, plus) }, { -<no-harm> } )",
+        "say fire: +evacuate",
+        "",
+    ]))
+    m4.run(limit=300)
+    check(
+        "R3",
+        "a rule can retire a norm, because a named norm is a node a rule can name",
+        m4.holds(kb4.term("doing(harm(pump))")) == PLUS,
+    )
+    check(
+        "§19",
+        "and until it did, the norm held: the refusal is still on the record",
+        m4.gate.refusals >= 1,
+    )
+
+    # One namespace, so the marker keeps doing its job.
+    clash = False
+    try:
+        load(Machine(), "rule <n> = implies( { +a }, { +b } )" + chr(10) + "fact <n> = forbidden(c(?x))")
+    except Exception:
+        clash = True
+    check("§3", "a rule and a norm cannot share a name -- one statement namespace", clash)
 
     # The carve-out, measured. Narrow recall to one rule and the agent cannot
     # reliably bring anything to mind -- but a norm was never in the running.
