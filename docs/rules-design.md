@@ -2803,6 +2803,42 @@ cases in nineteen spurious pairs.
 for deferring — supposing, backtracking, re-asking — is the same unbuilt thing: nothing says when a
 line of reasoning is finished enough to act on.
 
+### Crossing opens hypotheses, and how many is not a parameter
+
+Supposing was introduced as the alternative to lifting, and `ugm.modality` measures it as the better
+one on every axis. The question that follows is what *crossing* a modality actually amounts to, and
+the answer is smaller than it looks:
+
+> **Crossing `likely(p)` is one hypothesis, and more when something says so.**
+
+`+likely(?p) ⟹ +suppose(p, likely)` is an ordinary rule. Considering the other case is another
+ordinary rule. So **there is no `k` in the machinery to set** — the number of branches is however many
+`suppose` facts get concluded, gated on whatever a corpus gates them on, and adding a branching factor
+to the interpreter would be §18's mistake again.
+
+Why the default has to be one, stated as a cost rather than a preference: at one branch per uncertain
+fact, what is spent is a frame per **derivation**, which is linear — that is the measurement that
+retired §12's *twenty independently uncertain facts would be a million moments*. At two branches, n
+independent uncertainties give 2^n combinations and the objection returns intact.
+
+> **The first branch is free and every branch after it is exponential.** Which is exactly why the
+> second must be earned.
+
+Two things this costs that were not obvious, and they are the same thing twice.
+
+**The alternative must be opened on resume.** Proposed alongside the first, it is enacted while the
+register is already *inside* it — so it becomes a sub-hypothesis rather than a sibling, and the second
+case comes back wrapped in the first. `left(<frame>, <assumption>)` is the occasion for *this
+hypothesis is over*, and opening the alternative there is what makes them siblings. That is what the
+frame **forest** was for, and it is the callback pattern (§13) doing the one job that most obviously
+needs it.
+
+**A crossing rule that can match its own output runs away.** A discharged conclusion is itself
+`likely(...)`, and a rule keyed on `left` fires again when the alternative is left in turn — measured,
+32 sibling frames before the budget stopped it. §9 already records this trap for `<denial>`:
+translating both ways builds `not(not(p))` the moment it meets its own output. The corpus stops it,
+and that it must is a property of self-applying rules rather than of this one.
+
 ### The carve-out
 
 > **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**

@@ -1261,6 +1261,100 @@ def the_better_move_wins() -> None:
     )
 
 
+def crossing_opens_hypotheses() -> None:
+    """Crossing a modality is **one hypothesis, and more when something says so**
+    -- and the number is not a parameter anywhere.
+
+    `likely(p)` is crossed by an ordinary rule concluding `+suppose(p, likely)`.
+    Considering the other case is another such rule. So *how many branches* is
+    however many `suppose` facts get concluded, gated on whatever the corpus
+    gates them on: there is no `k` in the machinery to set, and adding one would
+    be §18's mistake again.
+
+    Why the default has to be one: at one branch per uncertain fact the cost is a
+    frame per **derivation**, which is linear, and `ugm.modality` measures that.
+    At two, n independent uncertainties give 2^n combinations.
+
+    > **The first branch is free and every branch after it is exponential** --
+    > which is exactly why the second must be earned rather than assumed.
+
+    Two things this took that were not obvious, and both are the same shape.
+    """
+    from .text import load
+
+    world = [
+        "rule <cross> = implies( { +uncertain(?p) },   { +suppose(?p, likely) } )",
+        "rule <ifso>  = implies( { +rain(here) },      { +wet(street) } )",
+        "rule <ifnot> = implies( { +not(rain(here)) }, { +dry(street) } )",
+        "fact +uncertain(rain(here))",
+    ]
+
+    def run(extra):
+        m = Machine()
+        kb = load(m, chr(10).join(world + extra) + chr(10))
+        steps = m.run(limit=600)
+        return m, kb, steps
+
+    m, kb, _ = run([])
+    check(
+        "§13",
+        "crossing a modality opens one hypothesis, and its conclusion comes back wrapped",
+        len(m.focus.children) == 1 and m.holds(kb.term("likely(wet(street))")) == PLUS,
+    )
+    check(
+        "§16",
+        "and the other case was never considered -- nothing said it should be",
+        m.holds(kb.term("otherwise(dry(street))")) is None,
+    )
+
+    # **The alternative has to be opened ON RESUME.** Proposed at the same time
+    # as the first, it is enacted while the register is already inside it, so it
+    # becomes a sub-hypothesis rather than a sibling and the second case ends up
+    # wrapped in the first. `left(?f, ?p)` is the occasion for *this hypothesis
+    # is over*, and opening the alternative there is what makes them siblings --
+    # which is what the frame FOREST was for.
+    branch = [
+        "rule <also>  = implies( { +left(?f, ?p), +uncertain(?p), +goal(doing(?q)) },",
+        "                       { +suppose(not(?p), otherwise) } )",
+        "fact +goal(doing(cross(road)))",
+    ]
+    m2, kb2, steps2 = run(branch)
+    siblings = m2.focus.children
+    check(
+        "§13",
+        "a rule opens a second hypothesis on resume, and the two are siblings",
+        len(siblings) == 2 and all(f.state == "discharged" for f in siblings),
+    )
+    check(
+        "§16",
+        "so both cases are on the record, each wrapped in what it was supposed under",
+        m2.holds(kb2.term("likely(wet(street))")) == PLUS
+        and m2.holds(kb2.term("otherwise(dry(street))")) == PLUS,
+    )
+    check(
+        "§17",
+        "and neither leaked -- containment is structural, whatever the branching factor",
+        m2.holds(kb2.term("wet(street)")) is None
+        and m2.holds(kb2.term("dry(street)")) is None,
+    )
+
+    # ⚠ **A crossing rule that can match its own output runs away.** `<also>` on
+    # `+left(?f, ?p)` alone fires again when the alternative is itself left, and
+    # the run reached 32 sibling frames before its budget did. §9 records the
+    # same trap for `<denial>`: translating both ways builds `not(not(p))` the
+    # moment it meets its own output. The corpus stops it -- here by requiring
+    # the hypothesis to be one it called `uncertain` in the first place.
+    m3, _, steps3 = run([
+        "rule <also> = implies( { +left(?f, ?p) }, { +suppose(not(?p), otherwise) } )",
+    ])
+    check(
+        "§9",
+        "a crossing rule matching its own output runs away; the corpus must stop it",
+        len(m3.focus.children) > 8 and len(siblings) == 2,
+    )
+    check("§14", "and the gated version settles", steps2[-1].state == "quiescent")
+
+
 def doubt_is_a_tie() -> None:
     """A preference is a **score**, and doubt is what a score makes sayable.
 
@@ -1815,6 +1909,7 @@ def main() -> int:
     callbacks_on_a_hypothesis()
     recall_is_narrowable()
     the_better_move_wins()
+    crossing_opens_hypotheses()
     doubt_is_a_tie()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()

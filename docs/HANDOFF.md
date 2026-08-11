@@ -10,7 +10,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     218 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     225 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        16/16 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
@@ -574,6 +574,40 @@ grades at all).
 Also fixed while here: recall's ordering used `_rank`, which put `standing` first and filled every
 shortlist with apparatus. **`standing` is a claim about precedence once a rule has matched, not about
 coming to mind**; recall orders by preference alone.
+
+### 17. Crossing opens hypotheses — and `k` is not a parameter
+
+The user's line: *resist special machinery when the regular wrapping works; we do not need to
+duplicate rules, we need a metarule to cross the `likely` and wrap back whatever we concluded — cross,
+and handle on resume.* And then: *crossing a `likely` means at least one hypothesis, and two or more
+if experience says so.*
+
+That is supposing, and it is built — `<cross>` is `+likely(?p) ⟹ +suppose(?p, likely)`, and
+`ugm.modality` already measures it as the winner on every axis (19 rules vs 22 for wrapping written
+per-rule; works over rules with variables, which lifting does not; nests; containment structural).
+
+What is new is the second half, and it turned out to need **no mechanism at all**:
+
+> **There is no `k`.** The number of branches is however many `suppose` facts get concluded. Sibling
+> hypotheses already work — the forest was built for them.
+
+⚠ **Why one is the right default, as a cost:** one branch per uncertain fact is a frame per
+*derivation*, which is linear and is what retired §12's *million moments* objection. Two branches make
+n independent uncertainties 2^n. **The first branch is free and every branch after it is exponential.**
+
+Two findings from building it, and they are the same shape twice:
+
+* ⚠ **The alternative must be opened ON RESUME.** Proposed alongside the first, it is enacted while
+  the register is already inside it — so it nests instead of branching, and the second case comes back
+  wrapped in the first. Keyed on `left(?f, ?p)` they are siblings. The callback mechanism from §5 doing
+  the job that most needs it.
+* ⚠ **A crossing rule that can match its own output runs away** — 32 sibling frames before the budget
+  stopped it, because a discharged conclusion is itself `likely(...)`. §9 records the same trap for
+  `<denial>`. The corpus stops it; that it must is a property of self-applying rules.
+
+Still open, and now sharper: nothing **compares** the siblings. Both cases land at the parent, each
+wrapped in what it was supposed under, and no rule weighs one against the other. That is where the
+`close`/`tolerance` machinery of §15–16 should meet the forest, and it does not yet.
 
 ---
 
