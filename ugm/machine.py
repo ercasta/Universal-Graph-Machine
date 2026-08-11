@@ -65,6 +65,11 @@ class Machine:
         self.APPLIED = self.g.atom("applied")
         self.ARRIVED = self.g.atom("arrived")
         self.EMITTED = self.g.atom("emitted")
+        # The same record, for an act that was decided on but not taken --
+        # because the register was inside a hypothesis. Planning has to be able
+        # to reason PAST an action, and what it reasons past is the action's
+        # assumed outcome, not its occurrence.
+        self.TAKEN = self.g.atom("taken")
         self.UTTERANCE = self.g.atom("utterance")
         # §14: the vocabulary a rule uses to speak about a rule.
         self.RULE = self.g.atom("rule")
@@ -255,6 +260,7 @@ class Machine:
             "binds": self.BINDS, "expands": self.EXPANDS,
             "doing": self.DOING, "did": self.DID,
             "expects": self.EXPECTS, "deviates": self.DEVIATES,
+            "taken": self.TAKEN, "emitted": self.EMITTED,
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
@@ -384,6 +390,18 @@ class Machine:
                 [Member(PLUS, g.rel(self.EMITTED, w))],
                 [Member(PLUS, g.rel(self.DID, w))],
                 "did",
+            )
+        )
+        # And the same, one row rather than one branch, for an act decided on
+        # inside a hypothesis. `did` under a supposition means *under this, I
+        # did* -- which is what the frame already means -- so `<assert-act>`
+        # supplies the assumed outcome and planning continues past the step.
+        self.bundle.append(
+            self.rules.rule(
+                IMPLIES,
+                [Member(PLUS, g.rel(self.TAKEN, w))],
+                [Member(PLUS, g.rel(self.DID, w))],
+                "taken",
             )
         )
         # And §15's *the agent asserts the act*, which was an unarguable line of
@@ -1159,6 +1177,8 @@ class Machine:
             return  # a description cannot be acted on; §15's condition, at the edge
         if e.node in self._acted:
             return
+        self._acted.add(e.node)
+        (what,) = self.g.members(e.proposition)
         if self._hypothetical(frame):
             # **Supposing something must not bring it about.** §13 says nothing
             # leaves a frame and §17 makes containment structural -- but effects
@@ -1176,9 +1196,19 @@ class Machine:
             # a course of action is acceptable, which is the whole reason to open
             # one about an act. An agent that finds out by doing it has not
             # considered anything.
+            #
+            # But the REASONING must not stop here, and stopping it was this
+            # repair's first mistake -- a plan died at its first action instead
+            # of continuing past it. Deciding to act is a **conclusion**; what
+            # planning needs from that conclusion is the action's **assumed
+            # outcome**. So the same record is deposited under a different name:
+            # nothing left the agent, and everything downstream still follows.
+            self.gate.write(
+                frame, self.g.rel(self.TAKEN, what), "+",
+                licence=self.g.instance(self.UTTERANCE, self.KB, what),
+                source=self.KB, consumed=(e,),
+            )
             return
-        self._acted.add(e.node)
-        (what,) = self.g.members(e.proposition)
         self.emitted.append(what)
         # The smallest unarguable record that something left the agent. What it
         # MEANS is `<did>`, and what follows from it is `<assert-act>`.

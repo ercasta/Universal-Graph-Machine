@@ -2863,6 +2863,26 @@ such a hypothesis is for; treated as bookkeeping, an agent that supposed a premi
 fire a missile came back knowing nothing at all. A wrapped intent is a claim, not an intent, and no
 dispatch matches it: the boundary keys on `doing`.
 
+#### Deciding to act is a conclusion; planning needs the outcome
+
+Blocking the emission is only half of it, and the half that is easy to stop at. A plan reasons *past*
+its actions — the second step follows from the first having worked — so an agent that merely refuses
+to act inside a hypothesis cannot plan at all: its plan dies at its first action.
+
+> **Acting comes out as a conclusion — a decision to act. What planning needs from that conclusion is
+> the action's assumed outcome, not its occurrence.**
+
+So the boundary deposits the same record under a different name. Really acting writes `emitted(x)`;
+deciding to act while supposing writes `taken(x)`. Both mean *this act is on the record*, and one row
+rather than one branch turns either into `did(x)`, from which §15's `<assert-act>` supplies the
+assumption that it worked. Measured: a three-step plan runs to its end inside a hypothesis with
+nothing done at all.
+
+Note which half is defeasible. That an act *was decided on* is unarguable — the agent concluded it.
+That it *succeeded* is `<assert-act>`, an ordinary rule, and §15's argument for it is unchanged: an
+agent that should not assume its acts succeed overrides it, and then a plan built on this machinery
+has to say what it expects instead.
+
 #### And then no comparison is needed
 
 Once exploring is safe, the question a branch answers is not *which of these is better* but **does

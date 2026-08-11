@@ -10,9 +10,9 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ## Verify in one go
 
 ```
-python -m ugm.selftest     231 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     233 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
-python -m ugm.bundle        16/16 bundled rules exercised  is every shipped rule load-bearing?
+python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
@@ -628,6 +628,19 @@ Also: **`doing` came out of the bookkeeping set.** Every other request stays (no
 a hypothesis is for — as bookkeeping, an agent that supposed a premise and found it would fire a
 missile came back knowing nothing at all. What crosses is `likely(doing(...))`, which no dispatch
 matches, because the boundary keys on `doing` and a wrapped intent is a claim.
+
+**Blocking the emission was only half of it**, and the first repair stopped there — which stopped the
+*reasoning* too, so a plan died at its first action. The user's correction: *actual acting should only
+come out as a conclusion, a decision to act; during planning the system should ASSUME an outcome.*
+
+> **Acting is a conclusion. What planning needs from it is the action's assumed outcome, not its
+> occurrence.**
+
+So the boundary deposits the same record under a different name — `emitted(x)` when it really left,
+`taken(x)` when it was decided under a hypothesis — and one bundled row (`<taken>`) turns either into
+`did(x)`, from which §15's `<assert-act>` supplies the assumption that it worked. A three-step plan
+now runs to its end inside a hypothesis with nothing done at all. Note which half stays defeasible:
+that the act was *decided on* is unarguable; that it *succeeded* is still `<assert-act>`, overridable.
 
 **And then comparison is not needed.** A branch answers *does this lead somewhere unacceptable*, and
 §19's veto already answers it: the hypothesis reaches the prohibition, the write is refused inside the

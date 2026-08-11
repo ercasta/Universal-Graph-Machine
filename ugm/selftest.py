@@ -1398,6 +1398,32 @@ def a_hypothesis_does_not_happen() -> None:
         m.holds(kb.term("did(fire(missile))")) is None,
     )
 
+    # **Deciding to act is a conclusion; planning needs the action's assumed
+    # outcome.** Blocking the emission is not enough -- the first repair here
+    # also stopped the reasoning, so a plan died at its first action instead of
+    # continuing past it. The record is deposited under a different name
+    # (`taken`), `<taken>` makes it a `did`, and §15's `<assert-act>` supplies
+    # the assumption that it worked. One row, not one branch.
+    m1 = Machine()
+    kb1 = load(m1, chr(10).join([
+        "rule <step1> = implies( { +at(home) },     { +doing(travel(work)) } )",
+        "rule <step2> = implies( { +travel(work) }, { +doing(open(door)) } )",
+        "rule <step3> = implies( { +open(door) },   { +arrived(work) } )",
+        "",
+    ]))
+    m1.suppose(kb1.term("at(home)"), wrap=kb1.term("likely"))
+    m1.run(limit=400)
+    check(
+        "§15",
+        "planning continues PAST an action, on its assumed outcome",
+        m1.holds(kb1.term("likely(arrived(work))")) == PLUS,
+    )
+    check(
+        "§17",
+        "...and a three-step plan was worked out with nothing done at all",
+        m1.emitted == [],
+    )
+
     # The same thing, acted on for real when it is not a hypothesis -- otherwise
     # the check above would pass on an agent that simply never acts.
     m2 = Machine()
