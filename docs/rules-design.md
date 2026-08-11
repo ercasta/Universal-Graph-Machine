@@ -2711,6 +2711,41 @@ A derived preference is not obviously right, but it is not an accident, it is re
 and a corpus can argue with it. Arbitration stays total and stays a lookup: with no preferences it is
 exactly the authored order it always was.
 
+### Not scanning all possible options
+
+An agent that enumerates its whole rule set before choosing has not remembered anything, whatever it
+does with the list afterwards. That is the demand recall exists to meet, and this design was failing
+it in one measurable place: reading a rule backwards asked **every** rule whether it could produce
+**every** live goal — 711 of 816 rule applications on a workload, before the agent did anything at all.
+
+The first repair is not experience. It is an index.
+
+§3 gives the substrate exactly one, over instances by relation, and argues for it in a line: *a rule
+whose antecedent names a relation has to start somewhere, and scanning every node is the alternative.*
+Read backwards the same argument holds of the rule set — a reader asking *what could produce this
+goal* has to start somewhere — and nobody had made it there. So rules are indexed by the relation they
+conclude, and the reader asks about what came to mind:
+
+    <ask-recall>   { +goal(?w) }           ⟹  { +recall(?w) }
+    <ask-fit>      { +recalled(?r, ?w) }   ⟹  { +fit(?r, ?w) }
+
+Measured: 751 ticks to the goal became **57**, and `<ask-fit>` went from 711 applications to **8** —
+one per goal. It is exact rather than heuristic: a rule that could produce the goal is in the bucket,
+and one that could not was never a candidate. The only rules deliberately absent are those whose
+consequent is a bare variable, which §12 already calls vacuous backwards.
+
+The order this establishes is worth keeping:
+
+> **Index, then prefer, then learn.** An index makes the candidate set small and costs nothing in
+> completeness. Preference orders what is left, and may be wrong at the price of a worse move.
+> Experience improves the preference. Doing them in the other order builds a ranking over an
+> enumeration, which is the thing being complained about with a sort in front of it.
+
+What is *not* addressed, and is now the whole of the remaining gap: the agent has no notion of
+**doubt**. It cannot tell a clear best from a near tie, so it has no reason to think harder in the
+second case and no way to spend a hypothesis on it. That, and knowing when to stop trying, is what is
+left for experience once enumeration is gone.
+
 ### The carve-out
 
 > **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**

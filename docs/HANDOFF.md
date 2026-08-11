@@ -12,7 +12,7 @@ is a map, not a source** — where it disagrees with the design doc, the design 
 ```
 python -m ugm.selftest     211 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
-python -m ugm.bundle        15/15 bundled rules exercised  is every shipped rule load-bearing?
+python -m ugm.bundle        16/16 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as the rules that replaced the phase
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
@@ -54,6 +54,7 @@ gone. Ten commits:
 | `theread` | the read indexed — **67× on the goal fixture**; and `causes` was orphaning the register |
 | `workload` | a workload recall can be measured on — and **recall cannot pay until the agent can stop** |
 | `better` | preference **orders** rather than excludes; relevance is derived, not authored |
+| `lookup` | *what could produce this?* becomes an **index, not a scan** — 13× fewer ticks to the goal |
 
 ### 1. The spine changed
 
@@ -448,6 +449,46 @@ reasoning" as the phase's sin, and it moved rather than went. Fixing it is picku
 ⚠ `ugm.bundle` caught `<relevant>` shipping **blind** — 15 rules, 14 exercised — before a check
 existed for it. The habit earned its keep again.
 
+### 14. Not scanning all possible options
+
+The standing principle, stated by the user: *the system should not scan all possible options;
+experience means I choose the best, or if in doubt among the 2–3 best.* §13's blocker was that
+principle being violated in one specific place — `<ask-fit>` asking every rule the agent has about
+every goal it holds, before doing anything.
+
+The fix is **not** experience. It is an index:
+
+    RuleSet.by_conclusion     rules keyed by the relation they conclude
+
+§3 gives the substrate one index and argues for it in a line — *a rule whose antecedent names a
+relation has to start somewhere, and scanning every node is the alternative.* Read backwards the same
+argument holds of the rule set, and nobody had made it there. So *what could produce `w0_s8(item)`* is
+a **lookup**, and `<ask-fit>` now ranges over what came to mind:
+
+    <ask-recall>   { +goal(?w) }            =>  { +recall(?w) }
+    <ask-fit>      { +recalled(?r, ?w) }    =>  { +fit(?r, ?w) }
+
+Measured on the workload at D=8, R=8:
+
+| | before | after |
+|---|---|---|
+| ticks to the goal | 751 | **57** |
+| writes at the goal | 1843 | **458** |
+| ticks to quiescence | 801 | **124** |
+| `<ask-fit>` applications | 711 | **8** — one per goal |
+
+Exact, not heuristic: a consequent that could produce the goal is in the bucket, and one that could
+not was never a candidate. The only rules deliberately absent are those whose consequent is a bare
+variable, which §12 already calls vacuous backwards and `fit` already declines.
+
+> **An agent that has to enumerate before it can prefer has not remembered anything.** The index is
+> what makes preference affordable; experience then goes on top of it — which of the candidates to
+> try first, and when to stop trying.
+
+The gap that is left is honest and small: 57 ticks against an ideal-table 8, all of it forward
+reasoning in domains the goal has nothing to do with. That is now the whole of what learning has to
+win, and it is the same 7× the workload's gate measures.
+
 ---
 
 ## The state of the code
@@ -479,16 +520,15 @@ learning, the composition trigger, any claim that an agent is efficient — is w
 a bigger corpus. It is the same question as *when is a plan settled*, *when is a `due` rule done*,
 *when may a request be re-asked*, and §21's backtracking. Four hats, one head.
 
-**2. `<ask-fit>` must range over what came to mind.** §13 measured the blocker exactly: 752 bundled
-applications to 64 corpus ones, and `<ask-fit>` alone is 711 of them, because its antecedent is over
-`rule(?r)` — *every* rule — not over what recall proposed. This is the stashed `recall`-as-a-request
-work (`stash@{0}`), which made things slower when nothing narrowed; something narrows now. It is the
-one change with a measured number waiting for it.
+**2. Experience, now that enumeration is gone.** §14 removed the scan; what is left is genuinely
+recall's job and nothing does it: **which of the candidates to try first, and when to stop trying.**
+The remaining gap on the workload is 57 ticks against an ideal 8, and all of it is forward rules from
+irrelevant domains. `prefer` is derived from `fits` or authored — never from experience — and the
+exhaustive pass fires only on a dry shortlist, never on novelty or a schedule.
 
-**3. Recall, continued** — read §11–§13 first. Recall was not where the cost was, narrowing it made a
-goal fixture *slower*, and its prize is invisible until an agent can stop. Still undone: nothing is
-learned — `prefer` is derived from `fits` or authored, never from experience; and the exhaustive pass
-fires only on a dry shortlist, never on novelty or a schedule.
+**3. Doubt.** *If in doubt, choose among the 2–3 best, with extra considerations* — the agent has no
+notion of confidence, so it cannot tell a clear best from a near tie, and has no second gear when it
+is unsure. This is where suppositions belong and they are not wired to it.
 
 **Definite reference — which one.** Binding refers; nothing selects. A rule cannot say *the latest*,
 and `_settle` never reconsiders a binding it took. That is one question wearing three hats: §21's

@@ -171,6 +171,16 @@ class Machine:
         # DESCRIPTION rather than a proposition -- `forbidden(doing(harm(?x)))`
         # names a class of acts, the way `ant(<R>, heat(?a, ?w))` names a class of
         # premises. It is never matched by the loop; it is consulted at the gate.
+        # Recall, as a request -- the fourth. `_recall` narrows which rules are
+        # PROPOSED, and that cannot reach a cross product written inside an
+        # antecedent: `<ask-fit>` used to say `+goal(?w), +rule(?r)` and matched
+        # |goals| x |rules| ways however few rules were proposed. Measured, it
+        # was 711 of 816 applications on a workload -- an agent asking every rule
+        # it has about every goal it holds, before doing anything.
+        #
+        # So *what comes to mind about this?* becomes a question a rule can ask.
+        self.RECALL = self.g.atom("recall")
+        self.RECALLED = self.g.atom("recalled")
         self.FORBIDDEN = self.g.atom("forbidden")
         self.REFUSED = self.gate.REFUSED
 
@@ -202,6 +212,7 @@ class Machine:
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
+            "recall": self.RECALL, "recalled": self.RECALLED,
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
@@ -243,7 +254,8 @@ class Machine:
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
-                             self.FORBIDDEN, self.STANDING}
+                             self.FORBIDDEN, self.STANDING,
+                             self.RECALL, self.RECALLED}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -266,6 +278,7 @@ class Machine:
         self.gate.on_write.append(self._fit)
         self.gate.on_write.append(self._settle)
         self.gate.on_write.append(self._verdict)
+        self.gate.on_write.append(self._remember)
         self.gate.veto.append(self._forbid)
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
@@ -430,9 +443,18 @@ class Machine:
         plan = g.rel(self.PLAN, r, w)
         # Ask every rule whether it could produce this goal. Exhaustive here, and
         # that is §19's business, not this rule's.
+        # Two rules, not one, and the split is the point. Asking recall first
+        # means the reader asks about what came to mind, rather than about
+        # everything it has ever been told.
         self.bundle.append(self.rules.rule(
             IMPLIES,
-            [Member(PLUS, g.rel(self.GOAL, w)), Member(PLUS, g.rel(self.RULE, r))],
+            [Member(PLUS, g.rel(self.GOAL, w))],
+            [Member(PLUS, g.rel(self.RECALL, w))],
+            "ask-recall",
+        ))
+        self.bundle.append(self.rules.rule(
+            IMPLIES,
+            [Member(PLUS, g.rel(self.RECALLED, r, w))],
             [Member(PLUS, g.rel(self.FIT, r, w))],
             "ask-fit",
         ))
@@ -788,6 +810,40 @@ class Machine:
             consumed=(e,),
             mention=True,
         )
+
+    def _remember(self, frame: Frame, e: Entry) -> None:
+        """Answer *what comes to mind about this?* (§19).
+
+        The first version of this answered *every rule*, which made it a slower
+        way of writing the cross product it replaced. What makes it an answer
+        rather than a scan is `RuleSet.by_conclusion`: rules indexed by the
+        relation they conclude, so *what could produce `w0_s8(item)`* is a lookup
+        and not a search over the rule set.
+
+        That is not experience -- it is an index, and it is exact. §19's learning
+        goes on top: among the candidates an index returns, which to try first,
+        and when to stop trying. An agent that has to enumerate before it can
+        prefer has not remembered anything.
+        """
+        if self.g.relation_of(e.proposition) is not self.RECALL or e.sign != PLUS:
+            return
+        self._answer_recall(frame, self.g.member(e.proposition, 0), e)
+
+    def _answer_recall(
+        self, frame: Frame, about: NodeId, because: Optional[Entry] = None
+    ) -> None:
+        candidates = self.rules.by_conclusion.get(self.g.relation_of(about), ())
+        licence = self.g.rel(self.RECALL, about)
+        for r in candidates:
+            if self._claims(self.g.rel(self.DORMANT, r.node)) and not self._claims(
+                self.g.rel(self.DUE, r.node)
+            ):
+                continue
+            self.gate.write(
+                frame, self.g.rel(self.RECALLED, r.node, about), PLUS,
+                licence=licence, source=self.KB,
+                consumed=(because,) if because is not None else (), mention=True,
+            )
 
     # -- norms ------------------------------------------------------------
 

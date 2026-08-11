@@ -91,6 +91,20 @@ class RuleSet:
         # a reader that enumerates `+rule(?r)` sees whatever was reified, and a
         # rule authored afterwards was invisible to it with nothing reporting so.
         self.on_rule: List[Callable[["Rule"], None]] = []
+        # Rules by the relation they CONCLUDE. §3 gives the substrate one index,
+        # over instances by relation, and argues for it in one line: *a rule
+        # whose antecedent names a relation has to start somewhere, and scanning
+        # every node is the alternative.* Read backwards the same argument holds
+        # of the rule set -- a reader asking *what could produce this goal* has
+        # to start somewhere, and asking every rule is the alternative.
+        #
+        # It is an index over what was ASSERTED (the authored consequent), never
+        # over what was derived, which is §12's condition on any index here.
+        #
+        # A consequent that is a bare variable is deliberately absent: it claims
+        # it can conclude anything, which §12 calls vacuous backwards, and `fit`
+        # already declines it.
+        self.by_conclusion: Dict[Optional[NodeId], List["Rule"]] = {}
 
     def rule(
         self,
@@ -119,6 +133,12 @@ class RuleSet:
         )
         r = Rule(node, connective, antecedent, consequent, name)
         self.rules.append(r)
+        for m in consequent:
+            if m.sign != "+" or self.g.is_var(m.pattern):
+                continue
+            bucket = self.by_conclusion.setdefault(self.g.relation_of(m.pattern), [])
+            if r not in bucket:
+                bucket.append(r)
         for hook in self.on_rule:
             hook(r)
         return r
