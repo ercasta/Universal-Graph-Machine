@@ -2,7 +2,48 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **a rule says that it ran**. Commit `exercised`.
+## Latest: **a root goal is askable**. Commit `rooted`.
+
+§6 recorded *a root goal is never checked for satisfaction*; §12 recorded why it could not be a rule.
+*A root goal is a `goal(?w)` with **no** `subgoal(?p, ?w)`* is a **negative existential**, and a `−`
+member says *an entry denies this*, never *for no `?p`*. That is the same shape as `blocked` — so it
+gets the same treatment, which is the point of having settled it once:
+
+    root(w)        a REQUEST, asked by a corpus rule
+    rooted(w)      the answer, deposited only when it IS one
+
+**It answers only yes.** A machinery that answered *no* would be asserting a negative existential of its
+own; §17's rule is the smallest unarguable record.
+
+⭐⭐⭐ **What it unblocks is one line no corpus could write before:**
+
+    rule <done> = implies( { +goal(?w), +rooted(?w), +?w }, { +enough(?w) } )
+
+*What I was **asked** for holds, so I am done.* A satisficing agent's whole policy, generic, over any
+corpus. And `ugm.workload` can finally measure the thing it has been apologising for since it was
+written — its stop rule was authored **ground**, naming the very proposition the goal is:
+
+| D=8 R=8, stop rule | →goal | →end | how |
+|---|---|---|---|
+| none | 57 | 124 | quiescent |
+| authored **ground** (the old ceiling) | 57 | 59 | stopped |
+| **general, via `rooted`** | 66 | **68** | stopped |
+
+Nine ticks dearer than the ceiling, and it **stops naming the answer** — which is what the file's own
+caveat says was wrong with it. Gated both ways.
+
+⚠ **A correction to my own expectation.** I predicted the version *without* `rooted` would stop early on
+a satisfied subgoal, as the `stopping` measurement recorded (tick 51 of a 57-tick run). In the small
+kettle fixture it does **not** — it ends `quiescent`, because the `openloop` veto catches it first: an
+open goal outranks `enough`. So the veto masks the unsoundness at small scale, and the check is written
+around what was actually measured (a subgoal that **holds** is still not `rooted`) rather than around
+what I expected to see. ⚠ Kill-probed: make the answerer say yes unconditionally and two checks fail.
+
+**Blocked on this, now unblocked:** the general stop rule (done, above) and §6's own item. ⚠ **Not** the
+watchdog reaction — `exercised` still needs *root-goal **satisfaction** checking*, and this supplies the
+root-goal half only.
+
+## Before that: **a rule says that it ran**. Commit `exercised`.
 
 The user's framing, and it reframed the whole watchdog question: *dying is searching for a rule and
 finding none, isn't it?* Yes — which means the machinery for noticing a dead rule **already exists**
@@ -550,7 +591,7 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     295 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     299 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten

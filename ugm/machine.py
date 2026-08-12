@@ -83,6 +83,14 @@ class Machine:
         # The same claim as `applied(<R>)`, but as a proposition a rule can
         # match rather than a licence only Python can read.
         self.EXERCISED = self.g.atom("exercised")
+        # §6's *a root goal is never checked*, and §12's reason it could not be:
+        # a root goal is a `goal(?w)` with **no** `subgoal(?p, ?w)`, which is a
+        # negative existential, and a `-` member says *an entry denies this*,
+        # never *for no ?p*. So it gets the treatment `blocked` got -- a REQUEST
+        # the machinery answers by looking, because an aggregate over what the
+        # rules produced is the machinery's business and not a rule's.
+        self.ROOT = self.g.atom("root")        # ask
+        self.ROOTED = self.g.atom("rooted")    # ...and the answer, when it is one
         self.ARRIVED = self.g.atom("arrived")
         self.EMITTED = self.g.atom("emitted")
         # The same record, for an act that was decided on but not taken --
@@ -380,6 +388,7 @@ class Machine:
             "enough": self.ENOUGH, "stopped": self.STOPPED, "open": self.OPEN,
             "helped": self.HELPED, "harmed": self.HARMED,
             "forgone": self.FORGONE, "exercised": self.EXERCISED,
+            "root": self.ROOT, "rooted": self.ROOTED,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
@@ -459,6 +468,7 @@ class Machine:
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
                              self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED, self.HARMED,
                              self.FORGONE, self.EXERCISED,
+                             self.ROOT, self.ROOTED,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
@@ -486,6 +496,7 @@ class Machine:
         self.gate.on_write.append(self._fit)
         self.gate.on_write.append(self._settle)
         self.gate.on_write.append(self._verdict)
+        self.gate.on_write.append(self._root)
         self.gate.on_write.append(self._remember)
         self.gate.on_write.append(self._answer)
         self.gate.veto.append(self._forbid)
@@ -784,6 +795,52 @@ class Machine:
         self.gate.write(
             frame, self.g.rel(self.UNMET, plan, goal), PLUS,
             licence=licence, source=self.KB, consumed=(e,), mention=True,
+        )
+
+    def _root(self, frame: Frame, e: Entry) -> None:
+        """Answer *is this what I was asked for, or something I asked myself?*
+
+        §6 recorded the gap and §12 recorded why it could not be a rule: a root
+        goal is a `goal(?w)` with **no** `subgoal(?p, ?w)`, and a `-` member says
+        *an entry denies this*, never *for no `?p`*. That is the same shape as
+        `blocked` -- a negative existential over what the rules produced -- so it
+        gets the same treatment, which is the point of having settled it once.
+
+        It answers only when the answer is YES. `rooted(w)` is deposited if
+        nothing claims `w` is anybody's subgoal; nothing is written otherwise,
+        exactly as `_verdict` writes `blocked` only when nothing fits. A
+        machinery that answered *no* would be asserting a negative existential of
+        its own, and §17's rule is to deposit the smallest unarguable record.
+
+        What it unblocks is one line a corpus could not write before:
+
+            rule <done> = implies( { +goal(?w), +rooted(?w), +?w },
+                                   { +enough(?w) } )
+
+        *What I was asked for holds, so I am done.* The version without `rooted`
+        is unsound and running it is how the gap was found -- `<expand>` writes
+        `+goal(sub)` for every subgoal backward reading derives, so the agent
+        stopped at the first satisfied SUBGOAL: measured, tick 51 of a run whose
+        goal arrived at 57.
+
+        ⚠ It is asked, not volunteered, for the reason §19 gives about recall:
+        this is a question about a search that has got somewhere, and asking it of
+        every goal the moment it appears would answer before `<expand>` had
+        written the `subgoal` entry that makes the answer false. The corpus asks
+        when it is ready to stop.
+        """
+        if e.sign != PLUS or self.g.relation_of(e.proposition) is not self.ROOT:
+            return
+        wanted = self.g.member(e.proposition, 0)
+        for node in self.g.instances_of(self.SUBGOAL):
+            if self.g.member(node, 1) != wanted:
+                continue
+            s = self.chain.resolve(node, frame.topic, frame.seat)
+            if s is not None and s.sign == PLUS:
+                return
+        self.gate.write(
+            frame, self.g.rel(self.ROOTED, wanted), PLUS,
+            licence=self.g.rel(self.GOAL, wanted), source=self.KB, mention=True,
         )
 
     def _verdict(self, frame: Frame, e: Entry) -> None:

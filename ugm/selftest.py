@@ -1991,6 +1991,54 @@ def experience_is_offline() -> None:
           tally["apparatus"] * 4 > tally["arb"] * 3)
 
 
+def a_root_goal_is_askable() -> None:
+    """§6's *a root goal is never checked*, closed the way `blocked` was (§12).
+
+    *A root goal is a `goal(?w)` with **no** `subgoal(?p, ?w)`* is a negative
+    existential, and §12 says a `-` member cannot say it -- a `-` member says
+    *an entry denies this*, never *for no `?p`*. That is the same shape as
+    `blocked`, so it gets the same treatment: a REQUEST the machinery answers by
+    looking, depositing only when the answer is yes.
+
+    What it unblocks is one line no corpus could write before -- *what I was
+    ASKED for holds, so I am done* -- where the version without `rooted` stops at
+    whatever subgoal backward reading happened to satisfy first.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
+        "fact standing(<ask-root>)",
+        "rule <done> = implies( { +goal(?w), +rooted(?w), +?w }, { +enough(?w) } )",
+        "fact standing(<done>)",
+        "fact +heat(anna, kettle)", "fact +water(kettle)",
+        "fact +goal(boiling(kettle))", ""]))
+    steps = m.run(limit=400)
+
+    check("§6", "what the agent was asked for is askable: a goal nothing made a "
+          "subgoal of answers `rooted`",
+          m.holds(kb.term("rooted(boiling(kettle))")) == PLUS)
+    # The discrimination, and it needs a subgoal that HOLDS -- one that did not
+    # would prove nothing, since an unsatisfied subgoal could never stop anything.
+    subs = [n for n in m.g.instances_of(m.SUBGOAL) if m.holds(n) == PLUS]
+    held = [m.g.member(n, 1) for n in subs
+            if not m.g.has_var(m.g.member(n, 1))
+            and m.holds(m.g.member(n, 1)) == PLUS]
+    check("§12", "...and one backward reading made up on its own does NOT, even "
+          "though it holds -- which is the whole distinction",
+          bool(held) and all(m.holds(m.g.rel(m.ROOTED, w)) is None for w in held))
+    check("§17", "the machinery answers only when the answer is yes: a negative "
+          "existential of its own would be the thing it exists to avoid",
+          not any(m.g.show(m.g.relation_of(n)) == "rooted"
+                  and m.holds(n) == MINUS for n in m.g.instances_of(m.ROOTED)))
+    check("§15", "so the general stop rule is writable and the agent is SATISFIED "
+          "rather than exhausted",
+          steps[-1].state == "stopped"
+          and m.holds(kb.term("boiling(kettle)")) == PLUS)
+
+
 def a_rule_says_that_it_ran() -> None:
     """`exercised(<R>)` -- the claim `applied(<R>)` was already making, as a
     PROPOSITION rather than as an entry field (§14, §21).
@@ -2892,6 +2940,7 @@ def main() -> int:
     an_agent_that_can_stop()
     no_goal_is_dropped_silently()
     experience_is_offline()
+    a_root_goal_is_askable()
     a_rule_says_that_it_ran()
     a_tool_is_data()
     an_episode_teaches_the_next_one()

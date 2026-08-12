@@ -193,6 +193,54 @@ def main() -> int:
     print("  Both are authored and name the answer. What is established is the size of")
     print("  the prize, and a gate that can fail.")
 
+    # -- and `<done>` stops naming the answer -----------------------------
+    #
+    # This file has said since it was written that the stop rule is a ceiling
+    # rather than an algorithm, because it is authored GROUND: it names the very
+    # proposition the goal is. The general form was unwritable -- `+goal(?w), +?w`
+    # stops at whatever subgoal backward reading satisfied first, because
+    # `<expand>` writes `+goal(sub)` too. §6's root-goal check closes that, so
+    # the general rule is measurable here for the first time.
+    general = (
+        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )" + chr(10)
+        + "fact standing(<ask-root>)" + chr(10)
+        + "rule <done> = implies( { +goal(?w), +rooted(?w), +?w },"
+          " { +enough(?w) } )" + chr(10)
+        + "fact standing(<done>)" + chr(10)
+    )
+    print()
+    print("  ** AND THE STOP RULE STOPS NAMING THE ANSWER (§6's root-goal check)")
+    print()
+    print(f"  {'D':>3} {'R':>3}   {'stop rule':<26} {'->goal':>7} {'->end':>6} {'how':>10}")
+    span = {}
+    for name, extra in (("none", ""), ("authored GROUND", stopping(8)),
+                        ("GENERAL, via `rooted`", general)):
+        m = Machine()
+        kb = load(m, corpus(8, 8, 0, False) + extra)
+        want = kb.term("w0_s8(item)")
+        goal, t, s = None, 0, None
+        for t in range(1, 5001):
+            s = m.tick()
+            if goal is None and m.holds(want) == "+":
+                goal = t
+            if s.state not in ("applied", "supposed", "widened", "quiet"):
+                break
+        span[name] = (goal, t, s.state if s else "?")
+        print(f"  {8:>3} {8:>3}   {name:<26} {str(goal):>7} {t:>6} "
+              f"{span[name][2]:>10}")
+    checks += 1
+    if span["GENERAL, via `rooted`"][2] != "stopped":
+        print("        <-- the general stop rule no longer stops the agent")
+        failures += 1
+    checks += 1
+    if span["GENERAL, via `rooted`"][1] >= span["none"][1]:
+        print("        <-- ...and it bought nothing over running to exhaustion")
+        failures += 1
+    print()
+    print("  It costs a few ticks over the ground version, and what it buys is that")
+    print("  it is not about this workload: `{+goal(?w), +rooted(?w), +?w}` is a")
+    print("  satisficing agent's whole policy, in a line, over any corpus.")
+
     checks += 8  # the fallible-advisor section's own gates
     failures += fallible_advisor()
     # A summary line at all, which this instrument never had: it printed prose
