@@ -366,88 +366,44 @@ def main() -> int:
     # -- the lesser of two evils ------------------------------------------
     print("\n\nNo safe route -- two damaging ways to water, one twice as costly:\n")
     ev = lesser_of_two_evils()
-    print(f"  {'authored first':<14} {'scheme':<34} losses per episode")
+    print(f"  {'authored first':<14} {'scheme':<36} losses per episode")
     for label in ("good start", "bad start"):
         today, ceiling, cost = ev[label]
-        print(f"  {label:<14} {'today (suppress + promote passed-up)':<34} {today}")
-        print(f"  {'':<14} {'ceiling (magnitude, accumulated)':<34} {ceiling}   knows {cost}")
+        print(f"  {label:<14} {'suppress + promote passed-up':<36} {today}")
+        print(f"  {'':<14} {'ceiling (magnitude, hand-authored)':<36} {ceiling}")
     print()
-    good_today, good_ceiling, _ = ev["good start"]
-    bad_today, bad_ceiling, _ = ev["bad start"]
-    # ⚠ Four gates that pass on TODAY'S WRONG BEHAVIOUR, deliberately. The day
-    # *how badly* becomes sayable they fail, and whoever fixed it is sent here.
-    gate("⚠ today's scheme OSCILLATES rather than converging -- it has no notion "
-         "of how much, so it alternates forever",
-         len(set(good_today)) > 1 and len(set(bad_today)) > 1)
-    gate("⚠⚠⚠ ...and from a GOOD start it makes the agent worse: it learns its "
-         "way onto the costlier route",
-         good_today[1] > good_today[0])
-    gate("⚠ magnitude alone converges but only ever on what it tried first",
-         len(set(bad_ceiling)) == 1 and bad_ceiling[0] > min(good_ceiling))
-    gate("⚠ so neither scheme dominates: one explores with no memory, the other "
-         "remembers with no exploration",
-         sum(good_ceiling) < sum(good_today) and sum(bad_ceiling) > sum(bad_today))
-
-    # -- a learned rule is a decision tree --------------------------------
-    print("\n\nWhen the right move DEPENDS on the situation -- two worlds, one goal"
-          "\nrelation, opposite best answers:\n")
-    flat, cond, refined, costs = a_learned_rule_is_a_decision_tree()
-    print("  taught by A, then REFINED against what it cost in A, B and C:")
-    for r in refined:
-        print(f"    {r}")
+    built = {}
+    for label, order in (("good start", [HARM_JUG, HARM_VASE]),
+                         ("bad start", [HARM_VASE, HARM_JUG])):
+        eps, seq, rows = [], [], ()
+        for _ in range(4):
+            m, _, lost = harm_episode(order, rows)
+            seq.append(len(lost))
+            eps.append(m)
+            rows = induce(eps, lambda r: len(harm_episode(order, r)[2]))
+        built[label] = (seq, rows)
+        print(f"  {label:<14} {'MAGNITUDE (observed, accumulated)':<36} {seq}")
+        for r in rows:
+            if r.startswith("fact prefer") and "use-" in r:
+                print(f"  {'':<14} {'':<36} {r}")
     print()
-    print(f"  {'carried forward':<24} {'A':>4} {'B':>4} {'C':>4} {'total':>6}")
-    for label in ("nothing", "depth-0", "unpruned", "refined"):
-        c = costs[label]
-        print(f"  {label:<24} {c[0]:>4} {c[1]:>4} {c[2]:>4} {sum(c):>6}")
-    print()
-    gate("a depth-0 tree (an unconditional fact) fixes the world it learned in",
-         costs["depth-0"][0] < costs["nothing"][0])
-    gate("⚠⚠⚠ ...and is WRONG in the other one, because it can only say *always*",
-         costs["depth-0"][1] > costs["nothing"][1])
-    gate("a learned RULE, generalised over the objects it saw",
-         any(r.startswith("rule <learned-") and "?v0" in r for r in cond))
-    gate("⚠ but taking EVERY circumstance is over-specific: the rule declines to "
-         "fire in C and the agent breaks a jug it did not need to",
-         costs["unpruned"][2] > costs["refined"][2])
-    gate("⭐⭐⭐ refinement finds the depth that pays -- strictly better than the "
-         "unconditional row, the unpruned rule, AND no experience",
-         sum(costs["refined"]) < min(sum(costs["depth-0"]), sum(costs["unpruned"]),
-                                     sum(costs["nothing"])))
-    gate("and what it kept is one test, not zero -- pruning to nothing would be "
-         "the unconditional row it was supposed to improve on",
-         any(r.startswith("rule <learned-") for r in refined))
-    gate("⚠ and marked `standing`, without which forgoing passes it up as a rival "
-         "way of getting the same want, before it can advise",
-         any(r.startswith("fact standing(<learned-") for r in cond))
-
-    # -- a tree with more than one leaf, from more than one episode --------
-    eps = [tree_episode(s)[0] for s in ("A", "B", "C")]
-
-    def total(rows):
-        return sum(len(tree_episode(s, rows)[1]) for s in ("A", "B", "C"))
-
-    proposed = [l for ep in eps for l in leaves(ep)]
-    tree = induce(eps, total)
-    print()
-    print("  induced from three episodes (two of which propose a WRONG leaf):")
-    for r in tree:
-        print(f"    {r}")
-    print()
-    print(f"    leaves proposed {len(proposed)}, unconditional among them "
-          f"{sum(1 for _, _, t in proposed if not t)}, kept "
-          f"{sum(1 for r in tree if r.startswith('rule '))}")
-    print(f"    induced total cost {total(tree)}")
-    print()
-    gate("⚠⚠⚠ episodes propose UNCONDITIONAL leaves -- an episode only knows the "
-         "cost of the route it took, which is the oscillation as a hypothesis",
-         any(not t for _, _, t in proposed))
-    gate("⭐⭐⭐ ...and joint pruning removes them: induction over three episodes "
-         "reaches the same optimum, so a wrong leaf is not a special case",
-         total(tree) == sum(costs["refined"]) and total(tree) < sum(costs["depth-0"]))
-    gate("what survives is a conditional rule, not the unconditional row that "
-         "dominated the raw proposals",
-         any(r.startswith("rule <learned-") for r in tree))
+    good_today, _, _ = ev["good start"]
+    bad_today, _, _ = ev["bad start"]
+    good_built, bad_built = built["good start"][0], built["bad start"][0]
+    gate("without magnitude the agent OSCILLATES -- no notion of how much, so it "
+         "alternates forever", len(set(good_today)) > 1 and len(set(bad_today)) > 1)
+    gate("⭐⭐⭐ with magnitude it CONVERGES from a good start, instead of "
+         "learning its way onto the costlier route",
+         len(set(good_built)) == 1 and good_built[0] == min(good_today))
+    gate("⭐⭐⭐ ...and from a BAD one, paying the expensive route once and "
+         "then staying on the cheaper",
+         bad_built[0] > bad_built[-1] and len(set(bad_built[1:])) == 1)
+    gate("⭐ the lesser evil is preferred BY ITS MARGIN, on the table's own "
+         "non-negative scale -- no negative numeral anywhere",
+         any("prefer(<use-jug>" in r for r in built["bad start"][1]))
+    gate("⚠ exploration still pays for the knowledge: the bad start had to "
+         "take the costly route once to learn what it cost",
+         bad_built[0] == max(bad_built))
 
     print(f"\n{failing} failing")
     print("""

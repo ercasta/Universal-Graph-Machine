@@ -2108,7 +2108,15 @@ class Machine:
         """
         rule_at = self._statements()
         out: List[Tuple[Rule, NodeId]] = []
-        seen = set()
+        # ⭐⭐⭐ HOW BADLY, and it needs no negative numeral. §21 carried *a small
+        # cost cannot be weighed against a large benefit* as blocked on the
+        # table's non-negative numerals -- and the blocker dissolves once the
+        # quantity is named correctly. Harm is **how many wanted things were
+        # lost**, which is a count, and a count is non-negative by construction.
+        # Nothing has to say `-3`; the comparison that matters is *this route
+        # cost two and that one cost one*.
+        tally: dict = {}
+        licence_for: dict = {}
         for s in current_state(self.chain, self.focus.topic, self.focus.seat):
             if s.sign != PLUS or self.g.relation_of(s.proposition) is not self.GOAL:
                 continue
@@ -2126,16 +2134,38 @@ class Machine:
                 if self.g.relation_of(e.licence) is not self.APPLIED:
                     continue
                 rule = rule_at.get(self.g.member(e.licence, 0))
-                if rule is None or (rule.node, key) in seen:
+                if rule is None:
                     continue
-                seen.add((rule.node, key))
-                out.append((rule, key))
-                self.gate.write(
-                    self.focus, self.g.rel(self.HARMED, rule.node, key), PLUS,
-                    licence=self.g.rel(self.GOAL, wanted), source=self.KB,
-                    mention=True,
-                )
+                pair = (rule.node, key)
+                if pair not in tally:
+                    tally[pair] = set()
+                    licence_for[pair] = wanted
+                    out.append((rule, key))
+                tally[pair].add(wanted)
+        # Deposited after the walk, not during it: the magnitude is an aggregate
+        # over everything lost, so writing it inside the loop would report the
+        # first count as the answer -- §16's ordering trap, in a smaller place.
+        self._harm = {}
+        for (node, key), lost in tally.items():
+            self._harm[node] = self._harm.get(node, 0) + len(lost)
+            self.gate.write(
+                self.focus,
+                self.g.rel(self.HARMED, node, key, self.NUMERAL[min(len(lost), 9)]),
+                PLUS, licence=self.g.rel(self.GOAL, licence_for[(node, key)]),
+                source=self.KB, mention=True,
+            )
         return out
+
+    def harm_of(self, rule) -> int:
+        """How many wanted things this statement cost, over the episode just run.
+
+        Zero for anything `blame` did not reach, which is the honest reading:
+        *nothing observed*, not *nothing done*. An agent that has never taken a
+        route knows nothing about its cost, and that ignorance is what makes
+        exploration necessary rather than optional."""
+        if not hasattr(self, "_harm"):
+            self.blame()
+        return self._harm.get(getattr(rule, "node", rule), 0)
 
     def _statements(self) -> dict:
         """Everything an `applied(...)` licence can name, by node.
@@ -2555,6 +2585,31 @@ def induce(episodes, cost, score: int = 3) -> List[str]:
     Those are mutation proper, and they are affordable for the same reason the
     rest is: every leaf concludes `prefer`, so a bad candidate costs ticks.
     """
+    # ⭐⭐⭐ WHAT EACH ROUTE COST, accumulated across episodes -- the second of the
+    # two things `lesser_of_two_evils` showed were needed and neither of which
+    # works alone. An episode knows only what the route it took cost; several
+    # episodes know several, and the comparison *this one cost two and that one
+    # cost one* is then sayable without a negative numeral anywhere.
+    observed: dict = {}
+    for ep in episodes:
+        for rule in ep.rules.rules:
+            if rule.name is not None:
+                h = ep.harm_of(rule)
+                if h:
+                    observed[rule.name] = max(observed.get(rule.name, 0), h)
+    worst = max(observed.values()) if observed else 0
+
+    def weight(name: str) -> int:
+        """A route's score: how much better than the worst thing known.
+
+        Non-negative by construction, so it lives on the table's own cardinal
+        scale untouched (§12's ordinals are a different quantity and stay one).
+        A route never tried scores the full `score` -- ignorance reads as
+        optimism, which is what makes the agent try something it has not tried
+        rather than settling on the first thing that merely worked."""
+        return score if name not in observed else max(
+            0, score + worst - observed[name])
+
     seen, cand = set(), []
     for ep in episodes:
         for name, key, tests in leaves(ep):
@@ -2569,11 +2624,20 @@ def induce(episodes, cost, score: int = 3) -> List[str]:
             if tests:
                 rn = f"learned-{i}-{name}-{key}"
                 out.append(f"rule <{rn}> = implies( {{ {', '.join(tests)} }},"
-                           f" {{ +prefer(<{name}>, {key}, {score}) }} )")
+                           f" {{ +prefer(<{name}>, {key}, {weight(name)}) }} )")
                 out.append(f"fact standing(<{rn}>)")
             else:
-                out.append(f"fact prefer(<{name}>, {key}, {score})")
+                out.append(f"fact prefer(<{name}>, {key}, {weight(name)})")
         return out
+
+    # Every route observed to harm gets a row too, not only the ones some episode
+    # proposed -- otherwise the LESSER of two evils is unsayable, because the
+    # route that merely cost less was never anybody's regretted alternative.
+    for name in observed:
+        for _, key, _ in cand:
+            if not any(c[0] == name and c[1] == key for c in cand):
+                cand.append([name, key, []])
+            break
 
     tree = cand
     best = cost(rows_for(tree))

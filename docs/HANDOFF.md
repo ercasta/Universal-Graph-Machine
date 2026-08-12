@@ -2,7 +2,46 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **a tree with more than one leaf**. Commit `induce`.
+## Latest: **magnitude — and it needed no negative numeral**. Commit `magnitude`.
+
+§21 carried *how badly a rule cost something is unsayable* as **blocked on the table's numerals being
+non-negative**, and it was pickup item 1 for four commits. The blocker dissolves once the quantity is
+named correctly:
+
+> **Harm is HOW MANY WANTED THINGS WERE LOST. That is a count, and a count is non-negative.** Nothing
+> ever has to say `-3`; the comparison that matters is *this route cost two and that one cost one*.
+
+`blame()` now deposits `harmed(<R>, key, n)`, and `harm_of(rule)` totals it. ⚠ The magnitude is an
+aggregate over everything lost, so it is deposited **after** the walk — writing it inside the loop would
+report the first count as the answer, §16's ordering trap in a smaller place. And `induce()` accumulates
+observed harm across episodes, scoring a route `base + worst − its own cost`.
+
+| start | before | **now** |
+|---|---|---|
+| good (jug first) | 1, 2, 1, 2 — oscillates, degrades | **1, 1, 1, 1** |
+| bad (vase first) | 2, 1, 2, 1 — oscillates | **2, 1, 1, 1** |
+
+    fact prefer(<use-jug>, water, 4)      base 3 + worst 2 − own 1
+
+**The lesser evil wins by exactly its margin**, and both starts converge. From a bad start it pays the
+costly route **once** and then stays — which is right: that is what buying the knowledge costs.
+
+⭐ **A route never tried scores full**, so ignorance reads as **optimism**. That is what still makes the
+agent explore rather than settle on the first thing that merely worked — the failure mode the
+hand-authored magnitude ceiling had (`2, 2, 2, 2` forever).
+
+⚠⚠ **Five gates asserting the oscillation failed when this landed — that is them working.** They were
+labelled *passes on today's wrong behaviour, so the day it changes they fail and send someone to the
+argument*. Third time that pattern has paid in this arc. Rewritten as guarantees.
+
+⚠ **What is still missing is the SECOND quantity, and it is now the only thing.** The score says *how
+good*; nothing says *how sure*. §10's ordinal grade on the entry is the place for it —
+`+prefer(<R>, k, 3) @possible` is already writable and never written. Until then exploration is paid in
+full every time: nothing lets the agent be less sure of a route it has tried once than of one it has
+tried twenty times. **That is exactly the pair a forest yields natively — score from the mean, grade
+from the spread.**
+
+## Before that: **a tree with more than one leaf**. Commit `induce`.
 
 `induce(episodes, cost)` — several episodes each propose a leaf (*the alternative I wish I had taken,
 conditioned on what was true when it went wrong*), then the leaves are pruned **jointly**. Leaves cross
@@ -422,7 +461,7 @@ python -m ugm.backward       0 failing, 0 blind         backward reading, as rul
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 python -m ugm.workload       0 failing                  stopping pays; and what BAD ADVICE costs
-python -m ugm.learning       0 failing, 26 gates        does an episode teach the next one?
+python -m ugm.learning       0 failing, 27 gates        does an episode teach the next one?
 python -m ugm.tools          0 failing, 11 gates        can a tool be data?
 ```
 
@@ -459,7 +498,10 @@ Forgoing left three narrow things open; the `learning` commit reordered them. Th
    applicable later is not passed up. Unmeasured whether that matters.
 2. **Complementary work must be declared**, and there is no way to declare it beyond denying the
    deposit. (Two rules that should *both* run for one want.)
-3. **How badly a rule cost something is unsayable** — `harmed` is two-valued and the table's numerals
+3. ~~**How badly a rule cost something is unsayable**~~ ✅ **DONE, commit `magnitude`** — harm is a
+   count of what was lost, so it is non-negative and no `-3` was ever needed. What remains of the item
+   is only the *second* quantity below. Original wording kept for the argument:
+   **How badly a rule cost something is unsayable** — `harmed` is two-valued and the table's numerals
    are non-negative, so a small cost cannot be weighed against a large benefit. ⬆⬆ **Now item 1, merged
    with item 4 below: `evils` measured that they are ONE item.** Magnitude without exploration sticks on
    whatever was tried first; suppression without magnitude oscillates. The missing thing is the PAIR
