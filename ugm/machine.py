@@ -468,6 +468,8 @@ class Machine:
         # loop used to make them equal by rediscovering its options every tick.
         self.matched = 0
         self.considered = 0
+        # The resolved state, kept rather than rebuilt. See `_state`.
+        self._state_cache: dict = {}
         self._stopped: set = set()
         self._noticed: set = set()
         self._vetoed: set = set()
@@ -861,7 +863,7 @@ class Machine:
         if self.g.relation_of(e.proposition) is not self.CHECK or e.sign != PLUS:
             return
         plan, goal = self.g.members(e.proposition)
-        state = current_state(self.chain, self.focus.topic, self.focus.seat)
+        state = self._state()
         env = {
             self.g.member(s.proposition, 1): self.g.member(s.proposition, 2)
             for s in state
@@ -973,7 +975,7 @@ class Machine:
         if self.g.relation_of(e.proposition) is not self.VERDICT or e.sign != PLUS:
             return
         (wanted,) = self.g.members(e.proposition)
-        state = current_state(self.chain, self.focus.topic, self.focus.seat)
+        state = self._state()
         # Two ways a goal is answered, and the vocabulary for both was already
         # settled by the other two requests: `fits` (a rule could produce it) and
         # `achieved` (the world already does). Counting both is what keeps
@@ -1852,7 +1854,7 @@ class Machine:
         # consequential cost and it is: measured, it was 86% of runtime, and 16
         # of every 17 of those walks were the same walk repeated.
         state = Situation(
-            self.g, current_state(self.chain, self.focus.topic, self.focus.seat)
+            self.g, self._state()
         )
         applications = self._applications(proposed, state)
         # Defeat before quiescence -- see `rules.defeat` for why the order is not
@@ -2035,7 +2037,7 @@ class Machine:
         # a table cannot discriminate on goal-directed work: every domain the
         # agent knows about is in play all the time, and being in play says
         # nothing about being useful. A live goal does.
-        for s in current_state(self.chain, self.focus.topic, self.focus.seat):
+        for s in self._state():
             if s.sign == PLUS and self.g.relation_of(s.proposition) is self.GOAL:
                 wanted = self.g.member(s.proposition, 0)
                 out.add(wanted)
@@ -2218,6 +2220,66 @@ class Machine:
         return tuple(wrote)
 
     # -- helpers ----------------------------------------------------------
+
+    def _state(self) -> List[Entry]:
+        """The resolved state here, kept across ticks instead of rebuilt.
+
+        `current_state` is §4's walk and the design calls it the single most
+        consequential cost: it collects every proposition the chain has ever
+        claimed on this branch and `resolve`s each one. That is O(everything
+        known) and it ran **twice a tick**, so it was the binding constraint the
+        moment `delta` took matching out of the way.
+
+        The same observation fixes it: a moment is a delta, so the state after
+        depositing an entry is the state before, plus that one claim. What is
+        kept is `proposition -> (key, entry)` where the key is `resolve`'s own
+        ordering -- (locus depth, deposit depth, position) -- so a later claim
+        replaces an earlier one exactly when `resolve` would have preferred it,
+        and an entry about an EARLIER locus correctly loses to one about a later
+        one. Nothing here re-derives the ordering; it reuses it.
+
+        ⚠⚠⚠ **Order is part of the answer here too, and more sharply than in
+        matching.** `current_state` returns propositions **most-recently-claimed
+        first**, and §18's *a description with two candidates resolves to the
+        most recent* is a semantic claim that rests on it -- not a detail of the
+        walk. So an updated proposition is re-inserted at the end of the dict
+        and the result is read back reversed, which reproduces the walk's order
+        exactly. Getting this wrong in `delta` cost four checks; it is the same
+        trap, one layer down.
+
+        ⚠ A different topic or seat is a different state, so it is a cache miss
+        and a full rebuild -- which is the safe direction, and what supposing,
+        leaving and re-seating each want.
+        """
+        topic, seat = self.focus.topic, self.focus.seat
+        key = (topic.node, seat.node)
+        cache = self._state_cache.get(key)
+        if cache is None:
+            props: dict = {}
+            # Oldest first, so the dict's insertion order is claim order and
+            # reading it back reversed gives the walk's newest-first order.
+            for e in reversed(current_state(self.chain, topic, seat)):
+                props[e.proposition] = (
+                    (e.locus.depth, seat.depth, 0), e
+                )
+            cache = {"pos": len(seat.delta), "props": props}
+            self._state_cache = {key: cache}
+            return [e for _, e in reversed(list(cache["props"].values()))]
+
+        props = cache["props"]
+        for i in range(cache["pos"], len(seat.delta)):
+            e = seat.delta[i]
+            if not topic.at_or_after(e.locus):
+                continue  # a claim about a moment later than what we are about
+            k = (e.locus.depth, seat.depth, i)
+            prev = props.get(e.proposition)
+            if prev is not None:
+                if k <= prev[0]:
+                    continue
+                del props[e.proposition]  # re-inserted below, so it moves to
+            props[e.proposition] = (k, e)  # the newest end of the order
+        cache["pos"] = len(seat.delta)
+        return [e for _, e in reversed(list(props.values()))]
 
     def _applications(self, proposed: List[Rule], state: Situation) -> List[Application]:
         """What could apply here -- carried across ticks instead of rediscovered.

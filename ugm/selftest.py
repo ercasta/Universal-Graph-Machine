@@ -2260,6 +2260,60 @@ def a_request_can_be_re_asked() -> None:
           [cm.g.show(x) for x in cm.emitted] == ["open(door)"])
 
 
+def the_state_is_kept_not_rebuilt() -> None:
+    """§4's walk, carried instead of redone -- and the three ways that is wrong.
+
+    `current_state` collects every proposition the chain has claimed and
+    `resolve`s each; it ran twice a tick, and once `delta` took matching out of
+    the way it was the binding constraint. A moment is a delta, so the state
+    after a write is the state before plus one claim.
+
+    ⚠⚠⚠ Kill-probed four ways when it landed, and **three of the four changed
+    nothing that 323 checks could see**. These are those three. An incremental
+    state has to reproduce `resolve`'s ordering exactly, and each of these is a
+    place where it silently might not.
+    """
+    m = Machine()
+    g, c = m.g, m.chain
+    p = g.rel(g.atom("pp"), g.atom("a"))
+    q = g.rel(g.atom("qq"), g.atom("a"))
+
+    m._state()                       # build the cache, then grow it
+    m.gate.write(m.focus, p, PLUS)
+    m.gate.write(m.focus, q, PLUS)
+    m.gate.write(m.focus, p, PLUS)   # ...and claim the first one again
+    order = [e.proposition for e in m._state()]
+    check("§18", "a proposition claimed again is the most recent in the state, "
+          "which is what *a description with two candidates resolves to the most "
+          "recent* rests on -- the order is semantics, not a detail of the walk",
+          order and order[0] == p and order.index(p) < order.index(q))
+
+    # §17's two indices, inside the kept state: a claim about an EARLIER moment,
+    # deposited later, must not displace a claim about a later one.
+    m2 = Machine()
+    early = m2.focus.seat
+    later = m2.chain.succeed(early, None)
+    m2.gate.reseat(m2.focus, later)
+    m2._state()
+    m2.chain.deposit(seat=later, locus=later, proposition=p, sign=PLUS)
+    m2.chain.deposit(seat=later, locus=early, proposition=p, sign=MINUS)
+    held = {e.proposition: e.sign for e in m2._state()}
+    check("§17", "a later DEPOSIT about an earlier LOCUS does not displace a claim "
+          "about a later one -- latest locus first, and only then latest deposit",
+          held.get(p) == PLUS)
+
+    # ...and reasoning about the past does not see the present.
+    m3 = Machine()
+    e0 = m3.focus.seat
+    e1 = m3.chain.succeed(e0, None)
+    m3.focus = m3.gate.frame(e1, topic=e0)
+    m3._state()
+    m3.chain.deposit(seat=e1, locus=e1, proposition=q, sign=PLUS)
+    check("§4", "a claim about a moment later than what I am reasoning ABOUT is "
+          "not in that moment's state",
+          q not in {e.proposition for e in m3._state()})
+
+
 def a_scope_can_span_documents() -> None:
     """§13's name scope, named -- so a book can be more than one document.
 
@@ -3371,6 +3425,7 @@ def main() -> int:
     experience_is_offline()
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
+    the_state_is_kept_not_rebuilt()
     a_scope_can_span_documents()
     matching_is_incremental()
     the_apparatus_eats_its_own_cooking()

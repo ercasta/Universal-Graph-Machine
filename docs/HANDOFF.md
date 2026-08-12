@@ -173,6 +173,37 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
+## ...and then the walk itself: **the state is kept, not rebuilt**. Commit `state`.
+
+With matching out of the way, §4's walk was the binding constraint -- `current_state` collects every
+proposition the chain has ever claimed on this branch and `resolve`s each, and it ran **twice a tick**.
+The same observation fixes it: a moment is a delta, so the state after a write is the state before plus
+one claim. What is kept is `proposition -> (key, entry)` where the key is `resolve`'s **own** ordering
+(locus depth, deposit depth, position), so a later claim replaces an earlier one exactly when `resolve`
+would have preferred it. Nothing re-derives the ordering; it reuses it.
+
+| corpus (same fixture throughout) | baseline | after `delta` | after `state` | |
+|---|---|---|---|---|
+| 2,000 facts + 2 rules | 12.7s | 3.1s | **1.5s** | 8.3× |
+| 10,000 facts + 2 rules | 905s | 361s | **74.7s** | 12.1× |
+
+Ticks and writes are identical at every step (207/6,184 and 1,031/265,754), which is the check that the
+speed came from not redoing work rather than from doing less of it.
+
+⚠⚠⚠ **Order is semantics here, more sharply than in matching.** `current_state` returns propositions
+**most-recently-claimed first**, and §18's *a description with two candidates resolves to the most
+recent* rests on it. An updated proposition is therefore re-inserted at the end of the dict and the
+result read back reversed, reproducing the walk exactly.
+
+⚠⚠⚠ **And the kill-probe is the finding: THREE of four mutations changed nothing 323 checks could
+see.** Only the ordering one was caught. The three that were invisible -- not re-inserting on update,
+letting a later deposit about an earlier locus win, and dropping the locus filter -- are each a place
+where an incremental state silently stops reproducing `resolve`. All three now have checks, and each
+mutation fails exactly its own.
+
+> **An optimisation of a read is a re-implementation of its semantics.** `resolve` had one
+> implementation and now has two, and only the suite says they agree.
+
 ## ...and: **a scope can span documents**. Commit `scopes`.
 
 The user's question, and it reframed coreference entirely: *could explicit bounded references avoid
@@ -875,12 +906,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     323 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     326 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 323 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 326 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
