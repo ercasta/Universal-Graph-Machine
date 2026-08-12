@@ -3097,6 +3097,101 @@ class Machine:
                 out.append((alt, key))
         return out
 
+    def report(self) -> List[str]:
+        """What happened, for a person -- §2's not-lossy criterion at the one
+        boundary nobody had crossed.
+
+        Everything here was already in the graph. A corpus with a typo ends
+        `quiescent` with `blocked(water(kettle))` deposited -- the agent has
+        diagnosed itself exactly -- and there was no way to be told. `why()`
+        answers about a proposition you already suspect; this answers *what
+        became of what I asked for*, which is the question someone actually has.
+
+        Depth first, left to right, because backward reading already built the
+        tree: a goal, the plans that fit it, and each plan's subgoals in the
+        order they were needed. Printed that way it reads as an argument rather
+        than as a dump, and the indentation is the search's own shape.
+        """
+        out: List[str] = []
+        holds = lambda p: self.holds(p)
+        # ⚠ `has_var` is NOT a filter here. A subgoal backward reading has not
+        # bound yet -- `heat(?a, kettle)` -- is exactly what a reader needs to
+        # see, and filtering it emptied the tree and left the subgoals looking
+        # like roots. The guard belongs on `goal`, where a description is not a
+        # claim (§15), and nowhere else.
+        live = lambda rel: [n for n in self.g.instances_of(rel)
+                            if self.holds(n) == PLUS]
+
+        def status(w: NodeId) -> str:
+            if holds(w) == PLUS:
+                return "held"
+            if any(self.g.member(n, 0) == w for n in live(self.BLOCKED)):
+                return "BLOCKED"
+            return "open"
+
+        # goal -> plans -> subgoals, which is exactly what `<plan>` and
+        # `<expand>` deposited; nothing is recomputed here.
+        plans: dict = {}
+        for n in live(self.EXPANDS):
+            plan, wanted, _rule = self.g.members(n)
+            plans.setdefault(wanted, []).append(plan)
+        # ⚠ Not the apparatus's own goals. Backward reading makes `need(...)`
+        # and `fits(...)` goals like any other, and shown here they read as
+        # things the user asked for -- several of them permanently `BLOCKED`,
+        # which is both true and meaningless. A report is about the world the
+        # corpus is about; the machinery's own search is what `why` is for.
+        subs: dict = {}
+        for n in live(self.SUBGOAL):
+            plan, sub = self.g.members(n)
+            if self.g.relation_of(sub) in self._bookkeeping:
+                continue
+            subs.setdefault(plan, []).append(sub)
+
+        def walk(w: NodeId, depth: int, seen: frozenset) -> None:
+            if w in seen or depth > 12:
+                out.append("  " * depth + f"{self.g.show(w)} ...")
+                return
+            here = plans.get(w, [])
+            head = f"{self.g.show(w)}  [{status(w)}]"
+            # ⭐ **Indent where there is a CHOICE; chain where there is not.**
+            # One way of getting something is not a branch, and indenting it
+            # says there was a decision where there was none -- the same reason
+            # `likely(not(p))` reads as one line and not as three. So a single
+            # plan joins its goal's line, and several are laid out as the
+            # alternatives they are.
+            if len(here) == 1:
+                out.append("  " * depth + head + f"  via {self.g.show(self.g.member(here[0], 0))}")
+                for sub in subs.get(here[0], []):
+                    walk(sub, depth + 1, seen | {w})
+                return
+            out.append("  " * depth + head)
+            for plan in here:
+                out.append("  " * (depth + 1) + f"via {self.g.show(self.g.member(plan, 0))}")
+                for sub in subs.get(plan, []):
+                    walk(sub, depth + 2, seen | {w})
+
+        wanted = [self.g.member(n, 0) for n in live(self.GOAL)
+                  if not self.g.has_var(n)
+                  and self.g.relation_of(self.g.member(n, 0)) not in self._bookkeeping]
+        subgoal_of = {s for ss in subs.values() for s in ss}
+        roots = [w for w in wanted if w not in subgoal_of] or wanted
+        if roots:
+            out.append("asked for:")
+            for w in roots:
+                walk(w, 1, frozenset())
+        if self.emitted:
+            out.append("did:")
+            out.extend(f"  {self.g.show(a)}" for a in self.emitted)
+        refused = live(self.REFUSED)
+        if refused:
+            out.append("refused:")
+            out.extend(f"  {self.g.show(n)}" for n in refused)
+        opened = live(self.OPEN)
+        if opened:
+            out.append("still open when it tried to stop:")
+            out.extend(f"  {self.g.show(self.g.member(n, 0))}" for n in opened)
+        return out
+
     def why(self, proposition: NodeId, locus: Optional[Moment] = None) -> List[str]:
         """*Why do you believe that, and on whose word?* -- R5.
 

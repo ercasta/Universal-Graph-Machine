@@ -2409,6 +2409,72 @@ def a_domain_can_be_taken_out_of_mind() -> None:
           and m4.g.show(owes.source) == "billing")
 
 
+def the_agent_can_say_what_became_of_it() -> None:
+    """§2's not-lossy criterion at the one boundary nobody had crossed.
+
+    A corpus with a one-character typo ends `quiescent` with
+    `blocked(water(kettle))` deposited -- the agent has diagnosed itself
+    exactly -- and there was no way to be told. Every `__main__` in this package
+    was an instrument; none was a door.
+
+    Depth first, left to right, because `<plan>` and `<expand>` already built
+    the tree. ⭐ **Indent where there is a choice; chain where there is not** --
+    one way of getting something is not a branch, and indenting it claims a
+    decision was made where none was, the same reason `likely(not(p))` reads as
+    one line rather than three.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <boil> = implies( { +heated(?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <heat> = causes( { +doing(switch(?w)) }, { +heated(?w) } )",
+        "rule <intend> = implies( { +goal(doing(?a)) }, { +doing(?a) } )",
+        "fact standing(<intend>)",
+        "fact +water(kettle)", "fact +goal(boiling(kettle))", ""]))
+    m.run(limit=300)
+    lines = m.report()
+    body = chr(10).join(lines)
+    check("§2", "a rule prints as the name its author gave it, not as ninety "
+          "characters of its own structure",
+          "<boil>" in body and "moment(entry(" not in body)
+    check("§2", "the report is the search's own shape: what was asked, how it "
+          "was pursued, and what it did",
+          "boiling(kettle)" in body and "via <boil>" in body
+          and "  switch(kettle)" in body)
+    check("§2", "...and the apparatus's own goals are not in it -- `need` and "
+          "`fits` are what `why` is for",
+          "need(" not in body and "fits(" not in body)
+
+    # The one that matters, and the reason this exists: a typo diagnoses itself.
+    bad = Machine()
+    kb2 = load(bad, chr(10).join([
+        "rule <boil> = implies( { +heated(?w), +water(?w) }, { +boiling(?w) } )",
+        "fact +heated(kettle)", "fact +watre(kettle)",
+        "fact +goal(boiling(kettle))", ""]))
+    bad.run(limit=300)
+    told = chr(10).join(bad.report())
+    check("§2", "⭐ a corpus with a typo says so: the goal is open, and the "
+          "subgoal nothing can produce is named BLOCKED",
+          "boiling(kettle)" in told and "water(kettle)  [BLOCKED]" in told)
+    check("§5", "...and asking why something absent is believed says nothing "
+          "concluded it, rather than returning an empty list",
+          bad.why(kb2.term("boiling(kettle)")) == [])
+    check("§2", "the working corpus's report does NOT say blocked, so the "
+          "fixture can fail", "BLOCKED" not in body)
+
+    # The scoped door for channels, the last of the twin traps to get one.
+    ch = Machine()
+    kb3 = load(ch, "rule <t> = implies( { +says(user, ?p, plus) }, { +?p } )"
+               + chr(10))
+    user = kb3.channel("user")
+    ch.channels.deliver(user, kb3.term("raining"), "+")
+    ch.run(limit=60)
+    check("§13", "`kb.channel(name)` opens a channel in the corpus's own scope, "
+          "so the socket the world speaks on is the one the rule reads",
+          ch.holds(kb3.term("raining")) == PLUS)
+
+
 def a_dry_search_reaches_for_what_is_out_of_mind() -> None:
     """§19's carve-out, the fourth time, and the argument transfers whole.
 
@@ -3630,6 +3696,7 @@ def main() -> int:
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
     a_domain_can_be_taken_out_of_mind()
+    the_agent_can_say_what_became_of_it()
     a_dry_search_reaches_for_what_is_out_of_mind()
     the_state_is_kept_not_rebuilt()
     a_scope_can_span_documents()

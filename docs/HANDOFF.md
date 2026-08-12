@@ -173,6 +173,48 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
+## Latest: **the agent can say what became of it**. Commit `report`.
+
+§2's not-lossy criterion at the one boundary nobody had crossed. A corpus with a one-character typo
+ends `quiescent` with `blocked(water(kettle))` deposited -- **the agent had diagnosed itself exactly**
+-- and there was no way to be told. Every `__main__` in this package was an instrument; none was a
+door.
+
+    python -m ugm <corpus.ugm> [--limit N] [--why TERM]
+
+```
+typo.ugm: 15 ticks, ended quiescent
+
+asked for:
+  boiling(kettle)  [open]  via <boil>
+    water(kettle)  [BLOCKED]
+    heat(?a, kettle)  [open]
+```
+
+⭐⭐ **A rule now prints as its name.** It is minted as `implies(moment(...), moment(...))` and appeared
+that way in every plan node, licence and `unmet` -- ninety characters of its own structure where the
+author had written `<boil>`. Names are never identity here, so `Graph.call_it` cannot make two nodes
+one; it only gives a node something to print. This is the single largest readability change in the
+arc and it is four lines.
+
+⭐ **Depth first, left to right -- the user's framing, with their refinement.** `<plan>` and `<expand>`
+already built the tree; nothing is recomputed. And: **indent where there is a CHOICE, chain where
+there is not.** One way of getting something is not a branch, and indenting it claims a decision was
+made where none was -- the same reason `likely(not(p))` reads as one line and not as three.
+
+⚠ **Two things the fixtures corrected.** `has_var` is not a filter here: an unbound subgoal
+(`heat(?a, kettle)`) is exactly what a reader needs, and filtering it emptied the tree and made
+subgoals look like roots. And the walk must NOT descend into the apparatus's own goals -- backward
+reading makes `need(...)` and `fits(...)` goals like any other, and shown here they read as things the
+user asked for, several permanently `BLOCKED`, which is both true and meaningless.
+
+⭐ **`kb.channel(name)`** -- the last twin trap to get a scoped door, beside `Loader.answerer`.
+`m.channels.open("user")` mints a socket beside the table the corpus resolves against, so the rule
+reading `says(user, ...)` and the world speak on two sockets with one name, silently.
+
+⚠ Still absent, and now the honest gap between this and a usable tool: **nothing persists.** Every
+session starts from zero, so what `learned()` writes dies with the process.
+
 ## Decision: **typing is OFF the list**, and the user's objection is the design's own test
 
 *Types are a superimposed thing, a simplification that risks being wrong.* Agreed, and the case had
@@ -1026,12 +1068,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     338 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     345 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 338 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 345 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?

@@ -387,6 +387,7 @@ class Loader:
         for r in self.m.bundle:
             self.rule_nodes[r.name] = r.node
             self.rules_by_name[r.name] = r
+            self.m.g.call_it(r.node, f"<{r.name}>")
         # Tools, by name, for the same reason and in the same table. `<...>` is
         # the namespace of STATEMENTS and a tool is something statements are
         # about -- a corpus writes `-answers(<oracle>, guess)` to retire one and
@@ -396,6 +397,21 @@ class Loader:
         for a in self.m.answerers:
             self.rule_nodes[a.name] = a.node
             self.rules_by_name[a.name] = a
+
+    def channel(self, name: str) -> NodeId:
+        """Open a channel **in this corpus's scope**, which is the only scope in
+        which its name means anything.
+
+        `Machine.channels.open("user")` mints a node beside whatever table the
+        corpus resolves against, so the rule reading `says(user, ...)` and the
+        socket the world speaks on are two sockets with one name -- silently.
+        That is the twin trap, and it is the same door `answerer` opens for a
+        tool's request: anything that binds a name goes through the table that
+        resolves it.
+        """
+        node = self.m.channels.use(self.atom(name))
+        self.channels[name] = node
+        return node
 
     def answerer(self, name: str, request: str, fn):
         """Register a tool **in this corpus's scope**, which is the only scope in
@@ -541,6 +557,12 @@ class Loader:
         r.mentions = any(_mentions_a_rule(m.term) for m in s.consequent)
         self.rules_by_name[s.name] = r
         self.rule_nodes[s.name] = r.node
+        # ...and so it PRINTS as its name. A rule is minted as
+        # `implies(moment(...), moment(...))` and appeared that way in every plan
+        # node, licence and `unmet` -- ninety characters of its own structure
+        # where the author had written `<boil>`. §2's readable criterion, failing
+        # in the one place a person actually looks.
+        self.m.g.call_it(r.node, f"<{s.name}>")
 
     def _covered(self, pattern: NodeId, ant: List[Member], exempt: set = frozenset()) -> bool:
         g = self.m.g

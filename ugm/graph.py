@@ -120,6 +120,19 @@ class Graph:
 
     # -- printing ---------------------------------------------------------
 
+    def call_it(self, n: NodeId, text: str) -> NodeId:
+        """Give an existing node a name, for printing only.
+
+        Names are never identity here (that is the whole of §3's second
+        paragraph), so this cannot make two nodes one or tell two apart. What it
+        is for is that a rule is minted as `implies(moment(...), moment(...))`
+        and prints as ninety characters of its own structure -- in every plan
+        node, every licence, every `unmet`. The author called it `<boil>`; there
+        was simply nowhere to put that.
+        """
+        self._name[n] = text
+        return n
+
     def show(self, n: NodeId) -> str:
         if n in self._name:
             return self._name[n]
