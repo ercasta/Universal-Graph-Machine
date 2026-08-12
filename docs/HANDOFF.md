@@ -173,6 +173,31 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
+## Decision: **typing is OFF the list**, and the user's objection is the design's own test
+
+*Types are a superimposed thing, a simplification that risks being wrong.* Agreed, and the case had
+already lost two of its three legs:
+
+* **Selectivity — dead.** Typing was to narrow matching by a constant factor. `dormant` over domains
+  measured **14.5x** by a mechanism that is an ordinary fact. The constant-factor argument is gone.
+* **Act versus state — not a type.** What is actually needed is one narrow question: *can the agent
+  bring this about by acting?* In this design that is either an ordinary deniable claim, or -- better
+  -- a question about the **boundary**, since what can leave the agent is what an actuator accepts.
+  That is anchored, which makes it machinery of the `arrived`/`emitted` family (§17): deposit the
+  smallest unarguable record, let rules say what it means. No new kind of thing.
+* **Backward termination — the same question, and still open.** The regress walks `doing`/`taken`/
+  `did`/`emitted` because nothing says which propositions the agent can bring about. Whatever answers
+  the question above answers this too.
+
+⭐ **And the objection IS §4's test.** *Adding a connective adds rows, not branches* -- a type system
+is a branch, and a checked type is a decision that cannot be argued with, which §2 rules out for
+anything admissible. It is also the shape this arc keeps discovering it did not need: the ISA, the
+phases, the watchdog registry, a congruence relation for identity.
+
+⚠ Nothing currently depends on planning-to-act: every corpus here plans through ground-consequent
+rules and works. So this is **optional**, and the open item is one sentence rather than a subsystem:
+*what can the agent bring about, and who says so.*
+
 ## Latest: **a dry search reaches for what is out of mind**. Commit `escalate`.
 
 §19's carve-out for the **fourth** time, and the argument transfers whole:
