@@ -32,7 +32,13 @@ So the phase's starvation was real and its repair is not automatic. What the
 rules gain is that the timing is now a corpus's to fix -- a rule may re-ask under
 a fresh request node -- where under the phase it was not expressible at all.
 `ugm.backward`'s original 29th fact is therefore recorded here as a *claim about
-the phase*, not as a current output. §21 carries the re-ask.
+the phase*, not as a current output.
+
+⚠ **The re-ask now exists** (`again(<request>, <occasion>)`, §13) and this run
+still does not use one, deliberately: what it measures is the replacement on its
+own, and a corpus rule that recovers the fact would measure the corpus. The
+`a_request_can_be_re_asked` checks in `ugm.selftest` are where the recovery is
+shown, on a fixture built for it.
 
 What the run measures now is the replacement, on its own: does it reach the plan,
 and is every one of the five rules load-bearing? The second half is not optional.

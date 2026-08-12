@@ -2,7 +2,85 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **a root goal is askable**. Commit `rooted`.
+## Latest: **a request can be re-asked**. Commit `reask`.
+
+The item the last handoff ended on — *the single thing standing between the agent and noticing both
+its own satisfied goals and its own dead rules*. It cost a wrapper and one write, and **the diagnosis
+everyone had been carrying, including mine, was half wrong.**
+
+⭐⭐⭐ **The request never needed to be fresh. The ENTRY did.** §6 said *an entry once written is
+permanent, so restating it changes nothing* — true, and irrelevant: `Chain.deposit` has always taken a
+second entry about a proposition it has seen, because that is what §10's two indices are *for*. What
+forbids the re-ask is `_would_change`, and it forbids it **of a rule**. The machinery re-delivering a
+request is not a rule restating one, so the prohibition never covered the act at all.
+
+    again(<request>, <occasion>)     ask this again, because of this
+
+An ordinary node, different per occasion, so concluding it **is** a step. What the machinery does with
+it is write the wrapped request **through the gate** — and `_settle`, `_fit`, `_verdict`, `_root` and
+`_answer` are all `on_write` hooks, so a re-asked request reaches all five and **not one of them knows
+re-asking exists**. The contrast pair the `rooted` section below ends on, closed:
+
+| | goal holds | `achieved`, no re-ask | `achieved`, re-asked |
+|---|---|---|---|
+| holds from the start | `+` | `+` | `+` |
+| derived a few ticks later | `+` | **None** | **`+`** |
+
+One tick dearer (15 → 16). The no-re-ask row is kept as its **control**; the two runs differ by two
+corpus lines and nothing else.
+
+⭐⭐ **Two things fell out that were not designed for.**
+
+* **Retry is a corpus rule**, which §21 wanted and had nothing to retry with. `again(doing(a), occ)`
+  re-delivers an intent, and `_dispatch` dedups on the **entry** rather than on the proposition — so
+  the act leaves the agent a second time. Measured: `['open(door)', 'open(door)']`, with the un-stuck
+  door as the control that opens once.
+* **A tool is re-askable by the same line.** A stub that declines the first asking answers the second.
+  That is §2's composability criterion rather than a convenience: re-asking and answering were designed
+  against each other by nobody.
+
+⚠⚠⚠ **And *when* is not free choice — this is the finding to carry.** An occasion the re-asking can
+itself produce warrants the next re-ask, which produces the occasion after that:
+
+> **An occasion warrants a re-ask only if re-asking cannot produce one.**
+
+The author picks the trap or avoids it with **one word**, and neither reading of the word is about
+re-asking. `quiet` is deposited once per seat, and an `implies` rule does not move the seat:
+
+| `<recheck>` written | ticks | askings | ends |
+|---|---|---|---|
+| `implies` | 16 | **1** | quiescent |
+| `causes` | 300 (the limit) | **143** | still going |
+
+`causes` moves the seat, which mints a fresh `quiet`, which warrants the next re-ask. ⚠ I expected the
+`implies` version to run away too and it does not — measured rather than reasoned about, and the
+criterion is **stated and not enforced**: nothing stops an author writing the second one.
+
+⭐⭐ **De-pythonization, asked in the same breath and answered by the same commit.** The audit first:
+nine `on_write` hooks, one veto, and `answers(<M>, ask)` — the door built for tools so a binding could
+be *data* — had **exactly zero apparatus users**. §21's *the apparatus does not eat its own cooking*
+was true of every single one. Re-asking is the first that is not: it registers through `answerer`, so
+`answers(<re-ask>, again)` is on the record and **`fact -answers(<re-ask>, again)` turns re-asking
+off** — gated, and the agent goes back to asking once.
+
+⚠ The criterion for which of the other eight may follow, because it is not all of them:
+
+> **A capability whose absence is the status quo ante is safe to retire.** Deny re-asking and each
+> question is asked once, which is what the agent did before this commit and was sound. Deny `_fit`
+> and backward reading stops — §19's carve-out, and a different argument.
+
+⚠⚠ **Two of my own checks were wrong and both were traps this repo has already recorded.** A count of
+`instances_of(AGAIN)` read **2** where the answer is 1, because the rule's own consequent pattern is an
+instance of the relation and holds nothing. And the tool check asked
+`answered(oracle, guess(vessel), yes)` — bare — where a tool's name lives in the namespace of
+**statements**: `<oracle>`. The twin trap, one namespace along, in a check written after the trap was
+written down.
+
+**What it does NOT close:** *when may a binding be reconsidered*, the last of the original four hats.
+Re-asking got there because a request is a **proposition** and a proposition can be re-delivered; a
+binding is not one, so the same move is not available.
+
+## Before that: **a root goal is askable**. Commit `rooted`.
 
 §6 recorded *a root goal is never checked for satisfaction*; §12 recorded why it could not be a rule.
 *A root goal is a `goal(?w)` with **no** `subgoal(?p, ?w)`* is a **negative existential**, and a `−`
@@ -608,12 +686,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     301 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     310 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 291 · backward 7 · compose 5 · workload 23 ·
+one that could have said so. Current counts: selftest 310 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
@@ -640,9 +718,12 @@ when the loop does. Nothing in it is a line a rule could have written.
 `denial`, four `deviation-*`, `resuming`, `relevant`, and backward reading's `ask-recall`, `ask-fit`,
 `plan`, `expand`, `ask-check`, `give-up`.
 
-**Write-time hooks**: `_dispatch`, `_enter`, `_fit`, `_settle`, `_verdict`, `_remember`, `_answer`.
-⚠ §21's debt is now **narrower, not gone** — `_answer` is bound through the `answers(<M>, ask)` fact, so
-a corpus can see and retire what it calls; the other six are still bound in Python.
+**Write-time hooks**: `_dispatch`, `_enter`, `_fit`, `_settle`, `_verdict`, `_root`, `_remember`,
+`_answer`, and `_again`. ⚠ §21's debt is **narrower again** — `_answer` is bound through the
+`answers(<M>, ask)` fact, so a corpus can see and retire what it *calls*, and `_again` is the first
+piece of the apparatus whose OWN binding is one of those facts (`fact -answers(<re-ask>, again)`
+retires it). The other seven are still bound in Python, and the criterion for which may follow is in
+the `reask` section: a capability whose absence is the status quo ante is safe to retire.
 
 **Three guards, and they are one move — *escalate before believing a decline*:** `_widen` at a dry
 shortlist, `_forbid` at a write (§19's norm veto), `_notice_open` at a stop. None is a phase; each
@@ -673,9 +754,12 @@ Forgoing left three narrow things open; the `learning` commit reordered them. Th
    accumulate — *restating is not revising* (§8) — so a route that has worked twenty times and one that
    worked once are indistinguishable. This is the same missing notion as item 3 from the other side, and
    `ugm.learning` closes on the note that it should be measured, not assumed.
-5. Then: *when may a request be re-asked* and *when may a binding be reconsidered* — the two of the
-   original four hats still open. `enough` needed the loop to do **less** and one fact sufficed; these
-   need it to do something **again**.
+5. ~~*when may a request be re-asked*~~ ✅ **DONE, commit `reask`** — `again(<request>, <occasion>)`.
+   What is left is **when may a binding be reconsidered**, the last of the original four hats, and it
+   does not fall to the same move: a request is a proposition and can be re-delivered; a binding is
+   not one. ⚠ Also left is that the re-ask criterion (*an occasion warrants a re-ask only if
+   re-asking cannot produce one*) is **stated and unenforced** — nothing stops an author writing the
+   `causes` version that asks forever.
 
 ---
 

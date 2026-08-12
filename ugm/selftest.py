@@ -2071,11 +2071,193 @@ def a_root_goal_is_askable() -> None:
     check("§6", "a root goal CAN be checked once it is askable -- the goal as its "
           "own plan, and no engine change, because a root goal binds nothing",
           now.holds(kb_now.term("achieved(q(x))")) == PLUS)
-    check("§21", "⚠ but only if it already held when the question was asked: a goal "
-          "reached LATER is never looked at again, because a request can be made "
-          "once. `rooted` was necessary and is not sufficient",
+    check("§6", "⚠ ...but only if it already held when the question was asked: with "
+          "no re-ask a goal reached LATER is never looked at again, because a "
+          "request can be made once. `rooted` was necessary and is not sufficient",
           later.holds(kb_later.term("q(x)")) == PLUS
           and later.holds(kb_later.term("achieved(q(x))")) is None)
+    # ...and the same fixture with a re-ask is `a_request_can_be_re_asked` below,
+    # which is why this one stays: it is now the CONTROL for that, rather than an
+    # open item. The two runs differ by two corpus lines and nothing else.
+
+
+def a_request_can_be_re_asked() -> None:
+    """§6's *a request can only be made once*, and §21's first of the last two hats.
+
+    ⭐⭐⭐ **The request never needed to be fresh. The ENTRY did.** §10's two
+    indices exist so that *the same claim, later* is expressible, and `deposit`
+    has always taken a second entry about a proposition it has seen. What forbids
+    a re-ask is `_would_change` -- quiescence -- and quiescence forbids it of a
+    RULE. The machinery re-delivering a request is not a rule restating one, so
+    the prohibition never covered this act.
+
+    So the whole of it is a wrapper and one write:
+
+        again(<request>, <occasion>)
+
+    ordinary node, different per occasion, so concluding it is a step; and what
+    the machinery does with it is write the wrapped request through the gate,
+    where every answerer already listens.
+    """
+    from .text import load
+
+    ROOT = [
+        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
+        "fact standing(<ask-root>)",
+        "rule <check-root> = implies( { +goal(?w), +rooted(?w) }, { +check(?w, ?w) } )",
+        "fact standing(<check-root>)",
+    ]
+    WORLD = ["rule <r> = implies( { +p(x) }, { +q(x) } )", "fact +p(x)"]
+
+    def run(recheck, limit=300):
+        m = Machine()
+        kb = load(m, chr(10).join(
+            WORLD + ROOT + recheck + ["fact +goal(q(x))", ""]))
+        return m, kb, m.run(limit=limit)
+
+    def recheck(connective):
+        return [
+            f"rule <recheck> = {connective}( "
+            "{ +unmet(?w, ?w), +quiet(?m) }, { +again(check(?w, ?w), ?m) } )",
+            "fact standing(<recheck>)",
+        ]
+
+    # ⚠ Count the GROUND ones. `instances_of` returns the rule's own consequent
+    # pattern too -- `again(check(?w, ?w), ?m)` is an instance of the relation and
+    # holds nothing -- so a raw count reads one too many, which is what the first
+    # version of this check did.
+    minted = lambda mm: sum(1 for n in mm.g.instances_of(mm.AGAIN) if mm.holds(n) == PLUS)
+
+    m, kb, steps = run(recheck("implies"))
+    check("§6", "a goal satisfied AFTER the question was asked is noticed, once "
+          "the question can be asked again -- the exact contrast pair "
+          "`a_root_goal_is_askable` measures the other half of",
+          m.holds(kb.term("q(x)")) == PLUS
+          and m.holds(kb.term("achieved(q(x))")) == PLUS)
+    check("§21", "...and the occasion is on the record, so *why did you ask that "
+          "twice* has an answer -- which is the whole of why it is a member and "
+          "not a counter",
+          any(m.holds(n) == PLUS and m.g.members(n)[1] in
+              [x.node for x in m.chain.moments]
+              for n in m.g.instances_of(m.AGAIN)))
+    check("§6", "it costs one tick, because a re-ask is one application and one "
+          "write and not a second search",
+          len(steps) == 16)
+
+    # ⭐⭐ And it is bound the way a TOOL is, not the way the other eight
+    # write-time hooks are -- so a corpus can see it and retire it. §21's *the
+    # apparatus does not eat its own cooking* had been true of every one of
+    # them: `answers(<M>, ask)` shipped with exactly zero apparatus users.
+    #
+    # ⚠ The criterion for which hooks may follow, because it is not all of them:
+    # **a capability whose absence is the status quo ante is safe to retire.**
+    # Deny this and each question is asked once, which is what the agent did
+    # before and was sound. Deny `_fit` and backward reading stops, which is
+    # §19's carve-out and a different argument.
+    off = Machine()
+    kb_off = load(off, chr(10).join(
+        WORLD + ROOT + recheck("implies")
+        + ["fact -answers(<re-ask>, again)", "fact +goal(q(x))", ""]))
+    off.run(limit=300)
+    check("§21", "re-asking is bound by a FACT and not by a Python line: one "
+          "corpus line retires it, and the agent is back to asking once",
+          off.holds(kb_off.term("q(x)")) == PLUS
+          and off.holds(kb_off.term("achieved(q(x))")) is None
+          and m.holds(kb.term("answers(<re-ask>, again)")) == PLUS)
+
+    # ⚠⚠⚠ **WHEN may a request be re-asked, and it is not free choice.** An
+    # occasion the re-asking itself can produce warrants the next re-ask, which
+    # produces the occasion after that. Here the author picks that trap or avoids
+    # it with ONE WORD, and neither reading of the word is about re-asking:
+    #
+    #   implies  the re-ask is part of this moment       -- `quiet` is once per
+    #                                                       seat, and the seat
+    #                                                       does not move
+    #   causes   the re-ask moves the world on           -- so the seat moves, so
+    #                                                       a fresh `quiet` is
+    #                                                       written, so re-ask
+    #
+    # Measured rather than reasoned about, because I expected the first to run
+    # away too and it does not.
+    slow, _, slow_steps = run(recheck("causes"))
+    check("§21", "⚠⚠⚠ an occasion the re-asking can itself CREATE warrants a "
+          "re-ask forever: the same rule with `causes` advances the seat, `quiet` "
+          "is once per seat, and the agent asks the same question 100+ times",
+          len(slow_steps) >= 300 and minted(slow) > 50)
+    check("§6", "...where the `implies` version asks exactly once more and stops -- "
+          "so the criterion is *an occasion warrants a re-ask only if re-asking "
+          "cannot produce one*, and it is the connective that decides",
+          minted(m) == 1 and steps[-1].state == "quiescent")
+
+    # ⭐⭐ It is one write, so it reaches every answerer -- and a TOOL is an
+    # answerer. Nothing in `_answer` knows re-asking exists, which is the
+    # composability criterion (§2) rather than a convenience: re-asking and
+    # answering were designed against each other by nobody.
+    calls: List[int] = []
+    scope: List = []
+
+    def oracle(machine, frame, e):
+        calls.append(1)
+        # ⚠ `scope[0].atom`, not `machine.g.atom`. An answer built outside the
+        # loader's table is a node no rule can name, and the first version of
+        # this check built one -- so the tool answered, the record landed, and
+        # `kb.term(...)` asking about it resolved a TWIN that held nothing. The
+        # trap `ugm.tools` records, in a check written after it was recorded.
+        return scope[0].atom("yes") if len(calls) > 1 else None
+
+    tm = Machine()
+    tkb = load(tm, chr(10).join([
+        "rule <ask> = implies( { +wondering(?x) }, { +guess(?x) } )",
+        "fact standing(<ask>)",
+        "rule <retry> = implies( { +guess(?x), +quiet(?m) }, { +again(guess(?x), ?m) } )",
+        "fact standing(<retry>)",
+        "fact +wondering(vessel)", ""]))
+    scope.append(tkb)
+    tkb.answerer("oracle", "guess", oracle)
+    tm.run(limit=100)
+    check("§21", "a TOOL is re-askable by the same line, and `_answer` knows "
+          "nothing about it: a stub that declines the first time answers the "
+          "second",
+          len(calls) == 2
+          # `<oracle>`, because a tool's name is in the namespace of STATEMENTS
+          # -- the same table as a rule's, so the two cannot collide. Written
+          # bare, `oracle` resolves as an ordinary atom and the question is about
+          # a twin: the same trap, one namespace along.
+          and tm.holds(tkb.term("answered(<oracle>, guess(vessel), yes)")) == PLUS)
+
+    # ⭐⭐ And the generic wrapper turns out to be RETRY, which §21 wanted as a
+    # corpus rule. `_dispatch` dedups on the ENTRY node rather than on the
+    # proposition, so a second entry crosses the boundary a second time -- which
+    # was always the right dedup and had nothing to retry with until now.
+    am = Machine()
+    am.actuator("hands")
+    load(am, chr(10).join([
+        "rule <try> = implies( { +need_open(?d) }, { +doing(open(?d)) } )",
+        "fact standing(<try>)",
+        "rule <retry> = implies( { +doing(open(?d)), +quiet(?m), +stuck(?d) },"
+        "                        { +again(doing(open(?d)), ?m) } )",
+        "fact standing(<retry>)",
+        "fact +need_open(door)", "fact +stuck(door)", ""]))
+    am.run(limit=100)
+    check("§15", "an ACT re-asked is an act done again, so retry is a corpus rule "
+          "and not a mechanism -- the act leaves the agent twice",
+          [am.g.show(x) for x in am.emitted] == ["open(door)", "open(door)"])
+    # The control for it, and it is the one that can fail: without the occasion
+    # the retry rule needs, the act leaves once. A fixture where everything is
+    # retried cannot tell retrying from acting.
+    cm = Machine()
+    cm.actuator("hands")
+    load(cm, chr(10).join([
+        "rule <try> = implies( { +need_open(?d) }, { +doing(open(?d)) } )",
+        "fact standing(<try>)",
+        "rule <retry> = implies( { +doing(open(?d)), +quiet(?m), +stuck(?d) },"
+        "                        { +again(doing(open(?d)), ?m) } )",
+        "fact standing(<retry>)",
+        "fact +need_open(door)", ""]))
+    cm.run(limit=100)
+    check("§15", "...and the door that is not stuck is opened once, so the fixture "
+          "can fail",
+          [cm.g.show(x) for x in cm.emitted] == ["open(door)"])
 
 
 def a_rule_says_that_it_ran() -> None:
@@ -2980,6 +3162,7 @@ def main() -> int:
     no_goal_is_dropped_silently()
     experience_is_offline()
     a_root_goal_is_askable()
+    a_request_can_be_re_asked()
     a_rule_says_that_it_ran()
     a_tool_is_data()
     an_episode_teaches_the_next_one()

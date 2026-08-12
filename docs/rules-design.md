@@ -3448,6 +3448,43 @@ moment the subgoal appears. If forward reasoning satisfies it later, nothing ask
 `+check(p, w)` changes nothing and quiescence drops it. Requests are facts, and a fact is not an event.
 Anything that needs re-asking needs a fresh request node, and nothing yet says when.
 
+**Since settled, and the diagnosis above was half wrong.** The request never needed to be fresh — the
+**entry** did, and the chain has always taken a second entry about a proposition it has seen, because
+that is what §10's two indices are for. What forbids the re-ask is quiescence, and quiescence forbids
+it of a **rule**; the machinery re-delivering a request is not a rule restating one, so the prohibition
+never covered the act. So it costs a wrapper and one write:
+
+    again(<request>, <occasion>)     ask this again, because of this
+
+an ordinary node, different per occasion, so concluding it *is* a step — and what the machinery does
+with it is write the wrapped request through the gate, where every answerer already listens. `_settle`,
+`_fit`, `_verdict`, `_root` and `_answer` are all `on_write` hooks, so a re-asked request reaches all
+five and a **tool** becomes re-askable by the same line. Not one answerer knows re-asking exists.
+
+Three things fall out that were not designed for.
+
+**Retry is a corpus rule.** `again(doing(a), occ)` re-delivers an intent, and the boundary dedups on
+the *entry* rather than on the proposition — so the act leaves the agent a second time. §21 had wanted
+retry and had nothing to retry with.
+
+**Its binding is a fact.** Re-asking is registered through the door tools use, so `answers(<re-ask>,
+again)` is on the record and `fact -answers(<re-ask>, again)` turns it off. That door had exactly zero
+apparatus users before it. The criterion for which of the other hooks may follow is not preference:
+**a capability whose absence is the status quo ante is safe to retire.** Deny re-asking and each
+question is asked once, which is what the agent did before and was sound. Deny `_fit` and backward
+reading stops, which is §19's carve-out.
+
+**And *when* is not free choice**, which is the part worth arguing. An occasion the re-asking can
+itself produce warrants the next re-ask, which produces the occasion after that:
+
+> **An occasion warrants a re-ask only if re-asking cannot produce one.**
+
+Measured, and the author picks the trap or avoids it with one word. `quiet` is deposited once per seat,
+and an `implies` rule does not move the seat — so `{+unmet(?w,?w), +quiet(?m)} ⟹ {+again(check(?w,?w),
+?m)}` asks exactly once more and stops. The same rule written `causes` moves the seat, which mints a
+fresh `quiet`, which warrants the next re-ask: 143 askings of one question and no end. The connective
+decides it, and neither reading of the connective is about re-asking.
+
 ### Occasions, and the first thing a corpus can say to recall
 
 Two questions arrive together and turn out to be one mechanism.
@@ -3726,15 +3763,18 @@ The three a first implementation is most likely to get wrong:
   stronger property wants a notion of a goal being **discharged** (achieved, refused, handed over, or
   explicitly abandoned) that the design does not have, and it is the same missing notion as *when is a
   request re-askable*.
-* **Re-asking and reconsidering** (§10, §18, §19). Two of the four questions that came in with *a
-  reason to stop* are answered — a plan is settled and a woken rule is done when `enough` is concluded
-  about them, through `_leave`. The other two are not, and they are the same shape as each other and
-  a different shape from the first two: **when may a request be re-asked**, and **when may a binding
-  be reconsidered**. Both are blocked on the same thing, which is that an entry once written is
-  permanent, so restating it changes nothing and quiescence drops it. §10's two indices already make
-  *the same claim, later* expressible, so the machinery exists; what is missing is the occasion that
-  warrants a fresh node. Note the asymmetry that makes this harder than stopping: `enough` needed the
-  loop to do **less**, and one fact sufficed; these need it to do something **again**.
+* ~~**Re-asking**~~ ✅ **answered** — `again(<request>, <occasion>)`, above. The diagnosis kept here
+  was half wrong and the correction is the finding: *an entry once written is permanent* is true and
+  irrelevant, because the chain always took a second entry. Quiescence forbids a **rule** restating,
+  and the machinery re-delivering is not that. What is left of the item is the criterion it turned
+  up — an occasion warrants a re-ask only if re-asking cannot produce one — which is stated, measured
+  both ways, and **not enforced**: nothing stops an author writing the `causes` version.
+* **Reconsidering** (§10, §18, §19). The other of the four questions that came in with *a reason to
+  stop*, and the one that did not fall to the wrapper. **When may a binding be reconsidered** — the
+  walk that resolved `?t` to `sink` was two orderings and nothing revisits it. Note the asymmetry that
+  makes both harder than stopping: `enough` needed the loop to do **less**, and one fact sufficed;
+  these need it to do something **again**. Re-asking got there because a request is a proposition and
+  a proposition can be re-delivered; a binding is not one, so the same move is not available.
 * **Backward dispatch over reified rules** (§14). The forward direction of connective dispatch is
   writable as rules; the backward direction needs the operation above.
 * **How much of the bundle is actually rule-expressible** (§4). The agreement gate is stated and not

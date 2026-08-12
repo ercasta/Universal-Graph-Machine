@@ -257,6 +257,26 @@ class Machine:
         # not-lossy criterion failing at the one place nothing else guards.
         self.ANSWERS = self.g.atom("answers")
         self.ANSWERED = self.g.atom("answered")
+        # ⭐⭐⭐ Re-asking. §6 recorded *a request can only be made once* and §21
+        # carried it as one of the two original four hats still open.
+        #
+        #     again(<request>, <occasion>)   ask this again, because of this
+        #
+        # What was blocked was never the chain. §10's two indices already make
+        # *the same claim, later* expressible, and `deposit` mints a fresh entry
+        # for a proposition it has seen before without complaint. What forbids a
+        # re-ask is `_would_change` -- quiescence, at the RULE level: an
+        # application that restates what the chain already says is not a step, so
+        # `<ask-check>` concluding `+check(p, w)` a second time is dropped.
+        #
+        # So the missing thing is a fresh NODE, which is exactly what the design
+        # said, and a wrapper is one. `again(req, occ)` is an ordinary node that
+        # differs per occasion, so concluding it IS a step; and re-delivering the
+        # wrapped request through the gate reaches whatever answers it, because
+        # answering is an `on_write` hook and a write is a write. A tool becomes
+        # re-askable by the same line that makes `check` re-askable, and neither
+        # answerer learns a thing about re-asking.
+        self.AGAIN = self.g.atom("again")
         # A callback: a pointer to a rule, hung on a node. `+resume(h, <R>)` says
         # *when h returns, R's turn has come* -- and `turn` is the strongest thing
         # it can say, because §5's wall stands: no rule may apply a rule.
@@ -390,6 +410,7 @@ class Machine:
             "forgone": self.FORGONE, "exercised": self.EXERCISED,
             "root": self.ROOT, "rooted": self.ROOTED,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
+            "again": self.AGAIN,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
@@ -499,6 +520,26 @@ class Machine:
         self.gate.on_write.append(self._root)
         self.gate.on_write.append(self._remember)
         self.gate.on_write.append(self._answer)
+        # ⭐⭐⭐ ...and the ninth is NOT one, which is the point of it.
+        #
+        # Re-asking goes through the door `answers(<M>, ask)` opened for tools,
+        # so its binding is a FACT and `fact -answers(<re-ask>, again)` retires
+        # it. Until now that door had exactly zero apparatus users: §21's *the
+        # apparatus does not eat its own cooking* was true of all eight hooks
+        # above, and `answers` only ever carried a binding somebody else wrote.
+        #
+        # ⚠ What makes this one safe to make deniable where `_fit` is not, and
+        # it is a criterion rather than a preference:
+        #
+        # > **A capability whose absence is the status quo ante is safe to
+        # > retire.** Deny this and the agent asks each question once, which is
+        # > what it did before this commit and was sound. Deny `_fit` and
+        # > backward reading stops, which is §19's carve-out -- recall may be
+        # > incomplete about what to do, never about how to read.
+        #
+        # It composes rather than standing beside the eight: what it does is
+        # write, and they answer writes.
+        self.answerer("re-ask", "again", lambda _m, frame, e: self._again(frame, e))
         self.gate.veto.append(self._forbid)
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
@@ -1446,6 +1487,71 @@ class Machine:
                 licence=self.g.rel(self.APPLIED, a.node), source=self.KB,
                 mention=True,
             )
+
+    def _again(self, frame: Frame, e: Entry) -> None:
+        """Re-deliver a request, because a corpus said an occasion warrants it.
+
+        §6: *a request can only be made once.* `<ask-check>` asks whether a
+        subgoal is already satisfied at the moment the subgoal appears; if
+        forward reasoning satisfies it three ticks later, nothing asks again,
+        because re-concluding `+check(p, w)` restates what the chain says and
+        quiescence drops it. Requests are facts, and a fact is not an event.
+
+        ⭐⭐⭐ **The request never needed to be fresh. The ENTRY did.** The chain
+        has always taken a second entry for a proposition it has seen -- that is
+        §10's two indices, and *the same claim, later* is what they exist for.
+        What forbids the re-ask is `_would_change`, and it forbids it of a RULE.
+        The machinery re-delivering is not a rule restating, so the prohibition
+        was never about this act at all.
+
+        So the whole of it is a wrapper and one write:
+
+            again(<request>, <occasion>)
+
+        an ordinary node, differing per occasion, so concluding it is a step;
+        and what this does with it is write the wrapped request through the
+        gate, where every answerer already listens. `_settle`, `_fit`,
+        `_verdict`, `_root` and `_answer` are `on_write` hooks, so a re-asked
+        request reaches all five, and a **tool** becomes re-askable by the same
+        line -- which is the property `answers(<M>, ask)` was for. Not one
+        answerer knows this exists.
+
+        ⭐⭐ **Its own binding is a fact**, which no other piece of the apparatus
+        can say: this is registered through `answerer`, so `answers(<re-ask>,
+        again)` is on the record and `fact -answers(<re-ask>, again)` turns
+        re-asking off. §21's *the apparatus does not eat its own cooking* is now
+        true of eight hooks rather than nine.
+
+        ⚠⚠⚠ **What an occasion may be is the whole question, and it is not free
+        choice.** An occasion the asking can itself create warrants the next
+        re-ask, which creates the occasion after that: `ugm.reask` measures both
+        sides of it. The criterion the measurement gives:
+
+        > **An occasion warrants a re-ask only if re-asking cannot produce one.**
+
+        The wrapper is deliberately generic -- it re-delivers whatever it wraps.
+        Wrapping something that is not a request re-asserts it, which is honest
+        rather than an error: the entry is new, and §10 says what a second entry
+        about the same proposition means.
+        """
+        if e.sign != PLUS or self.g.relation_of(e.proposition) is not self.AGAIN:
+            return
+        members = self.g.members(e.proposition)
+        if len(members) != 2:
+            return
+        request, occasion = members
+        self.gate.write(
+            frame, request, PLUS,
+            licence=self.g.rel(self.AGAIN, request, occasion),
+            source=self.KB,
+            consumed=(e,),
+            # Inherited, not asserted: the re-ask is the same act as the ask, so
+            # whether it uses or mentions is settled by what is being re-asked
+            # and not by the fact of repeating it. `has_var` catches the case
+            # `_would_change` catches -- a request holding a pattern, which is a
+            # ground claim that happens to contain variables (§14).
+            mention=e.mention or self.g.has_var(request),
+        )
 
     def actuator(self, name: str) -> NodeId:
         """A channel that carries intents OUT. Channels already carry the world
