@@ -138,10 +138,23 @@ of its matching since the first tick ever ran.**
 always `seat.delta[pos:]`, and the matcher had simply never read it that way. `match` takes a `fresh`
 Situation and runs one pass per antecedent member, pivoting on the delta.
 
-| corpus | before | after |
-|---|---|---|
-| 2,000 facts + 2 rules | **did not finish in 600s** | **8.0s** |
-| 5,000 facts + 2 rules | unmeasurable | 91s |
+| corpus (same fixture both sides) | before | after | |
+|---|---|---|---|
+| 2,000 facts + 2 rules | 12.7s | **3.1s** | 4.0× |
+| 10,000 facts + 2 rules | 905s | **361s** | 2.5× |
+
+Ticks and writes are identical on both sides (207/6,184 and 1,031/265,754), which is the check that
+the speed came from not redoing work rather than from doing less of it.
+
+⚠⚠⚠ **I first reported this as *did not finish in 600s* → *8.0s*, and both halves were wrong.** The
+"did not finish" run was a `python -c` with no tty, so **stdout was block-buffered**: the 2,000-fact
+line had been printed and was sitting in the buffer when the command hit its timeout, and I read *no
+output* as *did not terminate*. It had finished in 12.7s. Then the "after" number was measured on a
+DIFFERENT fixture -- entities mod 300 instead of mod 900, so a denser join -- and compared to it
+anyway. Two instrument errors compounding into a headline roughly 20× too flattering.
+
+> **A timeout is not a measurement, and an unflushed buffer is not a silence.** The same lesson the
+> runner learned in `bundlefile` (a crash is not a failure) arriving from the output side. Use `-u`.
 
 **Three things had to be right, and I got two wrong first.**
 
