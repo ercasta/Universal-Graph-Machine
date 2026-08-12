@@ -2,7 +2,53 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **a tool is data**. Commit `tools`.
+## Latest: **an advisor at recall can only lose**. Commit `advisor`.
+
+The user picked recall as the place to put the first model. Measured before wiring one, because §19's
+whole argument for putting learning there is *being wrong there is recoverable* — and a model is wrong
+by construction, so that claim is load-bearing and had never been tested. It is **true and insufficient**,
+and the measurement says do not put a model here at all.
+
+| D (domains the agent knows) | no table | **ideal** table | confidently wrong |
+|---|---|---|---|
+| 6 | 43 | 43 | 103 |
+| 12 | 43 | 43 | 175 |
+| 24 | 43 | 43 | **319** |
+
+> **An advisor at this seam can only lose.** A perfect table buys exactly nothing at every scale; a
+> confident wrong one costs 2.4×, 4.1×, 7.4× **as the agent's knowledge grows**. The risk scales with
+> what it knows and the prize does not exist.
+
+⚠⚠⚠ **Why the prize is zero, and it is not §13's blocker alone.** `->goal` is **43 at D=6, D=12 and
+D=24** — it does not move with the agent's knowledge *at all*. The agent is **already perfectly
+selective**, because §14's `by_conclusion` index answers *what could produce this* **exactly**. A model
+here would spend inference approximating something an index computes precisely.
+
+> **Put a model where there is no exact algorithm, not where there is one.** Intake (prose →
+> propositions, measured at 0/50) and grounding (`achieves(a, w)`, hand-authored today) are seams with
+> no algorithm at all. Recall is not one — and the criteria table I scored earlier got this wrong
+> because it asked *is it safe to be wrong here* and never asked *is there anything to win*.
+
+⭐⭐⭐ **And the control turned a cost result into a SOUNDNESS one.** Disable `_widen` and a confidently
+wrong advisor does not merely slow the agent: the goal is **never reached**, and the run ends
+`quiescent` — *nothing left to do* — at tick 52. The agent does not fail. It reports having nothing to
+do while the thing it wanted is unreached.
+
+§19 argued *a shortlist that ran dry is not a search that finished* about a **budget too small to reach
+a rule that was there**. A bad advisor is the same error **with an author**, and the same one line
+answers both — the guard arriving from a third side, having been designed against neither.
+
+> **A model at this seam is safe exactly to the extent that `_widen` is, and not one step further.**
+
+Being wrong *is* recoverable, exactly as §19 claimed, and the widening counts are the guard firing
+(30, 66, 138). ⚠ But **recoverable is not free**, and nothing in §19 ever said what recovery costs.
+
+Built into `ugm.workload` as `fallible_advisor()`, with two gates that pass on **today's** behaviour on
+purpose: if an ideal table ever moves time-to-goal, §13's blocker is fixed and recall is measurable
+again; if bad advice stops costing more as the agent knows more, something else changed. Either failure
+sends the next person to this argument.
+
+## Before that: **a tool is data**. Commit `tools`.
 
 The user asked whether to start leveraging tools, whether some could be small models doing what rules
 genuinely cannot, and whether the two halves could be **jointly trained**. Their call on where to cut
@@ -66,11 +112,11 @@ result out of an unseeded source, and a sampled answer is exactly that — two r
 recording neither the choice nor the reason. A real answerer needs its seed on the record, or it is not
 reproducible reasoning. That is the first thing to solve before wiring one.
 
-**Where a model belongs, scored before deciding:** recall (*which rules come to mind*) wins on all four
-criteria — it orders rather than excludes, widening restores the full set, its output is corpus text,
-and §19 already argues that being wrong there is recoverable. Intake (prose → `says`) is the thing rules
-provably cannot do here (raw prose 0/50, book corpus 26%) but its payoff is qualitative. Writing
-conclusions directly fails not-leaking and not-lossy and is the one placement ruled out.
+**Where a model belongs, scored before deciding** — ⚠ and this table was **wrong about its own top
+row**; see the `advisor` section above. It scored *is it safe to be wrong here* and never asked *is
+there anything to win*, and at recall the answer is no. Intake (prose → `says`) remains the thing rules
+provably cannot do here (raw prose 0/50, book corpus 26%). Writing conclusions directly fails
+not-leaking and not-lossy and is still the one placement ruled out.
 
 ## Before that: **the learning loop closes**. Commit `learning`.
 
@@ -197,7 +243,7 @@ python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule
 python -m ugm.backward       0 failing, 0 blind         backward reading, as rules
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
-python -m ugm.workload       0 failing                  the gate is now on STOPPING buying something
+python -m ugm.workload       0 failing                  stopping pays; and what BAD ADVICE costs
 python -m ugm.learning       0 failing, 12 gates        does an episode teach the next one?
 python -m ugm.tools          0 failing, 11 gates        can a tool be data?
 ```
