@@ -2260,6 +2260,155 @@ def a_request_can_be_re_asked() -> None:
           [cm.g.show(x) for x in cm.emitted] == ["open(door)"])
 
 
+def a_domain_can_be_taken_out_of_mind() -> None:
+    """§19's recall, for FACTS -- the half it never had.
+
+    The agent has always narrowed which **rules** come to mind: `dormant` until
+    something claims `due`. It has never narrowed which **facts** do. The user's
+    proposal, and it needs no new vocabulary -- the same relation, a second kind
+    of thing, which is the design's own test that a thing belongs (rows, not
+    branches).
+
+    A domain is a **channel**: §13 already says the knowledge base is one, and
+    every loaded fact is stamped with its source, so *which domain is this from*
+    was already recorded and never read.
+
+    Measured on three domains with a goal in one: 22.6s over 600 ticks with all
+    of it in mind, 1.6s over 198 with two domains dormant -- **14.5x, and the
+    identical 196 conclusions.** It cuts both factors at once, which is why it
+    beats either cache built before it.
+
+    ⚠ Unloading is safe to be wrong about (worst case the domain comes back),
+    which is exactly why it may be an ordinary defeasible rule. §19's ESCALATION
+    -- reaching for more when the search comes up dry -- may not be, and is not
+    built here: §21.
+    """
+    from .text import load
+
+    corpus = [
+        "rule <r> = implies( { +owes(?c, ?n), +overdue(?c) }, { +chase(?c) } )",
+        "rule <s> = implies( { +late(?c, ?p) }, { +apologise(?c) } )",
+    ]
+    billing = ["fact +owes(acme, 100)", "fact +overdue(acme)"]
+    shipping = ["fact +late(acme, milan)"]
+
+    def run(dormant):
+        m = Machine()
+        kb = load(m, chr(10).join(corpus + [""]), scope="world", domain="rules")
+        load(m, chr(10).join(billing + [""]), scope="world", domain="billing")
+        load(m, chr(10).join(shipping + [""]), scope="world", domain="shipping")
+        if dormant:
+            load(m, chr(10).join([f"fact dormant({d})" for d in dormant] + [""]),
+                 scope="world", domain="ctl")
+        m.run(limit=200)
+        return m, kb
+
+    m0, kb0 = run(None)
+    check("§19", "with everything in mind the agent draws both domains' conclusions",
+          m0.holds(kb0.term("chase(acme)")) == PLUS
+          and m0.holds(kb0.term("apologise(acme)")) == PLUS)
+
+    m1, kb1 = run(["shipping"])
+    check("§19", "a domain the goal does not need can be taken out of mind: its "
+          "facts stop driving inference, and the other domain's conclusion is "
+          "unchanged -- which is what makes unloading safe to be wrong about",
+          m1.holds(kb1.term("chase(acme)")) == PLUS
+          and m1.holds(kb1.term("apologise(acme)")) is None)
+
+    # ⭐⭐⭐ **Out of mind is not untrue, and the difference is the whole design.**
+    # The fact is still in the chain, still stamped with where it came from,
+    # still on any trail that used it -- `holds` answers, and `why` would. What
+    # dormancy takes away is ATTENTION, never the record. Unloading from the
+    # chain instead would break §12's weakest link and put `why()` in the dark,
+    # which is the one thing this may not cost.
+    check("§4", "...and the unloaded fact is still TRUE and still attributable -- "
+          "dormancy takes attention, not the record",
+          m1.holds(kb1.term("late(acme, milan)")) == PLUS)
+
+    # ...and the one that must fail: take away what it DOES need, and it stops
+    # concluding. A fixture where unloading never costs anything cannot tell
+    # narrowing from doing nothing.
+    m2, kb2 = run(["billing"])
+    check("§19", "...and taking away a domain it DOES need stops the conclusion, "
+          "so the fixture can fail",
+          m2.holds(kb2.term("chase(acme)")) is None)
+
+    # ⚠⚠ **And facts that ARRIVE while the agent is running**, which is the case
+    # on-demand loading actually produces: the state is kept across ticks, so a
+    # dormant domain has to be filtered on the incremental path as well as the
+    # rebuild. Kill-probed separately -- with only the rebuild filter in place,
+    # nothing here failed, because no fixture loaded anything mid-run.
+    m5 = Machine()
+    kb5 = load(m5, chr(10).join(corpus + [""]), scope="world", domain="rules")
+    # The domain exists BEFORE it is made dormant, so what is in mind does not
+    # change when the second fact arrives -- which is what keeps the kept state
+    # in play instead of rebuilding it. A fixture where the domain first appears
+    # mid-run forces a rebuild and cannot see this at all: measured, killing the
+    # incremental filter failed nothing until this was written the other way.
+    load(m5, chr(10).join(shipping + [""]), scope="world", domain="shipping")
+    load(m5, chr(10).join(["fact dormant(shipping)", ""]),
+         scope="world", domain="ctl")
+    m5.run(limit=100)                       # ...quiesce, so the state is kept
+    load(m5, "fact +late(acme, roma)" + chr(10), scope="world", domain="shipping")
+    m5.run(limit=100)
+    check("§19", "a fact ARRIVING into a dormant domain does not come to mind "
+          "either -- the kept state and the delta that feeds matching are "
+          "filtered alike, and filtering only the first let it match once",
+          m5.holds(kb5.term("late(acme, roma)")) == PLUS
+          and m5.holds(kb5.term("apologise(acme)")) is None)
+
+    # ⚠⚠⚠ ...and the KEPT STATE's own filter needs a JOIN to be visible at all.
+    # With a one-member rule the dormant fact is always the pivot, so the delta
+    # filter above already excludes it and killing the state's filter changes
+    # nothing. A second member is drawn from the full state instead -- so a
+    # dormant fact that slipped into the kept state matches there. Two filters,
+    # two paths, and only a two-member rule can tell them apart.
+    m6 = Machine()
+    kb6 = load(m6, chr(10).join([
+        "rule <t> = implies( { +late(?c, ?p), +vip(?c) }, { +sorry(?c) } )", ""]),
+        scope="w6", domain="rules")
+    load(m6, "fact +anchor(x)" + chr(10), scope="w6", domain="shipping")
+    load(m6, "fact dormant(shipping)" + chr(10), scope="w6", domain="ctl")
+    m6.run(limit=100)                                  # the kept state is built
+    load(m6, "fact +late(acme, roma)" + chr(10), scope="w6", domain="shipping")
+    m6.run(limit=100)                                  # ...arrives, must be filtered
+    load(m6, "fact +vip(acme)" + chr(10), scope="w6", domain="crm")
+    m6.run(limit=100)                                  # ...pivots here, joins the above
+    check("§19", "a dormant fact that arrived earlier is not available to JOIN "
+          "against a live one later -- the kept state is filtered too, not only "
+          "the delta",
+          m6.holds(kb6.term("vip(acme)")) == PLUS
+          and m6.holds(kb6.term("sorry(acme)")) is None)
+
+    # `due` wakes it again, exactly as it does for a rule -- same relation, same
+    # meaning, second kind of thing.
+    m3 = Machine()
+    kb3 = load(m3, chr(10).join(corpus + [""]), scope="world", domain="rules")
+    load(m3, chr(10).join(billing + [""]), scope="world", domain="billing")
+    load(m3, chr(10).join(
+        ["fact dormant(billing)", "fact due(billing)", ""]),
+        scope="world", domain="ctl")
+    m3.run(limit=200)
+    check("§19", "...and `due` brings it back, the same pair that wakes a rule",
+          m3.holds(kb3.term("chase(acme)")) == PLUS)
+
+    # ⚠⚠⚠ Sharing NAMES and sharing PROVENANCE are different things, and tying
+    # them together was the first version of this. Rules about billing must
+    # resolve `owes` to the node the billing facts use -- one scope -- while not
+    # being billing data, or unloading billing would unload the rules that read
+    # it. Caught by the first fixture that needed both.
+    m4 = Machine()
+    r4 = load(m4, chr(10).join(corpus + [""]), scope="world", domain="rules")
+    b4 = load(m4, chr(10).join(billing + [""]), scope="world", domain="billing")
+    owes = m4.chain.resolve(b4.term("owes(acme, 100)"), m4.focus.topic, m4.focus.seat)
+    check("§13", "a document declares its name table and its domain separately: "
+          "one scope, so the rule and the fact mean the same `owes` -- two "
+          "domains, so unloading the data does not unload the rules that read it",
+          r4.atom("owes") == b4.atom("owes")
+          and owes is not None
+          and m4.g.show(owes.source) == "billing")
+
+
 def the_state_is_kept_not_rebuilt() -> None:
     """§4's walk, carried instead of redone -- and the three ways that is wrong.
 
@@ -3425,6 +3574,7 @@ def main() -> int:
     experience_is_offline()
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
+    a_domain_can_be_taken_out_of_mind()
     the_state_is_kept_not_rebuilt()
     a_scope_can_span_documents()
     matching_is_incremental()

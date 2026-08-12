@@ -57,6 +57,11 @@ class Channels:
         self._known.append(c)
         return c
 
+    def known(self) -> List[NodeId]:
+        """Every channel opened or used. Insertion-ordered like everything else
+        here (§3), so anything that iterates them breaks ties the same way twice."""
+        return self._known
+
     def use(self, node: NodeId) -> NodeId:
         """Treat an existing node as a channel.
 

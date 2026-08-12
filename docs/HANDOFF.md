@@ -173,6 +173,56 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
+## Latest: **a domain can be taken out of mind**. Commit `domains`.
+
+The user's proposal, and it is the strongest lever measured all session: *load a subset of facts on
+demand, unload them when not needed — expert rules decide when.* Their framing, and it needed no new
+vocabulary.
+
+⭐⭐⭐ **The agent has always narrowed which RULES come to mind — `dormant` until something claims
+`due` — and has never narrowed which FACTS do.** Same relation, second kind of thing: rows, not
+branches, which is the design's own test that something belongs.
+
+⭐⭐ **A domain is a CHANNEL.** §13 already says the knowledge base is one; a named domain refines it
+rather than adding a fourth concept. Every loaded fact is stamped with its source, so *which domain is
+this from* was already recorded and never read.
+
+| | run | ticks | conclusions in the kept domain |
+|---|---|---|---|
+| three domains in mind | 22.6s | 600 | 196 |
+| **two of them `dormant`** | **1.6s** | 198 | **196 — identical** |
+
+**14.5×, from one corpus line.** It beats both caches built earlier today because it cuts *both*
+factors: fewer facts make each tick cheaper AND leave fewer conclusions to draw.
+
+⭐⭐⭐ **Out of mind is not untrue, and that distinction is the whole design.** The fact stays in the
+chain, stamped with where it came from, on any trail that used it — `holds` answers and `why` would.
+Dormancy takes **attention**, never the record. Unloading from the chain would break §12's weakest link
+and put `why()` in the dark, which is the one thing this may not cost. ⚠ My first check asserted the
+unloaded fact was gone; the check was wrong, not the code.
+
+⚠⚠⚠ **Sharing NAMES and sharing PROVENANCE are different things**, and tying them together was the
+first version. Rules about billing must resolve `owes` to the node the billing facts use — one *scope*
+— while not being billing data, or unloading billing unloads the rules that read it. So a document
+declares `scope` and `domain` separately, `domain` defaulting to `scope`. Caught by the first fixture
+that needed both, which produced 2 ticks and 0 conclusions.
+
+⚠⚠⚠ **Four filter sites, and the kill-probe found three of them ungated in turn.** Filtering the kept
+state left the *matching delta* unfiltered, so a dormant fact was invisible to the state and still
+matched once on the tick it arrived. Then the state's own filter was unreachable until a fixture used
+a **two-member rule**: with one member the dormant fact is always the pivot, so the delta filter
+already excludes it, and only a join draws the other member from the full state. Each of the four now
+fails its own mutation.
+
+> **A fixture can only see a filter that its rules can reach.** One antecedent member hid an entire
+> code path from a suite of 333 checks.
+
+⚠ **Not built, and it is §19's other half:** unloading is safe to be wrong about (worst case the domain
+comes back), which is exactly why it may be an ordinary defeasible rule. The **escalation** — reaching
+for a domain when the search comes up dry — may *not* be, because a goal whose evidence is merely out
+of mind would read as `blocked`, an aggregate over a search that never happened. Same shape as
+`_widen`, arriving from a fourth side, and it is the next thing this needs.
+
 ## ...and then the walk itself: **the state is kept, not rebuilt**. Commit `state`.
 
 With matching out of the way, §4's walk was the binding constraint -- `current_state` collects every
@@ -906,12 +956,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     326 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     334 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 326 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 334 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?

@@ -2221,6 +2221,23 @@ class Machine:
 
     # -- helpers ----------------------------------------------------------
 
+    def _out_of_mind(self) -> frozenset:
+        """Which domains are not in mind. `dormant` until something claims
+        `due` -- the same pair that governs a rule, and for the same reason.
+
+        ⚠⚠⚠ Read by BOTH the kept state and the delta that feeds incremental
+        matching, which is why it is a method rather than a local. Filtering
+        only the state left the delta unfiltered, so a fact in a dormant domain
+        was invisible to the state and still matched once on the tick it
+        arrived -- found by the one check that loaded a fact mid-run, and by
+        nothing else.
+        """
+        return frozenset(
+            c for c in self.channels.known()
+            if self._claims(self.g.rel(self.DORMANT, c))
+            and not self._claims(self.g.rel(self.DUE, c))
+        )
+
     def _state(self) -> List[Entry]:
         """The resolved state here, kept across ticks instead of rebuilt.
 
@@ -2251,14 +2268,36 @@ class Machine:
         and a full rebuild -- which is the safe direction, and what supposing,
         leaving and re-seating each want.
         """
+        # ⭐⭐⭐ **What is in mind, for FACTS.** The agent has always narrowed
+        # which rules come to mind -- `dormant` until something claims `due` --
+        # and never which facts do. Same relation, second kind of thing: rows,
+        # not branches. `fact dormant(billing)` takes a domain out of mind, and
+        # because a domain is a channel and every loaded fact carries its
+        # channel as its source, there is nothing to look up but what provenance
+        # already recorded.
+        #
+        # Measured before building it: three domains loaded and a goal in one,
+        # 23.5s over 600 ticks; with only its own domain in mind, 1.6s over 198,
+        # and **the identical 196 conclusions**. It is the strongest lever
+        # measured all session, because it cuts both factors -- fewer facts make
+        # each tick cheaper AND leave fewer conclusions to draw.
+        #
+        # ⚠ Unloading is safe to be wrong about: worst case the domain comes
+        # back. That is exactly why it may be an ordinary defeasible rule, where
+        # §19 insists the ESCALATION -- reaching for more when a search comes up
+        # dry -- may not be, since a goal whose evidence is merely out of mind
+        # would otherwise read as `blocked`.
+        hidden = self._out_of_mind()
         topic, seat = self.focus.topic, self.focus.seat
-        key = (topic.node, seat.node)
+        key = (topic.node, seat.node, hidden)
         cache = self._state_cache.get(key)
         if cache is None:
             props: dict = {}
             # Oldest first, so the dict's insertion order is claim order and
             # reading it back reversed gives the walk's newest-first order.
             for e in reversed(current_state(self.chain, topic, seat)):
+                if e.source in hidden:
+                    continue
                 props[e.proposition] = (
                     (e.locus.depth, seat.depth, 0), e
                 )
@@ -2271,6 +2310,8 @@ class Machine:
             e = seat.delta[i]
             if not topic.at_or_after(e.locus):
                 continue  # a claim about a moment later than what we are about
+            if e.source in hidden:
+                continue  # a domain that is not in mind
             k = (e.locus.depth, seat.depth, i)
             prev = props.get(e.proposition)
             if prev is not None:
@@ -2326,6 +2367,7 @@ class Machine:
             cache = {"pos": 0, "apps": {}, "rule_pos": {}, "by_prop": {}}
             self._match_cache = {fk: cache}  # one seat at a time; forking is a miss
 
+        hidden = self._out_of_mind()
         here = len(self.focus.seat.delta)
         delta = self.focus.seat.delta[cache["pos"]:]
         cache["pos"] = here
@@ -2370,9 +2412,10 @@ class Machine:
                 )
             elif start < here:
                 if start not in deltas:
-                    deltas[start] = Situation(
-                        self.g, self.focus.seat.delta[start:here]
-                    )
+                    deltas[start] = Situation(self.g, [
+                        e for e in self.focus.seat.delta[start:here]
+                        if e.source not in hidden
+                    ])
                 found = match(
                     self.g, self.chain, r, self.focus.topic, self.focus.seat, state,
                     fresh=deltas[start],

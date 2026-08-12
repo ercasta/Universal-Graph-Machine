@@ -311,7 +311,8 @@ class Loader:
     R3: a rule is a thing other facts can be about.
     """
 
-    def __init__(self, machine: Machine, scope: Optional[str] = None) -> None:
+    def __init__(self, machine: Machine, scope: Optional[str] = None,
+                 domain: Optional[str] = None) -> None:
         self.m = machine
         # ⭐⭐⭐ **The name scope, and whether it is shared.** A corpus is a bound:
         # `kettle` means one node inside it, by construction and not by
@@ -347,6 +348,31 @@ class Loader:
         # second node with one name -- which is how `says` and `overrides` each
         # silently stopped matching what the surface wrote.
         self.atoms.update(self.m.reserved)
+        # ⭐⭐ **A domain is a channel**, and that is the whole of what a domain
+        # needs to be. §13 already says the knowledge base IS a channel; a named
+        # scope refines it rather than adding a fourth concept, so a fact loaded
+        # under `scope="billing"` is stamped as having come from billing and
+        # provenance answers *which domain is this from* with nothing new.
+        #
+        # What it is FOR: deciding what is in mind. Measured before building --
+        # three domains loaded, a goal in one of them, 23.5s and 600 ticks; the
+        # same goal with only its own domain in mind, 1.6s and 198 ticks, and
+        # **the identical 196 conclusions, none missing and none extra**. The
+        # agent has always narrowed which RULES come to mind (`dormant`/`due`)
+        # and has never narrowed which facts do.
+        #
+        # ⚠ Unscoped documents keep `kb`, which is what every corpus has had.
+        # ⚠⚠⚠ **Sharing names and sharing provenance are DIFFERENT things**, and
+        # tying them together was wrong -- caught by the first fixture that used
+        # both. Rules about billing must resolve `owes` to the same node the
+        # billing facts do, so they share a *scope*; but they are not billing
+        # data, and unloading billing must not unload the rules that read it.
+        # So a document declares its name table and its domain separately, and
+        # `domain` defaults to `scope` because the simple case is one of each.
+        which = domain if domain is not None else scope
+        self.source = self.m.KB if which is None else self.m.channels.use(
+            self.atom(which)
+        )
         self.OVERRIDES = self.atom("overrides")
         self.SUPERSEDES = self.atom("supersedes")
         # The bundle, by name. Every section of the design that says *a corpus
@@ -569,7 +595,7 @@ class Loader:
             s.member.sign,
             grade=s.member.grade,
             licence=self.m.g.rel(self.LOADED, prop),
-            source=self.m.KB,
+            source=self.source,
             mention=mentions,
         )
         self._maybe_precedence(s, prop)
@@ -618,19 +644,27 @@ def _vars_in(g, node: NodeId) -> set:
     return out
 
 
-def load(machine: Machine, src: str, scope: Optional[str] = None) -> Loader:
+def load(machine: Machine, src: str, scope: Optional[str] = None,
+         domain: Optional[str] = None) -> Loader:
     """Returns the loader, which is the corpus's name scope -- ask questions
     through it, since a bare name outside a scope names nothing.
 
     `scope` names a table shared with every other document loaded under it, so
     two documents can be about the same kettle. Omitted, the document gets a
     private table, which is what it has always had.
+
+    `domain` is what its facts are stamped as coming FROM -- the channel that
+    provenance records and that `dormant` takes out of mind. It defaults to
+    `scope`, because the simple case is one domain per name table; give it
+    separately when several documents share names and must be unloadable apart,
+    which rules and the facts they read always must.
     """
-    ldr = Loader(machine, scope)
+    ldr = Loader(machine, scope, domain)
     ldr.load(src)
     return ldr
 
 
-def load_file(machine: Machine, path: str, scope: Optional[str] = None) -> Loader:
+def load_file(machine: Machine, path: str, scope: Optional[str] = None,
+              domain: Optional[str] = None) -> Loader:
     with open(path, "r", encoding="utf-8") as fh:
-        return load(machine, fh.read(), scope)
+        return load(machine, fh.read(), scope, domain)
