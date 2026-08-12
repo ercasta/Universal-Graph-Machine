@@ -96,9 +96,11 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     failing = 0
+    ran = 0
 
     def gate(name: str, ok: bool) -> None:
-        nonlocal failing
+        nonlocal failing, ran
+        ran += 1
         print(f"  {'ok  ' if ok else 'FAIL'}  {name}")
         if not ok:
             failing += 1
@@ -183,7 +185,9 @@ def main() -> int:
          "request relation, and it waits forever for a request nobody can make",
          not called_t)
 
-    print(f"\n{failing} failing")
+    # The count, not only the failures -- see `ugm.learning` for what it cost to
+    # learn that `0 failing` and `0 checks, 0 failing` print the same thing.
+    print(f"\n{ran} checks, {failing} failing")
     print("""
   ⚠ WHAT IS STILL PYTHON, and it is the honest half. The answerer's BODY is
   native and always will be -- that is the point of a tool. What moved is the

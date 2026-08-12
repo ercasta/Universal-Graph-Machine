@@ -158,9 +158,11 @@ def run() -> int:
         ("nothing fits it, and the verdict says so after the loop stopped", "blocked(on(?s))", ""),
     ]
     failures = 0
+    checked = 0
     for name, needle, also in wanted:
         ok = any(needle in f and also in f for f in facts)
         print(f"  {'ok  ' if ok else 'FAIL'}  {name}")
+        checked += 1
         failures += 0 if ok else 1
 
     # The same world, authored the other way round. This is not a second fixture
@@ -171,6 +173,7 @@ def run() -> int:
     )
     print(f"  {'ok  ' if agreed_ok else 'FAIL'}  "
           f"...and with the taps authored the other way round, the SAME world plans")
+    checked += 1
     failures += 0 if agreed_ok else 1
     print()
     print("        Checking siblings inside the plan's bindings stops a wrong plan")
@@ -200,7 +203,11 @@ def run() -> int:
             blind.append(name)
 
     print()
-    print(f"{failures} failing, {len(blind)} blind")
+    # ⚠ The COUNT, not only the failures: `0 failing` reads the same
+    # whether this ran every check or none. `ugm.selftest` has printed its
+    # count all along and is the only instrument that could have said so
+    # when ten of `ugm.learning`'s were deleted by an edit.
+    print(f"{checked} checks, {failures} failing, {len(blind)} blind")
     return failures + len(blind)
 
 

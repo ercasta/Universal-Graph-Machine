@@ -522,6 +522,12 @@ Where the two disagree, this header block and the sections directly under it win
 
 ```
 python -m ugm.selftest     291 checks, 0 failing        the runner; any False is a failure
+
+⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
+the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
+of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
+one that could have said so. Current counts: selftest 291 · backward 7 · compose 5 · workload 23 ·
+learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as rules

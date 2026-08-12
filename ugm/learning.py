@@ -276,9 +276,11 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     failing = 0
+    ran = 0
 
     def gate(name: str, ok: bool) -> None:
-        nonlocal failing
+        nonlocal failing, ran
+        ran += 1
         print(f"  {'ok  ' if ok else 'FAIL'}  {name}")
         if not ok:
             failing += 1
@@ -512,7 +514,11 @@ def main() -> int:
          "distinction the trail makes, not a threshold anybody chose",
          plain[0] == shy[0] == venturing[0])
 
-    print(f"\n{failing} failing")
+    # The COUNT, not only the failures. `0 failing` is the same output whether
+    # this ran thirty checks or none -- which is exactly how ten of this file's
+    # were deleted by an edit and nothing noticed. `ugm.selftest` has printed
+    # `291 checks` all along and was the only instrument that could have said so.
+    print(f"\n{ran} checks, {failing} failing")
     print("""
   ⭐⭐⭐ A LEARNED RULE IS A DECISION TREE, and the shape was already here. A
   `prefer` FACT is a tree of depth zero -- it says *always*, given its key. A

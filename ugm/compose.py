@@ -84,11 +84,13 @@ def run() -> int:
     print()
     print("    n     uncomposed    composed    same conclusion")
     failures: List[str] = []
+    checked = 0
     for n in (2, 4, 8, 16):
         plain, got_plain = _run(n, compose=False)
         comp, got_comp = _run(n, compose=True)
         agree = got_plain == got_comp == PLUS
         print(f"   {n:>2}     {plain:>10}    {comp:>8}    {'yes' if agree else 'NO'}")
+        checked += 1
         if not agree:
             failures.append(f"n={n}: {got_plain} vs {got_comp}")
 
@@ -96,6 +98,7 @@ def run() -> int:
     survives = _defeat_survives()
     print(f"  a rule that defeats a constituent still defeats the composition: "
           f"{'yes' if survives else 'NO'}")
+    checked += 1
     if not survives:
         failures.append("a composed rule escaped a defeat that bound its parts")
 
@@ -105,7 +108,12 @@ def run() -> int:
     print()
     for f in failures:
         print(f"  FAIL  {f}")
-    print(f"{len(failures)} failing")
+    # ⚠ The COUNT, not only the failures. `0 failing` is the same output
+    # whether this ran thirty checks or none -- which is how ten of them
+    # were deleted by an edit and nothing noticed. `ugm.selftest` has
+    # printed `291 checks` all along and is the only one that could have
+    # said so.
+    print(f"{checked} checks, {len(failures)} failing")
     return len(failures)
 
 

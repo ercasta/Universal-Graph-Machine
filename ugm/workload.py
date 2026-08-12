@@ -132,7 +132,7 @@ def main() -> int:
     print(f"  {'D':>3} {'R':>3}   {'configuration':<26} {'->goal':>7} {'->end':>6} "
           f"{'how':>10} {'w@goal':>7} {'writes':>7}")
 
-    failures = 0
+    failures = checks = 0
     for domains, depth in ((4, 4), (8, 4), (8, 8)):
         rows = [
             ("exhaustive", run(domains, depth)),
@@ -145,6 +145,7 @@ def main() -> int:
                 f"  {domains:>3} {depth:>3}   {name:<26} {str(r.to_goal):>7} {r.to_end:>6} "
                 f"{r.end:>10} {r.writes_at_goal:>7} {r.writes:>7}"
             )
+            checks += 1
             if r.to_goal is None:
                 print("        <-- MISSED THE GOAL")
                 failures += 1
@@ -155,6 +156,7 @@ def main() -> int:
         # which can be satisfied does less work than one which can only be
         # exhausted, and if that is ever untrue there is nothing here worth
         # having.
+        checks += 1
         base, stopped = rows[0][1], rows[1][1]
         if stopped.to_end >= base.to_end or stopped.writes >= base.writes:
             print("        <-- stopping bought nothing: the claim in front of learning is false")
@@ -191,7 +193,13 @@ def main() -> int:
     print("  Both are authored and name the answer. What is established is the size of")
     print("  the prize, and a gate that can fail.")
 
+    checks += 8  # the fallible-advisor section's own gates
     failures += fallible_advisor()
+    # A summary line at all, which this instrument never had: it printed prose
+    # and returned a number nobody saw. `0 failing` over no checks is the failure
+    # mode; no summary at all is worse.
+    print()
+    print(f"  {checks} checks, {failures} failing")
     return failures
 
 
