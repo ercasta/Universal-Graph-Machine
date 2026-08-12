@@ -480,6 +480,7 @@ class Machine:
         # about what an agent has learned and a fresh agent has learned nothing.
         self.recall_budget: Optional[int] = None
         self._widened = False
+        self.recoveries = 0
         self.widenings = 0
         self._actuators: List[NodeId] = []
         self.emitted: List[NodeId] = []
@@ -1298,6 +1299,73 @@ class Machine:
         self.widenings += 1
         return True
 
+    def _outstanding(self) -> bool:
+        """Is anything the agent was asked for still unmet? Read the same way
+        `_notice_open` reads it, because it is the same question."""
+        for node in self.g.instances_of(self.GOAL):
+            if self.g.has_var(node):
+                continue
+            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            if e is None or e.sign != PLUS:
+                continue
+            got = self.chain.resolve(
+                self.g.member(node, 0), self.focus.topic, self.focus.seat
+            )
+            if got is None or got.sign != PLUS:
+                return True
+        return False
+
+    def _recover(self) -> bool:
+        """Nothing applies -- but is that because a domain is out of mind? (§19)
+
+        §19's carve-out for the fourth time, and the argument transfers whole.
+        Unloading a domain is **safe to be wrong about**: worst case it comes
+        back, which is why *when to unload* may be an ordinary defeasible rule
+        and is exactly the seam experience belongs at. Reaching for it again may
+        **not** be, and the asymmetry is the same one every time:
+
+            Recall may be incomplete about what to do.
+            It may not be incomplete about what it has NOT looked at.
+
+        Because `quiet` is what `<give-up>` asks its verdict at, and `blocked`
+        claims that **nothing** answers a goal -- an aggregate over a *finished*
+        search. A goal whose evidence is merely dormant would be reported
+        unreachable, and the trail would show a completed search that never ran.
+
+        ⚠⚠⚠ **Only when something is outstanding**, and running it without that
+        is how the shape became clear. The unsoundness is precise: `blocked` is
+        about a GOAL. A run with nothing outstanding declines nothing -- and
+        escalating anyway wakes every domain at the end of every run, which threw
+        away the whole 14.5x saving and failed two dormancy checks that were
+        right to fail. So this carve-out is narrower than `_widen`'s and says so:
+        *escalate before believing a decline about something I was asked for.*
+
+        Everything comes back, not one domain chosen by some order: which to try
+        first is a judgement, and §15 refuses orders nobody can justify.
+
+        ⚠ **It terminates on its own, and a `_widened`-style once-only flag was
+        wrong here.** Escalating writes `due` for everything hidden, so nothing
+        is out of mind and the next call returns False -- no guard needed. Worse,
+        a guard would BLOCK a legitimate second escalation, since the only way
+        something becomes hidden again is a corpus claiming it, which is a new
+        decline about a new dormancy and deserves a fresh reach. The flag was
+        written first, gated by nothing, and removing it is what the kill-probe
+        asked for.
+        """
+        if not self._out_of_mind() or not self._outstanding():
+            return False
+        self.recoveries += 1
+        # A claim, deposited rather than a flag, so *why is billing back?* has an
+        # answer and a corpus can argue with the escalation as it can with
+        # anything else. `due` is the same fact that wakes a dormant rule.
+        for c in self._out_of_mind():
+            self.gate.write(
+                self.focus, self.g.rel(self.DUE, c), PLUS,
+                licence=self.g.rel(self.QUIET, self.focus.seat.node),
+                source=self.KB, mention=True,
+            )
+        return True
+
     def _enough(self) -> Optional[NodeId]:
         """Is anything claiming that here is over?
 
@@ -1890,6 +1958,11 @@ class Machine:
             # reached, and the trail would show a completed search that never ran.
             if self._widen():
                 return Step(arrivals, len(proposed), 0, None, (), "widened")
+            # ...and the same move for FACTS. A shortlist that ran dry is not a
+            # search that finished, and neither is a search that never looked at
+            # what it had put out of mind.
+            if self._recover():
+                return Step(arrivals, len(proposed), 0, None, (), "widened")
             # Nothing more to do *here*. If `here` is inside a supposition, that
             # is not the end of the run -- it is the end of the supposition, so
             # carry its conclusions out and restore the register. The frame is
@@ -2361,13 +2434,19 @@ class Machine:
         cannot be a *seen it* set: quiescence has to keep being able to change
         its mind.
         """
-        fk = (self.focus.topic.node, self.focus.seat.node)
+        hidden = self._out_of_mind()
+        # ⚠⚠⚠ **What is in mind is part of the cache key**, and leaving it out is
+        # a silent bug rather than a slow one: while a domain is dormant its
+        # entries are filtered out of the delta and the cursors move past them
+        # anyway. Wake the domain and those facts are behind every rule's cursor
+        # forever -- so the escalation brings a domain back and the agent still
+        # cannot see it. Measured exactly that way before this line existed.
+        fk = (self.focus.topic.node, self.focus.seat.node, hidden)
         cache = self._match_cache.get(fk)
         if cache is None:
             cache = {"pos": 0, "apps": {}, "rule_pos": {}, "by_prop": {}}
             self._match_cache = {fk: cache}  # one seat at a time; forking is a miss
 
-        hidden = self._out_of_mind()
         here = len(self.focus.seat.delta)
         delta = self.focus.seat.delta[cache["pos"]:]
         cache["pos"] = here

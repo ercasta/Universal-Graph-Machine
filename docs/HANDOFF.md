@@ -173,6 +173,51 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
+## Latest: **a dry search reaches for what is out of mind**. Commit `escalate`.
+
+§19's carve-out for the **fourth** time, and the argument transfers whole:
+
+> Recall may be incomplete about what to do.
+> **It may not be incomplete about what it has NOT looked at.**
+
+`blocked` claims that *nothing* answers a goal -- an aggregate over a **finished** search -- so a goal
+whose evidence is merely dormant would be reported unreachable, with the trail showing a completed
+search that never ran. Measured, with the escalation disabled and enabled:
+
+| | `chase(acme)` | recoveries |
+|---|---|---|
+| billing dormant, escalation off | **None** | 0 |
+| billing dormant, escalation on | **`+`** | 1 |
+
+⚠⚠⚠ **Only when something is OUTSTANDING**, and running it without that condition is how the shape
+became clear. The unsoundness is about a **goal**; a run with nothing outstanding declines nothing.
+Escalating anyway woke every domain at the end of every run -- **it threw away the entire 14.5x saving
+and failed two dormancy checks that were right to fail.** So this carve-out is narrower than
+`_widen`'s: *escalate before believing a decline about something I was asked for.*
+
+⚠⚠⚠ **And a silent bug the escalation exposed: what is in mind must be part of the MATCH CACHE KEY.**
+While a domain is dormant its entries are filtered out of the delta and the per-rule cursors move past
+them anyway. Wake the domain and those facts sit behind every cursor forever -- so the escalation
+brought billing back and the agent still could not see it. Measured exactly that way before the key
+included it.
+
+⚠ **A `_widened`-style once-only flag was written first and removed**, because the kill-probe asked
+for it: escalating writes `due` for everything hidden, so nothing is out of mind and the next call
+returns False -- it terminates on its own. Worse, the flag would BLOCK a legitimate second escalation,
+since the only way something becomes hidden again is a corpus claiming it, which is a new decline
+about a new dormancy and deserves a fresh reach. **An ungated guard turned out to be a wrong guard.**
+
+⚠ Known interaction, not closed: escalation brings the facts back but does **not** re-ask the `check`s
+that were answered while the domain was away, so a stale `blocked(<subgoal>)` from the dormant period
+survives. That is exactly what `again` was built for, and one corpus rule would do it -- nothing ships
+concluding it, in keeping with everything else in the bundle.
+
+⚠⚠ **A process note, because it cost work:** mid-way through this commit I ran `git checkout --
+ugm/machine.py` to undo a kill-probe that had crashed before restoring, and threw away every
+uncommitted edit of the turn. The probe crashed on `cp1252` stdout while printing a check name
+containing a star. **A probe that mutates a file must restore it in a `finally`, and must not print
+anything it did not encode itself.**
+
 ## Latest: **a domain can be taken out of mind**. Commit `domains`.
 
 The user's proposal, and it is the strongest lever measured all session: *load a subset of facts on
@@ -956,12 +1001,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     334 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     338 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 334 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 338 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?

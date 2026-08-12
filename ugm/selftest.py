@@ -2409,6 +2409,61 @@ def a_domain_can_be_taken_out_of_mind() -> None:
           and m4.g.show(owes.source) == "billing")
 
 
+def a_dry_search_reaches_for_what_is_out_of_mind() -> None:
+    """§19's carve-out, the fourth time, and the argument transfers whole.
+
+        Recall may be incomplete about what to do.
+        It may not be incomplete about what it has NOT looked at.
+
+    Unloading a domain is **safe to be wrong about** -- worst case it comes back
+    -- which is exactly why *when to unload* may be an ordinary defeasible rule.
+    Reaching for it again may not be: `blocked` claims that **nothing** answers a
+    goal, an aggregate over a *finished* search, and a goal whose evidence is
+    merely dormant would be reported unreachable. That is `_widen`'s unsoundness
+    from a fourth side, and it gets the same answer: escalate before believing a
+    decline.
+    """
+    from .text import load
+
+    def run(dormant, goal):
+        m = Machine()
+        kb = load(m, chr(10).join([
+            "rule <r> = implies( { +owes(?c, ?n), +overdue(?c) }, { +chase(?c) } )",
+            ""]), scope="esc", domain="rules")
+        load(m, chr(10).join(
+            ["fact +owes(acme, 100)", "fact +overdue(acme)", ""]),
+            scope="esc", domain="billing")
+        ctl = (["fact dormant(billing)"] if dormant else []) + \
+              (["fact +goal(chase(acme))"] if goal else [])
+        if ctl:
+            load(m, chr(10).join(ctl + [""]), scope="esc", domain="ctl")
+        m.run(limit=300)
+        return m, kb
+
+    m0, kb0 = run(dormant=False, goal=True)
+    check("§19", "with the domain in mind the agent reaches what it was asked for",
+          m0.holds(kb0.term("chase(acme)")) == PLUS and m0.recoveries == 0)
+
+    m1, kb1 = run(dormant=True, goal=True)
+    check("§19", "⭐ and with it OUT of mind it still does -- a dry search reaches "
+          "for what it put aside rather than reporting the goal unreachable",
+          m1.holds(kb1.term("chase(acme)")) == PLUS and m1.recoveries == 1)
+
+    # ⚠⚠⚠ **Only when something is outstanding**, and this is what keeps the
+    # escalation from undoing the saving it guards. A run with nothing asked of
+    # it is declining nothing, so there is nothing to be wrong about -- and
+    # escalating anyway wakes every domain at the end of every run. Measured:
+    # without this condition, two dormancy checks failed and were right to.
+    m2, kb2 = run(dormant=True, goal=False)
+    check("§19", "...but a run with no outstanding goal does not reach for "
+          "anything, so unloading keeps paying",
+          m2.recoveries == 0 and m2.holds(kb2.term("chase(acme)")) is None)
+
+    # Once per dry search, like widening: it terminates because something
+    # applying is what makes the agent trust its shortlist again.
+    check("§15", "it escalates once, not once per tick", m1.recoveries == 1)
+
+
 def the_state_is_kept_not_rebuilt() -> None:
     """§4's walk, carried instead of redone -- and the three ways that is wrong.
 
@@ -3575,6 +3630,7 @@ def main() -> int:
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
     a_domain_can_be_taken_out_of_mind()
+    a_dry_search_reaches_for_what_is_out_of_mind()
     the_state_is_kept_not_rebuilt()
     a_scope_can_span_documents()
     matching_is_incremental()
