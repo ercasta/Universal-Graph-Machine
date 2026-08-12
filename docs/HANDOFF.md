@@ -173,6 +173,46 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
+## Latest: **a session is what it was told**. Commit `persist`.
+
+    python -m ugm <corpus.ugm> --save session.json
+    python -m ugm --resume session.json
+
+⭐⭐⭐ **Saved as the JOURNAL, not as the object graph** -- corpora loaded, arrivals delivered, runs
+asked for. Measured **before** choosing: the same corpus reproduces the same **619 entries byte for
+byte across four `PYTHONHASHSEED`s**, so §3's determinism is not an aspiration and *what it was told*
+is a complete description of *what it knows*. And unlike a pickle it is a file a person can read, diff
+and argue with -- §2's readable criterion, at the one place a save format usually abandons it.
+
+⚠⚠⚠ **Replaying a session must not RE-DO it.** The boundary is the one place effects leave and it
+cannot tell a repeat from a first time: resume a session that opened a door and the door opens again.
+This is `_hypothetical`'s argument in a second place -- *supposing must not bring it about, and
+neither must remembering* -- and it needed **no new vocabulary**, because `taken` has always meant
+*decided on and not emitted* and the bundle already turns it into `did`.
+
+The two histories differ in exactly one way, which is the design of the whole thing:
+
+| lived | resumed |
+|---|---|
+| `emitted(open(door))` | **`taken(open(door))`** |
+| `exercised(<did>)` | `exercised(<taken>)` |
+
+Same length (126), same order, everything else identical. ⭐ *The only difference between a lived
+session and a resumed one is which record says it acted.*
+
+⚠⚠ **Three things the fixtures caught.** The **bundle** was being journalled -- it is not something the
+agent was *told*, it is what it reads *with*, and replaying it into a machine that already has it
+fails with `<intake> is already declared`. Arrivals lost the **scope** their terms were written in, so
+a replay rebuilt twins that merely printed the same; `Loader.say` is now the scoped door for the world
+speaking, beside `channel` and `answerer`. And `report` read `self.emitted`, a **Python list of this
+process's emissions**, so a resumed session -- which correctly did not act again -- reported having
+done nothing. It reads `did(...)` from the graph now. Third time that exact defect has been found.
+
+⚠ **The honest limit, stated rather than hidden:** a journal cannot carry a **tool's answers**. An
+answerer is a Python function, so a resumed session must re-register its tools -- and a *sampled*
+answer would not reproduce at all. §21 already records that a real model needs its seed on the record
+before it is reproducible reasoning; this is exactly where that debt comes due.
+
 ## Latest: **the agent can say what became of it**. Commit `report`.
 
 §2's not-lossy criterion at the one boundary nobody had crossed. A corpus with a one-character typo
@@ -1068,12 +1108,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     345 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     353 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 345 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 353 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?

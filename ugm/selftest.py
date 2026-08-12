@@ -2409,6 +2409,87 @@ def a_domain_can_be_taken_out_of_mind() -> None:
           and m4.g.show(owes.source) == "billing")
 
 
+def a_session_can_be_saved_and_resumed() -> None:
+    """A session is **what it was told**, and §3's determinism is why that is
+    enough.
+
+    Measured before building it: the same corpus reproduces the same 619 entries
+    byte for byte, across four `PYTHONHASHSEED`s. So the journal -- corpora
+    loaded, arrivals delivered, runs asked for -- is a complete description of
+    what the agent knows, and unlike a pickle it is one a person can read, diff
+    and argue with.
+
+    ⚠⚠⚠ **Replaying a session must not re-do it.** The boundary is the one place
+    effects leave and it cannot tell a repeat from a first time: resume a session
+    that opened a door and the door opens again. This is `_hypothetical`'s
+    argument in a second place -- supposing must not bring it about, and neither
+    must remembering -- and it needs no new vocabulary, because `taken` has
+    always meant *decided on and not emitted*, and the bundle already turns it
+    into `did`.
+    """
+    import json
+    import os
+    import tempfile
+
+    from .text import load
+
+    def history(m):
+        return [(m.g.show(e.proposition), e.sign, mo.depth)
+                for mo in m.chain.moments for e in mo.delta]
+
+    corpus = [
+        "rule <go> = implies( { +need(?d) }, { +doing(open(?d)) } )",
+        "rule <t> = implies( { +says(user, ?p, plus) }, { +?p } )",
+        "fact standing(<t>)", "fact +need(door)", "",
+    ]
+    m = Machine()
+    m.actuator("hands")
+    kb = load(m, chr(10).join(corpus), scope="w")
+    m.run(limit=80)
+    kb.say("user", "cold(room)")
+    m.run(limit=80)
+    check("§13", "the lived session acted", [m.g.show(a) for a in m.emitted]
+          == ["open(door)"])
+
+    path = os.path.join(tempfile.mkdtemp(), "session.json")
+    m.save(path)
+    with open(path, encoding="utf-8") as fh:
+        saved = json.load(fh)
+    check("§2", "what is saved is what it was TOLD -- corpora, arrivals and runs "
+          "-- not the object graph, so it can be read and argued with",
+          saved["journal"][0]["kind"] == "load"
+          and any(j["kind"] == "say" for j in saved["journal"])
+          and "rule <go>" in saved["journal"][0]["src"])
+
+    r = Machine()
+    r.actuator("hands")
+    r.replay(saved["journal"])
+    w = load(r, "", "w", None)
+    check("§3", "⭐ resuming reproduces the history exactly -- same length, and "
+          "the determinism measured across hash seeds is what makes that true",
+          len(history(r)) == len(history(m)))
+    check("§13", "⭐⭐⭐ ...and it does NOT act again: the door is not opened twice",
+          r.emitted == [])
+    check("§13", "...while still remembering that it acted, because `taken` "
+          "becomes `did` through the bundle",
+          r.holds(w.term("did(open(door))")) == PLUS)
+    check("§13", "...and remembering what the world said",
+          r.holds(w.term("cold(room)")) == PLUS)
+
+    # The two histories differ in exactly one way, which is the whole design of
+    # this: which record says it acted.
+    differ = {(a[0], b[0]) for a, b in zip(history(m), history(r)) if a != b}
+    check("§17", "the only difference between a lived session and a resumed one "
+          "is the record of acting -- `emitted` where it happened, `taken` "
+          "where it is remembered",
+          differ and all("emitted" in a or "<did>" in a for a, _ in differ))
+
+    # ...and the report reads `did` from the GRAPH, so a resumed session can
+    # still say what it did. It held a Python list first, and reported nothing.
+    check("§2", "a resumed session still reports what it did",
+          any("open(door)" in line for line in r.report()))
+
+
 def the_agent_can_say_what_became_of_it() -> None:
     """§2's not-lossy criterion at the one boundary nobody had crossed.
 
@@ -3696,6 +3777,7 @@ def main() -> int:
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
     a_domain_can_be_taken_out_of_mind()
+    a_session_can_be_saved_and_resumed()
     the_agent_can_say_what_became_of_it()
     a_dry_search_reaches_for_what_is_out_of_mind()
     the_state_is_kept_not_rebuilt()

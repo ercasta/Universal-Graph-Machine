@@ -456,6 +456,22 @@ class Machine:
         self.expansions = 0
         self._acted: set = set()
         self._quieted: set = set()
+        # ⭐⭐⭐ **A session is what it was TOLD.** Everything that entered from
+        # outside, in order: corpora loaded, arrivals delivered, runs asked for.
+        # Saving that rather than the object graph is what §3's determinism is
+        # worth -- measured across four hash seeds, the same inputs reproduce
+        # the same 619 entries byte for byte -- and it keeps the save file
+        # READABLE and arguable where a pickle would be neither.
+        self.journal: List[dict] = []
+        # The bundle is not something the agent was TOLD -- it is what it reads
+        # with. Journalling it would replay it into a machine that already has
+        # it: `<intake> is already declared`, which is how this was found.
+        self._booting = True
+        # Which corpus scope an arrival's term was written in, so replay
+        # rebuilds the same node and not a twin. Set by `Loader.say`.
+        self._saying_scope: Optional[str] = None
+        # ...and whether we are re-living it. See `_dispatch`.
+        self.replaying = False
         # Named name-scopes, so two documents can be about the same kettle. A
         # corpus is a bound and that is what makes reference a construction
         # rather than an inference; naming the bound lets it span documents
@@ -598,6 +614,7 @@ class Machine:
                     mention=True,
                 )
         self.gate.veto.append(self._forbid)
+        self._booting = False
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
         self.channels.sink = self._deliver
@@ -1765,6 +1782,23 @@ class Machine:
                 source=self.KB, consumed=(e,),
             )
             return
+        if self.replaying:
+            # ⚠⚠⚠ **Replaying a session must not re-do it.** The boundary is the
+            # one place effects leave, and it does not know a repeat from a
+            # first time -- resume a session that opened a door and it opens the
+            # door again. This is `_hypothetical`'s argument in a second place:
+            # supposing must not bring it about, and neither must remembering.
+            #
+            # What it writes instead is `taken`, which the bundle already turns
+            # into `did`. So the agent believes it acted -- it did, in the
+            # session being resumed -- and nothing leaves. No new vocabulary:
+            # `taken` has always meant *decided on and not emitted*.
+            self.gate.write(
+                frame, self.g.rel(self.TAKEN, what), "+",
+                licence=self.g.instance(self.UTTERANCE, self.KB, what),
+                source=self.KB, consumed=(e,),
+            )
+            return
         self.emitted.append(what)
         # The smallest unarguable record that something left the agent. What it
         # MEANS is `<did>`, and what follows from it is `<assert-act>`.
@@ -1996,6 +2030,8 @@ class Machine:
     def run(self, limit: int = 100) -> List[Step]:
         """Bounded, and it returns a result *and* a state -- because a search that
         stopped is not a search that found nothing (§9, §15)."""
+        if not self.replaying:
+            self.journal.append({"kind": "run", "limit": limit})
         out: List[Step] = []
         for _ in range(limit):
             s = self.tick()
@@ -2203,6 +2239,13 @@ class Machine:
         one observed. §21 records the better answer: an arrival should be a
         moment, so a report is a signed delta.
         """
+        if not self.replaying:
+            self.journal.append({
+                "kind": "say", "channel": self.g.show(a.channel),
+                "scope": self._saying_scope,
+                "proposition": self.g.show(a.proposition),
+                "sign": a.sign, "grade": a.grade,
+            })
         own = self._own_frame()
         if own is not self.focus:
             # The register is inside a hypothesis and the world has spoken. The
@@ -3097,6 +3140,58 @@ class Machine:
                 out.append((alt, key))
         return out
 
+    def save(self, path: str) -> None:
+        """Write the session: everything that entered from outside, in order.
+
+        Not the object graph. §3's determinism is the whole design here -- the
+        same inputs reproduce the same history, measured identical across four
+        hash seeds -- so *what it was told* is a complete description of *what
+        it knows*, and it is one a person can read, diff and argue with. A
+        pickle would be shorter and none of those things.
+
+        ⚠ What it cannot carry: a tool's answers. An answerer is a Python
+        function, so a resumed session must re-register its tools, and a
+        SAMPLED answer would not reproduce at all -- §21 already records that a
+        real model needs its seed on the record before it is reproducible
+        reasoning. Stated rather than hidden: this is exactly where the honest
+        limit is.
+        """
+        import json
+
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"ugm": 1, "journal": self.journal}, fh, indent=1)
+
+    def replay(self, journal: List[dict], limit: int = 400) -> None:
+        """Re-live a session without re-doing it.
+
+        The boundary is muted for the whole of it (`replaying`), so acts land as
+        `taken` and become `did` through the bundle -- the agent remembers
+        acting, and nothing leaves. Resume a session that opened a door and the
+        door is not opened twice.
+        """
+        from .text import load
+
+        self.replaying = True
+        try:
+            for item in journal:
+                if item["kind"] == "load":
+                    load(self, item["src"], item.get("scope"), item.get("domain"))
+                elif item["kind"] == "say":
+                    scope = item.get("scope")
+                    ldr = load(self, "", scope, None)
+                    self.channels.deliver(
+                        ldr.channel(item["channel"]),
+                        ldr.term(item["proposition"]),
+                        item["sign"], item.get("grade", "certain"),
+                    )
+                elif item["kind"] == "run":
+                    self.run(limit=item.get("limit", limit))
+        finally:
+            self.replaying = False
+        # The journal is the resumed session's own history now, so saving it
+        # again writes the same thing rather than nothing.
+        self.journal = list(journal)
+
     def report(self) -> List[str]:
         """What happened, for a person -- §2's not-lossy criterion at the one
         boundary nobody had crossed.
@@ -3179,9 +3274,15 @@ class Machine:
             out.append("asked for:")
             for w in roots:
                 walk(w, 1, frozenset())
-        if self.emitted:
+        # ⚠ From the GRAPH, not from `self.emitted`. That list is a Python
+        # field holding this process's emissions, so a RESUMED session -- which
+        # remembers acting and correctly did not act again -- reported having
+        # done nothing. `did(...)` is the claim, and it is what a reader wants:
+        # *what did you do*, not *what left the socket during this process*.
+        did = live(self.DID)
+        if did:
             out.append("did:")
-            out.extend(f"  {self.g.show(a)}" for a in self.emitted)
+            out.extend(f"  {self.g.show(self.g.member(n, 0))}" for n in did)
         refused = live(self.REFUSED)
         if refused:
             out.append("refused:")

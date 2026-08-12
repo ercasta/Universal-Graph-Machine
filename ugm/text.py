@@ -314,6 +314,7 @@ class Loader:
     def __init__(self, machine: Machine, scope: Optional[str] = None,
                  domain: Optional[str] = None) -> None:
         self.m = machine
+        self.scope_name = scope
         # ⭐⭐⭐ **The name scope, and whether it is shared.** A corpus is a bound:
         # `kettle` means one node inside it, by construction and not by
         # inference, which is why coreference does not arise in authored
@@ -397,6 +398,23 @@ class Loader:
         for a in self.m.answerers:
             self.rule_nodes[a.name] = a.node
             self.rules_by_name[a.name] = a
+
+    def say(self, channel: str, text: str, sign: str = "+",
+            grade: str = "certain") -> NodeId:
+        """The world speaks, **in this corpus's scope** -- the scoped door for
+        arrivals, beside `channel` and `answerer`.
+
+        It also records which scope the term was written in, which is what lets
+        a saved session be replayed into the same nodes rather than into twins
+        that merely print the same.
+        """
+        node, prop = self.channel(channel), self.term(text)
+        self.m._saying_scope = self.scope_name
+        try:
+            self.m.channels.deliver(node, prop, sign, grade)
+        finally:
+            self.m._saying_scope = None
+        return prop
 
     def channel(self, name: str) -> NodeId:
         """Open a channel **in this corpus's scope**, which is the only scope in
@@ -683,6 +701,13 @@ def load(machine: Machine, src: str, scope: Optional[str] = None,
     """
     ldr = Loader(machine, scope, domain)
     ldr.load(src)
+    # What the agent was told, in order (see `Machine.save`). Recorded here
+    # rather than in `Loader`, so that a corpus loaded as part of a REPLAY is
+    # not journalled a second time.
+    if not machine.replaying and not machine._booting and src.strip():
+        machine.journal.append(
+            {"kind": "load", "scope": scope, "domain": domain, "src": src}
+        )
     return ldr
 
 
