@@ -13,6 +13,7 @@ where being wrong is recoverable -- so the seam is here, the table is data, and
 the learning is not.
 """
 
+import os
 from typing import List, NamedTuple, Optional, Tuple
 
 from .chain import GRADES, MINUS, PLUS, UNSURE, Chain, Entry, Moment
@@ -321,7 +322,12 @@ class Machine:
         # beside this table -- `says`, `overrides`, `suppose`, `goal` -- each
         # silent, each looking like a rule that simply did not fire.
         self.reserved = {
-            "says": self.SAYS, "kb": self.KB,
+            "says": self.SAYS, "arrived": self.ARRIVED, "kb": self.KB,
+            # §9's denial-as-a-term. Missing until the bundle moved into the
+            # surface, which is how it was found: <denial> is written against
+            # `not(?p)`, so a corpus could not state, argue with or override the
+            # one rule that reconciles the two ways of saying no.
+            "not": self.NOT,
             "rule": self.RULE, "conn": self.CONN, "ant": self.ANT, "con": self.CON,
             "suppose": self.SUPPOSE, "goal": self.GOAL,
             "achieved": self.ACHIEVED, "blocked": self.BLOCKED,
@@ -345,7 +351,24 @@ class Machine:
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
             "need": self.NEED,
             "causes": self.rules.CAUSES, "implies": self.rules.IMPLIES,
+            # The signs as ARGUMENTS -- `expects(p, plus)` mentions a sign where
+            # `+p` uses one.
+            #
+            # ⚠ `unsure` is NOT load-bearing for the bundle, and the first
+            # version of this comment said it was. Measured by deleting it: the
+            # machine still builds, because the deviation rules carry §9's `?`
+            # as a member SIGN (`? ?p`), which the parser always accepted --
+            # not as an argument. What is real is the ASYMMETRY it was noticed
+            # through: two of three signs could be spoken about and the third
+            # could only be used. `expects(p, plus)` was writable and
+            # `expects(p, unsure)` was not, so a corpus could say *I expected it
+            # to hold* but not *I expected to be unable to say* -- which §9
+            # insists is a claim and not the absence of one. Exercised by
+            # `the_surface_can_say_what_the_apparatus_is_made_of`, because a
+            # vocabulary entry with no user is the thing `ugm.bundle` exists to
+            # catch.
             "plus": self.rules.SIGN["+"], "minus": self.rules.SIGN["-"],
+            "unsure": self.rules.SIGN["?"],
         }
 
         self.selections = 0
@@ -430,268 +453,68 @@ class Machine:
 
     # -- the bundle -------------------------------------------------------
 
+    #: The bundle, in the surface, in authored order. §18's tiebreak reads this
+    #: file top to bottom, so its order is a precedence claim a reader can see.
+    BUNDLE = os.path.join(os.path.dirname(__file__), "rules", "bundle.ugm")
+
     def _install_bundle(self) -> None:
-        """The conventions that ship as rules rather than as branches (§4).
+        """Load the conventions that ship as rules rather than as branches (§4).
 
-        Each one here is a name that used to be in Appendix C's census with an
-        interpreter phase behind it, and is now data: readable by R4's queries,
-        defeasible by `overrides`, and preemptable because it is selected like
-        anything else.
+        This used to build them here, with `self.rules.rule(IMPLIES, [Member(...
+        g.rel(...))], ...)`. It does not any more, and the move was a TEST rather
+        than a tidy: the design's claim is that the HOW is data, and authoring
+        the apparatus in Python meant nobody had ever checked that the surface
+        can say what the apparatus is made of.
 
-        They are installed first, so the authored-order tiebreak of §18 prefers
-        them -- which reproduces the old behaviour, where the phase ran before
-        any rule was considered. That is a precedence claim, and being a claim
-        rather than a control-flow fact is the whole point: a corpus can now
-        override it.
+        It could not. `arrived` and `not` were absent from `reserved`, so
+        <intake> and <denial> were unwritable by anyone but the engine -- and,
+        worse than unwritable, a corpus naming those relations got a *twin* node
+        that matched nothing, silently. That is the trap this codebase has paid
+        for four times, arriving from the vocabulary side. Both are load-bearing:
+        deleting either name now fails construction, which is the probe.
+
+        So `_vocabulary_is_surface_nameable` runs on every load. A bundled rule
+        reaching for a relation a corpus cannot name is now a construction
+        error, not a silent divergence.
         """
-        g = self.g
-        c, p, s = g.var("?channel"), g.var("?said"), g.var("?sign")
+        from .text import load_file  # deferred: `text` imports `Machine`
 
-        # What a report MEANS. Crossing the boundary stays machinery, because a
-        # channel is anchored and a rule is generic; deciding that an arrival is
-        # a saying does not, and never did.
-        self.bundle.append(
-            self.rules.rule(
-                IMPLIES,
-                [Member(PLUS, g.rel(self.ARRIVED, c, p, s))],
-                [Member(PLUS, g.rel(self.SAYS, c, p, s))],
-                "intake",
+        first = len(self.rules.rules)
+        self._bundle_loader = load_file(self, self.BUNDLE)
+        self.bundle = list(self.rules.rules[first:])
+        self._vocabulary_is_surface_nameable()
+
+    def _vocabulary_is_surface_nameable(self) -> None:
+        """Every relation the bundle uses must be a name a corpus can write.
+
+        Not a style rule. `Graph.atom` mints a fresh node per call -- names are
+        not identity -- so a relation the bundle uses and `reserved` does not
+        carry is a node the surface cannot reach. A corpus rule written against
+        it would build a second node with the same name and never match, with
+        nothing anywhere saying so.
+        """
+        known = set(self.reserved.values())
+        missing = []
+
+        def visit(n: NodeId) -> None:
+            rel = self.g.relation_of(n)
+            if rel is None:
+                return
+            if rel not in known and self.g.show(rel) not in missing:
+                missing.append(self.g.show(rel))
+            for m in self.g.members(n):
+                visit(m)
+
+        for r in self.bundle:
+            for m in list(r.antecedent) + list(r.consequent):
+                visit(m.pattern)
+        if missing:
+            raise RuntimeError(
+                f"the bundle uses relations no corpus can name: {missing}. "
+                f"Add them to `Machine.reserved` -- a name minted beside that table "
+                f"is a second node with one name, and a corpus rule about it would "
+                f"silently match nothing."
             )
-        )
-
-        # What an emission MEANS: the agent acted.
-        w = g.var("?what")
-        self.bundle.append(
-            self.rules.rule(
-                IMPLIES,
-                [Member(PLUS, g.rel(self.EMITTED, w))],
-                [Member(PLUS, g.rel(self.DID, w))],
-                "did",
-            )
-        )
-        # And the same, one row rather than one branch, for an act decided on
-        # inside a hypothesis. `did` under a supposition means *under this, I
-        # did* -- which is what the frame already means -- so `<assert-act>`
-        # supplies the assumed outcome and planning continues past the step.
-        self.bundle.append(
-            self.rules.rule(
-                IMPLIES,
-                [Member(PLUS, g.rel(self.TAKEN, w))],
-                [Member(PLUS, g.rel(self.DID, w))],
-                "taken",
-            )
-        )
-        # And §15's *the agent asserts the act*, which was an unarguable line of
-        # the interpreter and is now a defeasible claim. The consequent is a bare
-        # variable, which §12 calls vacuous BACKWARDS and exact forwards -- the
-        # same shape as a trust rule, and for the same reason: it says *believe
-        # what this channel reported*, where the channel is the agent's own
-        # hands.
-        self.bundle.append(
-            self.rules.rule(
-                IMPLIES,
-                [Member(PLUS, g.rel(self.DID, w))],
-                [Member(PLUS, w)],
-                "assert-act",
-            )
-        )
-
-        # Denial as a term and denial as a sign are the same claim, so a corpus
-        # must not have to know which one it is looking at. Crossing back into a
-        # supposition unwraps `likely(not(b))` to `not(b)`, and the rules inside
-        # are written against `-b`.
-        #
-        # One direction only, and the asymmetry is the point. `+not(?p)` is a
-        # claim the machinery may have manufactured while re-wrapping, so it is
-        # translated back. The reverse -- minting `+not(p)` for every denial in
-        # the graph -- would double every negative fact, and would build
-        # `not(not(p))` the moment it met its own output. §9 names that as the
-        # cost of wrappers; this is where the cost is declined.
-        q = g.var("?denied")
-        self.bundle.append(
-            self.rules.rule(
-                IMPLIES,
-                [Member(PLUS, g.rel(self.NOT, q))],
-                [Member(MINUS, q)],
-                "denial",
-            )
-        )
-
-        # A callback: what to do on the way back out of a hypothesis.
-        #
-        # `+resume(h, <R>)` hangs a pointer to a rule on the hypothesis's own
-        # node, and this rule picks it up when that hypothesis returns. What it
-        # can do with the pointer is the whole finding: **not apply it**. §5's
-        # wall stands -- applying is substitution, substitution is floor, and no
-        # rule crosses it. What a rule can do is say *this one's turn has come*,
-        # and leave the machinery to propose it.
-        #
-        # So a callback is directed RECALL, not invocation, and that is a
-        # stronger result than a call would have been. The woken rule still has
-        # to match, can still be defeated, still competes in arbitration, and
-        # still yields to a surprise -- none of which survives a subroutine call.
-        # §18's *nothing may own the loop* is not weakened by adding
-        # continuations, which is not the usual outcome.
-        f, a, r = g.var("?frame"), g.var("?assumed"), g.var("?rule")
-        self.bundle.append(
-            self.rules.rule(
-                IMPLIES,
-                [
-                    Member(PLUS, g.rel(self.LEFT, f, a)),
-                    Member(PLUS, g.rel(self.RESUME, a, r)),
-                ],
-                [Member(PLUS, g.rel(self.DUE, r))],
-                "resuming",
-            )
-        )
-
-        # Surprise. §18 says it in one line -- *an expected entry and an observed
-        # entry that disagree* -- and as a phase that line was false of the
-        # implementation: the comparison was Python, so no rule could see it,
-        # reorder it, or refuse it.
-        #
-        # Four rows, not four branches. Two expected signs times the two ways an
-        # observation can contradict one: the opposite sign, and `?`. The last is
-        # the case a phase gets right by accident and a rule has to state --
-        # §9's `?` invalidates without replacing, so *I can no longer say* is a
-        # disappointed expectation exactly as much as *the opposite happened*.
-        q = g.var("?p")
-        for expected, observed, why in (
-            (PLUS, MINUS, "contradicted"),
-            (PLUS, UNSURE, "invalidated"),
-            (MINUS, PLUS, "contradicted"),
-            (MINUS, UNSURE, "invalidated"),
-        ):
-            self.bundle.append(
-                self.rules.rule(
-                    IMPLIES,
-                    [
-                        Member(PLUS, g.rel(self.EXPECTS, q, self.rules.SIGN[expected])),
-                        # A bare variable, already bound by the member above, so
-                        # this matches the observation of that very proposition
-                        # under the sign that disappoints it.
-                        Member(observed, q),
-                    ],
-                    [Member(PLUS, g.rel(self.DEVIATES, q))],
-                    f"deviation-{expected}-{why}",
-                )
-            )
-
-        # Backward reading, entire -- the last phase, as six rules over three
-        # requests (`ugm.backward` measured these against it before it went).
-        #
-        # §14 prints a rule for this and it cannot work: `con(?r, ?pat, +)` binds
-        # the rule's stored PATTERN, which is generic, and a goal is ground, so
-        # one variable cannot bind to both. Deciding they correspond is `match`,
-        # and match is floor. The repair was not to make backward reading a
-        # primitive but to give the wall a door: `fit` answers *could this rule
-        # produce this goal*, already instantiated, because a rule cannot hold a
-        # binding.
-        #
-        # What the phase was doing that these are not: ordering itself ahead of
-        # every rule and returning early. That was never backward reading -- it
-        # was a precedence claim in control flow, and it starved forward
-        # reasoning badly enough that goals the corpus could satisfy read as
-        # blocked.
-        r, w, sub = g.var("?r"), g.var("?wanted"), g.var("?sub")
-        plan = g.rel(self.PLAN, r, w)
-        # Ask every rule whether it could produce this goal. Exhaustive here, and
-        # that is §19's business, not this rule's.
-        # Two rules, not one, and the split is the point. Asking recall first
-        # means the reader asks about what came to mind, rather than about
-        # everything it has ever been told.
-        self.bundle.append(self.rules.rule(
-            IMPLIES,
-            [Member(PLUS, g.rel(self.GOAL, w))],
-            [Member(PLUS, g.rel(self.RECALL, w))],
-            "ask-recall",
-        ))
-        self.bundle.append(self.rules.rule(
-            IMPLIES,
-            [Member(PLUS, g.rel(self.RECALLED, r, w))],
-            [Member(PLUS, g.rel(self.FIT, r, w))],
-            "ask-fit",
-        ))
-        # A rule that fits is a plan. R7 for the search's own working state: the
-        # plan node is built by substitution, and substitution interns, so the
-        # same rule expanding the same goal names the same plan -- which is what
-        # a plan is. Minting a fresh node would be wrong, not merely wasteful.
-        self.bundle.append(self.rules.rule(
-            IMPLIES,
-            [Member(PLUS, g.rel(self.FITS, r, w))],
-            [Member(PLUS, g.rel(self.EXPANDS, plan, w, r))],
-            "plan",
-        ))
-        # What it needs becomes a subgoal of that plan. `?sub` arrives already
-        # instantiated, which is the whole reason `fit` answers with `need`.
-        self.bundle.append(self.rules.rule(
-            IMPLIES,
-            [Member(PLUS, g.rel(self.FITS, r, w)), Member(PLUS, g.rel(self.NEED, r, w, sub))],
-            [Member(PLUS, g.rel(self.SUBGOAL, plan, sub)), Member(PLUS, g.rel(self.GOAL, sub))],
-            "expand",
-        ))
-        # Is it already satisfied? Asked inside the PLAN's bindings, so siblings
-        # agree about which tap (§18).
-        self.bundle.append(self.rules.rule(
-            IMPLIES,
-            [Member(PLUS, g.rel(self.SUBGOAL, plan, sub))],
-            [Member(PLUS, g.rel(self.CHECK, plan, sub))],
-            "ask-check",
-        ))
-        # Relevance, which the engine was already computing and throwing away.
-        #
-        # `fits(<R>, w)` says *this rule could produce what you want* -- it is
-        # the answer to a match request the backward reader made, and it is
-        # exactly the claim a preference wants. So the table §19 hoped would be
-        # learned is, for goal-directed work, **derived**: one rule, over facts
-        # already deposited.
-        #
-        # That is means-ends analysis, and putting it here rather than in the
-        # loop is what makes it arguable. An agent that should NOT prefer the
-        # rules serving its current goal -- one exploring, or one whose goal is
-        # a guess -- deletes this rule and gets its old behaviour back.
-        #
-        # It is a preference and not a defeat (§12): the rules it does not
-        # prefer are still applicable, still reachable when recall widens, and
-        # still there if this one is wrong. Being wrong in recall is recoverable,
-        # which is §19's whole reason for putting learning here.
-        self.bundle.append(self.rules.rule(
-            IMPLIES,
-            [Member(PLUS, g.rel(self.FITS, r, w))],
-            # Score 1: candidacy is the weakest evidence of usefulness there
-            # is, so anything experience has actually learned outranks it, and
-            # two mere candidates tie -- which is what doubt is.
-            [Member(PLUS, g.rel(self.PREFER, r, w, self.NUMERAL[1]))],
-            "relevant",
-        ))
-
-        # And the verdict -- asked when the loop has stopped, which is the only
-        # moment at which *nothing fits this* is a claim about a finished search
-        # rather than about how far one has got. This is the policy the phase
-        # asserted in control flow; here it is one rule, and a corpus that wants
-        # to give up earlier or later overrides it.
-        mo = g.var("?m")
-        self.bundle.append(self.rules.rule(
-            IMPLIES,
-            [Member(PLUS, g.rel(self.QUIET, mo)), Member(PLUS, g.rel(self.GOAL, w))],
-            [Member(PLUS, g.rel(self.VERDICT, w))],
-            "give-up",
-        ))
-
-        # ...and no sibling for the veto's occasion, which is worth a note because
-        # one was written and deleted. `+open(?w) => +verdict(?w)` looked exactly
-        # parallel and `ugm.bundle` reported it blind; deleting it broke no check,
-        # and the reason is the veto's own shape. Because an outstanding goal
-        # *outranks* an `enough` rather than delaying it, a run with an open goal
-        # always finishes at quiescence -- so `quiet` is always written, and
-        # `<give-up>` above already asks the verdict for every goal. The occasion
-        # is not redundant (it says *which goal was nearly dropped*, which nothing
-        # else records); a second way to ask about it was.
-        #
-        # What is deliberately not bundled either is the REACTION.
-        # `+open(?w), +blocked(?w) => +doing(ask(?w))` is one line and a corpus
-        # writes it, because where a question goes is a fact about a deployment
-        # and not about reasoning. What ships is the occasion; §19 argues the split.
 
     # -- rules as data ----------------------------------------------------
 

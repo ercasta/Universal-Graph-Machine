@@ -1,0 +1,235 @@
+# The bundle: the conventions that ship as RULES rather than as branches (§4).
+#
+# Every rule here is a name that used to be in Appendix C's census with an
+# interpreter phase behind it, and is now data -- readable by R4's queries,
+# defeasible by `overrides`, and preemptable because it is selected like
+# anything else.
+#
+# This file used to be `Machine._install_bundle`, ~250 lines of
+# `self.rules.rule(IMPLIES, [Member(PLUS, g.rel(...))], ...)`. Moving it here is
+# not tidying. The design's claim is that the HOW is data; authoring the
+# apparatus in Python meant nobody had ever checked that the SURFACE can say
+# what the apparatus is made of. It could not: `arrived` and `not` were
+# unnameable in a corpus, so <intake> and <denial> were unwritable by anyone but
+# the engine. Nothing reported that -- it is the same twin-node trap the loader's
+# own comment records for `says` and `overrides`, arriving from the vocabulary
+# side instead of the minting side. (A third suspected gap, the `?` sign as an
+# ARGUMENT, turned out not to block anything here; see `Machine.reserved`.)
+#
+# ORDER IS LOAD-BEARING. §18's tiebreak is authored order, and these are
+# installed first, which reproduces the old behaviour where a phase ran before
+# any rule was considered. That is a precedence CLAIM, and being a claim rather
+# than a control-flow fact is the whole point: a corpus can override it. Two
+# thirds of this agent's arbitrations are still settled by the order in this
+# file, so it is worth reading as an argument and not as a list.
+#
+# What did NOT move, and stays machinery: the `standing` deposit for each rule
+# below, the write-time hooks (`_dispatch`, `_enter`, `_fit`, `_settle`,
+# `_verdict`, `_remember`) and the norm veto (`_forbid`). §21 already calls
+# those honest debt.
+
+
+# -- the boundary ----------------------------------------------------------
+
+# What a report MEANS. Crossing the boundary stays machinery, because a channel
+# is anchored and a rule is generic; deciding that an arrival is a saying does
+# not, and never did.
+rule <intake> = implies(
+    { +arrived(?channel, ?said, ?sign) },
+    { +says(?channel, ?said, ?sign) } )
+
+# What an emission MEANS: the agent acted.
+rule <did> = implies(
+    { +emitted(?what) },
+    { +did(?what) } )
+
+# And the same, one row rather than one branch, for an act decided on inside a
+# hypothesis. `did` under a supposition means *under this, I did* -- which is
+# what the frame already means -- so <assert-act> supplies the assumed outcome
+# and planning continues past the step.
+rule <taken> = implies(
+    { +taken(?what) },
+    { +did(?what) } )
+
+# §15's *the agent asserts the act*, which was an unarguable line of the
+# interpreter and is now a defeasible claim. The consequent is a bare variable,
+# which §12 calls vacuous BACKWARDS and exact forwards -- the same shape as a
+# trust rule, and for the same reason: it says *believe what this channel
+# reported*, where the channel is the agent's own hands.
+rule <assert-act> = implies(
+    { +did(?what) },
+    { +?what } )
+
+
+# -- denial ----------------------------------------------------------------
+
+# Denial as a term and denial as a sign are the same claim, so a corpus must not
+# have to know which one it is looking at. Crossing back into a supposition
+# unwraps `likely(not(b))` to `not(b)`, and the rules inside are written
+# against `-b`.
+#
+# One direction only, and the asymmetry is the point. `+not(?p)` is a claim the
+# machinery may have manufactured while re-wrapping, so it is translated back.
+# The reverse -- minting `+not(p)` for every denial in the graph -- would double
+# every negative fact, and would build `not(not(p))` the moment it met its own
+# output. §9 names that as the cost of wrappers; this is where the cost is
+# declined.
+rule <denial> = implies(
+    { +not(?denied) },
+    { -?denied } )
+
+
+# -- callbacks -------------------------------------------------------------
+
+# What to do on the way back out of a hypothesis.
+#
+# `+resume(h, <R>)` hangs a pointer to a rule on the hypothesis's own node, and
+# this rule picks it up when that hypothesis returns. What it can do with the
+# pointer is the whole finding: **not apply it**. §5's wall stands -- applying is
+# substitution, substitution is floor, and no rule crosses it. What a rule can do
+# is say *this one's turn has come*, and leave the machinery to propose it.
+#
+# So a callback is directed RECALL, not invocation, and that is a stronger result
+# than a call would have been. The woken rule still has to match, can still be
+# defeated, still competes in arbitration, and still yields to a surprise -- none
+# of which survives a subroutine call. §18's *nothing may own the loop* is not
+# weakened by adding continuations, which is not the usual outcome.
+rule <resuming> = implies(
+    { +left(?frame, ?assumed), +resume(?assumed, ?rule) },
+    { +due(?rule) } )
+
+
+# -- surprise --------------------------------------------------------------
+
+# §18 says it in one line -- *an expected entry and an observed entry that
+# disagree* -- and as a phase that line was false of the implementation: the
+# comparison was Python, so no rule could see it, reorder it, or refuse it.
+#
+# Four ROWS, not four branches -- and until this file they were four rows
+# generated by a Python `for` loop over four tuples, which is a branch wearing a
+# row's clothes. Two expected signs times the two ways an observation can
+# contradict one: the opposite sign, and `?`. The last is the case a phase gets
+# right by accident and a rule has to state -- §9's `?` invalidates without
+# replacing, so *I can no longer say* is a disappointed expectation exactly as
+# much as *the opposite happened*.
+#
+# The second member is a bare variable, already bound by the first, so it matches
+# the observation of that very proposition under the sign that disappoints it.
+rule <deviation-+-contradicted> = implies(
+    { +expects(?p, plus), -?p },
+    { +deviates(?p) } )
+
+rule <deviation-+-invalidated> = implies(
+    { +expects(?p, plus), ? ?p },
+    { +deviates(?p) } )
+
+rule <deviation---contradicted> = implies(
+    { +expects(?p, minus), +?p },
+    { +deviates(?p) } )
+
+rule <deviation---invalidated> = implies(
+    { +expects(?p, minus), ? ?p },
+    { +deviates(?p) } )
+
+
+# -- backward reading, entire ----------------------------------------------
+#
+# The last phase, as six rules over three requests (`ugm.backward` measured these
+# against it, one rule deleted at a time, before it went).
+#
+# §14 prints a rule for this and it cannot work: `con(?r, ?pat, +)` binds the
+# rule's stored PATTERN, which is generic, and a goal is ground, so one variable
+# cannot bind to both. Deciding they correspond is `match`, and match is floor.
+# The repair was not to make backward reading a primitive but to give the wall a
+# door: `fit` answers *could this rule produce this goal*, already instantiated,
+# because a rule cannot hold a binding.
+#
+# What the phase was doing that these are not: ordering itself ahead of every
+# rule and returning early. That was never backward reading -- it was a
+# precedence claim in control flow, and it starved forward reasoning badly enough
+# that goals the corpus could satisfy read as blocked.
+
+# Ask what could produce this goal. Two rules, not one, and the split is the
+# point: asking recall first means the reader asks about what came to mind,
+# rather than about everything it has ever been told. That is §14's index -- 711
+# applications of <ask-fit> became 8, one per goal.
+rule <ask-recall> = implies(
+    { +goal(?wanted) },
+    { +recall(?wanted) } )
+
+rule <ask-fit> = implies(
+    { +recalled(?r, ?wanted) },
+    { +fit(?r, ?wanted) } )
+
+# A rule that fits is a plan. R7 for the search's own working state: the plan
+# node is built by substitution, and substitution interns, so the same rule
+# expanding the same goal names the same plan -- which is what a plan is. Minting
+# a fresh node would be wrong, not merely wasteful.
+rule <plan> = implies(
+    { +fits(?r, ?wanted) },
+    { +expands(plan(?r, ?wanted), ?wanted, ?r) } )
+
+# What it needs becomes a subgoal of that plan. `?sub` arrives already
+# instantiated, which is the whole reason `fit` answers with `need`.
+rule <expand> = implies(
+    { +fits(?r, ?wanted), +need(?r, ?wanted, ?sub) },
+    { +subgoal(plan(?r, ?wanted), ?sub), +goal(?sub) } )
+
+# Is it already satisfied? Asked inside the PLAN's bindings, so siblings agree
+# about which tap (§18).
+rule <ask-check> = implies(
+    { +subgoal(plan(?r, ?wanted), ?sub) },
+    { +check(plan(?r, ?wanted), ?sub) } )
+
+
+# -- relevance -------------------------------------------------------------
+
+# Which the engine was already computing and throwing away.
+#
+# `fits(<R>, w)` says *this rule could produce what you want* -- it is the answer
+# to a match request the backward reader made, and it is exactly the claim a
+# preference wants. So the table §19 hoped would be learned is, for goal-directed
+# work, **derived**: one rule, over facts already deposited.
+#
+# That is means-ends analysis, and putting it here rather than in the loop is
+# what makes it arguable. An agent that should NOT prefer the rules serving its
+# current goal -- one exploring, or one whose goal is a guess -- deletes this rule
+# and gets its old behaviour back.
+#
+# It is a preference and not a defeat (§12): the rules it does not prefer are
+# still applicable, still reachable when recall widens, and still there if this
+# one is wrong. Being wrong in recall is recoverable, which is §19's whole reason
+# for putting learning here.
+#
+# Score 1: candidacy is the weakest evidence of usefulness there is, so anything
+# experience has actually learned outranks it, and two mere candidates tie --
+# which is what doubt is.
+rule <relevant> = implies(
+    { +fits(?r, ?wanted) },
+    { +prefer(?r, ?wanted, 1) } )
+
+
+# -- the verdict -----------------------------------------------------------
+
+# Asked when the loop has stopped, which is the only moment at which *nothing
+# fits this* is a claim about a finished search rather than about how far one has
+# got. This is the policy the phase asserted in control flow; here it is one
+# rule, and a corpus that wants to give up earlier or later overrides it.
+rule <give-up> = implies(
+    { +quiet(?m), +goal(?wanted) },
+    { +verdict(?wanted) } )
+
+
+# ...and no sibling for the veto's occasion, which is worth a note because one
+# was written and deleted. `+open(?w) => +verdict(?w)` looked exactly parallel and
+# `ugm.bundle` reported it blind; deleting it broke no check, and the reason is
+# the veto's own shape. Because an outstanding goal *outranks* an `enough` rather
+# than delaying it, a run with an open goal always finishes at quiescence -- so
+# `quiet` is always written, and <give-up> above already asks the verdict for
+# every goal. The occasion is not redundant (it says *which goal was nearly
+# dropped*, which nothing else records); a second way to ask about it was.
+#
+# What is deliberately not bundled either is the REACTION.
+# `+open(?w), +blocked(?w) => +doing(ask(?w))` is one line and a corpus writes it,
+# because where a question goes is a fact about a deployment and not about
+# reasoning. What ships is the occasion; §19 argues the split.

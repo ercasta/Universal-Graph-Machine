@@ -287,11 +287,16 @@ def trusting_a_channel() -> None:
     check("§13", "and the world claim is separate from the saying", said != raining)
     check("§13", "the trust rule concluded about the world", m.holds(raining) == PLUS)
 
+    # ⚠ None-safe, and the reason is a probe. Deleting <intake> from the bundle
+    # made this raise an AttributeError instead of failing -- so a mutation that
+    # ought to send someone here crashed the runner three checks earlier and
+    # every check after it went unreported. A runner whose contract is *any False
+    # is a failure* has to be able to say False about an absence.
     e = m.chain.resolve(raining, m.focus.topic, m.focus.seat)
-    check("§12", "the conclusion is no stronger than the rule allowed", e.grade == "likely")
-    check("§5", "the conclusion names what produced it", e.licence is not None)
+    check("§12", "the conclusion is no stronger than the rule allowed", e is not None and e.grade == "likely")
+    check("§5", "the conclusion names what produced it", e is not None and e.licence is not None)
 
-    trail = m.chain.trail(e)
+    trail = m.chain.trail(e) if e is not None else []
     check("§13", "the trail reaches the utterance", any(t.proposition == said for t in trail))
     check(
         "§13",
@@ -299,8 +304,8 @@ def trusting_a_channel() -> None:
         any(t.source == user for t in trail),
     )
     check("R5", "why() answers with more than the claim itself", len(m.why(raining)) > 1)
-    check("§13", "a derived entry's channel is the KB, not the rule", e.source == m.KB)
-    check("§13", "and the rule is its licence, not its channel", e.licence != e.source)
+    check("§13", "a derived entry's channel is the KB, not the rule", e is not None and e.source == m.KB)
+    check("§13", "and the rule is its licence, not its channel", e is not None and e.licence != e.source)
 
     # §5: an entry is an act of claiming, so two claims are two nodes.
     m2 = Machine()
@@ -397,7 +402,7 @@ def the_bundle() -> None:
     check("§5", "a report becomes a saying", e is not None)
     check("§5", "and a rule application licensed it", e is not None and e.licence is not None)
 
-    trail = m.chain.trail(e)
+    trail = m.chain.trail(e) if e is not None else []
     check(
         "§17",
         "the raw arrival is underneath it, sourced to the channel",
@@ -623,6 +628,109 @@ def surprise_is_four_rows() -> None:
     )
 
 
+def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
+    """The bundle is authored in the surface, so a corpus can argue with it.
+
+    §2's expressibility criterion, applied to the apparatus itself. While the
+    bundle was built in Python it was *data* in every sense the design asks for
+    -- nameable, reifiable, defeasible -- except the one nobody had checked:
+    that the vocabulary it is written in is the vocabulary a corpus writes in.
+    Two relations were not (`arrived`, `not`), and the failure mode was silence
+    rather than an error, because `Graph.atom` mints a fresh node per call. A
+    corpus rule about `arrived` built a TWIN, matched nothing, and reported
+    nothing -- the trap this codebase has now paid for five times.
+
+    So these are interoperation checks, not parse checks. Each pairs a corpus
+    rule against a bundled one over the same relation: if the two names were
+    different nodes, the bundled half would still work and the corpus half would
+    be silently dead, which is exactly what a parse check would miss.
+    """
+    from .text import load
+
+    # `arrived` -- <intake>'s antecedent. The corpus rule reads the same
+    # arrival <intake> does.
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <watch> = implies( { +arrived(?c, ?p, ?s) }, { +noticed(?c) } )",
+        "",
+    ]))
+    # ⚠ Through the LOADER's table, both of them. The first version of this check
+    # used `channels.open("user")` and `g.rel(g.atom("raining"), ...)`, which mint
+    # fresh nodes -- so it failed on twins, in a check written about twins. That
+    # is `channels.use` earning its place: a surface that has already coined a
+    # node is the normal case, and minting beside it is the bug.
+    user, raining = kb.term("user"), kb.term("raining(here)")
+    m.channels.deliver(m.channels.use(user), raining, PLUS)
+    m.run(limit=12)
+    check(
+        "§2",
+        "a corpus rule reads the same arrival the bundle does",
+        m.holds(kb.term("noticed(user)")) == PLUS,
+    )
+    check(
+        "§2",
+        "...and the bundled reading of it still happened",
+        m.holds(kb.term("says(user, raining(here), plus)")) == PLUS,
+    )
+
+    # `not` -- <denial>'s antecedent. A corpus states §9's denial-as-a-term and
+    # the bundled rule turns it into a denial-as-a-sign.
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "fact +not(raining(here))",
+        "",
+    ]))
+    m.run(limit=12)
+    check(
+        "§9",
+        "a corpus can state denial as a term, and <denial> reads it",
+        m.holds(kb.term("raining(here)")) == MINUS,
+    )
+
+    # `unsure` -- not load-bearing for the bundle (see `Machine.reserved`), so it
+    # is checked on its own account. What it buys is the ability to SAY the third
+    # sign, not merely to use it: §9 insists `?` is a claim, and a vocabulary in
+    # which two signs are speakable and the third is not makes *I expected to be
+    # unable to say* unwritable.
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <vague> = implies( { +expects(?p, unsure) }, { +hedged(?p) } )",
+        "fact +expects(raining(here), unsure)",
+        "",
+    ]))
+    m.run(limit=12)
+    check(
+        "§9",
+        "the third sign can be spoken about, not only used",
+        m.holds(kb.term("hedged(raining(here))")) == PLUS,
+    )
+    check(
+        "§9",
+        "and it is the machinery's own sign node, not a lookalike",
+        kb.term("unsure") == m.rules.SIGN[UNSURE],
+    )
+
+    # And the guard that keeps this from reopening. A bundled rule reaching for a
+    # relation `reserved` does not carry is a construction error now -- deleting
+    # either name above fails `Machine()`, which is how the two were found.
+    m = Machine()
+    saved = dict(m.reserved)
+    ok = False
+    try:
+        m.reserved.pop("goal")
+        m._vocabulary_is_surface_nameable()
+    except RuntimeError:
+        ok = True
+    finally:
+        m.reserved.clear()
+        m.reserved.update(saved)
+    check(
+        "§2",
+        "a bundled relation a corpus cannot name is refused, not tolerated",
+        ok,
+    )
+
+
 def worked_examples() -> None:
     """§8's rules, as printed in the design, actually run."""
     import os
@@ -651,8 +759,8 @@ def worked_examples() -> None:
     raining = kb.term("raining(here)")
     check("§13", "a rule whose consequent is a variable believes what a channel said", m.holds(raining) == PLUS)
     e = m.chain.resolve(raining, m.focus.topic)
-    check("§12", "and it is no stronger than the rule allowed", e.grade == "likely")
-    check("§13", "the channel in the rule is the channel delivered on", any(t.source == kb.term("user") for t in m.chain.trail(e)))
+    check("§12", "and it is no stronger than the rule allowed", e is not None and e.grade == "likely")
+    check("§13", "the channel in the rule is the channel delivered on", e is not None and any(t.source == kb.term("user") for t in m.chain.trail(e)))
     check("R5", "the trail reaches the utterance", len(m.why(raining)) > 1)
 
 
@@ -2633,6 +2741,7 @@ def main() -> int:
     reference_is_binding()
     quiescence_is_an_occasion()
     surface()
+    the_surface_can_say_what_the_apparatus_is_made_of()
     worked_examples()
 
     failed = 0
