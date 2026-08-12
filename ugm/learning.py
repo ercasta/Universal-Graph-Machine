@@ -39,7 +39,7 @@ the control that shows it is load-bearing.
 
 from typing import Dict, List, Optional, Tuple
 
-from .machine import Machine
+from .machine import Machine, induce, leaves
 from .text import load
 
 BASE = [
@@ -420,6 +420,34 @@ def main() -> int:
     gate("⚠ and marked `standing`, without which forgoing passes it up as a rival "
          "way of getting the same want, before it can advise",
          any(r.startswith("fact standing(<learned-") for r in cond))
+
+    # -- a tree with more than one leaf, from more than one episode --------
+    eps = [tree_episode(s)[0] for s in ("A", "B", "C")]
+
+    def total(rows):
+        return sum(len(tree_episode(s, rows)[1]) for s in ("A", "B", "C"))
+
+    proposed = [l for ep in eps for l in leaves(ep)]
+    tree = induce(eps, total)
+    print()
+    print("  induced from three episodes (two of which propose a WRONG leaf):")
+    for r in tree:
+        print(f"    {r}")
+    print()
+    print(f"    leaves proposed {len(proposed)}, unconditional among them "
+          f"{sum(1 for _, _, t in proposed if not t)}, kept "
+          f"{sum(1 for r in tree if r.startswith('rule '))}")
+    print(f"    induced total cost {total(tree)}")
+    print()
+    gate("⚠⚠⚠ episodes propose UNCONDITIONAL leaves -- an episode only knows the "
+         "cost of the route it took, which is the oscillation as a hypothesis",
+         any(not t for _, _, t in proposed))
+    gate("⭐⭐⭐ ...and joint pruning removes them: induction over three episodes "
+         "reaches the same optimum, so a wrong leaf is not a special case",
+         total(tree) == sum(costs["refined"]) and total(tree) < sum(costs["depth-0"]))
+    gate("what survives is a conditional rule, not the unconditional row that "
+         "dominated the raw proposals",
+         any(r.startswith("rule <learned-") for r in tree))
 
     print(f"\n{failing} failing")
     print("""

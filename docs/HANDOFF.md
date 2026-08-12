@@ -2,7 +2,35 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **refinement — the tree finds its own depth**. Commit `refine`.
+## Latest: **a tree with more than one leaf**. Commit `induce`.
+
+`induce(episodes, cost)` — several episodes each propose a leaf (*the alternative I wish I had taken,
+conditioned on what was true when it went wrong*), then the leaves are pruned **jointly**. Leaves cross
+episode boundaries as **text**, not nodes, because episodes are separate agents with separate graphs —
+§3's *names are not identity* deciding an interface, and the same one `learned()` already had.
+
+    leaves proposed 3, unconditional among them 2, kept 1
+    rule <learned-0-use-tap-water> = implies( { +precious(?v0) },
+                                              { +prefer(<use-tap>, water, 3) } )
+
+⭐⭐⭐ **Wrong leaves are expected, and pruning is what makes that safe.** An episode only ever knows the
+cost of the route it **actually took**, so an episode that broke a jug proposes *prefer the tap* whether
+or not the tap is worse — which is exactly the oscillation `lesser_of_two_evils` measures, arriving here
+as an ordinary **over-general hypothesis**. Two of the three proposals were unconditional and wrong;
+joint pruning dropped both and reached the same optimum as the hand-refined single rule (total **1** vs
+depth-0's 2). **The oscillation stops needing its own mechanism.**
+
+⚠⚠⚠ **Order matters on a plateau, and the first version collapsed because of it.** Reaching the good
+tree needs **two edits** — drop the unconditional leaf *and* drop a test — each individually neutral. A
+greedy walk that accepts ties goes wherever trial order sends it, and mine dropped the **good** leaf and
+collapsed to the very unconditional row it was meant to beat. Ties now doubt the **least specific leaf
+first**, which is not a knob: *a leaf with no tests fires in every situation, so it is the strongest
+claim in the tree and the first that should have to earn its place.*
+
+That is the second time in two commits that the search's **tie-handling**, not its objective, decided
+whether learning worked at all. Worth remembering before any forest: the fitness was never the hard part.
+
+## Before that: **refinement — the tree finds its own depth**. Commit `refine`.
 
 `Machine.refine(cost)` — reduced-error pruning over corpus text, greedy backward elimination against a
 `cost` the caller supplies (it must: what an episode cost is a question about a world, and this object
@@ -394,7 +422,7 @@ python -m ugm.backward       0 failing, 0 blind         backward reading, as rul
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 python -m ugm.workload       0 failing                  stopping pays; and what BAD ADVICE costs
-python -m ugm.learning       0 failing, 23 gates        does an episode teach the next one?
+python -m ugm.learning       0 failing, 26 gates        does an episode teach the next one?
 python -m ugm.tools          0 failing, 11 gates        can a tool be data?
 ```
 

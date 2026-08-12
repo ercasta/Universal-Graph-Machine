@@ -2302,7 +2302,7 @@ class Machine:
                     out.append(p)
         return out
 
-    def _generalise(self, propositions: List[NodeId]) -> str:
+    def _generalise(self, propositions: List[NodeId]) -> List[str]:
         """Render ground propositions as one generic antecedent.
 
         Every constant becomes a variable, **shared across the conjunction** so
@@ -2327,12 +2327,12 @@ class Machine:
             return f"{self.g.show(rel)}(" + ", ".join(
                 render(m) for m in self.g.members(n)) + ")"
 
-        return ", ".join("+" + render(p) for p in propositions)
+        return ["+" + render(n) for n in propositions]
 
     def _advice_rows(self, tests: List[NodeId], harmed: set, score: int,
                      rows: List[str]) -> List[str]:
         """One learned rule per promoted alternative, plus its `standing` line."""
-        antecedent = self._generalise(tests) if tests else ""
+        antecedent = ", ".join(self._generalise(tests)) if tests else ""
         out = list(rows)
         tools = {a.node for a in self.answerers}
         for rule, key in self._instead_of(harmed):
@@ -2508,3 +2508,100 @@ class Machine:
         if e.licence is not None:
             bits.append(f"licensed by {self.g.show(e.licence)}")
         return ", ".join(bits)
+
+
+# -- inducing a tree from several episodes ---------------------------------
+
+
+def leaves(episode) -> List[Tuple[str, str, Tuple[str, ...]]]:
+    """What one finished episode proposes: `(alternative, key, tests)` per leaf.
+
+    Rendered as TEXT rather than as nodes, because episodes are separate agents
+    with separate graphs and a node from one means nothing in another. That is
+    §3's *names are not identity* deciding an interface: what crosses an episode
+    boundary is corpus text, exactly as `learned` already had it.
+    """
+    harmed = {r.node for r, _ in episode.blame()}
+    tests = tuple(episode._generalise(episode._circumstances(episode._choosers(harmed))))
+    out = []
+    for rule, key in episode._instead_of(harmed):
+        if rule.name is not None:
+            out.append((rule.name, episode.g.show(key), tests))
+    return out
+
+
+def induce(episodes, cost, score: int = 3) -> List[str]:
+    """Grow a decision tree with MORE THAN ONE LEAF, from more than one episode.
+
+    `refine` prunes a single path. A tree is several: *in situations like this
+    prefer X; in situations like that prefer Y.* Each episode proposes one leaf --
+    the alternative it wishes it had taken, conditioned on what was true when it
+    went wrong -- and the leaves are then pruned **jointly** against a cost the
+    caller measures.
+
+    ⭐⭐⭐ **Wrong leaves are expected, and pruning is what makes that safe.** An
+    episode only ever knows the cost of the route it ACTUALLY took, so an episode
+    that broke a jug proposes *prefer the tap* whether or not the tap is worse --
+    which is the oscillation `lesser_of_two_evils` measures, arriving as an
+    ordinary over-general hypothesis. Reduced-error pruning is exactly the
+    instrument for that: a leaf that does not pay is dropped, and the oscillation
+    stops being a special case needing its own mechanism.
+
+    Two edits, one search (steepest descent, as `refine` had to learn): drop a
+    whole leaf, or drop one test from a leaf. Ties go to the smaller tree -- fewer
+    leaves and fewer conditions both transfer further.
+
+    ⚠ It still cannot ADD a test no episode saw, nor merge two leaves into one.
+    Those are mutation proper, and they are affordable for the same reason the
+    rest is: every leaf concludes `prefer`, so a bad candidate costs ticks.
+    """
+    seen, cand = set(), []
+    for ep in episodes:
+        for name, key, tests in leaves(ep):
+            k = (name, key, tests)
+            if k not in seen:
+                seen.add(k)
+                cand.append([name, key, list(tests)])
+
+    def rows_for(tree) -> List[str]:
+        out = []
+        for i, (name, key, tests) in enumerate(tree):
+            if tests:
+                rn = f"learned-{i}-{name}-{key}"
+                out.append(f"rule <{rn}> = implies( {{ {', '.join(tests)} }},"
+                           f" {{ +prefer(<{name}>, {key}, {score}) }} )")
+                out.append(f"fact standing(<{rn}>)")
+            else:
+                out.append(f"fact prefer(<{name}>, {key}, {score})")
+        return out
+
+    tree = cand
+    best = cost(rows_for(tree))
+    while True:
+        # ⚠⚠⚠ ORDER MATTERS ON A PLATEAU, and this is where the search failed.
+        # Reaching the good tree needs TWO edits -- drop the unconditional leaf
+        # AND drop a test -- each individually neutral. A greedy walk that
+        # accepts ties therefore gets wherever the trial order sends it, and the
+        # first version dropped the GOOD leaf and collapsed to the very
+        # unconditional row it was meant to beat.
+        #
+        # So ties are broken by doubting the LEAST SPECIFIC leaf first. That is
+        # not a tuning knob: a leaf with no tests fires in every situation, which
+        # makes it the strongest claim in the tree and the first that should have
+        # to earn its place. Leaf-drops before test-drops, fewest tests first.
+        trials = []
+        for i in sorted(range(len(tree)), key=lambda j: len(tree[j][2])):
+            trials.append([l for j, l in enumerate(tree) if j != i])
+        for i in range(len(tree)):
+            for t in range(len(tree[i][2])):
+                alt = [list(l) for l in tree]
+                alt[i][2] = [x for k, x in enumerate(tree[i][2]) if k != t]
+                trials.append(alt)
+        if not trials:
+            break
+        scored = [(cost(rows_for(tr)), i, tr) for i, tr in enumerate(trials)]
+        low, _, tr = min(scored, key=lambda s: (s[0], s[1]))
+        if low > best:
+            break
+        tree, best = tr, low
+    return rows_for(tree)
