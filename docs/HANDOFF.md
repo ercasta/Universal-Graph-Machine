@@ -119,6 +119,67 @@ written down.
 Re-asking got there because a request is a **proposition** and a proposition can be re-delivered; a
 binding is not one, so the same move is not available.
 
+## Survey: **what the two consumers would need, and the wall is scale**
+
+⚠⚠⚠ **First, a fact nobody had written down: `../pystrider` and `../harneskills_new` are dark right
+now, and silently.** `universal-graph-machine` is **editable-installed pointing at this working tree**,
+so whichever branch `ugm` is checked out on is what both siblings import. On `restart`,
+`import pystrider` fails at once (`cannot import name 'access' from 'ugm'`). They import ~20 modules —
+`world_model`, `cnl.*`, `isa`, `production_rule`, `lowering`, `asm`, `driver`, `goal`, `norm`,
+`execution`, `thread` — and `restart` shares **not one name** with them. Also `restart` calls itself
+`0.4.0` of the same distribution `main` calls `0.3.0`, and `harneskills_new` pins `>=0.3.0`, so an
+ordinary upgrade would hand it an engine with no overlapping API.
+
+**The user's call (2026-08-12): leave them; finish the engine first.** Recorded here so it is a
+decision and not a surprise. The cheap decoupling, if it is ever wanted, is a worktree of `main` at a
+fixed path plus repointing the editable install, and renaming this distribution.
+
+**What they actually ask of an engine**, read off their call sites rather than their prose:
+
+| they call | the new floor |
+|---|---|
+| `run_rules(graph, bank)` — saturate a bank, batch | `m.run()` to quiescence — but **one application per tick**, arbitrated |
+| `ask(s, p, o)`, `explain(s, p, o)` | `m.holds(...)`, `m.why(...)` — ⭐ better, the trail is load-bearing |
+| tool registry (`tools=registry`) | `answers(<M>, ask)` — ⭐ better, the binding is **data** |
+| `stratify(rules)` | stratum 0, and *the last stage must be total* is the same condition |
+| deontic `forbidden` / `forbidden_for` | `forbidden(<pattern>)` + the gate veto — ⭐ consulted at the write |
+| plan → act → check → replan | backward reading, `doing`, `check`/`achieved`, and §19's guards |
+| `graph.nodes_named(...)`, `graph.name(n)` | ⛔ **refused by design** — names are not identity |
+| `graph.remove_node(...)` (teardown, 6 sites) | ⛔ **refused by design** — the chain is append-only; denial is a `-` entry |
+| `run_rules(..., provenance=False)` | ⛔ **refused by design** — R5 licenses every entry; there is no off |
+
+⭐ **The three refusals are the design working, not gaps** — each is a decision `rules-design.md`
+argues for. But note what the third and fourth cost a real consumer: harneskills' **replan** loop is
+`TEARDOWN_RULES` with provenance off, i.e. *undo what the last plan asserted and try again*. On this
+floor that is **exactly the two items still open** — nothing retracts a conclusion whose support was
+withdrawn, and *when may a binding be reconsidered*. The consumer's most ordinary loop lands precisely
+on the arc's last unsolved hat, which is worth knowing before anyone calls those items academic.
+
+⚠⚠⚠ **And the wall is SCALE, measured rather than assumed.** One rule, a chain of `edge` facts:
+
+| facts | run | ticks |
+|---|---|---|
+| 200 | 0.8s | 202 |
+| 1,000 | **21s** | 1,002 |
+| 4,000 | **345s** | 4,002 |
+
+**Quadratic** — 5x the facts costs 26x the time. harneskills folds a **code property graph** into facts
+and has a `bench/cpg_scaling.py` for exactly this; real code graphs start at thousands of nodes, where
+this floor needs six minutes.
+
+⚠ **And the cause is not what I first said.** I inferred *a whole-state read per tick*. Profiled, that
+is 17%: the cost is **`_would_change`, 38% of runtime and 641,600 calls across 802 ticks** — ~800 per
+tick. Every tick the loop **re-derives every applicable instance and re-tests each against the chain**,
+then discards the ones it already did.
+
+> **The agent recomputes its entire option set on every move.** Nothing remembers that an application
+> was already made, so quiescence is paid per candidate per tick.
+
+That is the same shape as §14's index finding from the other side — the earlier win was *narrowing what
+comes to mind*, and this is *not re-deriving what has already been done*. It is also why the honest
+scope line stays **session-sized**: not a slow implementation of the right loop, but a loop whose cost
+is quadratic in what the agent knows.
+
 ## Before that: **a root goal is askable**. Commit `rooted`.
 
 §6 recorded *a root goal is never checked for satisfaction*; §12 recorded why it could not be a rule.
