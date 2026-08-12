@@ -456,6 +456,13 @@ class Machine:
         self.expansions = 0
         self._acted: set = set()
         self._quieted: set = set()
+        # Applications carried across ticks, per seat. See `_applications`.
+        self._match_cache: dict = {}
+        # What matching actually produced, against what the loop then weighed.
+        # Two numbers rather than one, because the whole claim is the gap: the
+        # loop used to make them equal by rediscovering its options every tick.
+        self.matched = 0
+        self.considered = 0
         self._stopped: set = set()
         self._noticed: set = set()
         self._vetoed: set = set()
@@ -1842,11 +1849,7 @@ class Machine:
         state = Situation(
             self.g, current_state(self.chain, self.focus.topic, self.focus.seat)
         )
-        applications: List[Application] = []
-        for r in proposed:
-            applications.extend(
-                match(self.g, self.chain, r, self.focus.topic, self.focus.seat, state)
-            )
+        applications = self._applications(proposed, state)
         # Defeat before quiescence -- see `rules.defeat` for why the order is not
         # interchangeable.
         applications = defeat(self.rules, applications)
@@ -2210,6 +2213,136 @@ class Machine:
         return tuple(wrote)
 
     # -- helpers ----------------------------------------------------------
+
+    def _applications(self, proposed: List[Rule], state: Situation) -> List[Application]:
+        """What could apply here -- carried across ticks instead of rediscovered.
+
+        ⭐⭐⭐ **The loop was stateless between ticks.** Every tick it re-ran every
+        rule's join over the whole state, filtered the result, applied one, and
+        threw the rest away; next tick it did all of it again. Measured before
+        building this: 5,775 applications matched over a 600-fact corpus, of
+        which **75 were new** -- 98.7% waste -- and **92.9% on the kettle
+        fixture**, so this was never a big-corpus concern. It has been true since
+        the first tick ever ran.
+
+        What makes it fixable without a new representation is that §4 already
+        made a moment **a signed delta**, and `Chain.deposit` already records each
+        entry's position in it. *What is new since I last looked* is
+        `seat.delta[pos:]` -- available all along, and not read.
+
+        So: keep the applications, and each tick match only the delta (`match`'s
+        `fresh` argument, one pass per antecedent member). Three things have to
+        be right, and each is a way this could be wrong rather than merely slow.
+
+        **A newly proposed rule has no history**, so it gets a full match. Recall
+        is not fixed -- `dormant`/`due` and `_widen` change what comes to mind --
+        and a rule proposed for the first time on tick 40 was never matched on
+        tick 39.
+
+        **The cache belongs to a seat**, because a `Situation` does. Supposing
+        forks, `_leave` returns, `_deliver` reseats; each is a different state and
+        a cache miss, which is the safe direction.
+
+        ⚠⚠⚠ **And an application can stop being applicable, which is the part
+        that is not merely bookkeeping.** The chain is append-only but `resolve`
+        is not monotone: a denial deposited later makes what an application
+        consumed no longer the current claim. So each cached application is
+        indexed by the propositions it consumed, and a fresh entry about one of
+        those re-checks exactly those applications -- an application survives iff
+        every entry it consumed is still what `resolve` returns. That is why this
+        cannot be a *seen it* set: quiescence has to keep being able to change
+        its mind.
+        """
+        fk = (self.focus.topic.node, self.focus.seat.node)
+        cache = self._match_cache.get(fk)
+        if cache is None:
+            cache = {"pos": 0, "apps": {}, "rule_pos": {}, "by_prop": {}}
+            self._match_cache = {fk: cache}  # one seat at a time; forking is a miss
+
+        here = len(self.focus.seat.delta)
+        delta = self.focus.seat.delta[cache["pos"]:]
+        cache["pos"] = here
+
+        # 1. Retire what a later claim unsettled.
+        if delta:
+            suspect: set = set()
+            for e in delta:
+                suspect |= cache["by_prop"].get(e.proposition, set())
+            for k in suspect:
+                app = cache["apps"].get(k)
+                if app is None:
+                    continue
+                alive = all(
+                    self.chain.resolve(c.proposition, self.focus.topic, self.focus.seat)
+                    is c
+                    for c in app.consumed
+                )
+                if not alive:
+                    del cache["apps"][k]
+                    for c in app.consumed:
+                        cache["by_prop"].get(c.proposition, set()).discard(k)
+
+        # 2. Full match for rules newly come to mind; delta match for the rest.
+        #
+        # ⚠⚠⚠ **The position is PER RULE, and a global one is wrong.** Recall is
+        # not fixed: a rule drops out of mind under a budget and comes back when
+        # `_widen` fires. With one shared cursor, everything deposited while it
+        # was away has already been consumed, so it comes back and is told
+        # nothing is new -- and the chain a->b->c stops at b. That is one
+        # selftest check, and it is the difference between a cache and a leak of
+        # attention: *new* means new **to this rule**, not new to the loop.
+        # Rules mostly share a cursor, so the delta they are shown is mostly the
+        # same one: built per distinct start rather than per rule.
+        deltas: dict = {}
+        for r in proposed:
+            start = cache["rule_pos"].get(r.node)
+            cache["rule_pos"][r.node] = here
+            if start is None:
+                found = match(
+                    self.g, self.chain, r, self.focus.topic, self.focus.seat, state
+                )
+            elif start < here:
+                if start not in deltas:
+                    deltas[start] = Situation(
+                        self.g, self.focus.seat.delta[start:here]
+                    )
+                found = match(
+                    self.g, self.chain, r, self.focus.topic, self.focus.seat, state,
+                    fresh=deltas[start],
+                )
+            else:
+                continue
+            self.matched += len(found)
+            for a in found:
+                k = (r.node, frozenset(a.bindings.items()))
+                if k in cache["apps"]:
+                    continue
+                cache["apps"][k] = a
+                for c in a.consumed:
+                    cache["by_prop"].setdefault(c.proposition, set()).add(k)
+
+        # ⚠⚠⚠ **Order is part of the answer, not a detail of how it was found.**
+        # §18's last tiebreak is authored order and §14 keeps arbitration total,
+        # so *which application is chosen* can turn on where it sat in the list.
+        # A full match yields them in state order, nested-loop over each
+        # antecedent member; a cache yields them in the order they were
+        # discovered, which is tick order. Those differ the moment anything is
+        # deposited, and five checks failed on exactly that -- a description
+        # resolving to the wrong candidate, a plan binding to the wrong sibling.
+        #
+        # So the order is reconstructed rather than inherited: rules in the order
+        # recall proposed them, and within a rule, lexicographically by where
+        # each consumed entry sits in the current state -- which is precisely
+        # what the nested loop would have produced.
+        order = {e.node: i for i, e in enumerate(state.entries)}
+        last = len(order)
+        rank = {r.node: i for i, r in enumerate(proposed)}
+        live = set(rank)
+        out = [a for k, a in cache["apps"].items() if k[0] in live]
+        out.sort(key=lambda a: (rank[a.rule.node],
+                                tuple(order.get(c.node, last) for c in a.consumed)))
+        self.considered += len(out)
+        return out
 
     def _would_change(self, app: Application) -> bool:
         """Quiescence: an application that restates what the chain already says is

@@ -2260,6 +2260,64 @@ def a_request_can_be_re_asked() -> None:
           [cm.g.show(x) for x in cm.emitted] == ["open(door)"])
 
 
+def matching_is_incremental() -> None:
+    """§4's *a moment is a signed delta*, finally read by the matcher.
+
+    The loop was stateless between ticks: it re-ran every rule's join over the
+    whole state, weighed the result, applied one, threw the rest away, and did
+    all of it again next tick. Measured before building anything: of 5,775
+    applications matched over a 600-fact corpus, **75 were new** -- and 92.9% of
+    the kettle fixture's were re-derived too, so this was never a big-corpus
+    concern. It has been true since the first tick ever ran.
+
+    Nothing new is represented. `Chain.deposit` already records each entry's
+    position in its moment's delta, so *what is new since I last looked* was
+    always available and never read.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
+        "fact standing(<ask-root>)",
+        "fact +heat(anna, kettle)", "fact +water(kettle)",
+        "fact +goal(boiling(kettle))", ""]))
+    m.run(limit=400)
+    check("§4", "the loop weighs far more applications than matching produces, "
+          "because it keeps them: what it re-derived is now what changed",
+          m.considered > 3 * m.matched and m.matched > 0)
+    check("§4", "...and it still gets there", m.holds(kb.term("boiling(kettle)")) == PLUS)
+
+    # ⚠⚠⚠ **The one that is not bookkeeping.** The chain is append-only but
+    # `resolve` is not monotone: a denial deposited later makes what a cached
+    # application consumed no longer the current claim. Keep it anyway and the
+    # agent concludes from a premise it has DENIED.
+    #
+    # Kill-probed: disable the invalidation pass and `z(a)` becomes `+` --
+    # and all 316 other checks still pass. Nothing else in the suite sees it,
+    # which is the reason this check exists rather than a reason to trust it.
+    d = Machine()
+    kbd = load(d, chr(10).join([
+        "rule <deny> = implies( { +trigger }, { -p(a) } )",
+        "rule <slow> = implies( { +p(?x) }, { +z(?x) } )",
+        "fact +p(a)", "fact +trigger", ""]))
+    d.run(limit=60)
+    check("§8", "an application whose premise is denied before it runs is retired, "
+          "not applied -- a remembered option is not a settled one",
+          d.holds(kbd.term("p(a)")) == MINUS
+          and d.holds(kbd.term("z(a)")) is None)
+
+    # ...and the control, so the fixture can fail: without the denial it applies.
+    c = Machine()
+    kbc = load(c, chr(10).join([
+        "rule <slow> = implies( { +p(?x) }, { +z(?x) } )",
+        "fact +p(a)", ""]))
+    c.run(limit=60)
+    check("§8", "...against a control with nothing denied, where it does apply",
+          c.holds(kbc.term("z(a)")) == PLUS)
+
+
 def the_apparatus_eats_its_own_cooking() -> None:
     """§21: `answers(<M>, ask)` was built so a TOOL's binding could be data, and
     it shipped with **zero apparatus users**. Every request the machinery
@@ -3264,6 +3322,7 @@ def main() -> int:
     experience_is_offline()
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
+    matching_is_incremental()
     the_apparatus_eats_its_own_cooking()
     a_rule_says_that_it_ran()
     a_tool_is_data()
