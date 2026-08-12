@@ -2,7 +2,48 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **magnitude — and it needed no negative numeral**. Commit `magnitude`.
+## Latest: **how sure is a WRAPPER, not a field**. Commit `hedge`.
+
+⚠⚠ **The handoff's previous paragraph was wrong and the user caught it.** It said the *how sure* half
+was waiting on `+prefer(<R>, k, 3) @possible`, "already writable and never written". Measured: the grade
+parses, lands on the entry — and `_priority` **never reads it** (3 with `@possible`, 3 without). So it
+was writable *and unreadable*, which is not a channel. Worse, reading `e.grade` there would have deepened
+§21's item 5 rather than fixed it: **grades are Python fields on the entry, so no rule can read one.**
+
+The user's correction: *we argued they could just be wrappers, with a rule crossing it and receiving the
+result afterwards.* Right, and it needs **nothing built**:
+
+| in the corpus | `_priority` | acts |
+|---|---|---|
+| `prefer(<use-b>, goal, 3)` | 3 | `b` |
+| `+possible(prefer(<use-b>, goal, 3))` | **0** | `a` |
+| ...plus a rule taking it up when `+exploring` | 3 | `b` |
+| the same rule, not exploring | 0 | `a` |
+
+⭐⭐⭐ **An unsure preference must not silently steer, and a wrapper is exactly that.** It is an ordinary
+node, so `_priority` does not count it and a *rule* decides whether to:
+
+    rule <venture> = implies( { +possible(prefer(?r, ?k, ?n)), +exploring },
+                              { +prefer(?r, ?k, ?n) } )
+
+⭐⭐⭐ **So explore/exploit stops being machinery and becomes a CLAIM** — defeasible, deniable, on the
+trail, switched by an ordinary fact. `induce(hedge=True)` emits the wrapper for a route it has never
+observed. From a bad start:
+
+| | losses per episode |
+|---|---|
+| unhedged | 2, 1, 1, 1 |
+| **hedged, no explore rule** | **2, 2, 2, 2** — never ventures |
+| hedged + `<venture>` | 2, 1, 1, 1 |
+
+The conservative default is now *exploit*, and venturing is something a corpus says out loud. ⚠ And the
+test is **constant-free**, which §15 went to trouble for: *observed* versus *never tried* is a
+distinction the trail makes, not a threshold anybody chose.
+
+⭐ Note what this makes of §21's item 5. *Grades are not in the graph* stops being a blocker for
+learning — not by putting them there, but by showing the quantity that needed reading was never a grade.
+
+## Before that: **magnitude — and it needed no negative numeral**. Commit `magnitude`.
 
 §21 carried *how badly a rule cost something is unsayable* as **blocked on the table's numerals being
 non-negative**, and it was pickup item 1 for four commits. The blocker dissolves once the quantity is
@@ -461,7 +502,7 @@ python -m ugm.backward       0 failing, 0 blind         backward reading, as rul
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 python -m ugm.workload       0 failing                  stopping pays; and what BAD ADVICE costs
-python -m ugm.learning       0 failing, 27 gates        does an episode teach the next one?
+python -m ugm.learning       0 failing, 30 gates        does an episode teach the next one?
 python -m ugm.tools          0 failing, 11 gates        can a tool be data?
 ```
 

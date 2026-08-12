@@ -2560,7 +2560,7 @@ def leaves(episode) -> List[Tuple[str, str, Tuple[str, ...]]]:
     return out
 
 
-def induce(episodes, cost, score: int = 3) -> List[str]:
+def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
     """Grow a decision tree with MORE THAN ONE LEAF, from more than one episode.
 
     `refine` prunes a single path. A tree is several: *in situations like this
@@ -2618,16 +2618,41 @@ def induce(episodes, cost, score: int = 3) -> List[str]:
                 seen.add(k)
                 cand.append([name, key, list(tests)])
 
+    def advice(name: str, key: str) -> str:
+        """`prefer(...)`, or `possible(prefer(...))` when nothing was observed.
+
+        ⭐⭐⭐ **How sure is a WRAPPER, not a field.** §21's item 5 is that grades
+        are Python fields on the entry, so no rule can read one -- which makes a
+        confidence expressed as a grade unreadable by the very rules that would
+        act on it. A wrapper is an ordinary node: `_priority` does not count it
+        (an unsure preference must not silently steer), and a corpus rule decides
+        whether to take it up:
+
+            rule <venture> = implies( { +possible(prefer(?r, ?k, ?n)), +exploring },
+                                      { +prefer(?r, ?k, ?n) } )
+
+        So **explore/exploit stops being machinery and becomes a claim** --
+        defeasible, deniable, on the trail, and switched by an ordinary fact. The
+        default with no such rule is to exploit, which is the conservative one.
+
+        ⚠ And the test is constant-free, which §15 went to some trouble for:
+        `observed` versus `never tried` is a distinction the trail makes, not a
+        threshold anybody chose. A route the agent has taken is asserted; one it
+        has only reasoned about is hedged.
+        """
+        bare = f"prefer(<{name}>, {key}, {weight(name)})"
+        return bare if (name in observed or not hedge) else f"possible({bare})"
+
     def rows_for(tree) -> List[str]:
         out = []
         for i, (name, key, tests) in enumerate(tree):
             if tests:
                 rn = f"learned-{i}-{name}-{key}"
                 out.append(f"rule <{rn}> = implies( {{ {', '.join(tests)} }},"
-                           f" {{ +prefer(<{name}>, {key}, {weight(name)}) }} )")
+                           f" {{ +{advice(name, key)} }} )")
                 out.append(f"fact standing(<{rn}>)")
             else:
-                out.append(f"fact prefer(<{name}>, {key}, {weight(name)})")
+                out.append(f"fact +{advice(name, key)}")
         return out
 
     # Every route observed to harm gets a row too, not only the ones some episode

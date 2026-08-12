@@ -405,6 +405,42 @@ def main() -> int:
          "take the costly route once to learn what it cost",
          bad_built[0] == max(bad_built))
 
+    # -- how sure, as a WRAPPER rather than a field ------------------------
+    VENTURE = ["rule <venture> = implies( { +possible(prefer(?r, ?k, ?n)), +exploring },"
+               " { +prefer(?r, ?k, ?n) } )", "fact standing(<venture>)",
+               "fact +exploring"]
+    order = [HARM_VASE, HARM_JUG]
+
+    def play(hedge, extra):
+        eps, seq, rows = [], [], ()
+        for _ in range(4):
+            m, _, lost = harm_episode(order, list(rows) + extra)
+            seq.append(len(lost))
+            eps.append(m)
+            rows = induce(eps, lambda r: len(harm_episode(order, list(r) + extra)[2]),
+                          hedge=hedge)
+        return seq
+
+    plain = play(False, [])
+    shy = play(True, [])
+    venturing = play(True, VENTURE)
+    print()
+    print("  how sure, as a WRAPPER -- `possible(prefer(...))` from a bad start:")
+    print()
+    for lbl, seq in (("unhedged", plain), ("hedged, no explore rule", shy),
+                     ("hedged + <venture>", venturing)):
+        print(f"  {lbl:<28} {seq}")
+    print()
+    gate("⭐⭐⭐ an unsure preference does NOT silently steer: hedged advice "
+         "leaves the agent on what it knows, and it never ventures",
+         len(set(shy)) == 1)
+    gate("⭐⭐⭐ ...and one ordinary corpus rule takes it up again -- so "
+         "explore/exploit is a CLAIM, not machinery",
+         venturing == plain and venturing[-1] < shy[-1])
+    gate("⚠ the hedge is constant-free: `observed` vs `never tried` is a "
+         "distinction the trail makes, not a threshold anybody chose",
+         plain[0] == shy[0] == venturing[0])
+
     print(f"\n{failing} failing")
     print("""
   ⭐⭐⭐ A LEARNED RULE IS A DECISION TREE, and the shape was already here. A
