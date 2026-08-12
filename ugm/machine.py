@@ -255,6 +255,17 @@ class Machine:
         # with a grade. Let a tool write a belief directly and §12's weakest link
         # has a link with nothing behind it and `why()` stops answering -- the
         # not-lossy criterion failing at the one place nothing else guards.
+        # Which name table a domain's documents were written in. Provenance
+        # already records WHERE a fact came from (its channel); this records the
+        # scope its names were resolved in, which is the other half and the half
+        # a session needs to be rebuilt into the same nodes rather than twins.
+        # ⚠ THE one `loaded` node. `Loader` minted its own with `g.atom`, which
+        # does not intern -- so the licence the loader stamped and the licence
+        # the machine looked for were two nodes with one name, and rendering a
+        # session found no told facts at all. The twin trap, in the code that
+        # exists to describe provenance.
+        self.LOADED = self.g.atom("loaded")
+        self.SCOPED = self.g.atom("scoped")
         self.ANSWERS = self.g.atom("answers")
         self.ANSWERED = self.g.atom("answered")
         # ⭐⭐⭐ Re-asking. §6 recorded *a request can only be made once* and §21
@@ -410,6 +421,7 @@ class Machine:
             "forgone": self.FORGONE, "exercised": self.EXERCISED,
             "root": self.ROOT, "rooted": self.ROOTED,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
+            "scoped": self.SCOPED, "loaded": self.LOADED,
             "again": self.AGAIN,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
@@ -462,7 +474,10 @@ class Machine:
         # worth -- measured across four hash seeds, the same inputs reproduce
         # the same 619 entries byte for byte -- and it keeps the save file
         # READABLE and arguable where a pickle would be neither.
-        self.journal: List[dict] = []
+        # Which document is being read right now, so a rule's reification is
+        # stamped with it. A rule had no provenance at all: `RuleSet.rules` is a
+        # Python list, and nothing said which corpus authored which rule.
+        self._authoring_source: Optional[NodeId] = None
         # The bundle is not something the agent was TOLD -- it is what it reads
         # with. Journalling it would replay it into a machine that already has
         # it: `<intake> is already declared`, which is how this was found.
@@ -703,8 +718,9 @@ class Machine:
             return
         self._reified.add(rule.node)
         f = self.focus
+        src = self._authoring_source or self.KB
         w = lambda p: self.gate.write(
-            f, p, "+", licence=self.g.rel(self.REIFIED, rule.node), source=self.KB, mention=True
+            f, p, "+", licence=self.g.rel(self.REIFIED, rule.node), source=src, mention=True
         )
         w(self.g.rel(self.RULE, rule.node))
         conn = self.rules.CAUSES if rule.connective == "causes" else self.rules.IMPLIES
@@ -2030,8 +2046,6 @@ class Machine:
     def run(self, limit: int = 100) -> List[Step]:
         """Bounded, and it returns a result *and* a state -- because a search that
         stopped is not a search that found nothing (§9, §15)."""
-        if not self.replaying:
-            self.journal.append({"kind": "run", "limit": limit})
         out: List[Step] = []
         for _ in range(limit):
             s = self.tick()
@@ -2239,13 +2253,6 @@ class Machine:
         one observed. §21 records the better answer: an arrival should be a
         moment, so a report is a signed delta.
         """
-        if not self.replaying:
-            self.journal.append({
-                "kind": "say", "channel": self.g.show(a.channel),
-                "scope": self._saying_scope,
-                "proposition": self.g.show(a.proposition),
-                "sign": a.sign, "grade": a.grade,
-            })
         own = self._own_frame()
         if own is not self.focus:
             # The register is inside a hypothesis and the world has spoken. The
@@ -3140,28 +3147,120 @@ class Machine:
                 out.append((alt, key))
         return out
 
-    def save(self, path: str) -> None:
-        """Write the session: everything that entered from outside, in order.
+    def _rendered(self) -> List[dict]:
+        """The session, RENDERED out of the graph -- corpora, in the order they
+        were read.
 
-        Not the object graph. §3's determinism is the whole design here -- the
-        same inputs reproduce the same history, measured identical across four
-        hash seeds -- so *what it was told* is a complete description of *what
-        it knows*, and it is one a person can read, diff and argue with. A
-        pickle would be shorter and none of those things.
+        ⭐⭐⭐ **There is no journal.** The first version kept one: a Python list
+        of everything that came in. It was a side-channel duplicating the chain,
+        in a design whose whole thesis is that nothing the machinery knows may
+        be unaskable by a rule -- and a kept list can drift from the graph,
+        where a rendering cannot. Everything it held was already here:
+
+            the corpus text        rules are nodes; connective, antecedent and
+                                   consequent all reprint
+            which facts were told  `licence = loaded(p)`, `source = <domain>`
+            what the world said    `arrived(c, p, sign)` entries
+            the scope of each      `scoped(<domain>, <scope>)`, deposited by the
+                                   loader as an ordinary claim about itself
+
+        ⚠ What is rendered is a **corpus**, never entries. §13 scores *authors
+        write entries natively* as a leak -- supply a deposit and you can date a
+        claim to when it was not held -- so a saved session replays through the
+        ordinary loading path and earns its stamps again.
+        """
+        scope_of: dict = {}
+        for n in self.g.instances_of(self.SCOPED):
+            if self.holds(n) == PLUS:
+                who, where = self.g.members(n)
+                scope_of.setdefault(who, self.g.show(where))
+        bundled = {r.node for r in self.bundle}
+        rule_by_node = {r.node: r for r in self.rules.rules}
+
+        # ⚠ `show` prints a sign atom as `+`, and the surface reads a sign in
+        # ARGUMENT position as `plus`. So a rendered `says(user, ?p, +)` does
+        # not reparse -- rendering has to speak the surface's language, not the
+        # graph's printing convention. Found by reading the first save file.
+        signs = {v: k for k, v in self.reserved.items()
+                 if k in ("plus", "minus", "unsure")}
+
+        def surface(n: NodeId) -> str:
+            if n in signs:
+                return signs[n]
+            if n in self.g._name:
+                return self.g._name[n]
+            rel = self.g.relation_of(n)
+            if rel is None:
+                return self.g.show(n)
+            return f"{surface(rel)}({', '.join(surface(x) for x in self.g.members(n))})"
+
+        def as_text(r) -> str:
+            side = lambda ms: ", ".join(
+                f"{m.sign}{surface(m.pattern)}" for m in ms
+            )
+            return (f"rule <{r.name}> = {r.connective}( {{ {side(r.antecedent)} }}, "
+                    f"{{ {side(r.consequent)} }} )")
+
+        # Walked in deposit order, so interleaving is preserved and a new block
+        # opens whenever the document changes.
+        out: List[dict] = []
+        seen_rule: set = set()
+
+        def emit(source, line):
+            where = self.g.show(source) if source is not None else None
+            scope = scope_of.get(source)
+            domain = None if where in (None, "kb") else where
+            if out and out[-1]["scope"] == scope and out[-1]["domain"] == domain:
+                out[-1]["src"] += line + chr(10)
+            else:
+                out.append({"kind": "load", "scope": scope, "domain": domain,
+                            "src": line + chr(10)})
+
+        for mo in self.chain.moments:
+            for e in mo.delta:
+                rel = self.g.relation_of(e.proposition)
+                if rel is self.RULE and e.mention:
+                    node = self.g.member(e.proposition, 0)
+                    r = rule_by_node.get(node)
+                    if r is None or node in bundled or node in seen_rule:
+                        continue
+                    seen_rule.add(node)
+                    emit(e.source, as_text(r))
+                    continue
+                if rel is self.ARRIVED:
+                    c, prop, sign = self.g.members(e.proposition)
+                    out.append({"kind": "say", "channel": self.g.show(c),
+                                "scope": scope_of.get(c),
+                                "proposition": surface(prop),
+                                "sign": self.g.show(sign), "grade": e.grade})
+                    continue
+                lic = e.licence
+                if lic is None or self.g.relation_of(lic) is not self.LOADED:
+                    continue
+                if rel is self.SCOPED:
+                    continue  # the loader's claim about itself; re-made on load
+                emit(e.source, f"fact {e.sign}{surface(e.proposition)}")
+        return out
+
+    def save(self, path: str) -> None:
+        """Write the session as what it was told -- rendered from the graph.
+
+        §3's determinism is what makes this enough: measured, the same corpus
+        reproduces the same 619 entries byte for byte across four hash seeds, so
+        *what it was told* is a complete description of *what it knows*. And it
+        is a file a person can read, diff and argue with, which a pickle is not.
 
         ⚠ What it cannot carry: a tool's answers. An answerer is a Python
-        function, so a resumed session must re-register its tools, and a
-        SAMPLED answer would not reproduce at all -- §21 already records that a
-        real model needs its seed on the record before it is reproducible
-        reasoning. Stated rather than hidden: this is exactly where the honest
-        limit is.
+        function, so a resumed session must re-register its tools, and a SAMPLED
+        answer would not reproduce at all -- §21 already records that a real
+        model needs its seed on the record before it is reproducible reasoning.
         """
         import json
 
         with open(path, "w", encoding="utf-8") as fh:
-            json.dump({"ugm": 1, "journal": self.journal}, fh, indent=1)
+            json.dump({"ugm": 1, "session": self._rendered()}, fh, indent=1)
 
-    def replay(self, journal: List[dict], limit: int = 400) -> None:
+    def replay(self, session: List[dict], limit: int = 400) -> None:
         """Re-live a session without re-doing it.
 
         The boundary is muted for the whole of it (`replaying`), so acts land as
@@ -3173,7 +3272,7 @@ class Machine:
 
         self.replaying = True
         try:
-            for item in journal:
+            for item in session:
                 if item["kind"] == "load":
                     load(self, item["src"], item.get("scope"), item.get("domain"))
                 elif item["kind"] == "say":
@@ -3184,13 +3283,14 @@ class Machine:
                         ldr.term(item["proposition"]),
                         item["sign"], item.get("grade", "certain"),
                     )
-                elif item["kind"] == "run":
-                    self.run(limit=item.get("limit", limit))
+                # ⭐ Think after each block, to quiescence. `run` is not state
+                # and is not rendered -- *think until there is nothing left* is
+                # what the agent does, not something it was told -- and running
+                # twice over is idempotent, because `quiet` is once per seat.
+                self.run(limit=limit)
+
         finally:
             self.replaying = False
-        # The journal is the resumed session's own history now, so saving it
-        # again writes the same thing rather than nothing.
-        self.journal = list(journal)
 
     def report(self) -> List[str]:
         """What happened, for a person -- §2's not-lossy criterion at the one

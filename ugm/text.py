@@ -343,7 +343,7 @@ class Loader:
         self.rule_nodes: Dict[str, NodeId] = {}
         self.rules_by_name: Dict[str, object] = {}
         self.channels: Dict[str, NodeId] = {}
-        self.LOADED = self.m.g.atom("loaded")
+        self.LOADED = self.m.LOADED   # the machine's node, never a fresh one
         # Every name the loader itself needs goes through the SAME table the
         # surface resolves against. A relation minted beside the table is a
         # second node with one name -- which is how `says` and `overrides` each
@@ -374,6 +374,10 @@ class Loader:
         self.source = self.m.KB if which is None else self.m.channels.use(
             self.atom(which)
         )
+        if scope is not None and not machine._booting:
+            # A claim about this document, in the graph like everything else, so
+            # that saving a session is a RENDERING rather than a side-channel.
+            self._scoped(self.source, scope)
         self.OVERRIDES = self.atom("overrides")
         self.SUPERSEDES = self.atom("supersedes")
         # The bundle, by name. Every section of the design that says *a corpus
@@ -398,6 +402,20 @@ class Loader:
         for a in self.m.answerers:
             self.rule_nodes[a.name] = a.node
             self.rules_by_name[a.name] = a
+
+    def _scoped(self, node: NodeId, scope: str) -> None:
+        """*This name was resolved in that table.* Deduped by READING the graph
+        rather than by a Python set beside it -- restating a claim adds nothing
+        (§8), and a second set of bookkeeping is exactly the thing this commit
+        exists to stop adding."""
+        prop = self.m.g.rel(self.m.SCOPED, node, self.atom(scope))
+        if self.m._claims(prop):
+            return
+        self.m.gate.write(
+            self.m.focus, prop, "+",
+            licence=self.m.g.rel(self.m.REIFIED, node),
+            source=self.source, mention=True,
+        )
 
     def say(self, channel: str, text: str, sign: str = "+",
             grade: str = "certain") -> NodeId:
@@ -429,6 +447,10 @@ class Loader:
         """
         node = self.m.channels.use(self.atom(name))
         self.channels[name] = node
+        if self.scope_name is not None:
+            # ...and which table its name was resolved in, so an arrival on it
+            # replays into the same node rather than a twin that prints alike.
+            self._scoped(node, self.scope_name)
         return node
 
     def answerer(self, name: str, request: str, fn):
@@ -700,14 +722,14 @@ def load(machine: Machine, src: str, scope: Optional[str] = None,
     which rules and the facts they read always must.
     """
     ldr = Loader(machine, scope, domain)
-    ldr.load(src)
+    machine._authoring_source = ldr.source
+    try:
+        ldr.load(src)
+    finally:
+        machine._authoring_source = None
     # What the agent was told, in order (see `Machine.save`). Recorded here
     # rather than in `Loader`, so that a corpus loaded as part of a REPLAY is
     # not journalled a second time.
-    if not machine.replaying and not machine._booting and src.strip():
-        machine.journal.append(
-            {"kind": "load", "scope": scope, "domain": domain, "src": src}
-        )
     return ldr
 
 

@@ -173,7 +173,64 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
-## Latest: **a session is what it was told**. Commit `persist`.
+## Latest: **there is no journal — the session is RENDERED out of the graph**. Commits `persist`, `rendered`.
+
+The user's question, and it was the right one: *shouldn't the journal be part of the graph? is there
+any state that is not within the graph?* The first version of `persist` kept a Python list of
+everything that came in. ⚠⚠⚠ **That was a side-channel duplicating the chain**, in a design whose
+thesis is that nothing the machinery knows may be unaskable by a rule -- and a kept list can drift
+from the graph, where a rendering cannot. Everything it held was already here:
+
+| the journal held | already in the graph as |
+|---|---|
+| the corpus text | rules are nodes -- connective, antecedent, consequent all reprint |
+| which facts were told | `licence = loaded(p)`, `source = <domain>` |
+| what the world said | `arrived(c, p, sign)` entries |
+| which scope each was written in | `scoped(<domain>, <scope>)` -- **new**, a claim the loader makes about itself |
+| `run(limit)` calls | nothing, and rightly: *think until there is nothing left* is what the agent does, not something it was told |
+
+⭐ **What is rendered is a CORPUS, never entries.** §13 scores *authors write entries natively* as a
+leak -- supply a deposit and you can date a claim to when it was not held -- so a saved session
+replays through the ordinary loading path and earns its stamps again. The save file is the corpus back
+out, readable and diffable.
+
+⚠⚠ **Two provenance gaps this exposed.** A **rule had no origin at all**: `RuleSet.rules` is a Python
+list and nothing said which corpus authored which rule, so reification is now stamped with the
+document being read. And a **channel's scope** was unrecorded, so an arrival replayed into a twin that
+merely printed the same.
+
+⚠⚠⚠ **And a twin trap in the provenance code itself:** `Loader.LOADED` was `g.atom("loaded")` and
+`Machine.LOADED` another -- `atom` does not intern -- so the licence the loader stamped and the one
+the renderer looked for were two nodes with one name, and rendering found **no told facts at all**.
+Sixth time.
+
+⚠⚠ **A probe of mine read a crash as clean.** Two mutations (rules not rendered; a sign printed `+`
+where the surface reads `plus`) make the save file unparseable, so the suite **raised** instead of
+failing and my harness counted zero. That is `bundlefile`'s lesson -- *a runner has to be able to say
+False about an absence* -- which `ugm.bundle` was fixed for this morning and my ad-hoc probe
+reproduced hours later. The check now catches the `ParseError` and reports False.
+
+### The census: what state is NOT in the graph
+
+Asked directly, and worth keeping. Three buckets:
+
+* **Mirrors of something already in the graph** -- `emitted` (↔ `emitted(x)`; this one caused a real
+  bug: a resumed session reported having done nothing), `_acted`, `_quieted`, `_stopped`,
+  `_exercised`, `_reified`, `_noticed`, `_vetoed`, `RuleSet.overrides`/`supersedes`. Redundant, not
+  hidden. Honest debt.
+* **Genuinely privileged, and each with an argument written down** -- `focus` (§4 allows one register
+  and says the pointer is the only privileged thing), the substrate objects, the **name tables**
+  (which *cannot* be in the graph without making names identity, which §3 refuses), answerer function
+  bodies (that is what a tool is), and the caches (derived, re-derivable, gated).
+* **⚠ Genuinely hidden claims -- the defect pattern, still open.** Counters (`widenings`,
+  `recoveries`, `selections`, `matched`, `considered`, `writes`, `refusals`, `exhausted`,
+  `expansions`) are facts about the agent's own reasoning no rule can ask about. And **knobs**:
+  `recall_budget`, `max_depth`, `supposition_budget` -- while **`tolerance` is a fact**, for the
+  explicitly stated reason that *how careful am I being is a claim with a trail, and a rule can raise
+  it before an irreversible step*. That argument applies verbatim to the other three. Next commit's
+  work, and small.
+
+## Before that: **a session is what it was told**. Commit `persist`.
 
     python -m ugm <corpus.ugm> --save session.json
     python -m ugm --resume session.json
@@ -1108,12 +1165,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     353 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     354 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 353 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 354 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?

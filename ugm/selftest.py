@@ -2455,15 +2455,29 @@ def a_session_can_be_saved_and_resumed() -> None:
     m.save(path)
     with open(path, encoding="utf-8") as fh:
         saved = json.load(fh)
-    check("§2", "what is saved is what it was TOLD -- corpora, arrivals and runs "
-          "-- not the object graph, so it can be read and argued with",
-          saved["journal"][0]["kind"] == "load"
-          and any(j["kind"] == "say" for j in saved["journal"])
-          and "rule <go>" in saved["journal"][0]["src"])
+    check("§2", "what is saved is what it was TOLD -- RENDERED out of the graph, "
+          "not kept beside it in a journal that could drift",
+          saved["session"][0]["kind"] == "load"
+          and any(j["kind"] == "say" for j in saved["session"])
+          and "rule <go>" in saved["session"][0]["src"])
 
     r = Machine()
     r.actuator("hands")
-    r.replay(saved["journal"])
+    # ⚠⚠ A render that cannot be read back is not a save file, and it fails by
+    # RAISING -- a `ParseError` on a sign printed as `+` where the surface reads
+    # `plus`, or a rule that was never emitted. §20's lesson from `bundlefile`,
+    # in a check written after it: a runner whose contract is *any False is a
+    # failure* has to be able to say False about a crash.
+    try:
+        r.replay(saved["session"])
+        readable = True
+    except Exception:
+        readable = False
+    check("§20", "the rendered session RE-PARSES: every rule is in it, and a "
+          "sign in argument position is written the way the surface reads it",
+          readable)
+    if not readable:
+        return
     w = load(r, "", "w", None)
     check("§3", "⭐ resuming reproduces the history exactly -- same length, and "
           "the determinism measured across hash seeds is what makes that true",

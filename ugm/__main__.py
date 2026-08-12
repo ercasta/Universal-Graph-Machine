@@ -55,8 +55,8 @@ def main(argv=None) -> int:
     kb = None
     if resume:
         with open(resume, encoding="utf-8") as fh:
-            m.replay(json.load(fh)["journal"], limit=limit)
-        print(f"{resume}: resumed, {len(m.journal)} recorded steps, without acting again")
+            m.replay(json.load(fh)["session"], limit=limit)
+        print(f"{resume}: resumed without acting again")
     if path:
         kb = load_file(m, path)
         steps = m.run(limit=limit)
