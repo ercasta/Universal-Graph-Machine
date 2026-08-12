@@ -2,7 +2,36 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **bagging does not pay — summation is not voting**. Commit `forest`.
+## Latest: **a rule says that it ran**. Commit `exercised`.
+
+The user's framing, and it reframed the whole watchdog question: *dying is searching for a rule and
+finding none, isn't it?* Yes — which means the machinery for noticing a dead rule **already exists**
+(`<give-up>` asks a verdict at `quiet`, `blocked` says no rule fits, §19's veto refuses to end quietly
+on an open goal), and the only addition is **being able to die on it**. No census, no watchdog registry,
+no pairing each rule with a guard — all of which I had proposed one message earlier.
+
+    exercised(<R>)      that this rule has run — a PROPOSITION, not a licence
+
+⭐⭐⭐ **The third thing found in this shape, and all three close the same way.** `applied(<R>)` has been
+on every derived entry since R5, because §12's weakest link needs it — and unreadable, because a licence
+is a Python field on the entry. Same as an entry's **grade** (§21 item 5, closed by a wrapper) and a
+**tool's binding** (closed by `answers(<M>, ask)`). *Something the machinery knows and no rule can ask
+about* is this codebase's most frequent defect, and the fix is always: put it in the graph.
+
+Deposited **once per rule**, deduped like `reify` — it is a claim about the rule, not a count of its
+applications. Kill-probed: remove the deposit and the check fails.
+
+⚠⚠ **The reaction half is NOT here, and the blocker is §6's rather than a new one.**
+`blocked(exercised(<R>))` is written **whether or not the rule ran**, because `blocked` means *no RULE
+fits this* — true either way, since what concludes `exercised` is the machinery. The discriminator would
+be `achieved`, and §6 already records that **a root goal is never checked for satisfaction**:
+`<ask-check>` keys on `subgoal(plan, ?w)`, and a goal with no plan is not expressible. Measured, both
+ways, and recorded as a check.
+
+So: the half that is sound ships; the half that needs the root-goal check waits on an item that was
+already on the list, and is now the thing standing between the agent and noticing its own dead rules.
+
+## Before that: **bagging does not pay — summation is not voting**. Commit `forest`.
 
 `forest(episodes, cost)` — bag the episodes into deterministic slices (§3: unseeded bags would be the
 read-a-result-out-of-a-set bug wearing a hat), grow a tree from each, emit them all. Measured on the
@@ -521,7 +550,7 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     291 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     295 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten

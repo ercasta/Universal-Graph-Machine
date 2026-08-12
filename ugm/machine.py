@@ -80,6 +80,9 @@ class Machine:
 
         self.SAYS = self.g.atom("says")
         self.APPLIED = self.g.atom("applied")
+        # The same claim as `applied(<R>)`, but as a proposition a rule can
+        # match rather than a licence only Python can read.
+        self.EXERCISED = self.g.atom("exercised")
         self.ARRIVED = self.g.atom("arrived")
         self.EMITTED = self.g.atom("emitted")
         # The same record, for an act that was decided on but not taken --
@@ -376,7 +379,7 @@ class Machine:
             "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
             "enough": self.ENOUGH, "stopped": self.STOPPED, "open": self.OPEN,
             "helped": self.HELPED, "harmed": self.HARMED,
-            "forgone": self.FORGONE,
+            "forgone": self.FORGONE, "exercised": self.EXERCISED,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
@@ -427,6 +430,7 @@ class Machine:
         self._noticed: set = set()
         self._vetoed: set = set()
         self._reified: set = set()
+        self._exercised: set = set()
         # §19. `None` is the deliberate-reasoning setting -- recall with the
         # budget removed -- and it is the default, because narrowing is a claim
         # about what an agent has learned and a fresh agent has learned nothing.
@@ -454,7 +458,7 @@ class Machine:
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
                              self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED, self.HARMED,
-                             self.FORGONE,
+                             self.FORGONE, self.EXERCISED,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
@@ -1918,6 +1922,32 @@ class Machine:
         boiled, which is why a zero-delay cause is still not an implication.
         """
         licence = self.g.rel(self.APPLIED, app.rule.node)
+        # ⭐⭐⭐ THAT THIS RULE HAS RUN, as a PROPOSITION and not only as a licence.
+        #
+        # `applied(<R>)` is already on every derived entry, because R5 needs it
+        # for §12's weakest link -- but a licence is an entry FIELD, so no rule
+        # can read one. That is the same shape as an entry's grade (§21 item 5)
+        # and as a tool's binding before `answers`: something the machinery knows
+        # and no rule can ask about. Both were closed by putting the thing in the
+        # graph, and this is the third.
+        #
+        # What it buys is that **deadness becomes a blocked goal**. A corpus that
+        # wants to be sure a rule is load-bearing asserts `+goal(exercised(<R>))`;
+        # if nothing ever runs it, backward reading finds nothing that could
+        # conclude that, `<give-up>` writes `blocked` at `quiet`, and §19's veto
+        # refuses to end quietly on it. No census, no watchdog registry, no
+        # pairing of each rule with a guard -- **dying is already intercepted, so
+        # the whole of the addition is being able to die on this.**
+        #
+        # Once per rule, deduped like `reify`: it is a claim about the rule, not
+        # a count of its applications, and re-concluding it every tick would be
+        # noise quiescence has to chew through.
+        if app.rule.node not in self._exercised:
+            self._exercised.add(app.rule.node)
+            self.gate.write(
+                self.focus, self.g.rel(self.EXERCISED, app.rule.node), PLUS,
+                licence=licence, source=self.KB, mention=True,
+            )
         if app.rule.connective == "causes":
             # The register MOVES; it is not replaced. Minting a fresh frame here
             # dropped the parent, the purpose and the wrap -- so a `causes` rule

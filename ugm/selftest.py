@@ -1991,6 +1991,57 @@ def experience_is_offline() -> None:
           tally["apparatus"] * 4 > tally["arb"] * 3)
 
 
+def a_rule_says_that_it_ran() -> None:
+    """`exercised(<R>)` -- the claim `applied(<R>)` was already making, as a
+    PROPOSITION rather than as an entry field (§14, §21).
+
+    R5 licenses every derived entry with `applied(<R>)`, so *that this rule ran*
+    has been on the trail all along -- and unreadable, because a licence is a
+    Python field on the entry. That is the third thing this arc has found in that
+    shape, after an entry's grade (§21 item 5) and a tool's binding before
+    `answers`, and all three close the same way: put it in the graph.
+
+    What it is FOR: **deadness as a blocked goal.** The user's framing --
+    *dying is searching for a rule and finding none* -- means the machinery for
+    noticing a dead rule already exists, and the only addition is being able to
+    die on it. `ugm.bundle` has caught two dead rules offline this arc
+    (`<relevant>` shipping blind, `+open(?w) => +verdict(?w)`); this is the same
+    question asked from inside.
+
+    ⚠⚠ **The reaction half is NOT here, and the blocker is §6's, not a new one.**
+    `blocked(exercised(<R>))` is deposited whether or not the rule ran, because
+    `blocked` means *no RULE fits this* -- true either way, since what concludes
+    `exercised` is the machinery. The discriminator would be `achieved`, and §6
+    already records that **a root goal is never checked for satisfaction**:
+    `<ask-check>` keys on `subgoal(plan, ?w)`, and a goal with no plan is not
+    expressible. So this ships the half that is sound and leaves the half that
+    needs the root-goal check, which was already §21's.
+    """
+    from .text import load
+
+    ran = Machine()
+    kb = load(ran, chr(10).join([
+        "rule <r> = implies( { +p(x) }, { +q(x) } )", "fact +p(x)", ""]))
+    ran.run(limit=200)
+    dead = Machine()
+    kb2 = load(dead, chr(10).join([
+        "rule <r> = implies( { +z(x) }, { +q(x) } )", "fact +p(x)", ""]))
+    dead.run(limit=200)
+
+    check("§14", "a rule that ran says so, as a proposition a rule could match",
+          ran.holds(kb.term("exercised(<r>)")) == PLUS)
+    check("§14", "and one that never ran says nothing -- which is the whole "
+          "discrimination `ugm.bundle` makes offline",
+          dead.holds(kb2.term("exercised(<r>)")) is None)
+    check("§5", "it is deposited once, not once per application: it is a claim "
+          "about the rule, not a count",
+          len([n for n in ran.g.instances_of(ran.EXERCISED)]) == 1)
+    check("§21", "⚠ and the reaction half is still blocked on §6's root-goal check: "
+          "`blocked` is written either way, because it means *no rule fits* and "
+          "what concludes `exercised` is the machinery",
+          ran.holds(kb.term("achieved(exercised(<r>))")) is None)
+
+
 def a_tool_is_data() -> None:
     """§21's honest debt, taken: what binds an answerer to a request (§5, §17).
 
@@ -2841,6 +2892,7 @@ def main() -> int:
     an_agent_that_can_stop()
     no_goal_is_dropped_silently()
     experience_is_offline()
+    a_rule_says_that_it_ran()
     a_tool_is_data()
     an_episode_teaches_the_next_one()
     subgoals_make_blame_sayable()
