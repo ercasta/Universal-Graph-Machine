@@ -2694,3 +2694,89 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
             break
         tree, best = tr, low
     return rows_for(tree)
+
+
+def forest(episodes, cost, trees: int = 3, score: int = 3) -> List[str]:
+    """Many trees over different episodes, and their DISAGREEMENT is the hedge.
+
+    `induce` grows one tree from everything the agent has been through, which
+    means one unlucky episode is in every leaf it produces. Bagging is the usual
+    answer -- grow several trees from overlapping subsets and combine them -- and
+    two things make it fit here rather than merely be importable.
+
+    ⚠⚠⚠ **MEASURED, AND IT DOES NOT PAY YET -- one tree beats the bag.** On the
+    situation-dependent fixture: one tree 1, forest 2, nothing 4. The reason
+    falsifies the claim this function was built on, so it is recorded here rather
+    than quietly fixed:
+
+    > **`_priority` SUMS, and summation is not VOTING.** In a classifier forest a
+    > minority tree is outvoted. Here every tree's rows are ADDED, so a single
+    > over-general row -- one bag that pruned to an unconditional `prefer` --
+    > fires in every situation and cannot be outvoted by the two trees that
+    > learned the condition. The ensemble has a way for advice to accumulate and
+    > no way for it to be overruled.
+
+    ⚠ And the unanimity test is too coarse to catch it: the trees all advise the
+    same RULE and disagree about *when*, so nothing is hedged. Agreement has to be
+    about the condition, not the conclusion -- which is the same lesson `refine`
+    and `induce` each learned in their own way, that the interesting structure is
+    in the antecedent.
+
+    What a forest here would need is a combination rule that can DEFEAT rather
+    than only add -- §12's `overrides` is the obvious candidate and is untried.
+    Left as a measured negative result with a gate, not deleted: the day
+    summation stops dominating, the gate fails and sends someone here.
+
+    ⭐⭐⭐ **And the spread is already sayable.** §15 settled that *two candidates
+    are close exactly when they tie*, needing no threshold; the same argument
+    gives confidence here for free. A route the trees **agree** about is asserted
+    (`prefer(...)`); one they **disagree** about is wrapped
+    (`possible(prefer(...))`), which `_priority` does not count until a corpus
+    rule ventures on it. So the forest does not need a confidence scale -- it
+    needs the wrapper it already has, and unanimity is the constant-free test.
+
+    ⚠ The subsets are contiguous slices, not random draws: §3 forbids reading a
+    derived result out of an unseeded source, and a bagged forest whose bags are
+    unseeded is that bug wearing a hat. Deterministic bags, reproducible trees.
+    """
+    eps = list(episodes)
+    if not eps:
+        return []
+    n = max(1, min(trees, len(eps)))
+    bags = [[eps[j] for j in range(len(eps)) if j % n != i] or eps for i in range(n)]
+    grown = [induce(bag, cost, score=score) for bag in bags]
+
+    def advised(rows):
+        out = {}
+        for r in rows:
+            if "prefer(<" not in r:
+                continue
+            name = r.split("prefer(<", 1)[1].split(">", 1)[0]
+            out[name] = out.get(name, 0) + 1
+        return out
+
+    votes = [advised(rows) for rows in grown]
+    named = [n for v in votes for n in v]
+    unanimous = {x for x in named if all(x in v for v in votes)}
+
+    out: List[str] = []
+    for i, rows in enumerate(grown):
+        for r in rows:
+            # ⚠ Rename EVERY row of the tree, not the rule alone. The first
+            # version prefixed the rule and left `standing(<learned-...>)`
+            # pointing at the old name, and the loader refused the corpus --
+            # which is `<...>` doing its job: a name that does not resolve is an
+            # error, where a silently-wrong reference would have been a bug.
+            r = r.replace("learned-", f"t{i}-learned-")
+            if "prefer(<" in r:
+                name = r.split("prefer(<", 1)[1].split(">", 1)[0]
+                if name not in unanimous:
+                    # The one edit: what the trees could not agree on is offered,
+                    # not asserted, so the disagreement stays visible in the
+                    # corpus instead of being averaged away.
+                    head, _, tail = r.partition("+prefer(")
+                    r = head + "+possible(prefer(" + tail.rstrip()
+                    r = (r[:-2] + "))" + r[-2:]) if r.endswith(") )") else r + ")"
+            if r not in out:
+                out.append(r)
+    return out

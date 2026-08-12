@@ -39,7 +39,7 @@ the control that shows it is load-bearing.
 
 from typing import Dict, List, Optional, Tuple
 
-from .machine import Machine, induce, leaves
+from .machine import Machine, forest, induce, leaves
 from .text import load
 
 BASE = [
@@ -365,6 +365,77 @@ def main() -> int:
 
     # -- the lesser of two evils ------------------------------------------
     print("\n\nNo safe route -- two damaging ways to water, one twice as costly:\n")
+    # -- a learned rule is a decision tree --------------------------------
+    print("\n\nWhen the right move DEPENDS on the situation -- two worlds, one goal"
+          "\nrelation, opposite best answers:\n")
+    flat, cond, refined, costs = a_learned_rule_is_a_decision_tree()
+    print("  taught by A, then REFINED against what it cost in A, B and C:")
+    for r in refined:
+        print(f"    {r}")
+    print()
+    print(f"  {'carried forward':<24} {'A':>4} {'B':>4} {'C':>4} {'total':>6}")
+    for label in ("nothing", "depth-0", "unpruned", "refined"):
+        c = costs[label]
+        print(f"  {label:<24} {c[0]:>4} {c[1]:>4} {c[2]:>4} {sum(c):>6}")
+    print()
+    gate("a depth-0 tree (an unconditional fact) fixes the world it learned in",
+         costs["depth-0"][0] < costs["nothing"][0])
+    gate("⚠⚠⚠ ...and is WRONG in the other one, because it can only say *always*",
+         costs["depth-0"][1] > costs["nothing"][1])
+    gate("a learned RULE, generalised over the objects it saw",
+         any(r.startswith("rule <learned-") and "?v0" in r for r in cond))
+    gate("⚠ but taking EVERY circumstance is over-specific: the rule declines to "
+         "fire in C and the agent breaks a jug it did not need to",
+         costs["unpruned"][2] > costs["refined"][2])
+    gate("⭐⭐⭐ refinement finds the depth that pays -- strictly better than the "
+         "unconditional row, the unpruned rule, AND no experience",
+         sum(costs["refined"]) < min(sum(costs["depth-0"]), sum(costs["unpruned"]),
+                                     sum(costs["nothing"])))
+    gate("and what it kept is one test, not zero -- pruning to nothing would be "
+         "the unconditional row it was supposed to improve on",
+         any(r.startswith("rule <learned-") for r in refined))
+    gate("⚠ and marked `standing`, without which forgoing passes it up as a rival "
+         "way of getting the same want, before it can advise",
+         any(r.startswith("fact standing(<learned-") for r in cond))
+
+    # -- a tree with more than one leaf, from more than one episode --------
+    eps = [tree_episode(s)[0] for s in ("A", "B", "C")]
+
+    def total(rows):
+        return sum(len(tree_episode(s, rows)[1]) for s in ("A", "B", "C"))
+
+    proposed = [l for ep in eps for l in leaves(ep)]
+    tree = induce(eps, total)
+    print()
+    print("  induced from three episodes (two of which propose a WRONG leaf):")
+    for r in tree:
+        print(f"    {r}")
+    print()
+    print(f"    leaves proposed {len(proposed)}, unconditional among them "
+          f"{sum(1 for _, _, t in proposed if not t)}, kept "
+          f"{sum(1 for r in tree if r.startswith('rule '))}")
+    print(f"    induced total cost {total(tree)}")
+    print()
+    gate("⚠⚠⚠ episodes propose UNCONDITIONAL leaves -- an episode only knows the "
+         "cost of the route it took, which is the oscillation as a hypothesis",
+         any(not t for _, _, t in proposed))
+    gate("⭐⭐⭐ ...and joint pruning removes them: induction over three episodes "
+         "reaches the same optimum, so a wrong leaf is not a special case",
+         total(tree) == sum(costs["refined"]) and total(tree) < sum(costs["depth-0"]))
+    gate("what survives is a conditional rule, not the unconditional row that "
+         "dominated the raw proposals",
+         any(r.startswith("rule <learned-") for r in tree))
+
+    # ⚠ A measured NEGATIVE result, gated so it cannot rot into a claim.
+    bagged = forest(eps, total)
+    print(f"    bagging three trees instead: total {total(bagged)}"
+          f" (one tree: {total(tree)})")
+    print()
+    gate("⚠⚠⚠ bagging does NOT pay yet -- `_priority` SUMS, and summation is not "
+         "voting: one bag's over-general row fires everywhere and cannot be "
+         "outvoted. A forest needs a rule that can DEFEAT, not only add",
+         total(bagged) > total(tree))
+
     ev = lesser_of_two_evils()
     print(f"  {'authored first':<14} {'scheme':<36} losses per episode")
     for label in ("good start", "bad start"):

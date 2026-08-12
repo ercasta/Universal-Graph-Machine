@@ -2,7 +2,33 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **how sure is a WRAPPER, not a field**. Commit `hedge`.
+## Latest: **bagging does not pay — summation is not voting**. Commit `forest`.
+
+`forest(episodes, cost)` — bag the episodes into deterministic slices (§3: unseeded bags would be the
+read-a-result-out-of-a-set bug wearing a hat), grow a tree from each, emit them all. Measured on the
+situation-dependent fixture: **one tree 1, forest 2, nothing 4.** It is *worse*, and the reason
+falsifies the claim it was built on — recorded rather than quietly fixed.
+
+> **`_priority` SUMS, and summation is not VOTING.** In a classifier forest a minority tree is outvoted.
+> Here every tree's rows are **added**, so one bag that pruned to an unconditional `prefer` fires in
+> every situation and **cannot be outvoted** by the two trees that learned the condition. The ensemble
+> has a way for advice to accumulate and no way for it to be overruled.
+
+⚠ I claimed the opposite two commits earlier — *combination is already the mechanism, a set of shallow
+rules is a forest natively*. Summation makes an ensemble; it does not make **bagging** sound.
+
+⚠ The unanimity test built to hedge disagreement is also too coarse: the trees all advise the same
+**rule** and disagree about *when*, so nothing was hedged. **Agreement has to be about the condition,
+not the conclusion** — the same lesson `refine` and `induce` each learned, that the structure is in the
+antecedent. What a forest needs here is a combination rule that can **defeat** rather than only add;
+§12's `overrides` is the obvious candidate and is untried.
+
+⚠⚠⚠ **And a regression I shipped: the `magnitude` commit's line-splice DELETED ten gates** — the whole
+decision-tree and induction block — and nothing noticed, because a gate count only ever appeared in
+prose. Restored from `induce`; the instrument reports **31** gates. *An instrument that cannot say how
+many checks it ran cannot tell you it stopped running some.*
+
+## Before that: **how sure is a WRAPPER, not a field**. Commit `hedge`.
 
 ⚠⚠ **The handoff's previous paragraph was wrong and the user caught it.** It said the *how sure* half
 was waiting on `+prefer(<R>, k, 3) @possible`, "already writable and never written". Measured: the grade
@@ -502,7 +528,7 @@ python -m ugm.backward       0 failing, 0 blind         backward reading, as rul
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 python -m ugm.workload       0 failing                  stopping pays; and what BAD ADVICE costs
-python -m ugm.learning       0 failing, 30 gates        does an episode teach the next one?
+python -m ugm.learning       0 failing, 31 gates        does an episode teach the next one?
 python -m ugm.tools          0 failing, 11 gates        can a tool be data?
 ```
 
