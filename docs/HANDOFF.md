@@ -39,9 +39,26 @@ open goal outranks `enough`. So the veto masks the unsoundness at small scale, a
 around what was actually measured (a subgoal that **holds** is still not `rooted`) rather than around
 what I expected to see. ⚠ Kill-probed: make the answerer say yes unconditionally and two checks fail.
 
-**Blocked on this, now unblocked:** the general stop rule (done, above) and §6's own item. ⚠ **Not** the
-watchdog reaction — `exercised` still needs *root-goal **satisfaction** checking*, and this supplies the
-root-goal half only.
+**Blocked on this, now unblocked:** the general stop rule (done, above) and §6's own item.
+
+⚠⚠⚠ **And what it does NOT unblock, which is the finding.** Root-goal *satisfaction* checking needs one
+more thing, and it is **not** rootedness. With `rooted` in hand a corpus can ask — `{+goal(?w),
++rooted(?w)} ⟹ {+check(?w, ?w)}`, the goal as its own plan, needing **no engine change** because a root
+goal binds nothing — and the whole chain fires: `root`, `rooted`, `check`. `achieved` still does not
+appear. Measured as a contrast pair whose two cases differ only in *when* the goal became true:
+
+| | goal holds | `achieved` |
+|---|---|---|
+| goal holds from the start | `+` | **`+`** |
+| goal derived a few ticks later | `+` | **None** |
+
+The blocker is §6's *other* item: **a request can only be made once.** The check is asked the moment the
+goal appears, the state is scanned then, and re-concluding `+check(w, w)` changes nothing, so quiescence
+drops it. A goal satisfied three ticks later is never looked at again.
+
+> **`rooted` was necessary and is not sufficient.** What is left is *when may a request be re-asked* —
+> one of the two original four hats, and now the single thing standing between the agent and noticing
+> both its own satisfied goals and its own dead rules.
 
 ## Before that: **a rule says that it ran**. Commit `exercised`.
 
@@ -591,7 +608,7 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     299 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     301 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten

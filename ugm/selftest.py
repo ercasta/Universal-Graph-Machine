@@ -2038,6 +2038,45 @@ def a_root_goal_is_askable() -> None:
           steps[-1].state == "stopped"
           and m.holds(kb.term("boiling(kettle)")) == PLUS)
 
+    # -- and what `rooted` does NOT unblock, which is the finding ----------
+    #
+    # ⚠⚠⚠ Checking a root goal for SATISFACTION needs one more thing, and it is
+    # not rootedness. With `rooted` in hand a corpus can ask -- `{+goal(?w),
+    # +rooted(?w)} => {+check(?w, ?w)}`, the goal as its own plan, which needs no
+    # engine change because a root goal binds nothing -- and the whole chain
+    # fires: `root`, `rooted`, `check`. `achieved` still does not appear.
+    #
+    # The reason is §6's OTHER item: **a request can only be made once.** The
+    # check is asked the moment the goal appears, the state is scanned then, and
+    # re-concluding `+check(w, w)` changes nothing, so quiescence drops it. A
+    # goal satisfied three ticks later is never looked at again.
+    #
+    # Measured as a contrast pair rather than asserted, because the two cases
+    # differ only in WHEN the goal became true -- which is the whole claim.
+    rc = [
+        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
+        "fact standing(<ask-root>)",
+        "rule <check-root> = implies( { +goal(?w), +rooted(?w) }, { +check(?w, ?w) } )",
+        "fact standing(<check-root>)",
+    ]
+    now = Machine()
+    kb_now = load(now, chr(10).join(["fact +q(x)"] + rc + ["fact +goal(q(x))", ""]))
+    now.run(limit=400)
+    later = Machine()
+    kb_later = load(later, chr(10).join(
+        ["rule <r> = implies( { +p(x) }, { +q(x) } )", "fact +p(x)"]
+        + rc + ["fact +goal(q(x))", ""]))
+    later.run(limit=400)
+
+    check("§6", "a root goal CAN be checked once it is askable -- the goal as its "
+          "own plan, and no engine change, because a root goal binds nothing",
+          now.holds(kb_now.term("achieved(q(x))")) == PLUS)
+    check("§21", "⚠ but only if it already held when the question was asked: a goal "
+          "reached LATER is never looked at again, because a request can be made "
+          "once. `rooted` was necessary and is not sufficient",
+          later.holds(kb_later.term("q(x)")) == PLUS
+          and later.holds(kb_later.term("achieved(q(x))")) is None)
+
 
 def a_rule_says_that_it_ran() -> None:
     """`exercised(<R>)` -- the claim `applied(<R>)` was already making, as a
