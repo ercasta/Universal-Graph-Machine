@@ -119,6 +119,82 @@ written down.
 Re-asking got there because a request is a **proposition** and a proposition can be re-delivered; a
 binding is not one, so the same move is not available.
 
+## Latest: **the loop stops rediscovering what it knew**, and a scope can span documents. Commits `delta`, `scopes`.
+
+⭐⭐⭐ **The loop was stateless between ticks.** Every tick it re-ran every rule's join over the whole
+state, weighed the result, applied one, and threw the rest away -- then did all of it again. Measured
+**before** building anything:
+
+| corpus | applications matched | genuinely new | re-derived |
+|---|---|---|---|
+| 600 facts, 1 join + 1 narrow rule | 5,775 | **75** | 5,700 — **98.7% waste** |
+| the kettle fixture | 239 | 17 | 222 — **92.9% waste** |
+
+⚠ The second row is the finding. This was never a big-corpus concern: **the agent has been wasting 93%
+of its matching since the first tick ever ran.**
+
+⭐⭐ **And it needed no new representation.** §4 already says *a moment is a signed delta*, and
+`Chain.deposit` already records each entry's position in it -- so *what is new since I last looked* was
+always `seat.delta[pos:]`, and the matcher had simply never read it that way. `match` takes a `fresh`
+Situation and runs one pass per antecedent member, pivoting on the delta.
+
+| corpus | before | after |
+|---|---|---|
+| 2,000 facts + 2 rules | **did not finish in 600s** | **8.0s** |
+| 5,000 facts + 2 rules | unmeasurable | 91s |
+
+**Three things had to be right, and I got two wrong first.**
+
+* ⚠⚠ **Order is part of the answer.** A cache yields applications in discovery order; a full match
+  yields them in state order, nested-loop per member. §18's last tiebreak is authored order, so *which*
+  application is chosen turns on it -- 4 checks failed. Now reconstructed explicitly.
+* ⚠⚠⚠ **The cursor is PER RULE.** Recall is not fixed: a rule drops out of mind under a budget and
+  returns when `_widen` fires. With one shared cursor everything deposited while it was away is already
+  consumed, so it comes back and is told nothing is new -- and the chain a→b→c stops at b. *New* means
+  new **to this rule**.
+* ⚠⚠⚠ **Invalidation, and it found a hole in the suite.** The chain is append-only but `resolve` is
+  **not monotone**: a denial makes what an application consumed no longer the current claim.
+  Kill-probed -- disable it and the agent concludes from a premise it has **denied** (`z(a)` = `+` after
+  `-p(a)`) -- **and all 316 checks still passed.** Nothing else in the suite could see it.
+
+⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
+chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
+
+## ...and: **a scope can span documents**. Commit `scopes`.
+
+The user's question, and it reframed coreference entirely: *could explicit bounded references avoid
+solving coreference, except at intake?* **Yes -- and it was already the architecture, more strictly
+than anyone had written down.** Measured: each `load()` is its own name table, so `kettle` in two
+documents is two nodes and neither sees the other's claims. Engine vocabulary is shared (`m.reserved`);
+user names are not.
+
+> **Within authored knowledge, coreference is not solved -- it is ABSENT.** A corpus is a bound, and
+> inside it `kettle` means one node by construction. The twin trap that has cost this repo five silent
+> bugs is the design enforcing exactly that: a name not resolved through a scope names nothing.
+
+⭐⭐ **And it settles the interning question.** I had framed it as a trade -- interning is irrevocable
+coreference, minting a node per mention is revisable but leaks. With bounded references the dilemma
+dissolves: **within a bound, interning is correct**, because the bound is what makes it a fact rather
+than a guess. No node per mention, no leak.
+
+What it cost was that a book split into chapters was that many disconnected islands. So scopes are now
+**named**: `load(m, src, scope="book")` shares one table; omitted, the document is private, which is
+the default and unchanged. A rule authored in one document now applies to facts in another. Gated with
+a control (an unscoped document stays apart) and kill-probed.
+
+⚠⚠⚠ **What this deliberately is NOT: `sameas(a, b)` in the graph.** Asserting identity needs
+equals-for-equals in matching, and congruence is either machinery -- a decision nobody can argue with
+-- or a rule per relation per position. **Deciding identity where the name is READ keeps it a
+construction.** Identity discovered later is then a **revision of intake** (re-read the document with
+the binding corrected), which is the shape `learned()` already has for rules.
+
+⚠ **Three residues, stated because they are real.** Choosing the bound is itself a coreference
+judgement made **wholesale** -- one scope per book says chapter 2's kettle is chapter 40's, decided by
+how the file was split rather than by evidence, and that is a claim about the text. Cross-scope
+identity is now expressible by *sharing a scope*, never by asserting it. And **binding during
+reasoning** -- `binds(plan, ?t, sink)`, *which tap* -- is untouched: that is reference as BINDING, and
+nothing reconsiders one. Still the last open hat.
+
 ## Survey: **what the two consumers would need, and the wall is scale**
 
 ⚠⚠⚠ **First, a fact nobody had written down: `../pystrider` and `../harneskills_new` are dark right
@@ -786,12 +862,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     316 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     323 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 316 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 323 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?

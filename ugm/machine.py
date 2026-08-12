@@ -456,6 +456,11 @@ class Machine:
         self.expansions = 0
         self._acted: set = set()
         self._quieted: set = set()
+        # Named name-scopes, so two documents can be about the same kettle. A
+        # corpus is a bound and that is what makes reference a construction
+        # rather than an inference; naming the bound lets it span documents
+        # without weakening it. See `text.Loader`.
+        self.scopes: dict = {}
         # Applications carried across ticks, per seat. See `_applications`.
         self._match_cache: dict = {}
         # What matching actually produced, against what the loop then weighed.

@@ -311,9 +311,32 @@ class Loader:
     R3: a rule is a thing other facts can be about.
     """
 
-    def __init__(self, machine: Machine) -> None:
+    def __init__(self, machine: Machine, scope: Optional[str] = None) -> None:
         self.m = machine
-        self.atoms: Dict[str, NodeId] = {}
+        # ⭐⭐⭐ **The name scope, and whether it is shared.** A corpus is a bound:
+        # `kettle` means one node inside it, by construction and not by
+        # inference, which is why coreference does not arise in authored
+        # knowledge at all. What that cost, until now, is that two documents
+        # could not be about the same kettle -- each `load` had a private table,
+        # so a book split into chapters was forty disconnected islands and
+        # nothing could bridge them.
+        #
+        # Naming the bound fixes it without weakening it. Documents loaded under
+        # the same scope resolve names against one table, so identity is still
+        # decided at intake and still by construction; documents under different
+        # scopes stay apart, which is the default and is what a fresh corpus
+        # wants.
+        #
+        # ⚠ Note what this deliberately does NOT do: assert identity in the
+        # graph. `sameas(a, b)` would need equals-for-equals in matching, and
+        # congruence is either machinery (a decision nobody can argue with) or a
+        # rule per relation per position (combinatorial). Deciding identity when
+        # the name is READ keeps it a construction. Identity discovered later is
+        # then a revision of intake -- re-read the document with the binding
+        # corrected -- which is the same shape `learned()` already has for rules.
+        self.atoms: Dict[str, NodeId] = (
+            {} if scope is None else machine.scopes.setdefault(scope, {})
+        )
         self.vars: Dict[str, NodeId] = {}
         self.rule_nodes: Dict[str, NodeId] = {}
         self.rules_by_name: Dict[str, object] = {}
@@ -595,14 +618,19 @@ def _vars_in(g, node: NodeId) -> set:
     return out
 
 
-def load(machine: Machine, src: str) -> Loader:
+def load(machine: Machine, src: str, scope: Optional[str] = None) -> Loader:
     """Returns the loader, which is the corpus's name scope -- ask questions
-    through it, since a bare name outside a scope names nothing."""
-    ldr = Loader(machine)
+    through it, since a bare name outside a scope names nothing.
+
+    `scope` names a table shared with every other document loaded under it, so
+    two documents can be about the same kettle. Omitted, the document gets a
+    private table, which is what it has always had.
+    """
+    ldr = Loader(machine, scope)
     ldr.load(src)
     return ldr
 
 
-def load_file(machine: Machine, path: str) -> Loader:
+def load_file(machine: Machine, path: str, scope: Optional[str] = None) -> Loader:
     with open(path, "r", encoding="utf-8") as fh:
-        return load(machine, fh.read())
+        return load(machine, fh.read(), scope)

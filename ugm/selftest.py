@@ -2260,6 +2260,55 @@ def a_request_can_be_re_asked() -> None:
           [cm.g.show(x) for x in cm.emitted] == ["open(door)"])
 
 
+def a_scope_can_span_documents() -> None:
+    """§13's name scope, named -- so a book can be more than one document.
+
+    A corpus is a **bound**, and that is why coreference does not arise in
+    authored knowledge: `kettle` means one node inside the bound by
+    construction, not by inference, and a name outside a scope names nothing.
+    The price was that each `load` had a private table, so two documents could
+    not be about the same kettle and a book split into chapters was that many
+    disconnected islands.
+
+    ⚠ What this deliberately is NOT: `sameas(a, b)` in the graph. Asserting
+    identity needs equals-for-equals in matching, and congruence is either
+    machinery -- a decision nobody can argue with -- or a rule per relation per
+    position. Deciding identity where the name is READ keeps it a construction,
+    and identity discovered later becomes a **revision of intake** rather than
+    an inference, which is the shape `learned()` already has for rules.
+    """
+    from .text import load
+
+    m = Machine()
+    a = load(m, "fact +red(kettle)" + chr(10), scope="book")
+    b = load(m, "fact +hot(kettle)" + chr(10), scope="book")
+    check("§13", "two documents under one scope are about the same kettle -- by "
+          "construction, which is what keeps it from being a guess",
+          a.atom("kettle") == b.atom("kettle")
+          and m.holds(b.term("red(kettle)")) == PLUS
+          and m.holds(a.term("hot(kettle)")) == PLUS)
+
+    # ...and a rule authored in one document reasons over facts from the others,
+    # which is the thing a book actually needs.
+    m2 = Machine()
+    load(m2, "rule <r> = implies( { +red(?x), +hot(?x) }, { +dangerous(?x) } )"
+         + chr(10), scope="book")
+    d = load(m2, "fact +red(kettle)" + chr(10), scope="book")
+    load(m2, "fact +hot(kettle)" + chr(10), scope="book")
+    m2.run(limit=60)
+    check("§13", "...so a rule in one document applies to facts in another",
+          m2.holds(d.term("dangerous(kettle)")) == PLUS)
+
+    # The control, and it is the default: an unnamed scope stays private, so
+    # nothing here weakened the bound. A fixture where everything is shared
+    # cannot tell sharing from a global namespace.
+    priv = load(m, "fact +cold(kettle)" + chr(10))
+    check("§13", "an unscoped document keeps its own names -- the default is "
+          "still that a bare name outside a scope names nothing",
+          priv.atom("kettle") != a.atom("kettle")
+          and m.holds(priv.term("red(kettle)")) is None)
+
+
 def matching_is_incremental() -> None:
     """§4's *a moment is a signed delta*, finally read by the matcher.
 
@@ -3322,6 +3371,7 @@ def main() -> int:
     experience_is_offline()
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
+    a_scope_can_span_documents()
     matching_is_incremental()
     the_apparatus_eats_its_own_cooking()
     a_rule_says_that_it_ran()
