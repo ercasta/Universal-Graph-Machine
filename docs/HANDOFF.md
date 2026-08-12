@@ -2,7 +2,64 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **the bundle is authored in the surface**. Commit `bundlefile`.
+## Latest: **the learning loop closes**. Commit `learning`.
+
+The user: *shall we tackle learning, so that we start building a working learning mechanism with
+whatever we have?* Yes — and "whatever we have" turned out to be enough, because the last commit but
+one supplied the missing half without anyone noticing.
+
+⭐⭐⭐ **SUPPRESSION IS NOT A DECISION.** Measured before building anything: an episode that smashed a
+jug to get water blames the smasher (`['cost', 'did', 'use-jug']`), drops it from what it recommends —
+and then **smashes the jug again**. Omitting a rule leaves it exactly where it was, first in authored
+order. `learned()` could say *do not recommend this*. It could not say *do that instead*, and only the
+second changes a run.
+
+⭐⭐⭐ **The missing half was already on the trail, put there by `forgoing2`.** `forgone(A, w)` says *A
+was a live way of getting w and something else was taken*, licensed by `applied(<winner>)` — so a
+**blamed winner names its own alternatives**. `Machine._instead_of` is that join, and it needs no new
+bookkeeping. Third time credit assignment has come out that way.
+
+| | episode 1 | episode 2 | episode 3 |
+|---|---|---|---|
+| emitted | `smash(jug1)` | **`fill(kettle)`** | `fill(kettle)` |
+| the jug | broken | **intact** | intact |
+| blamed | `cost, did, use-jug` | — | — |
+
+What it carries forward is one row: `fact prefer(<use-tap>, water, 3)` — *the alternative it passed up*,
+not merely the absence of the rule that hurt.
+
+⭐⭐ **The control is the finding's proof.** `ugm.learning` re-runs the whole thing with the join
+disabled (blame still suppresses, nothing promotes) and the agent smashes the jug **both** times, having
+written rows in each. Take the join away and the second episode must go wrong again, or the join was
+never what fixed it.
+
+⭐ **It generalises, and that is checked rather than inferred.** The row is keyed on the goal's
+*relation*, so a run about `pot`/`jug2` — objects the taught episode never saw — takes the tap. The
+fresh control on the same world still breaks the jug, so the fixture can fail.
+
+⚠⚠ **Why this is possible now and was not two commits ago.** The `experience` session measured an exact
+learned table buying **nothing**, and that verdict is stale: it was taken when a losing rule was
+*deferred, not rejected*, so the agent took the good route **and** the bad one. `forgoing2` made
+arbitration a decision. The arena is now one line of authored order — `<use-jug>` written first breaks
+the jug, `<use-tap>` first does not, nothing else differs — which is exactly the kind of choice the
+`experience` census found settles two thirds of this agent's arbitrations with no reason at all.
+
+⚠⚠ **A guard I wrote returned nothing, silently.** `_instead_of` skipped any `forgone` node with
+`has_var` — but a `forgone` node names a **rule**, and a rule node is generic by construction, so it
+skipped every real deposit. The guard belongs on the *want* (member 1), which is where `blame` puts the
+same guard for the same reason. Found by printing the join's input rather than trusting an empty result.
+
+**New instrument: `python -m ugm.learning`** — 12 gates, 0 failing, including the control and the
+transfer pair. Kill-probed: deleting the two-line join fails 3 selftest checks and 4 of its own gates.
+
+⚠ **What it does not show, and both are §21 items already.** The promoted alternative is recommended
+because something that harmed passed it up, **not because it is good** — in a world where every route
+does damage `learned` recommends none, which is right, and offers nothing instead, which is the
+non-negative-numerals gap again. And the signal is **one episode deep**: a second `prefer` row for the
+same rule and key does not accumulate, because restating is not revising (§8). That is the next thing to
+measure, not to assume.
+
+## Before that: **the bundle is authored in the surface**. Commit `bundlefile`.
 
 The user's question, asked before picking up the list below: *shall we move rules to dedicated files
 instead of embedding them in Python?* Yes — and it was not tidying. It is §2's expressibility criterion
@@ -64,19 +121,20 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     278 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     284 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as rules
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 python -m ugm.workload       0 failing                  the gate is now on STOPPING buying something
+python -m ugm.learning       0 failing, 12 gates        does an episode teach the next one?
 ```
 
 ## The state of the code
 
-16 modules, ~7.2k lines. `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine;
-`selftest` `agreement` `bundle` `backward` `compose` `modality` `workload` are instruments;
+17 modules, ~7.5k lines. `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine;
+`selftest` `agreement` `bundle` `backward` `compose` `modality` `workload` `learning` are instruments;
 `stratum0` is the rule-level read.
 
 **No phases.** `tick()` is: read `enough` → recall → match → defeat → **forgone** → quiescence →
@@ -99,15 +157,22 @@ answers one question at one machinery decision.
 
 ## Where I would pick up
 
-Three narrow things forgoing left open, then the older thread:
+Forgoing left three narrow things open; the `learning` commit reordered them. Then the older thread:
 
 1. **Rivals are noticed only at the tick the choice is made**, so an alternative that becomes
    applicable later is not passed up. Unmeasured whether that matters.
 2. **Complementary work must be declared**, and there is no way to declare it beyond denying the
    deposit. (Two rules that should *both* run for one want.)
 3. **How badly a rule cost something is unsayable** — `harmed` is two-valued and the table's numerals
-   are non-negative, so a small cost cannot be weighed against a large benefit.
-4. Then: *when may a request be re-asked* and *when may a binding be reconsidered* — the two of the
+   are non-negative, so a small cost cannot be weighed against a large benefit. ⬆ **Promoted to first
+   by the `learning` commit**: it is now the *one* thing blocking the loop that closes. Learning can
+   suppress a route and promote the alternative that was passed up; it cannot say *this route is worth
+   its cost and that one is not*, so a world where every route does damage recommends nothing.
+4. **Experience is one episode deep.** A second `prefer` row for the same rule and key does not
+   accumulate — *restating is not revising* (§8) — so a route that has worked twenty times and one that
+   worked once are indistinguishable. This is the same missing notion as item 3 from the other side, and
+   `ugm.learning` closes on the note that it should be measured, not assumed.
+5. Then: *when may a request be re-asked* and *when may a binding be reconsidered* — the two of the
    original four hats still open. `enough` needed the loop to do **less** and one fact sufficed; these
    need it to do something **again**.
 

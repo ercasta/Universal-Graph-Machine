@@ -1991,6 +1991,52 @@ def experience_is_offline() -> None:
           tally["apparatus"] * 4 > tally["arb"] * 3)
 
 
+def an_episode_teaches_the_next_one() -> None:
+    """The learning loop, closed (§19). `ugm.learning` measures it; this holds it.
+
+    Everything upstream of this existed: `review` credits, `blame` attributes a
+    lost subgoal, `learned` writes surface text, and forgoing made arbitration
+    into a decision instead of a schedule. What did not exist was the join, and
+    the run that found it is the check below.
+
+    ⭐⭐⭐ **Suppression is not a decision.** An episode that smashed a jug for
+    water blamed the smasher and dropped it from what it recommends -- and then
+    smashed the jug again, because omitting a rule leaves it exactly where it
+    was: first in authored order. `learned` could say *do not recommend this*
+    and could not say *do that instead*, and only the second changes a run.
+
+    ⭐⭐ The missing half was already on the trail. `forgone(A, w)` says `A` was a
+    live way of getting `w` and something else was taken, licensed by
+    `applied(<winner>)` -- so a blamed winner names its own alternatives. Third
+    time credit assignment has needed no new bookkeeping.
+    """
+    from .learning import Episode, world
+
+    ep1 = Episode(world(jug_first=True))
+    check("§19", "a world where the wrong choice costs something: the agent "
+          "smashed the jug it also needed", ep1.harmed)
+    check("§19", "and the loss is attributed to the DECISION, not the physics",
+          "use-jug" in ep1.blamed)
+    check("§19", "what it carries forward names the alternative it passed up -- "
+          "blame alone could only suppress the rule that did the damage",
+          any("<use-tap>" in r for r in ep1.rows)
+          and not any("<use-jug>" in r for r in ep1.rows))
+
+    ep2 = Episode(world(jug_first=True) + chr(10).join(ep1.rows) + chr(10))
+    check("§19", "so the next episode in the same world makes the other choice",
+          not ep2.harmed and ep2.acts == ["fill(kettle)"])
+    check("§19", "...and achieves both goals, so it is not merely doing less",
+          ep2.water == PLUS and ep2.juice == PLUS)
+
+    # The key is a relation, so what it learned is not a cache of this episode.
+    fresh = Episode(world("pot", "jug2", jug_first=True), "pot", "jug2")
+    taught = Episode(world("pot", "jug2", jug_first=True)
+                     + chr(10).join(ep1.rows) + chr(10), "pot", "jug2")
+    check("§19", "and it generalises: a row keyed on the relation `water` saves a "
+          "jug the episode was never told about",
+          fresh.harmed and not taught.harmed)
+
+
 def subgoals_make_blame_sayable() -> None:
     """Splitting a task into subgoals is what makes FAILURE attributable (§19).
 
@@ -2732,6 +2778,7 @@ def main() -> int:
     an_agent_that_can_stop()
     no_goal_is_dropped_silently()
     experience_is_offline()
+    an_episode_teaches_the_next_one()
     subgoals_make_blame_sayable()
     taking_one_way_passes_up_the_others()
     doubt_is_a_tie()

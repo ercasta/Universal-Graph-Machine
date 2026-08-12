@@ -2043,12 +2043,71 @@ class Machine:
         # `-3` does not). §21 records that; *how badly* is not sayable yet, only
         # *at all*.
         harmed = {rule.node for rule, _ in self.blame()}
-        rows = []
-        for rule, key in self.review():
-            if rule.name is None or rule.node in harmed:
-                continue
+        rows: List[str] = []
+        seen = set()
+
+        def row(rule: Rule, key: NodeId) -> None:
+            if rule.name is None or rule.node in harmed or (rule.node, key) in seen:
+                return
+            seen.add((rule.node, key))
             rows.append(f"fact prefer(<{rule.name}>, {self.g.show(key)}, {score})")
+
+        for rule, key in self.review():
+            row(rule, key)
+        # ...and the half that suppression cannot supply. Measured: an episode
+        # that smashed a jug for water blamed the smasher, dropped it from these
+        # rows, and **smashed the jug again**, because omitting a rule leaves it
+        # exactly where it was -- first in authored order.
+        #
+        # > **Suppression is not a decision.** It can say *do not recommend this*.
+        # > It cannot say *do that instead*, and only the second changes a run.
+        for rule, key in self._instead_of(harmed):
+            row(rule, key)
         return rows
+
+    def _instead_of(self, harmed: set) -> List[Tuple[Rule, NodeId]]:
+        """The live alternatives to what cost the agent something.
+
+        Blame names the rule that did the damage; it is silent about what else
+        was available, because the rule that was passed up never ran and so is on
+        no trail. **Forgoing already recorded it.** `forgone(A, w)` is deposited
+        when `A` was a live way of getting `w` and something else was taken, and
+        it is licensed by `applied(<winner>)` -- so *what did I do instead of A*
+        is a question the deposit already answers.
+
+        Joining them needs no new bookkeeping, which is the same result credit
+        assignment had: a blamed winner names its own forgone alternatives, and
+        those are exactly the rules worth promoting. Neither half is a signal
+        alone -- blame without forgoing suppresses into the same choice, and
+        forgoing without blame recommends whatever was passed up for any reason.
+
+        ⚠ An alternative that is itself blamed earns nothing; `learned` filters
+        both halves through the same suppression, so a world whose every route
+        does damage recommends none of them rather than the least-examined one.
+        """
+        rule_at = {r.node: r for r in self.rules.rules}
+        out: List[Tuple[Rule, NodeId]] = []
+        for node in self.g.instances_of(self.FORGONE):
+            # ⚠ The WANT must be ground, not the whole node. A `forgone` node
+            # names a rule, and a rule node is generic by construction -- so
+            # `has_var(node)` is true of every real deposit, and guarding on it
+            # silently returned nothing. Same shape as `blame`'s guard, which is
+            # about generic subgoals like `heat(?a, kettle)` that were never
+            # meant to hold as stated, and belongs on the same member.
+            if self.g.has_var(self.g.member(node, 1)):
+                continue
+            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            if e is None or e.sign != PLUS or e.licence is None:
+                continue
+            if self.g.relation_of(e.licence) is not self.APPLIED:
+                continue
+            if self.g.member(e.licence, 0) not in harmed:
+                continue
+            alt = rule_at.get(self.g.member(node, 0))
+            key = self.g.relation_of(self.g.member(node, 1))
+            if alt is not None and key is not None:
+                out.append((alt, key))
+        return out
 
     def why(self, proposition: NodeId, locus: Optional[Moment] = None) -> List[str]:
         """*Why do you believe that, and on whose word?* -- R5.
