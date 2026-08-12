@@ -2169,7 +2169,7 @@ class Machine:
                 frontier.append(s.proposition)
         return seen
 
-    def learned(self, score: int = 3) -> List[str]:
+    def learned(self, score: int = 3, conditional: bool = False) -> List[str]:
         """What this episode has to say to the next one, as surface text.
 
         Offline learning crossing an episode boundary is a corpus being written,
@@ -2211,6 +2211,37 @@ class Machine:
 
         for rule, key in self.review():
             row(rule, key)
+        # ⭐ The conditional form: a learned rule instead of a learned fact, which
+        # is the whole of what "generalisation" turns out to mean here.
+        #
+        # A `prefer` FACT is a decision tree of depth ZERO -- it says *always*,
+        # given its key. A `prefer`-concluding RULE says *when*. That is not an
+        # analogy: a tree's root-to-leaf path IS a rule, its internal nodes are
+        # antecedent members, and `<relevant>` has shipped in exactly this shape
+        # since §13. What is more, `_priority` SUMS applicable rows, so a set of
+        # such rules is already an **additive ensemble** -- nobody designed that
+        # as one; it falls out of *applicable rows sum*.
+        #
+        # ⚠ `standing` is not decoration and the fixture found it: unmarked, a
+        # preference rule mentions `goal(?w)`, so forgoing reads it as a rival way
+        # of getting the same want and passes it up before it can advise
+        # (measured: `forgone(<t1>)` deposited, priority 0). Marked, it advises
+        # (priority 7). §16's *being careful has to come before the move it is
+        # about*, arriving from a third side.
+        if conditional:
+            tests = self._circumstances(self._choosers(harmed))
+            if tests:
+                antecedent = self._generalise(tests)
+                for i, (rule, key) in enumerate(self._instead_of(harmed)):
+                    if rule.name is None or rule.node in tools:
+                        continue
+                    name = f"learned-{rule.name}-{self.g.show(key)}"
+                    rows.append(
+                        f"rule <{name}> = implies( {{ {antecedent} }},"
+                        f" {{ +prefer(<{rule.name}>, {self.g.show(key)}, {score}) }} )"
+                    )
+                    rows.append(f"fact standing(<{name}>)")
+                return rows
         # ...and the half that suppression cannot supply. Measured: an episode
         # that smashed a jug for water blamed the smasher, dropped it from these
         # rows, and **smashed the jug again**, because omitting a rule leaves it
@@ -2221,6 +2252,116 @@ class Machine:
         for rule, key in self._instead_of(harmed):
             row(rule, key)
         return rows
+
+    def _circumstances(self, choosers: List[Rule]) -> List[NodeId]:
+        """*What about this situation made that the wrong move?*
+
+        The tests of a learned decision tree, and they are read off the trail
+        rather than engineered: the ground propositions on the support of what
+        was **lost**, less four kinds that cannot discriminate.
+
+        | the lost goals themselves | the conclusion, not a circumstance |
+        | machinery bookkeeping     | `goal`, `did`, `doing`, `emitted` are true of every episode |
+        | what the CHOOSING rule's antecedent already requires | constant wherever the choice arises at all |
+        | anything generic          | §12: a pattern is not an observation |
+
+        What survives is what was true **here** and need not be true next time --
+        which is exactly the question a tree's internal node asks. Note it needs
+        no new bookkeeping either: R5 keeps the support for the weakest link, and
+        this reads it. That is the fifth time.
+
+        ⚠ **All of them, as a conjunction**, and the choice is made on which error
+        is recoverable -- the same judgement forgoing made. An over-specific
+        condition simply does not fire, and the agent falls back to what it did
+        before; an over-general one advises confidently in situations it has
+        never seen. Under-advising is recoverable.
+        """
+        skip = set(self._bookkeeping) | {self.DOING, self.GOAL, self.DID, self.EMITTED}
+        # ⚠ The CHOOSING rule's antecedent only, not every blamed rule's. The
+        # blame walk reaches the physics too (`<cost>`, `<extra>`), and the
+        # physics rules are precisely the ones whose antecedents name the
+        # damaging circumstance -- so excluding theirs deletes the signal. Found
+        # by measurement: the first version learned nothing and looked like it
+        # had merely declined to.
+        required = set()
+        lost = set()
+        for rule in choosers:
+            for m in rule.antecedent:
+                r = self.g.relation_of(m.pattern)
+                if r is not None:
+                    required.add(r)
+        out: List[NodeId] = []
+        for s in current_state(self.chain, self.focus.topic, self.focus.seat):
+            if s.sign != PLUS or self.g.relation_of(s.proposition) is not self.GOAL:
+                continue
+            w = self.g.member(s.proposition, 0)
+            if self.g.has_var(w):
+                continue
+            e = self.chain.resolve(w, self.focus.topic, self.focus.seat)
+            if e is not None and e.sign == MINUS:
+                lost.add(w)
+        for w in lost:
+            for p in self._support(w):
+                rel = self.g.relation_of(p)
+                if rel is None or rel in skip or rel in required:
+                    continue
+                if p in lost or self.g.has_var(p) or p in out:
+                    continue
+                e = self.chain.resolve(p, self.focus.topic, self.focus.seat)
+                if e is not None and e.sign == PLUS:
+                    out.append(p)
+        return out
+
+    def _generalise(self, propositions: List[NodeId]) -> str:
+        """Render ground propositions as one generic antecedent.
+
+        Every constant becomes a variable, **shared across the conjunction** so
+        that `completes(jug1, heirlooms), precious(jug1)` becomes
+        `completes(?v0, ?v1), precious(?v0)` -- the join is what makes it a claim
+        about a *kind* of situation rather than a longer way of naming this one.
+
+        ⭐ Generalising is unconstrained here, and that is a property of the
+        shape rather than luck: a preference consequent (`prefer(<R>, key, n)`)
+        contains **no variables at all**, so the loader's rule that a consequent
+        variable must be bound by the antecedent is satisfied by everything. A
+        learned rule that concluded about the world would not have that freedom.
+        """
+        names: dict = {}
+
+        def render(n: NodeId) -> str:
+            rel = self.g.relation_of(n)
+            if rel is None:
+                if n not in names:
+                    names[n] = f"?v{len(names)}"
+                return names[n]
+            return f"{self.g.show(rel)}(" + ", ".join(
+                render(m) for m in self.g.members(n)) + ")"
+
+        return ", ".join("+" + render(p) for p in propositions)
+
+    def _choosers(self, harmed: set) -> List[Rule]:
+        """Of the rules blamed, the ones that made a CHOICE rather than took part.
+
+        A blame walk reaches everything on the support of what was lost -- the
+        rule that decided, the act, and the physics that carried it out. Only the
+        first had an alternative, and forgoing is what says so: a rule that
+        licensed a `forgone` deposit is one that was picked over something else.
+        """
+        at = self._statements()
+        out: List[Rule] = []
+        for node in self.g.instances_of(self.FORGONE):
+            if self.g.has_var(self.g.member(node, 1)):
+                continue
+            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            if e is None or e.sign != PLUS or e.licence is None:
+                continue
+            if self.g.relation_of(e.licence) is not self.APPLIED:
+                continue
+            n = self.g.member(e.licence, 0)
+            r = at.get(n)
+            if n in harmed and isinstance(r, Rule) and r not in out:
+                out.append(r)
+        return out
 
     def _instead_of(self, harmed: set) -> List[Tuple[Rule, NodeId]]:
         """The live alternatives to what cost the agent something.

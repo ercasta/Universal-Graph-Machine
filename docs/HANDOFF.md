@@ -2,7 +2,71 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **the lesser of two evils, and the two open items are ONE**. Commit `evils`.
+## Latest: **a learned rule IS a decision tree**. Commit `trees`.
+
+The user: *decision trees to choose the rules; this could also help generalisation, by mutating decision
+trees of rules — we have to think the best "learnable" shape given our system.* The answer turned out to
+be that **the shape was already here**, and three properties of it were true and unnoticed.
+
+⭐⭐⭐ **A tree's root-to-leaf path IS a rule.** Antecedent = the conjunction of tests, consequent =
+`prefer(<R>, key, score)`. Not an analogy — the same object, and `<relevant>` has shipped in exactly
+this shape since §13. **A `prefer` FACT is a decision tree of depth ZERO**: it says *always*, given its
+key. A rule says *when*.
+
+⭐⭐ **`_priority` SUMS applicable rows, so preference is already an ADDITIVE ENSEMBLE.** Measured at
+4 + 3 = 7. A set of shallow learned rules is a forest *natively* — nobody designed it as one; it falls
+out of *applicable rows sum*.
+
+⭐⭐ **Generalising is unconstrained, and that is a property of the shape.** A preference consequent
+holds **no variables**, so the loader's rule that consequent variables must be bound is satisfied by
+anything. A rule concluding about the *world* would not have that freedom. This is why preference is the
+learnable seam and conclusions are not — the third distinct reason for the same line.
+
+`learned(conditional=True)` now emits a rule instead of a fact. Taught by one episode:
+
+    rule <learned-use-tap-water> = implies( { +completes(?v0, ?v1), +precious(?v0) },
+                                            { +prefer(<use-tap>, water, 3) } )
+    fact standing(<learned-use-tap-water>)
+
+*When something precious completes a set, prefer the tap* — generalised over the objects it saw, and it
+correctly **declines to fire** where the tap is the expensive option. Measured on two situations that
+share a goal relation and disagree about the right move:
+
+| carried forward | situation A | situation B | **total cost** |
+|---|---|---|---|
+| nothing | 2 | 1 | 3 |
+| depth-0 (an unconditional fact) | 0 | **2** | 2 |
+| **depth-1 (a learned rule)** | 0 | 1 | **1** |
+
+The depth-0 row fixes the world it learned in and is **wrong in the other**, which is the point of the
+fixture: one unconditional row cannot express *when*.
+
+⭐ **The tests come off the trail, so the hypothesis space is the corpus's own vocabulary** — no feature
+engineering. `_circumstances` takes the ground propositions on the support of what was **lost**, less
+four kinds that cannot discriminate (the lost goals, machinery bookkeeping, what the **choosing** rule's
+antecedent already requires, anything generic). Sixth time R5's trail has supplied a learning signal
+with no new bookkeeping.
+
+⚠⚠ **`standing` is load-bearing and the fixture found it.** Unmarked, a learned preference rule mentions
+`goal(?w)`, so forgoing reads it as *a rival way of getting the same want* and passes it up before it can
+advise — measured, `forgone(<t1>)` deposited and priority **0**; marked, priority **7**. It is also right
+on the merits (§16: *being careful has to come before the move it is about*). Kill-probed: drop the line
+and two gates fail.
+
+⚠⚠ **A bug that looked like a decision.** The first `_circumstances` excluded the antecedents of *every*
+blamed rule — but blame reaches the **physics** (`<cost>`, `<extra>`), and the physics rules are exactly
+the ones naming the damaging circumstance. So it learned nothing and looked like it had merely declined
+to. Only the **choosing** rule's antecedent may be excluded (`_choosers`: a rule that licensed a
+`forgone` deposit is one that was picked over something else). Kill-probed: restore it and 3 gates fail.
+
+⚠ **What is NOT here: refinement.** One test-set, all of it, chosen on which error is recoverable —
+over-specific advice does not fire and the agent falls back; over-general advice is confident where it
+has never been. Nothing prunes a test that turns out not to matter, merges two rules, or revisits a tree
+that stops paying. **That is where mutation goes** — and it is affordable exactly because a learned rule
+concludes `prefer` and never `doing`: a bad candidate costs ticks, not jugs. Evolutionary search over an
+acting agent would be ruinous; over an advising one it is cheap.
+
+## Before that: **the lesser of two evils, and the two open items are ONE**. Commit `evils`.
 
 The user's proposal, and it is a better one than mine: *machine learning could earn its keep on
 **gradable quantities** — a random forest to decide the rule.* Right, and for a reason the design says
@@ -293,7 +357,7 @@ python -m ugm.backward       0 failing, 0 blind         backward reading, as rul
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 python -m ugm.workload       0 failing                  stopping pays; and what BAD ADVICE costs
-python -m ugm.learning       0 failing, 16 gates        does an episode teach the next one?
+python -m ugm.learning       0 failing, 21 gates        does an episode teach the next one?
 python -m ugm.tools          0 failing, 11 gates        can a tool be data?
 ```
 

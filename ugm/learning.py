@@ -195,6 +195,70 @@ def lesser_of_two_evils(rounds: int = 4) -> Tuple[dict, dict]:
     return out
 
 
+TREE_JUG = ("rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
+            " { +doing(smash(?j)) } )")
+TREE_TAP = ("rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
+            " { +doing(fill(?w)) } )")
+TREE_CORE = [
+    "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
+    "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
+    "rule <extra> = implies( { +did(smash(?j)), +precious(?j), +completes(?j, ?s) },"
+    " { -whole(?s) } )",
+    "rule <drain> = implies( { +did(fill(?w)), +scarce(?w) }, { -reserve(town) } )",
+    "rule <drop> = implies( { +did(fill(?w)), +scarce(?w) }, { -pressure(main) } )",
+    "fact +achieves(smash(jug1), water(kettle))",
+    "fact +achieves(fill(kettle), water(kettle))",
+    "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
+    "fact +tap(sink)", "fact +under(kettle, sink)",
+    "fact +completes(jug1, heirlooms)", "fact +whole(heirlooms)",
+    "fact +reserve(town)", "fact +pressure(main)",
+    "fact +goal(water(kettle))", "fact +goal(intact(jug1))",
+    "fact +goal(whole(heirlooms))", "fact +goal(reserve(town))",
+    "fact +goal(pressure(main))",
+]
+# The two situations share a goal RELATION and disagree about the right move, so
+# one unconditional row must be wrong in one of them. That is the whole design of
+# the fixture: a depth-0 tree cannot express *when*.
+SITUATIONS = {"A": ["fact +precious(jug1)"], "B": ["fact +scarce(kettle)"]}
+TREE_LOSSES = ("intact(jug1)", "whole(heirlooms)", "reserve(town)", "pressure(main)")
+
+
+def tree_episode(situation: str, extra=()):
+    m = Machine()
+    m.actuator("hands")
+    kb = load(m, "\n".join([TREE_JUG, TREE_TAP] + TREE_CORE
+                           + SITUATIONS[situation] + list(extra) + [""]))
+    m.run(limit=2000)
+    return m, [g for g in TREE_LOSSES if m.holds(kb.term(g)) == "-"]
+
+
+def a_learned_rule_is_a_decision_tree() -> Tuple[List[str], List[str], dict]:
+    """A `prefer` FACT is a decision tree of depth ZERO. A rule says *when*.
+
+    Not an analogy. A tree's root-to-leaf path is a conjunction of tests ending
+    in a verdict, which is a rule; its internal nodes are antecedent members; and
+    `<relevant>` has shipped in exactly this shape since §13. Two consequences
+    that were already true and unnoticed:
+
+    * **`_priority` sums applicable rows, so preference is already an ADDITIVE
+      ENSEMBLE.** A set of shallow learned rules is a forest natively -- measured
+      at 4 + 3 = 7. Nobody designed it as one.
+    * **Generalising is unconstrained**, because a preference consequent contains
+      no variables, so the loader's bound-variable rule is satisfied by anything.
+      A rule that concluded about the world would not have that freedom.
+
+    The tests come off the trail (`_circumstances`), not from feature
+    engineering: the hypothesis space is the corpus's own vocabulary.
+    """
+    teach, _ = tree_episode("A")
+    flat = teach.learned()
+    cond = teach.learned(conditional=True)
+    costs = {}
+    for label, rows in (("nothing", []), ("depth-0", flat), ("depth-1", cond)):
+        costs[label] = [len(tree_episode(s, rows)[1]) for s in ("A", "B")]
+    return flat, cond, costs
+
+
 def main() -> int:
     import sys
 
@@ -314,8 +378,52 @@ def main() -> int:
          "remembers with no exploration",
          sum(good_ceiling) < sum(good_today) and sum(bad_ceiling) > sum(bad_today))
 
+    # -- a learned rule is a decision tree --------------------------------
+    print("\n\nWhen the right move DEPENDS on the situation -- two worlds, one goal"
+          "\nrelation, opposite best answers:\n")
+    flat, cond, costs = a_learned_rule_is_a_decision_tree()
+    print("  taught by situation A, it carries forward:")
+    for r in cond:
+        print(f"    {r}")
+    print()
+    print(f"  {'carried forward':<24} {'A':>4} {'B':>4} {'total':>6}")
+    for label in ("nothing", "depth-0", "depth-1"):
+        c = costs[label]
+        print(f"  {label:<24} {c[0]:>4} {c[1]:>4} {sum(c):>6}")
+    print()
+    gate("a depth-0 tree (an unconditional fact) fixes the world it learned in",
+         costs["depth-0"][0] < costs["nothing"][0])
+    gate("⚠⚠⚠ ...and is WRONG in the other one, because it can only say *always*",
+         costs["depth-0"][1] > costs["nothing"][1])
+    gate("⭐⭐⭐ a depth-1 tree -- one learned RULE -- is right in both, and beats "
+         "both the unconditional row and no experience at all",
+         sum(costs["depth-1"]) < sum(costs["depth-0"])
+         and sum(costs["depth-1"]) < sum(costs["nothing"]))
+    gate("what it learned is a RULE, generalised over the objects it saw",
+         any(r.startswith("rule <learned-") and "?v0" in r for r in cond))
+    gate("⚠ and marked `standing`, without which forgoing passes it up as a rival "
+         "way of getting the same want, before it can advise",
+         any(r.startswith("fact standing(<learned-") for r in cond))
+
     print(f"\n{failing} failing")
     print("""
+  ⭐⭐⭐ A LEARNED RULE IS A DECISION TREE, and the shape was already here. A
+  `prefer` FACT is a tree of depth zero -- it says *always*, given its key. A
+  `prefer`-concluding RULE says *when*, and its internal nodes are antecedent
+  members. `_priority` SUMS applicable rows, so a set of them is an additive
+  ENSEMBLE natively; and generalising is unconstrained because a preference
+  consequent holds no variables. The tests come off the trail, so the
+  hypothesis space is the corpus's own vocabulary -- no features to engineer.
+
+  ⚠ ONE TEST-SET, ALL OF IT, and the judgement is which error is recoverable
+  -- forgoing's judgement again. An over-specific condition does not fire and
+  the agent falls back; an over-general one advises confidently where it has
+  never been. What is NOT here is refinement: nothing prunes a test that turns
+  out not to matter, nothing merges two rules, and nothing revisits a tree that
+  stops paying. That is where mutation goes, and it is affordable exactly
+  because a learned rule concludes `prefer` and never `doing` -- a bad
+  candidate costs ticks, not jugs.
+
   ⚠⚠⚠ THE LESSER OF TWO EVILS IS UNSAYABLE, and the two open items are ONE.
   Suppression with no magnitude oscillates; magnitude with no exploration
   sticks. What is missing is a SECOND QUANTITY, and both scales already exist
