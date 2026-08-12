@@ -2,7 +2,77 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **the learning loop closes**. Commit `learning`.
+## Latest: **a tool is data**. Commit `tools`.
+
+The user asked whether to start leveraging tools, whether some could be small models doing what rules
+genuinely cannot, and whether the two halves could be **jointly trained**. Their call on where to cut
+in: *the seam first, no model yet* — close §21's debt so a tool is data like the bundle now is, with a
+stub answerer standing in for the model.
+
+⭐⭐⭐ **A tool is not a new kind of thing, and the architecture was already here.** `_fit` and
+`_verdict` are requests **answered by a function rather than by a search** — stratum 0's escape from
+§5's wall, and the only shape something outside the agent can honestly take. What was wrong was never
+the shape; it was that the *binding* was a Python line, so a corpus could not ask which tools existed,
+retire one, or reason about one. Two ordinary relations close it, no new primitive:
+
+    answers(<M>, ask)          M answers `ask` requests — a FACT, hence deniable
+    answered(<M>, ask(x), y)   what M said — a RECORD, hence not yet believed
+
+⭐⭐⭐ **A tool may propose; it may never conclude.** What lands is a record that the tool said so, and
+an authored rule with an authored grade turns it into a claim — the `arrived` → `says` → trust-rule
+path channels have had all along. Checked: delete the trust rule and the answer sits on the record,
+believed by nobody, with no act leaving the agent. This is not fastidiousness — let a tool write a
+belief directly and §12's weakest link has a link with nothing behind it and `why()` goes dark at the
+one place the agent cannot introspect. **The restriction is what makes an unreliable tool safe to be
+wrong.** Also checked: the *corpus's* grade governs, so a confident tool cannot launder a weak answer.
+
+⭐⭐ **One credit walk reaches rules and tools alike**, and this is the whole of the joint-training
+answer. `review`/`blame` follow `applied(...)` licences; a tool's answer carries one; so:
+
+| the tool advised | emitted | jug | credited | blamed |
+|---|---|---|---|---|
+| `fill(kettle)` | `fill(kettle)` | intact | `did, eff, follow, oracle` | — |
+| `smash(jug1)` | `smash(jug1)` | **broken** | `did, eff, follow, oracle` | **`cost, did, follow, oracle`** |
+| nothing (declined) | — | intact | — | — |
+
+One line of machinery did it: `Machine._statements()` puts rules and tools in one table, because the
+walk follows a licence and *which kind of statement produced this* is a question for the reader.
+
+> **Jointly trained means a shared credit assignment, not a shared update rule.** The trail yields
+> *labelled examples* — request, answer, outcome sign — not gradients. The rule side learns by
+> rewriting its corpus (`learned()`); a model side would fine-tune on labels the same walk produced.
+> Calling it joint gradient descent would be false; calling it one supervisor over two learners is not.
+
+⚠⚠⚠ **The twin trap, three more times in one session, and now written down.** Registering `oracle` to
+answer `guess` by *name* mints a second `guess` beside the one the corpus writes, so the tool waits
+forever for a request nobody can make. An answer built with `g.atom("vessel")` is a node no rule can
+name. Both silent, both measured here. **Anything that binds a name must go through the table that
+resolves it** — hence `Loader.answerer`, registering a tool in the corpus's scope, because *a tool
+answers a request in some corpus's vocabulary*. This matters more for a real model than for a stub: a
+model returns **strings**, and every one has to be interned in that scope. Encoded as a control gate.
+
+**New instrument: `python -m ugm.tools`** — 11 gates, 0 failing. Kill-probed three ways (drop tools from
+the statement table; stop consulting the binding; make the tool conclude instead of propose), each
+failing exactly the checks that should catch it.
+
+⚠ **What is still Python, stated exactly.** The answerer's *body* is native and always will be — that
+is what a tool is. `_fit`, `_verdict`, `_settle`, `_dispatch` and `_enter` are still bound in Python
+rather than through `answers`, so the apparatus does not yet eat its own cooking. Converting them is
+mechanical and deliberately not done: a corpus that could retire `_fit` could retire backward reading,
+which is §19's carve-out and a different argument.
+
+⚠ **What a real model adds that this stub does not test: nondeterminism.** §3 forbids reading a derived
+result out of an unseeded source, and a sampled answer is exactly that — two runs diverge with the trail
+recording neither the choice nor the reason. A real answerer needs its seed on the record, or it is not
+reproducible reasoning. That is the first thing to solve before wiring one.
+
+**Where a model belongs, scored before deciding:** recall (*which rules come to mind*) wins on all four
+criteria — it orders rather than excludes, widening restores the full set, its output is corpus text,
+and §19 already argues that being wrong there is recoverable. Intake (prose → `says`) is the thing rules
+provably cannot do here (raw prose 0/50, book corpus 26%) but its payoff is qualitative. Writing
+conclusions directly fails not-leaking and not-lossy and is the one placement ruled out.
+
+## Before that: **the learning loop closes**. Commit `learning`.
 
 The user: *shall we tackle learning, so that we start building a working learning mechanism with
 whatever we have?* Yes — and "whatever we have" turned out to be enough, because the last commit but
@@ -121,7 +191,7 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     284 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     291 checks, 0 failing        the runner; any False is a failure
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
 python -m ugm.backward       0 failing, 0 blind         backward reading, as rules
@@ -129,12 +199,13 @@ python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 python -m ugm.workload       0 failing                  the gate is now on STOPPING buying something
 python -m ugm.learning       0 failing, 12 gates        does an episode teach the next one?
+python -m ugm.tools          0 failing, 11 gates        can a tool be data?
 ```
 
 ## The state of the code
 
-17 modules, ~7.5k lines. `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine;
-`selftest` `agreement` `bundle` `backward` `compose` `modality` `workload` `learning` are instruments;
+18 modules, ~7.8k lines. `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine;
+`selftest` `agreement` `bundle` `backward` `compose` `modality` `workload` `learning` `tools` are instruments;
 `stratum0` is the rule-level read.
 
 **No phases.** `tick()` is: read `enough` → recall → match → defeat → **forgone** → quiescence →
@@ -146,8 +217,9 @@ when the loop does. Nothing in it is a line a rule could have written.
 `denial`, four `deviation-*`, `resuming`, `relevant`, and backward reading's `ask-recall`, `ask-fit`,
 `plan`, `expand`, `ask-check`, `give-up`.
 
-**Write-time hooks** (Python callables — honest debt, §21): `_dispatch`, `_enter`, `_fit`, `_settle`,
-`_verdict`.
+**Write-time hooks**: `_dispatch`, `_enter`, `_fit`, `_settle`, `_verdict`, `_remember`, `_answer`.
+⚠ §21's debt is now **narrower, not gone** — `_answer` is bound through the `answers(<M>, ask)` fact, so
+a corpus can see and retire what it calls; the other six are still bound in Python.
 
 **Three guards, and they are one move — *escalate before believing a decline*:** `_widen` at a dry
 shortlist, `_forbid` at a write (§19's norm veto), `_notice_open` at a stop. None is a phase; each

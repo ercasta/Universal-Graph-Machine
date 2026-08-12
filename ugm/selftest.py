@@ -1991,6 +1991,69 @@ def experience_is_offline() -> None:
           tally["apparatus"] * 4 > tally["arb"] * 3)
 
 
+def a_tool_is_data() -> None:
+    """§21's honest debt, taken: what binds an answerer to a request (§5, §17).
+
+    A tool is not a new kind of thing. `_fit` and `_verdict` are already requests
+    **answered by a function rather than by a search** -- stratum 0's escape from
+    §5's wall -- and that is the only shape something outside the agent can take,
+    because a search the agent cannot inspect is not reasoning it can be held to.
+    What was wrong was that the binding was a Python line, so a corpus could not
+    ask which tools existed, retire one, or reason about one.
+
+    ⭐⭐⭐ **A tool proposes; it never concludes.** `answered(<M>, ask, y)` is a
+    record, and an authored rule with an authored grade turns it into a claim --
+    the `arrived` -> `says` path channels have had all along. Otherwise §12's
+    weakest link has a link with nothing behind it and `why()` goes dark at the
+    one place the agent cannot introspect.
+
+    ⭐⭐ **One credit walk reaches rules and tools alike**, because it follows
+    licences and a tool's answer carries one. That is the whole of what *jointly
+    trained* honestly means: a shared credit assignment, not a shared update rule.
+    """
+    from .tools import episode
+
+    good, kb, _ = episode("fill(kettle)")
+    bad, _, _ = episode("smash(jug1)")
+    check("§21", "what binds a tool to a request is an ordinary fact, so a corpus "
+          "can ask which tools it has", good.holds(kb.term("answers(<oracle>, advice)")) == PLUS)
+
+    retired, _, called = episode("smash(jug1)", extra=["fact -answers(<oracle>, advice)"])
+    check("§21", "and can retire one on evidence -- the thing a Python-registered "
+          "hook could never be", not called and not retired.emitted)
+
+    check("§19", "credit reaches a tool whose answer was on the support of what "
+          "was achieved", "oracle" in {r.name for r, _ in good.review()})
+    check("§19", "and blame reaches one whose answer cost a goal, which is what "
+          "lets one walk supervise rules and tools together",
+          "oracle" in {r.name for r, _ in bad.blame()})
+    check("§19", "a tool that advised well is not blamed", not good.blame())
+
+    # The restriction that makes an unreliable tool safe to be wrong.
+    from .machine import Machine
+    from .text import Loader
+    m = Machine()
+    m.actuator("hands")
+    kb2 = Loader(m)
+    kb2.answerer("oracle", "advice", lambda mach, f, e: kb2.term("smash(jug1)"))
+    kb2.load(chr(10).join([
+        "fact +achieves(smash(jug1), water(kettle))",
+        "fact +intact(jug1)", "fact +goal(water(kettle))",
+        "rule <ask-route> = implies( { +goal(water(?w)) }, { +advice(?w) } )",
+        ""]))
+    m.run(limit=200)
+    check("§12", "a tool PROPOSES and does not conclude: with no rule trusting it, "
+          "the answer is on the record and nothing acted on it",
+          m.holds(kb2.term("answered(<oracle>, advice(kettle), smash(jug1))")) == PLUS
+          and not m.emitted)
+
+    # ⚠ The trap this cost three times before it was written down.
+    twin, _, called_t = episode("fill(kettle)", scoped=False)
+    check("§3", "a tool registered by NAME mints its own request relation and is "
+          "never called -- anything binding a name goes through the table that "
+          "resolves it", not called_t)
+
+
 def an_episode_teaches_the_next_one() -> None:
     """The learning loop, closed (§19). `ugm.learning` measures it; this holds it.
 
@@ -2778,6 +2841,7 @@ def main() -> int:
     an_agent_that_can_stop()
     no_goal_is_dropped_silently()
     experience_is_offline()
+    a_tool_is_data()
     an_episode_teaches_the_next_one()
     subgoals_make_blame_sayable()
     taking_one_way_passes_up_the_others()

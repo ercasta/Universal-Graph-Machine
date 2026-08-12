@@ -54,6 +54,22 @@ class Step(NamedTuple):
     state: str  # applied | supposed | widened | quiet | quiescent | nothing-matched
 
 
+class Answerer(NamedTuple):
+    """A tool: something that answers a request without searching for it.
+
+    It is deliberately the same shape as a rule where anything looks at it --
+    a `name` in the `<...>` namespace and a `node` other statements can be about
+    -- because `review` and `blame` walk licences and must not care which kind of
+    statement produced an entry. A tool that credit could not reach would be a
+    tool nothing could learn about.
+    """
+
+    name: str
+    node: NodeId
+    request: NodeId
+    fn: object  # fn(machine, frame, entry) -> NodeId | None
+
+
 class Machine:
     def __init__(self) -> None:
         self.g = Graph()
@@ -209,6 +225,27 @@ class Machine:
         # and credit cannot find what it achieved, and a failed act loses the want
         # with nothing left to notice.
         self.FORGONE = self.g.atom("forgone")
+        # Tools. §21's honest debt, taken: a request answered by *a function
+        # rather than a search* is how `fit` and `verdict` escape §5's wall, and
+        # it is the only shape in this design that a thing outside the agent can
+        # legitimately take. What was wrong with it was never the shape -- it was
+        # that the BINDING of answerer to request lived in Python, so a corpus
+        # could not see which tools existed, could not retire one, and could not
+        # reason about one. Two ordinary relations fix all three:
+        #
+        #   answers(<M>, ask)          M answers `ask` requests. A FACT, so a
+        #                              corpus can query it (R4) and deny it.
+        #   answered(<M>, ask(x), y)   what M said. A record, not a claim --
+        #                              exactly `arrived` to `says`, and the
+        #                              corpus supplies the trust rule.
+        #
+        # ⭐ **A tool may propose; it may never conclude.** The answer is a
+        # deposit ABOUT what the tool said, so believing it is an authored rule
+        # with a grade. Let a tool write a belief directly and §12's weakest link
+        # has a link with nothing behind it and `why()` stops answering -- the
+        # not-lossy criterion failing at the one place nothing else guards.
+        self.ANSWERS = self.g.atom("answers")
+        self.ANSWERED = self.g.atom("answered")
         # A callback: a pointer to a rule, hung on a node. `+resume(h, <R>)` says
         # *when h returns, R's turn has come* -- and `turn` is the strongest thing
         # it can say, because §5's wall stands: no rule may apply a rule.
@@ -340,6 +377,7 @@ class Machine:
             "enough": self.ENOUGH, "stopped": self.STOPPED, "open": self.OPEN,
             "helped": self.HELPED, "harmed": self.HARMED,
             "forgone": self.FORGONE,
+            "answers": self.ANSWERS, "answered": self.ANSWERED,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
@@ -428,6 +466,7 @@ class Machine:
         # to the reader, with nothing anywhere saying so.
         self.rules.on_rule.append(self.reify)
 
+        self.answerers: List["Answerer"] = []
         self.bundle: List[Rule] = []
         self._install_bundle()
         # Every bundled rule is standing, deposited rather than assumed -- so
@@ -444,6 +483,7 @@ class Machine:
         self.gate.on_write.append(self._settle)
         self.gate.on_write.append(self._verdict)
         self.gate.on_write.append(self._remember)
+        self.gate.on_write.append(self._answer)
         self.gate.veto.append(self._forbid)
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
@@ -1257,6 +1297,95 @@ class Machine:
 
     # -- acting, and being wrong about it ---------------------------------
 
+    # -- tools ------------------------------------------------------------
+
+    def answerer(self, name: str, request: str, fn) -> "Answerer":
+        """Register something that answers a request. §21's debt, as data.
+
+        A tool is not a new kind of thing. It is the shape `_fit` and `_verdict`
+        already have -- **a request answered by a function rather than a search**
+        -- which is how stratum 0 escapes §5's wall, and it is the only shape
+        something outside the agent can honestly take: a search the agent cannot
+        inspect is not reasoning it can be held to.
+
+        What changes here is where the BINDING lives. `_fit` answers `fit` because
+        a Python line says so, and the consequences are the ones this design keeps
+        finding: a corpus cannot ask which tools exist, cannot retire one on
+        evidence, and cannot reason about one. So the binding is a fact:
+
+            answers(<M>, ask)
+
+        deposited like any other, queryable by R4, and **deniable**. Retiring a
+        tool is `fact -answers(<oracle>, guess)` and the machinery stops calling
+        it -- the same move §9 gave norms, which were also unconditionally
+        consulted and still entirely contestable.
+
+        `fn(machine, frame, entry)` returns the answer node, or `None` for *I have
+        nothing to say* -- which is a real answer and not a failure, because a
+        tool that must answer everything is a tool nothing can decline.
+
+        ⚠ The name goes in the `<...>` namespace, which is the namespace of
+        STATEMENTS, because a tool is something other statements are about.
+        One table with rules and named facts, so a tool cannot share a name with
+        a rule -- two things with one name is the mistake the marker prevents.
+        """
+        # ⚠ `request` may be a NodeId, and for a corpus relation it must be.
+        # Registering a tool in Python and naming its request as a STRING mints a
+        # relation beside whatever table the corpus resolves against, so the tool
+        # answers a request nobody can write -- measured, and it is the twin trap
+        # for the third time this session. `Loader.answerer` is the scoped door;
+        # a bare string is right only for a relation `reserved` already carries.
+        rel = request if isinstance(request, int) else (
+            self.reserved.get(request) or self.g.atom(request))
+        node = self.g.atom(name)
+        a = Answerer(name, node, rel, fn)
+        self.answerers.append(a)
+        self.gate.write(
+            self.focus, self.g.rel(self.ANSWERS, node, a.request), PLUS,
+            licence=self.g.rel(self.REIFIED, node), source=self.KB, mention=True,
+        )
+        return a
+
+    def _answer(self, frame: Frame, e: Entry) -> None:
+        """Call whatever answers this request, and record what it said.
+
+        Three things it deliberately is not.
+
+        **Not a conclusion.** What lands is `answered(<M>, req, y)` -- a record
+        that M said so, the same treatment §17 gives every arrival. Turning it
+        into a belief is an authored rule carrying an authored grade, so a
+        confident tool cannot launder a weak answer into a strong claim, and
+        §12's weakest link keeps working with nothing added.
+
+        **Not unconditional.** The binding is read from the graph on every write,
+        so denying `answers(<M>, ask)` silences the tool immediately and on the
+        record. A tool wired in Python could only be silenced by editing Python.
+
+        **Not invisible.** The deposit is licensed by `applied(<M>)` -- the same
+        licence a rule's conclusion carries -- so `review` and `blame` walk
+        through a tool without knowing it is one. That is the whole of what
+        *jointly trained* can honestly mean here: one credit walk, reaching
+        rules and tools alike, producing labels for both.
+        """
+        if e.sign != PLUS or not self.answerers:
+            return
+        rel = self.g.relation_of(e.proposition)
+        if rel is None:
+            return
+        for a in self.answerers:
+            if a.request is not rel:
+                continue
+            if not self._claims(self.g.rel(self.ANSWERS, a.node, a.request)):
+                continue
+            said = a.fn(self, frame, e)
+            if said is None:
+                continue
+            self.gate.write(
+                frame, self.g.rel(self.ANSWERED, a.node, e.proposition, said), PLUS,
+                licence=self.g.rel(self.APPLIED, a.node), source=self.KB,
+                mention=True,
+            )
+
     def actuator(self, name: str) -> NodeId:
         """A channel that carries intents OUT. Channels already carry the world
         in (§13); acting is the same relation read the other way, and needs no
@@ -1917,7 +2046,7 @@ class Machine:
         here that could have gone otherwise, and it is forced by wanting anything
         to transfer: a row keyed on `boiling(kettle)` is true of one episode.
         """
-        rule_at = {r.node: r for r in self.rules.rules}
+        rule_at = self._statements()
         earned: List[Tuple[Rule, NodeId]] = []
         seen_pairs = set()
         for s in current_state(self.chain, self.focus.topic, self.focus.seat):
@@ -1977,7 +2106,7 @@ class Machine:
         `heat(?a, kettle)` which were never meant to hold as stated, and counting
         those as failures would blame every rule for every search.
         """
-        rule_at = {r.node: r for r in self.rules.rules}
+        rule_at = self._statements()
         out: List[Tuple[Rule, NodeId]] = []
         seen = set()
         for s in current_state(self.chain, self.focus.topic, self.focus.seat):
@@ -2006,6 +2135,23 @@ class Machine:
                     licence=self.g.rel(self.GOAL, wanted), source=self.KB,
                     mention=True,
                 )
+        return out
+
+    def _statements(self) -> dict:
+        """Everything an `applied(...)` licence can name, by node.
+
+        Rules **and tools**, in one table, because the credit walk follows a
+        licence and a licence says *this produced that*. Which kind of statement
+        it was is a question for the reader, not for the walk -- and keeping them
+        apart here would mean a tool could give a bad answer, cost the agent a
+        goal, and be the one thing `blame` could not see.
+
+        ⚠ Rules first, so a tool cannot shadow a rule if a name is ever reused.
+        The loader already refuses that at authoring; this is the second door.
+        """
+        out = {r.node: r for r in self.rules.rules}
+        for a in self.answerers:
+            out.setdefault(a.node, a)
         return out
 
     def _support(self, proposition: NodeId) -> set:
@@ -2046,8 +2192,19 @@ class Machine:
         rows: List[str] = []
         seen = set()
 
-        def row(rule: Rule, key: NodeId) -> None:
+        tools = {a.node for a in self.answerers}
+
+        def row(rule, key: NodeId) -> None:
             if rule.name is None or rule.node in harmed or (rule.node, key) in seen:
+                return
+            # ⚠ Tools are credited and blamed -- `_statements` puts them on the
+            # walk deliberately -- but not RECOMMENDED, because a `prefer` row is
+            # read by recall and recall proposes rules. A row naming a tool would
+            # be inert: it would cost nothing, break nothing, and look exactly
+            # like a row that works, which is the failure mode `ugm.bundle`
+            # exists to catch. *Which tool to consult when* is a real question
+            # and a different mechanism; §21.
+            if rule.node in tools:
                 return
             seen.add((rule.node, key))
             rows.append(f"fact prefer(<{rule.name}>, {self.g.show(key)}, {score})")
@@ -2085,7 +2242,7 @@ class Machine:
         both halves through the same suppression, so a world whose every route
         does damage recommends none of them rather than the least-examined one.
         """
-        rule_at = {r.node: r for r in self.rules.rules}
+        rule_at = self._statements()
         out: List[Tuple[Rule, NodeId]] = []
         for node in self.g.instances_of(self.FORGONE):
             # ⚠ The WANT must be ground, not the whole node. A `forgone` node

@@ -338,6 +338,38 @@ class Loader:
         for r in self.m.bundle:
             self.rule_nodes[r.name] = r.node
             self.rules_by_name[r.name] = r
+        # Tools, by name, for the same reason and in the same table. `<...>` is
+        # the namespace of STATEMENTS and a tool is something statements are
+        # about -- a corpus writes `-answers(<oracle>, guess)` to retire one and
+        # `+answered(<oracle>, ...)` to trust one, and neither is writable if the
+        # name does not resolve. One table, so a tool and a rule cannot share a
+        # name and mean different things depending on where they were written.
+        for a in self.m.answerers:
+            self.rule_nodes[a.name] = a.node
+            self.rules_by_name[a.name] = a
+
+    def answerer(self, name: str, request: str, fn):
+        """Register a tool **in this corpus's scope**, which is the only scope in
+        which its request has a meaning.
+
+        A tool answers a request, a request is a relation, and a relation is a
+        name -- and names are not identity here. Registering `oracle` to answer
+        `guess` through `Machine.answerer` mints a *second* `guess` beside the one
+        the corpus will write, so the tool sits waiting for a request nobody can
+        make. Measured, and it is the same twin the bundle's vocabulary turned up
+        an hour earlier: **anything that binds a name has to go through the table
+        that resolves it.**
+
+        Registered before `load`, because a rule may name the tool (`<oracle>`)
+        and `<...>` is resolved at authoring.
+        """
+        a = self.m.answerer(name, self.atom(request), fn)
+        if name in self.rule_nodes:
+            raise ParseError(f"<{name}> is already declared -- a tool and a rule "
+                             f"cannot share a name (see `rule_ref`)")
+        self.rule_nodes[name] = a.node
+        self.rules_by_name[name] = a
+        return a
 
     def rule_ref(self, name: str) -> NodeId:
         """What `<n>` denotes: a rule node, or a named fact's proposition.
