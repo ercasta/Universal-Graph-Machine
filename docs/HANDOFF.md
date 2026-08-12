@@ -2,7 +2,56 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **an advisor at recall can only lose**. Commit `advisor`.
+## Latest: **the lesser of two evils, and the two open items are ONE**. Commit `evils`.
+
+The user's proposal, and it is a better one than mine: *machine learning could earn its keep on
+**gradable quantities** — a random forest to decide the rule.* Right, and for a reason the design says
+out loud. It is full of numbers nobody can justify — `tolerance(2)`, `prefer(<R>, key, 3)`,
+`<relevant>`'s flat 1, every authored `@likely` — and §15 went **ordinal specifically to dodge them**
+(*"close would need a threshold constant nobody could justify"*). That is a design accommodating the
+absence of a learner. And unlike recall, **there is no exact algorithm here**, which is the test the
+`advisor` measurement just established.
+
+Measured before building. A world with **no safe route**: two ways to water, both destructive, one
+twice as costly (the vase completes a set, so shattering it loses two subgoals).
+
+| authored first | today's scheme | ceiling: magnitude, accumulated |
+|---|---|---|
+| jug — the **better** route | **1, 2, 1, 2** | 1, 1, 1, 1 |
+| vase — the worse route | 2, 1, 2, 1 | **2, 2, 2, 2** |
+
+⚠⚠⚠ **Today's scheme oscillates, and from a good start it makes the agent WORSE.** `learned()`
+suppresses whatever harmed and promotes whatever was passed up — with no notion of *how much*, so it
+alternates forever, and from the better route it learns its way onto the costlier one. Learning is
+doing nothing here except taking turns.
+
+⚠⚠⚠ **And magnitude alone does not fix it.** The ceiling records what each route actually cost and
+accumulates across episodes. It converges immediately — **on whatever it tried first.** Better from a
+good start, permanently worse from a bad one.
+
+> **Neither is learning. One explores with no memory; the other remembers with no exploration.**
+
+⭐⭐⭐ **So pickup items 1 and 2 are the same item, and what is missing is a SECOND QUANTITY.** Both
+scales already exist and are already kept apart on purpose (`doubt-is-a-tie`): a **cardinal score on the
+table** for *how good*, and **§10's ordinal grade on the entry** for *how sure*. `+prefer(<R>, k, 3)
+@possible` — *a strong recommendation the agent is not certain of* — is exactly the sentence
+explore/exploit needs, it is already writable, and **nothing writes it from experience.**
+
+⭐⭐ **That is precisely where a forest earns its keep**, and it is a fit rather than a gesture: a forest
+yields a prediction **and a spread across trees** — a value together with a confidence, which is the
+pair the design wants and cannot currently produce. Score from the mean, grade from the spread.
+
+Built into `ugm.learning` as `lesser_of_two_evils()`, with ⚠ **four gates that pass on today's wrong
+behaviour on purpose** — the pattern that has already paid twice this arc (six gap checks failed the day
+forgoing landed and sent someone to the argument).
+
+**What the build order has to be, and the forest is not first:** the numerals are non-negative and a
+numeral is an atom whose *name* reads as a number, so `-3` is unsayable — the representation must carry
+magnitude and accumulate before any learner has an output vocabulary to aim at. Then the pair
+(score, grade) written from the trail. Then, and only then, a forest to **generalise magnitude to routes
+never tried**, so the agent need not shatter a vase to learn that vases are precious.
+
+## Before that: **an advisor at recall can only lose**. Commit `advisor`.
 
 The user picked recall as the place to put the first model. Measured before wiring one, because §19's
 whole argument for putting learning there is *being wrong there is recoverable* — and a model is wrong
@@ -244,7 +293,7 @@ python -m ugm.backward       0 failing, 0 blind         backward reading, as rul
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 python -m ugm.workload       0 failing                  stopping pays; and what BAD ADVICE costs
-python -m ugm.learning       0 failing, 12 gates        does an episode teach the next one?
+python -m ugm.learning       0 failing, 16 gates        does an episode teach the next one?
 python -m ugm.tools          0 failing, 11 gates        can a tool be data?
 ```
 
@@ -282,8 +331,11 @@ Forgoing left three narrow things open; the `learning` commit reordered them. Th
 2. **Complementary work must be declared**, and there is no way to declare it beyond denying the
    deposit. (Two rules that should *both* run for one want.)
 3. **How badly a rule cost something is unsayable** — `harmed` is two-valued and the table's numerals
-   are non-negative, so a small cost cannot be weighed against a large benefit. ⬆ **Promoted to first
-   by the `learning` commit**: it is now the *one* thing blocking the loop that closes. Learning can
+   are non-negative, so a small cost cannot be weighed against a large benefit. ⬆⬆ **Now item 1, merged
+   with item 4 below: `evils` measured that they are ONE item.** Magnitude without exploration sticks on
+   whatever was tried first; suppression without magnitude oscillates. The missing thing is the PAIR
+   (cardinal score = how good, ordinal grade = how sure), both already writable, neither written from
+   experience. ⬆ Promoted to first by the `learning` commit: it is now the *one* thing blocking the loop that closes. Learning can
    suppress a route and promote the alternative that was passed up; it cannot say *this route is worth
    its cost and that one is not*, so a world where every route does damage recommends nothing.
 4. **Experience is one episode deep.** A second `prefer` row for the same rule and key does not
