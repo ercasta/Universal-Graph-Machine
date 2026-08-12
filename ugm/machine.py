@@ -2231,17 +2231,7 @@ class Machine:
         if conditional:
             tests = self._circumstances(self._choosers(harmed))
             if tests:
-                antecedent = self._generalise(tests)
-                for i, (rule, key) in enumerate(self._instead_of(harmed)):
-                    if rule.name is None or rule.node in tools:
-                        continue
-                    name = f"learned-{rule.name}-{self.g.show(key)}"
-                    rows.append(
-                        f"rule <{name}> = implies( {{ {antecedent} }},"
-                        f" {{ +prefer(<{rule.name}>, {self.g.show(key)}, {score}) }} )"
-                    )
-                    rows.append(f"fact standing(<{name}>)")
-                return rows
+                return self._advice_rows(tests, harmed, score, rows)
         # ...and the half that suppression cannot supply. Measured: an episode
         # that smashed a jug for water blamed the smasher, dropped it from these
         # rows, and **smashed the jug again**, because omitting a rule leaves it
@@ -2338,6 +2328,93 @@ class Machine:
                 render(m) for m in self.g.members(n)) + ")"
 
         return ", ".join("+" + render(p) for p in propositions)
+
+    def _advice_rows(self, tests: List[NodeId], harmed: set, score: int,
+                     rows: List[str]) -> List[str]:
+        """One learned rule per promoted alternative, plus its `standing` line."""
+        antecedent = self._generalise(tests) if tests else ""
+        out = list(rows)
+        tools = {a.node for a in self.answerers}
+        for rule, key in self._instead_of(harmed):
+            if rule.name is None or rule.node in tools:
+                continue
+            name = f"learned-{rule.name}-{self.g.show(key)}"
+            consequent = f"+prefer(<{rule.name}>, {self.g.show(key)}, {score})"
+            if antecedent:
+                out.append(f"rule <{name}> = implies( {{ {antecedent} }},"
+                           f" {{ {consequent} }} )")
+                out.append(f"fact standing(<{name}>)")
+            else:
+                # No tests left: the tree has been pruned to depth zero, which is
+                # an unconditional row again -- and saying so in the same
+                # vocabulary is what makes *how deep should this be* a measurable
+                # question rather than a choice made once at the top.
+                out.append(f"fact prefer(<{rule.name}>, {self.g.show(key)}, {score})")
+        return out
+
+    def refine(self, cost, score: int = 3) -> List[str]:
+        """Drop the tests that do not pay. §4's *compose what never surprised*,
+        from the other end: **decompose what turns out not to matter.**
+
+        `learned(conditional=True)` takes every circumstance it can see, because
+        an over-specific rule fails safe -- it does not fire and the agent falls
+        back. But failing safe repeatedly is still failing, and nothing in one
+        episode can say which of its circumstances was the operative one. Only
+        more episodes can, so this is reduced-error pruning over corpus text:
+        greedy backward elimination against a `cost` the caller supplies.
+
+        ⭐ **Ties go to the MORE GENERAL rule** (`<=`, not `<`). That is the only
+        judgement in here, and it is the standard one: between two hypotheses that
+        explain the evidence equally, the one with fewer conditions transfers
+        further. The opposite bias would keep every accident of the episode it
+        learned from.
+
+        `cost(rows) -> number` is the caller's, and it must be, because what an
+        episode cost is a question about a world and this object is not one. It
+        is also why this is offline and outside the loop, like everything else
+        experience does.
+
+        ⚠ What this is NOT is mutation. It only ever *removes* a test it already
+        had; it cannot add one it never saw, merge two rules, or revisit a tree
+        that has stopped paying. Those are §21.
+        """
+        harmed = {rule.node for rule, _ in self.blame()}
+        tests = self._circumstances(self._choosers(harmed))
+        base = [r for r, k in self.review()]
+
+        def rows_for(keep: List[NodeId]) -> List[str]:
+            plain: List[str] = []
+            seen = set()
+            tools = {a.node for a in self.answerers}
+            for rule, key in self.review():
+                if (rule.name is None or rule.node in harmed
+                        or rule.node in tools or (rule.node, key) in seen):
+                    continue
+                seen.add((rule.node, key))
+                plain.append(f"fact prefer(<{rule.name}>, {self.g.show(key)}, {score})")
+            return self._advice_rows(keep, harmed, score, plain)
+
+        # ⚠⚠⚠ STEEPEST descent, not first-improvement, and the difference is not
+        # a refinement of a refinement -- it decides whether this works at all.
+        # Taking the first drop that ties prunes the tree to NOTHING: measured,
+        # `{precious, completes}` dropped `precious` for an equal score, then
+        # dropped `completes` for an equal score, and arrived at the
+        # unconditional row it was supposed to improve on -- while dropping
+        # `completes` FIRST scores strictly better and is the answer. A tie is
+        # not evidence that a test is worthless; it is evidence that THIS drop
+        # is neutral, and another may not be.
+        keep = list(tests)
+        best = cost(rows_for(keep))
+        while keep:
+            trials = [([x for x in keep if x is not t], t) for t in keep]
+            scored = [(cost(rows_for(trial)), i, trial)
+                      for i, (trial, _) in enumerate(trials)]
+            # Insertion order breaks the tie (§3: no derived result out of a set).
+            low, _, trial = min(scored, key=lambda s: (s[0], s[1]))
+            if low > best:
+                break
+            keep, best = trial, low
+        return rows_for(keep)
 
     def _choosers(self, harmed: set) -> List[Rule]:
         """Of the rules blamed, the ones that made a CHOICE rather than took part.

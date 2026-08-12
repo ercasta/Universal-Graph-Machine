@@ -2,7 +2,44 @@
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
-## Latest: **a learned rule IS a decision tree**. Commit `trees`.
+## Latest: **refinement — the tree finds its own depth**. Commit `refine`.
+
+`Machine.refine(cost)` — reduced-error pruning over corpus text, greedy backward elimination against a
+`cost` the caller supplies (it must: what an episode cost is a question about a world, and this object
+is not one). Third situation added to the fixture — **C is A without the set**: precious, completing
+nothing, which is what makes *over*-specific advice measurably wrong.
+
+| carried forward | A | B | C | **total** |
+|---|---|---|---|---|
+| nothing | 2 | 1 | 1 | 4 |
+| depth-0 (an unconditional fact) | 0 | **2** | 0 | 2 |
+| depth-2 (every circumstance) | 0 | 1 | **1** | 2 |
+| **refined (depth-1)** | 0 | 1 | 0 | **1** |
+
+    rule <learned-use-tap-water> = implies( { +precious(?v0) },
+                                            { +prefer(<use-tap>, water, 3) } )
+
+*When something is precious, prefer the tap.* **Both too-shallow and too-deep are worse**, so the
+optimum is interior and the search has something to find. §4's *compose what never surprised* from the
+other end: **decompose what turns out not to matter.**
+
+⚠⚠⚠ **STEEPEST descent, not first-improvement, and it decides whether this works at all.** My first
+version took the first drop that tied — and pruned the tree to **nothing**, arriving back at the
+unconditional row it was supposed to improve on. `{precious, completes}` dropped `precious` for an equal
+score, then dropped `completes` for an equal score; dropping `completes` **first** scores strictly better
+and is the answer.
+
+> **A tie is not evidence that a test is worthless. It is evidence that THIS drop is neutral, and
+> another may not be.**
+
+Kill-probed: restore first-improvement and two gates fail. ⭐ Ties still go to the **more general** rule
+(`<=`), which is the only judgement in the method — between two hypotheses that explain the evidence
+equally, fewer conditions transfer further.
+
+⚠ Still not mutation: it only *removes* a test it already had. It cannot add one it never saw, merge two
+rules, or revisit a tree that has stopped paying. §21.
+
+## Before that: **a learned rule IS a decision tree**. Commit `trees`.
 
 The user: *decision trees to choose the rules; this could also help generalisation, by mutating decision
 trees of rules — we have to think the best "learnable" shape given our system.* The answer turned out to
@@ -357,7 +394,7 @@ python -m ugm.backward       0 failing, 0 blind         backward reading, as rul
 python -m ugm.compose        0 failing, n steps -> 1    composition, measured
 python -m ugm.modality       (table)                    grade vs lifted vs supposed
 python -m ugm.workload       0 failing                  stopping pays; and what BAD ADVICE costs
-python -m ugm.learning       0 failing, 21 gates        does an episode teach the next one?
+python -m ugm.learning       0 failing, 23 gates        does an episode teach the next one?
 python -m ugm.tools          0 failing, 11 gates        can a tool be data?
 ```
 

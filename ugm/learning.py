@@ -210,7 +210,7 @@ TREE_CORE = [
     "fact +achieves(fill(kettle), water(kettle))",
     "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
     "fact +tap(sink)", "fact +under(kettle, sink)",
-    "fact +completes(jug1, heirlooms)", "fact +whole(heirlooms)",
+    "fact +whole(heirlooms)",
     "fact +reserve(town)", "fact +pressure(main)",
     "fact +goal(water(kettle))", "fact +goal(intact(jug1))",
     "fact +goal(whole(heirlooms))", "fact +goal(reserve(town))",
@@ -219,7 +219,12 @@ TREE_CORE = [
 # The two situations share a goal RELATION and disagree about the right move, so
 # one unconditional row must be wrong in one of them. That is the whole design of
 # the fixture: a depth-0 tree cannot express *when*.
-SITUATIONS = {"A": ["fact +precious(jug1)"], "B": ["fact +scarce(kettle)"]}
+# C is A without the set: precious, but completing nothing. It is what makes
+# OVER-specific advice measurably wrong -- the depth-2 rule declines to fire
+# there and the agent falls back to the jug it did not need to break.
+SITUATIONS = {"A": ["fact +precious(jug1)", "fact +completes(jug1, heirlooms)"],
+              "B": ["fact +scarce(kettle)"],
+              "C": ["fact +precious(jug1)"]}
 TREE_LOSSES = ("intact(jug1)", "whole(heirlooms)", "reserve(town)", "pressure(main)")
 
 
@@ -232,7 +237,7 @@ def tree_episode(situation: str, extra=()):
     return m, [g for g in TREE_LOSSES if m.holds(kb.term(g)) == "-"]
 
 
-def a_learned_rule_is_a_decision_tree() -> Tuple[List[str], List[str], dict]:
+def a_learned_rule_is_a_decision_tree() -> Tuple[List[str], List[str], List[str], dict]:
     """A `prefer` FACT is a decision tree of depth ZERO. A rule says *when*.
 
     Not an analogy. A tree's root-to-leaf path is a conjunction of tests ending
@@ -253,10 +258,15 @@ def a_learned_rule_is_a_decision_tree() -> Tuple[List[str], List[str], dict]:
     teach, _ = tree_episode("A")
     flat = teach.learned()
     cond = teach.learned(conditional=True)
+    def total(rows):
+        return sum(len(tree_episode(s, rows)[1]) for s in ("A", "B", "C"))
+
+    refined = teach.refine(total)
     costs = {}
-    for label, rows in (("nothing", []), ("depth-0", flat), ("depth-1", cond)):
-        costs[label] = [len(tree_episode(s, rows)[1]) for s in ("A", "B")]
-    return flat, cond, costs
+    for label, rows in (("nothing", []), ("depth-0", flat),
+                        ("unpruned", cond), ("refined", refined)):
+        costs[label] = [len(tree_episode(s, rows)[1]) for s in ("A", "B", "C")]
+    return flat, cond, refined, costs
 
 
 def main() -> int:
@@ -381,26 +391,32 @@ def main() -> int:
     # -- a learned rule is a decision tree --------------------------------
     print("\n\nWhen the right move DEPENDS on the situation -- two worlds, one goal"
           "\nrelation, opposite best answers:\n")
-    flat, cond, costs = a_learned_rule_is_a_decision_tree()
-    print("  taught by situation A, it carries forward:")
-    for r in cond:
+    flat, cond, refined, costs = a_learned_rule_is_a_decision_tree()
+    print("  taught by A, then REFINED against what it cost in A, B and C:")
+    for r in refined:
         print(f"    {r}")
     print()
-    print(f"  {'carried forward':<24} {'A':>4} {'B':>4} {'total':>6}")
-    for label in ("nothing", "depth-0", "depth-1"):
+    print(f"  {'carried forward':<24} {'A':>4} {'B':>4} {'C':>4} {'total':>6}")
+    for label in ("nothing", "depth-0", "unpruned", "refined"):
         c = costs[label]
-        print(f"  {label:<24} {c[0]:>4} {c[1]:>4} {sum(c):>6}")
+        print(f"  {label:<24} {c[0]:>4} {c[1]:>4} {c[2]:>4} {sum(c):>6}")
     print()
     gate("a depth-0 tree (an unconditional fact) fixes the world it learned in",
          costs["depth-0"][0] < costs["nothing"][0])
     gate("⚠⚠⚠ ...and is WRONG in the other one, because it can only say *always*",
          costs["depth-0"][1] > costs["nothing"][1])
-    gate("⭐⭐⭐ a depth-1 tree -- one learned RULE -- is right in both, and beats "
-         "both the unconditional row and no experience at all",
-         sum(costs["depth-1"]) < sum(costs["depth-0"])
-         and sum(costs["depth-1"]) < sum(costs["nothing"]))
-    gate("what it learned is a RULE, generalised over the objects it saw",
+    gate("a learned RULE, generalised over the objects it saw",
          any(r.startswith("rule <learned-") and "?v0" in r for r in cond))
+    gate("⚠ but taking EVERY circumstance is over-specific: the rule declines to "
+         "fire in C and the agent breaks a jug it did not need to",
+         costs["unpruned"][2] > costs["refined"][2])
+    gate("⭐⭐⭐ refinement finds the depth that pays -- strictly better than the "
+         "unconditional row, the unpruned rule, AND no experience",
+         sum(costs["refined"]) < min(sum(costs["depth-0"]), sum(costs["unpruned"]),
+                                     sum(costs["nothing"])))
+    gate("and what it kept is one test, not zero -- pruning to nothing would be "
+         "the unconditional row it was supposed to improve on",
+         any(r.startswith("rule <learned-") for r in refined))
     gate("⚠ and marked `standing`, without which forgoing passes it up as a rival "
          "way of getting the same want, before it can advise",
          any(r.startswith("fact standing(<learned-") for r in cond))
