@@ -512,34 +512,76 @@ class Machine:
                 self.focus, self.g.rel(self.STANDING, r.node), PLUS,
                 licence=self.g.rel(self.REIFIED, r.node), source=self.KB, mention=True,
             )
-        self.gate.on_write.append(self._dispatch)
-        self.gate.on_write.append(self._enter)
-        self.gate.on_write.append(self._fit)
-        self.gate.on_write.append(self._settle)
-        self.gate.on_write.append(self._verdict)
-        self.gate.on_write.append(self._root)
-        self.gate.on_write.append(self._remember)
-        self.gate.on_write.append(self._answer)
-        # ⭐⭐⭐ ...and the ninth is NOT one, which is the point of it.
+        # ⭐⭐⭐ **The apparatus eats its own cooking.** `answers(<M>, ask)` was
+        # built so that a TOOL's binding could be data -- visible, queryable,
+        # deniable -- and it shipped with exactly zero apparatus users: every
+        # request the machinery answered, it answered because a Python line in
+        # this constructor said so. That is §21's most frequent defect in this
+        # codebase, stated as *something the machinery knows and no rule can ask
+        # about*, and it is the same one `exercised`, the entry's grade and a
+        # tool's binding each closed. The fix is always the same: put it in the
+        # graph.
         #
-        # Re-asking goes through the door `answers(<M>, ask)` opened for tools,
-        # so its binding is a FACT and `fact -answers(<re-ask>, again)` retires
-        # it. Until now that door had exactly zero apparatus users: §21's *the
-        # apparatus does not eat its own cooking* was true of all eight hooks
-        # above, and `answers` only ever carried a binding somebody else wrote.
+        # Six requests, six bindings, all of them facts:
         #
-        # ⚠ What makes this one safe to make deniable where `_fit` is not, and
-        # it is a criterion rather than a preference:
+        #   <fit>       fit      could this rule produce this goal?
+        #   <settle>    check    is this goal already satisfied, in these bindings?
+        #   <verdict>   verdict  did ANYTHING fit it?  -- the aggregate
+        #   <root>      root     is this what I was asked for?
+        #   <remember>  recall   what comes to mind about this?
+        #   <re-ask>    again    ask that again, because of this
+        #
+        # ⚠⚠⚠ **Deniable is not the same as forgettable, and only two of them
+        # are both.** The criterion is not preference:
         #
         # > **A capability whose absence is the status quo ante is safe to
-        # > retire.** Deny this and the agent asks each question once, which is
-        # > what it did before this commit and was sound. Deny `_fit` and
-        # > backward reading stops, which is §19's carve-out -- recall may be
-        # > incomplete about what to do, never about how to read.
+        # > retire.** Deny `<re-ask>` and each question is asked once; deny
+        # > `<root>` and the general stop rule never fires and the agent runs to
+        # > quiescence. Both are what it did before the commit that added them,
+        # > and both were sound.
         #
-        # It composes rather than standing beside the eight: what it does is
-        # write, and they answer writes.
-        self.answerer("re-ask", "again", lambda _m, frame, e: self._again(frame, e))
+        # The other four are §19's carve-out arriving a fifth time -- deny
+        # `<fit>` or `<settle>` and backward reading stops; deny `<verdict>` and
+        # a goal nothing can reach is never reported blocked. So they are marked
+        # `standing`, which is the fact the bundle already uses for exactly this
+        # claim: **overridable but not forgettable**, and `_answer` records a
+        # refusal rather than obeying. A corpus can still argue with any of
+        # them; it cannot make the agent stop reading.
+        #
+        # ⚠⚠⚠ **`<remember>` is the fourth, and I put it in the safe column
+        # first.** The reasoning was *narrowing off means exhaustive recall,
+        # which is the default* -- and it is wrong about which thing this
+        # answers. `_remember` is not the narrowing; it is the ANSWER to the
+        # recall request, and `<ask-fit>` keys on `recalled(?r, ?w)`, so nothing
+        # asks `fit` about anything without it. Measured on a goal reachable
+        # only backwards: 15 ticks and two subgoals becomes 4 ticks and none.
+        # The narrowing lives in the `prefer` table and the budget, which are
+        # separately deniable and were what the criterion was actually about.
+        self.gate.on_write.append(self._dispatch)
+        self.gate.on_write.append(self._enter)
+        self.gate.on_write.append(self._answer)
+        for name, request, fn, standing in (
+            ("fit", "fit", self._fit, True),
+            ("settle", "check", self._settle, True),
+            ("verdict", "verdict", self._verdict, True),
+            ("root", "root", self._root, False),
+            ("remember", "recall", self._remember, True),
+            ("re-ask", "again", self._again, False),
+        ):
+            # `fn` is `(frame, entry)`; the answerer protocol is `(machine,
+            # frame, entry)`, and the answer is None because the apparatus
+            # CONCLUDES where a tool PROPOSES. That is the one asymmetry left in
+            # the door, and it is the right one: a tool is outside the agent, so
+            # what it says lands as `answered(<M>, req, y)` for a corpus to
+            # believe or not; `<settle>` is the agent, so what it finds lands as
+            # `achieved`. Same binding, same trail, different standing to speak.
+            a = self.answerer(name, request, lambda _m, f, e, fn=fn: fn(f, e))
+            if standing:
+                self.gate.write(
+                    self.focus, self.g.rel(self.STANDING, a.node), PLUS,
+                    licence=self.g.rel(self.REIFIED, a.node), source=self.KB,
+                    mention=True,
+                )
         self.gate.veto.append(self._forbid)
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
@@ -1478,7 +1520,33 @@ class Machine:
             if a.request is not rel:
                 continue
             if not self._claims(self.g.rel(self.ANSWERS, a.node, a.request)):
-                continue
+                # ⚠⚠⚠ §19's carve-out, a fifth time, and the argument transfers
+                # verbatim: recall may be incomplete about what to DO, never
+                # about how to READ. Retiring a tool is an ordinary revision --
+                # it was somebody's claim that the tool was worth consulting.
+                # Retiring `<fit>` is not an opinion about a tool; it is the
+                # agent losing backward reading, silently, on one corpus line.
+                #
+                # So a `standing` binding is **overridable but not
+                # forgettable** -- the same distinction the bundle makes, and
+                # the same fact. The denial is not ignored: it is REFUSED, on
+                # the record, so *I tried to turn this off and was not allowed*
+                # is answerable. A fourth silent decline is what §5 spent the
+                # design's whole vocabulary avoiding.
+                if not self._claims(self.g.rel(self.STANDING, a.node)):
+                    continue
+                refusal = self.g.rel(
+                    self.REFUSED,
+                    self.g.rel(self.ANSWERS, a.node, a.request),
+                    self.chain.SIGN[MINUS],
+                    self.g.rel(self.STANDING, a.node),
+                )
+                if self.chain.resolve(refusal, frame.topic, frame.seat) is None:
+                    self.gate.write(
+                        frame, refusal, PLUS,
+                        licence=self.g.rel(self.STANDING, a.node),
+                        source=self.KB, mention=True,
+                    )
             said = a.fn(self, frame, e)
             if said is None:
                 continue

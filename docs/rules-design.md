@@ -3467,23 +3467,80 @@ Three things fall out that were not designed for.
 the *entry* rather than on the proposition — so the act leaves the agent a second time. §21 had wanted
 retry and had nothing to retry with.
 
-**Its binding is a fact.** Re-asking is registered through the door tools use, so `answers(<re-ask>,
-again)` is on the record and `fact -answers(<re-ask>, again)` turns it off. That door had exactly zero
-apparatus users before it. The criterion for which of the other hooks may follow is not preference:
-**a capability whose absence is the status quo ante is safe to retire.** Deny re-asking and each
-question is asked once, which is what the agent did before and was sound. Deny `_fit` and backward
-reading stops, which is §19's carve-out.
+**Its binding is a fact**, and that turned out to be the door for all of them — see below.
 
 **And *when* is not free choice**, which is the part worth arguing. An occasion the re-asking can
 itself produce warrants the next re-ask, which produces the occasion after that:
 
 > **An occasion warrants a re-ask only if re-asking cannot produce one.**
 
+
 Measured, and the author picks the trap or avoids it with one word. `quiet` is deposited once per seat,
 and an `implies` rule does not move the seat — so `{+unmet(?w,?w), +quiet(?m)} ⟹ {+again(check(?w,?w),
 ?m)}` asks exactly once more and stops. The same rule written `causes` moves the seat, which mints a
 fresh `quiet`, which warrants the next re-ask: 143 askings of one question and no end. The connective
 decides it, and neither reading of the connective is about re-asking.
+
+### The apparatus eats its own cooking
+
+`answers(<M>, ask)` was built so that a **tool's** binding could be data — visible, queryable,
+deniable — and it shipped with **exactly zero apparatus users**. Every request the machinery answered,
+it answered because a Python line in a constructor said so. That is this design's most frequent
+defect, stated in §21 as *something the machinery knows and no rule can ask about*, and it is the same
+one `exercised`, an entry's grade, and a tool's binding each closed. The fix has been the same three
+times: put it in the graph.
+
+Six requests, six bindings, all of them facts:
+
+| statement | request | what it answers |
+|---|---|---|
+| `<fit>` | `fit` | could this rule produce this goal? |
+| `<settle>` | `check` | is this goal already satisfied, in these bindings? |
+| `<verdict>` | `verdict` | did **anything** fit it? — the aggregate |
+| `<root>` | `root` | is this what I was asked for? |
+| `<remember>` | `recall` | what comes to mind about this? |
+| `<re-ask>` | `again` | ask that again, because of this |
+
+Nothing else changes. Their bodies stay native, which is what an answerer **is** — a request answered
+by a function rather than by a search, stratum 0's escape from §5's wall. What moves is only where the
+binding lives, and it moves for the reason it moved for tools: *which of these exist* becomes a query
+rather than a fact about the source.
+
+**One asymmetry stays, and it is the right one.** A tool's answer lands as `answered(<M>, req, y)` —
+a record a corpus may believe or not. An apparatus answerer writes its answer directly: `<settle>`
+concludes `achieved`. Same door, same trail, different standing to speak, because **a tool is outside
+the agent and the apparatus is the agent**.
+
+**⚠⚠⚠ Deniable is not the same as forgettable, and only two of the six are both.** The criterion:
+
+> **A capability whose absence is the status quo ante is safe to retire.**
+
+Deny `<re-ask>` and each question is asked once; deny `<root>` and the general stop rule never fires
+and the agent runs to quiescence. Both are what it did before the commit that added them, and both
+were sound. The other four are §19's carve-out arriving a fifth time — deny `<fit>` or `<settle>` and
+backward reading stops; deny `<verdict>` and a goal nothing can reach is never reported blocked. So
+they carry `standing`, the fact the bundle already uses for exactly this claim — **overridable but not
+forgettable** — and the denial is **refused on the record** rather than obeyed, because a denial
+silently ignored would be a fourth silent decline.
+
+**⚠⚠⚠ `<remember>` was in the safe column first, and the measurement moved it.** The reasoning was
+*narrowing off means exhaustive recall, which is the default* — and it is wrong about which thing this
+answers. `_remember` is not recall's narrowing; it is the **answer to the recall request**, and
+`<ask-fit>` keys on `recalled(?r, ?w)`, so nothing asks `fit` about anything without it. Measured on a
+goal reachable only backwards: fifteen ticks and two subgoals becomes four ticks and none. The
+narrowing lives in the `prefer` table and the budget, which are separately deniable and were what the
+criterion was actually about. **A criterion is only as good as knowing what the thing does.**
+
+`ugm.bundle` now asks §20's question of answerers as well as of rules, and it takes two columns
+because they are two questions — *is it load-bearing* (remove it) and *may a corpus turn it off*
+(deny it). ⚠ The first version measured the second by running the whole selftest with the binding
+denied, which reported every answerer as costly and meant nothing: the suite contains checks that
+merely **inspect** the bindings. **A mutation instrument can only read a mutation the fixture does not
+already talk about.**
+
+What is left in Python, stated exactly: `_dispatch` and `_enter` are not request-answerers at all —
+they are the outbound boundary and the entry to a supposition, which are doors rather than questions —
+and `_forbid`, `_widen` and `_notice_open` are the three guards §19 argues must not be rules.
 
 ### Occasions, and the first thing a corpus can say to recall
 

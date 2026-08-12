@@ -2260,6 +2260,107 @@ def a_request_can_be_re_asked() -> None:
           [cm.g.show(x) for x in cm.emitted] == ["open(door)"])
 
 
+def the_apparatus_eats_its_own_cooking() -> None:
+    """§21: `answers(<M>, ask)` was built so a TOOL's binding could be data, and
+    it shipped with **zero apparatus users**. Every request the machinery
+    answered, it answered because a Python line said so -- which is this
+    codebase's most frequent defect, *something the machinery knows and no rule
+    can ask about*, and the same one `exercised`, the entry's grade and a tool's
+    binding each closed. The fix is always: put it in the graph.
+
+    Six requests, six bindings, all facts. ⚠⚠⚠ And **deniable is not the same as
+    forgettable**: four are §19's carve-out, where denying is *refused* on the
+    record rather than obeyed.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, "fact +nothing(x)\n")
+    # The binding NODES exist for all six -- asked structurally rather than by
+    # resolving each, so that `ugm.bundle` denying one of them does not turn
+    # this into a false failure about a property that has not changed.
+    bound = {m.g.show(m.g.member(n, 0)) for n in m.g.instances_of(m.ANSWERS)}
+    check("§21", "every request the apparatus answers has its binding in the "
+          "GRAPH, so *what answers `fit`* is a query and not a Python line",
+          bound >= {"fit", "settle", "verdict", "root", "remember", "re-ask"}
+          and all(m.holds(m.g.rel(m.ANSWERS, a.node, a.request)) is not None
+                  for a in m.answerers))
+
+    # The two that may be turned off, and the criterion that says which: **a
+    # capability whose absence is the status quo ante is safe to retire.**
+    off = Machine()
+    kb_off = load(off, chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
+        "fact standing(<ask-root>)",
+        "rule <done> = implies( { +goal(?w), +rooted(?w), +?w }, { +enough(?w) } )",
+        "fact standing(<done>)",
+        "fact -answers(<root>, root)",
+        "fact +heat(anna, kettle)", "fact +water(kettle)",
+        "fact +goal(boiling(kettle))", ""]))
+    steps_off = off.run(limit=400)
+    check("§21", "a retirable binding really retires: deny `<root>` and nothing "
+          "is `rooted`, so the general stop rule never fires -- and the agent is "
+          "still SOUND, it just runs to quiescence, which is what it did before "
+          "`rooted` existed",
+          off.holds(kb_off.term("rooted(boiling(kettle))")) is None
+          and off.holds(kb_off.term("boiling(kettle)")) == PLUS
+          and steps_off[-1].state == "quiescent")
+
+    # ⚠⚠⚠ §19's carve-out, a fifth time. Deny `<fit>` and backward reading stops
+    # -- silently, on one corpus line. So the four it applies to are `standing`,
+    # which is the fact the bundle already uses for exactly this claim, and the
+    # denial is REFUSED rather than ignored: a fourth silent decline is what §5
+    # spent the design's vocabulary avoiding.
+    keep = Machine()
+    kb_keep = load(keep, chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "fact -answers(<fit>, fit)",
+        "fact +water(kettle)", "fact +goal(boiling(kettle))", ""]))
+    keep.run(limit=400)
+    subs = [n for n in keep.g.instances_of(keep.SUBGOAL) if keep.holds(n) == PLUS]
+    # ⚠ About THIS binding, not a count of every refusal in the run. The first
+    # version asserted `== 1` over all of them, and `ugm.bundle` -- which denies
+    # one binding per run across the whole suite -- turned that into a false
+    # anomaly on three other answerers. A check that counts globals cannot
+    # survive an instrument that mutates globals.
+    fit_binding = keep.g.rel(
+        keep.ANSWERS,
+        [a.node for a in keep.answerers if a.name == "fit"][0], keep.FIT)
+    refusals = [n for n in keep.g.instances_of(keep.REFUSED)
+                if keep.holds(n) == PLUS and keep.g.member(n, 0) == fit_binding]
+    check("§19", "...and a STANDING binding may be argued with and not forgotten: "
+          "`fact -answers(<fit>, fit)` does not stop backward reading",
+          len(subs) == 2)
+    check("§5", "...and the refusal is on the record, so *I tried to turn that "
+          "off and was not allowed* is answerable rather than a fourth silent "
+          "decline",
+          len(refusals) == 1)
+    # The control: the same corpus without the denial reaches the same subgoals
+    # and records no refusal, so the pair can fail.
+    ctl = Machine()
+    load(ctl, chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "fact +water(kettle)", "fact +goal(boiling(kettle))", ""]))
+    ctl.run(limit=400)
+    check("§19", "...against a control that denies nothing: same reading, no "
+          "refusal",
+          len([n for n in ctl.g.instances_of(ctl.SUBGOAL) if ctl.holds(n) == PLUS]) == 2
+          and not [n for n in ctl.g.instances_of(ctl.REFUSED) if ctl.holds(n) == PLUS])
+
+    # ⚠⚠⚠ I put `<remember>` in the retirable column first, and the measurement
+    # moved it. The reasoning was *narrowing off means exhaustive recall, which
+    # is the default* -- wrong about which thing this answers. `_remember` is not
+    # the narrowing; it is the ANSWER to the recall request, and `<ask-fit>` keys
+    # on `recalled(?r, ?w)`, so nothing asks `fit` about anything without it.
+    check("§21", "⚠ `<remember>` answers the recall REQUEST, it is not recall's "
+          "narrowing -- so it is standing too, and the criterion is only as good "
+          "as knowing what a thing does",
+          keep.holds(keep.g.rel(keep.STANDING,
+                                [a.node for a in keep.answerers
+                                 if a.name == "remember"][0])) == PLUS)
+
+
 def a_rule_says_that_it_ran() -> None:
     """`exercised(<R>)` -- the claim `applied(<R>)` was already making, as a
     PROPOSITION rather than as an entry field (§14, §21).
@@ -3163,6 +3264,7 @@ def main() -> int:
     experience_is_offline()
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
+    the_apparatus_eats_its_own_cooking()
     a_rule_says_that_it_ran()
     a_tool_is_data()
     an_episode_teaches_the_next_one()

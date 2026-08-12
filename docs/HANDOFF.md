@@ -56,18 +56,57 @@ re-asking. `quiet` is deposited once per seat, and an `implies` rule does not mo
 `implies` version to run away too and it does not — measured rather than reasoned about, and the
 criterion is **stated and not enforced**: nothing stops an author writing the second one.
 
-⭐⭐ **De-pythonization, asked in the same breath and answered by the same commit.** The audit first:
-nine `on_write` hooks, one veto, and `answers(<M>, ask)` — the door built for tools so a binding could
-be *data* — had **exactly zero apparatus users**. §21's *the apparatus does not eat its own cooking*
-was true of every single one. Re-asking is the first that is not: it registers through `answerer`, so
-`answers(<re-ask>, again)` is on the record and **`fact -answers(<re-ask>, again)` turns re-asking
-off** — gated, and the agent goes back to asking once.
+## ...and the same commit: **the apparatus eats its own cooking**. Commit `cooking`.
 
-⚠ The criterion for which of the other eight may follow, because it is not all of them:
+The user's *shall we complete the de-pythonization?* — and it completes at a principled place rather
+than at nothing-left. The audit first: nine `on_write` hooks, one veto, and `answers(<M>, ask)` — the
+door built so a **tool's** binding could be data — had **exactly zero apparatus users**. §21's *the
+apparatus does not eat its own cooking* was true of every single one.
 
-> **A capability whose absence is the status quo ante is safe to retire.** Deny re-asking and each
-> question is asked once, which is what the agent did before this commit and was sound. Deny `_fit`
-> and backward reading stops — §19's carve-out, and a different argument.
+Six requests, six bindings, all facts now: `<fit>` `<settle>` `<verdict>` `<root>` `<remember>`
+`<re-ask>`. Their **bodies stay native**, which is what an answerer *is*; what moved is where the
+binding lives, so *which of these exist* is a query. ⭐ One asymmetry stays and it is the right one: a
+tool's answer lands as `answered(<M>, req, y)` for a corpus to believe or not, and an apparatus
+answerer writes its answer directly — **a tool is outside the agent, the apparatus is the agent.**
+
+⚠⚠⚠ **Deniable is not the same as forgettable, and only two of six are both.**
+
+> **A capability whose absence is the status quo ante is safe to retire.**
+
+| | removed | `-answers(...)` | |
+|---|---|---|---|
+| `<fit>` | raised | **REFUSED** | standing |
+| `<settle>` | 9 failing | **REFUSED** | standing |
+| `<verdict>` | 16 failing | **REFUSED** | standing |
+| `<remember>` | raised | **REFUSED** | standing |
+| `<root>` | raised | obeyed | a corpus may retire it |
+| `<re-ask>` | raised | obeyed | a corpus may retire it |
+
+The four are §19's carve-out a **fifth** time, and they carry `standing` — the fact the bundle already
+uses for this exact claim, *overridable but not forgettable*. The denial is **refused on the record**,
+not ignored, because a denial silently obeyed-or-not is a fourth silent decline.
+
+⚠⚠⚠ **`<remember>` was in the safe column first and the measurement moved it.** I argued *narrowing
+off means exhaustive recall, which is the default* — wrong about which thing it answers. `_remember`
+is not recall's narrowing; it is the **answer to the recall request**, and `<ask-fit>` keys on
+`recalled(?r, ?w)`. Measured on a goal reachable only backwards: **15 ticks and two subgoals became 4
+and none.** The narrowing is the `prefer` table and the budget. *A criterion is only as good as
+knowing what the thing does.*
+
+⚠⚠ **And my instrument was wrong the same way twice.** `ugm.bundle` now asks §20's question of
+answerers too, in **two columns** because they are two questions. The first version measured *may a
+corpus turn it off* by running the whole selftest with the binding denied — which reported every
+answerer as costly and meant nothing, because the suite contains checks that merely **inspect** the
+bindings. **A mutation instrument can only read a mutation the fixture does not already talk about.**
+The same brittleness was in one of my new selftest checks (`refusals == 1`, a global count), and it
+made three false anomalies. ⭐ Also: a removal that makes the runner **raise** now prints `raised`
+rather than being folded into `max(1, ...)` — a count there is a lie, since the run stopped at the
+first check that could not survive the absence.
+
+**What is left in Python, exactly.** `_dispatch` and `_enter` are not request-answerers at all — the
+outbound boundary and the entry to a supposition are **doors, not questions** — and `_forbid`,
+`_widen`, `_notice_open` are the three guards §19 argues must not be rules. That is the principled
+floor, not a remainder.
 
 ⚠⚠ **Two of my own checks were wrong and both were traps this repo has already recorded.** A count of
 `instances_of(AGAIN)` read **2** where the answer is 1, because the rule's own consequent pattern is an
@@ -686,12 +725,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     310 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     316 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 310 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 316 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
@@ -718,12 +757,11 @@ when the loop does. Nothing in it is a line a rule could have written.
 `denial`, four `deviation-*`, `resuming`, `relevant`, and backward reading's `ask-recall`, `ask-fit`,
 `plan`, `expand`, `ask-check`, `give-up`.
 
-**Write-time hooks**: `_dispatch`, `_enter`, `_fit`, `_settle`, `_verdict`, `_root`, `_remember`,
-`_answer`, and `_again`. ⚠ §21's debt is **narrower again** — `_answer` is bound through the
-`answers(<M>, ask)` fact, so a corpus can see and retire what it *calls*, and `_again` is the first
-piece of the apparatus whose OWN binding is one of those facts (`fact -answers(<re-ask>, again)`
-retires it). The other seven are still bound in Python, and the criterion for which may follow is in
-the `reask` section: a capability whose absence is the status quo ante is safe to retire.
+**Write-time hooks**: three — `_dispatch`, `_enter`, `_answer`. ✅ §21's debt is **closed at its
+principled floor**: the six request-answerers (`<fit>` `<settle>` `<verdict>` `<root>` `<remember>`
+`<re-ask>`) are bound by `answers(<M>, ask)` facts and dispatched by `_answer`, four of them carrying
+`standing` so a denial is refused rather than obeyed. What stays native is each answerer's **body**,
+which is what an answerer is; and `_dispatch`/`_enter`, which are **doors, not questions**.
 
 **Three guards, and they are one move — *escalate before believing a decline*:** `_widen` at a dry
 shortlist, `_forbid` at a write (§19's norm veto), `_notice_open` at a stop. None is a phase; each
