@@ -2,7 +2,61 @@
 
 Branch `restart`, pushed. **390 checks, 0 failing**; every instrument green.
 
-## Latest: **the sanity check — would a Rust port have to reason?** Commit `named`.
+## Latest: **the option set is remembered — 2×, and the exponent is UNCHANGED**. Commit `quiet`.
+
+⚠⚠⚠ **Read the second half of that headline first. I set out to buy the exponent and bought a
+constant factor**, and the measurement says so plainly rather than being framed around what did work.
+
+Measured **before** building, on a chain of `edge` facts:
+
+| facts | ticks | `_would_change` calls | re-tests returning the **same** answer |
+|---|---|---|---|
+| 200 | 202 | 40,400 | 99.0% |
+| 500 | 502 | 251,000 | 99.6% |
+| 1,000 | 1,002 | 1,002,000 | **99.8%** |
+
+Third instance of one observation — `delta` found 98.7% of matching was re-derivation, `state` found
+the walk rebuilt what a delta could extend, and this is *nothing remembers that this question was
+already answered*. So the verdict is kept beside the applications, in the same cache, retired by the
+same discipline: a verdict reads only the propositions the application would write, so a fresh entry
+about one retires it, a fresh `forbidden`/`refused` flushes the lot, and a fork misses.
+
+| facts | before | after | | ticks / writes |
+|---|---|---|---|---|
+| 200 | 0.72s | **0.40s** | 1.8× | identical |
+| 1,000 | 17.19s | **8.81s** | 2.0× | identical |
+| 2,000 | 65.79s | **34.90s** | 1.9× | identical |
+
+⚠⚠⚠ **And 10× the facts still costs ~87× the time (it was 91×).** The profile says why, and it is
+structural rather than a missed optimisation: every top entry is called **1,002,000 times ≈ 1,000
+applications × 1,002 ticks**. `_applications` returns the *entire accumulated set* every tick, and
+`tick` then runs five O(candidates) passes over it — `defeat`, `_passed_up`, `_would_change`, the
+sort, `_wants`.
+
+> **Caching a verdict removes the cost per candidate. It does not remove the candidate.** The loop is
+> quadratic because it re-examines every application it has ever found on every move, and no amount
+> of making that examination cheap changes the shape.
+
+⚠ **What the measurement corrected on the way.** I assumed the cost was the chain walk. At 1,000
+facts: `_forbid` 5.31s, `substitute` 3.94s, `resolve` **1.10s** — the walk is the smallest of the
+three. The cache was still right, because it skips all three; but *optimise the walk* would have
+bought the least of them, and I would have measured the win and believed the theory.
+
+**The next move is named, and so is its blocker.** Withhold the cached-`False` applications from the
+list instead of re-filtering them, so a tick's candidate set is O(new + revived). The blocker is
+already documented at `rules.py:617`: `defeat` runs **before** the quiescence filter on purpose,
+because *defeat is about whose antecedent holds, not about who still has work to do* — filter first
+and the winning rule vanishes once its conclusion is written, leaving the loser unopposed to
+overwrite it. So `defeat` must keep seeing the whole set while the other four passes see the live
+subset, and that is the next commit rather than this one.
+
+⭐ **Kill-probed, three ways.** Bypassing the cache entirely: **390, 0 failing** — the control, and
+what makes this an optimisation rather than a change. Never retiring a verdict: **103 failing**.
+Not flushing on a fresh norm: 6 of the norm checks fail in isolation, and the full suite **livelocks**
+— which is precisely what `_would_change`'s own comment says the refusal record exists to prevent.
+No new check was needed; the invalidation was already gated by checks written for the norms.
+
+## Before that: **the sanity check — would a Rust port have to reason?** Commit `named`.
 
 The user's question, and answering it honestly meant auditing rather than asserting. **Mostly no.** A
 port is `graph`/`chain`/`gate`/`rules`/`tick` — five primitives, nine write-hooks, three guards, a
@@ -790,6 +844,11 @@ then discards the ones it already did.
 
 > **The agent recomputes its entire option set on every move.** Nothing remembers that an application
 > was already made, so quiescence is paid per candidate per tick.
+
+⭐ **Half-closed 08-13 by commit `quiet`** — the verdict is remembered, which is 2× and leaves the
+quadratic exactly where it was. ⚠ The sentence above is right about the waste and wrong about the
+cause: *paid per candidate per tick* made it sound like the per-candidate cost was the problem. The
+candidate **list** is the problem, and it grows with the corpus. See the top of this file.
 
 That is the same shape as §14's index finding from the other side — the earlier win was *narrowing what
 comes to mind*, and this is *not re-deriving what has already been done*. It is also why the honest

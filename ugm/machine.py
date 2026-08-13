@@ -533,6 +533,10 @@ class Machine:
         self.scopes: dict = {}
         # Applications carried across ticks, per seat. See `_applications`.
         self._match_cache: dict = {}
+        # The live cache for this seat, set by `_applications` and read by
+        # `_would_change`. None until the first tick, so a verdict asked for
+        # outside the loop is simply computed.
+        self._verdicts: Optional[dict] = None
         # What matching actually produced, against what the loop then weighed.
         # Two numbers rather than one, because the whole claim is the gap: the
         # loop used to make them equal by rediscovering its options every tick.
@@ -2627,8 +2631,13 @@ class Machine:
         fk = (self.focus.topic.node, self.focus.seat.node, hidden)
         cache = self._match_cache.get(fk)
         if cache is None:
-            cache = {"pos": 0, "apps": {}, "rule_pos": {}, "by_prop": {}}
+            cache = {"pos": 0, "apps": {}, "rule_pos": {}, "by_prop": {},
+                     "quiet": {}, "quiet_by_prop": {}}
             self._match_cache = {fk: cache}  # one seat at a time; forking is a miss
+        # `_would_change` reads the same cache, and gets there by this reference
+        # rather than by recomputing `fk`: the two must agree about which seat
+        # they are talking about, and one of them owning the key is how.
+        self._verdicts = cache
 
         here = len(self.focus.seat.delta)
         delta = self.focus.seat.delta[cache["pos"]:]
@@ -2639,6 +2648,24 @@ class Machine:
             suspect: set = set()
             for e in delta:
                 suspect |= cache["by_prop"].get(e.proposition, set())
+                # ...and the same move for the QUIESCENCE verdict, which is a
+                # read of exactly the propositions the application would write.
+                # A verdict can only change if one of those does, so a fresh
+                # entry about one retires it and nothing else has to.
+                for k in cache["quiet_by_prop"].pop(e.proposition, ()):
+                    cache["quiet"].pop(k, None)
+                rel = self.g.relation_of(e.proposition)
+                if rel is self.FORBIDDEN or rel is self.REFUSED:
+                    # A norm is not indexed by what it forbids -- `_forbid`
+                    # consults every prohibition whose pattern shares a relation
+                    # with what is about to be written, so a new one can change
+                    # the answer for a proposition no cached verdict mentions.
+                    # Blunt on purpose: norms are authored and refusals are rare,
+                    # and a precise index here would have to reproduce `_forbid`'s
+                    # matching, which is the re-implementation trap `state`
+                    # already paid for once.
+                    cache["quiet"].clear()
+                    cache["quiet_by_prop"].clear()
             for k in suspect:
                 app = cache["apps"].get(k)
                 if app is None:
@@ -2719,7 +2746,59 @@ class Machine:
     def _would_change(self, app: Application) -> bool:
         """Quiescence: an application that restates what the chain already says is
         not a step. Without this the loop would reapply every rule forever, and
-        *nothing left to do* would be unsayable."""
+        *nothing left to do* would be unsayable.
+
+        ⭐⭐⭐ **And it was the agent recomputing its entire option set on every
+        move.** Profiled at 38% of runtime, ~800 calls a tick; measured before
+        this was built, on a chain of `edge` facts:
+
+        | facts | ticks | calls | re-tests returning the SAME answer |
+        |---|---|---|---|
+        | 200 | 202 | 40,400 | 99.0% |
+        | 500 | 502 | 251,000 | 99.6% |
+        | 1,000 | 1,002 | 1,002,000 | **99.8%** |
+
+        Third instance of one observation -- `delta` found 98.7% of matching was
+        re-derivation, `state` found the walk was rebuilding what a delta could
+        extend, and this is *nothing remembers that this question was already
+        answered*. The answer is kept beside the applications, in the same cache
+        and retired by the same discipline, because it is the same kind of claim.
+
+        ⚠ **What the measurement corrected.** The cost was assumed to be the
+        chain walk; it is the smallest of the three parts. At 1,000 facts:
+        `_forbid` 5.31s, `substitute` 3.94s, `resolve` 1.10s. A cache is the
+        right fix anyway -- it skips all three -- but *optimise the walk* would
+        have bought the least of them.
+
+        **What the verdict depends on**, which is what makes it cacheable: the
+        resolves of the propositions this application would write, plus the
+        prohibitions consulted about them. Nothing else. So a fresh entry about
+        one of those retires it (`quiet_by_prop`), a fresh `forbidden` or
+        `refused` flushes the lot, and a fork misses because the cache belongs to
+        a seat. ⚠ This is not a *seen it* set for the same reason `_applications`
+        is not: `resolve` is non-monotone, so quiescence has to keep being able
+        to change its mind.
+        """
+        cache = self._verdicts
+        key = None
+        if cache is not None:
+            key = (app.rule.node, frozenset(app.bindings.items()))
+            hit = cache["quiet"].get(key)
+            if hit is not None:
+                return hit
+        # Every proposition this verdict was READ from, so the index can retire
+        # it. Collected as the answer is computed rather than derived afterwards,
+        # because the second would be a re-implementation of this method and
+        # `state` records what that costs.
+        touched: List[NodeId] = []
+        answer = self._decide_change(app, touched)
+        if key is not None:
+            cache["quiet"][key] = answer
+            for p in touched:
+                cache["quiet_by_prop"].setdefault(p, set()).add(key)
+        return answer
+
+    def _decide_change(self, app: Application, touched: List[NodeId]) -> bool:
         for m in app.rule.consequent:
             grounded = substitute(self.g, m.pattern, app.bindings)
             if self.g.has_var(grounded) and not self._is_mention(app):
@@ -2729,7 +2808,12 @@ class Machine:
                 # is a different case entirely, and dropping it here is how a
                 # rule reasoning about rules used to look exactly like a rule
                 # with nothing to do -- silently, and only at this line.
+                #
+                # `touched` stays empty, deliberately: this verdict is a property
+                # of the rule and its bindings, so nothing can ever change it and
+                # it is cached with no index at all.
                 return False
+            touched.append(grounded)
             forbidding = self._forbid(self.focus, grounded, m.sign)
             if forbidding is not None:
                 # A forbidden conclusion never lands, so the chain never says it
@@ -2741,6 +2825,7 @@ class Machine:
                 record = self.g.rel(
                     self.REFUSED, grounded, self.rules.SIGN[m.sign], forbidding
                 )
+                touched.append(record)
                 if self.chain.resolve(record, self.focus.topic, self.focus.seat) is None:
                     return True
                 continue
