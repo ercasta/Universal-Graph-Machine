@@ -3409,6 +3409,132 @@ def matching_is_incremental() -> None:
           c.holds(kbc.term("z(a)")) == PLUS)
 
 
+def an_example_becomes_a_rule() -> None:
+    """Two cases in, one rule out, and it applies to a third. (§17, §14)
+
+    `generalise` is the **dual of `unify`** -- matching asks what two structures
+    must agree about, anti-unification asks what they already do -- and it is
+    the operation *learn from examples* is made of. It goes in `rules.py` beside
+    `unify_patterns` because it is a pattern operation on the floor's own
+    vocabulary; the thing that turns it into a RULE is a tool, which is where
+    `adopt` said the composer has to live.
+
+    ⭐⭐⭐ **One mapping across the premise and the conclusion.** Generalised
+    separately they share no variable, so the rule concludes about something
+    nothing binds and the gate refuses it. Generalised together, `door`/`window`
+    becomes one `?g0` on both sides and the rule is exactly the one a person
+    would have written. That single dictionary is the difference between
+    learning and noise, and it is what the kill-probe removes.
+
+    ⚠ **The tool DECLINES rather than generalising anything.** Two examples
+    about different relations have a bare variable as their least general
+    generalisation -- `{+?g0} => {+?g1}`, a rule that fires on everything and
+    concludes nothing anyone asked for. Returning `None` is a real answer (§17),
+    and the check is that nothing is adopted.
+    """
+    from .rules import generalise
+    from .text import Loader
+
+    # The operation first, on its own, because a check about a learned rule
+    # cannot tell a least generalisation from a lazy one.
+    g = Graph()
+    f, a, b, c = g.atom("f"), g.atom("a"), g.atom("b"), g.atom("c")
+    lgg = generalise(g, g.rel(f, a, b), g.rel(f, a, c), {})
+    # ⚠ Guarded, not indexed. A lazy generalisation returns a bare variable,
+    # which has no member 0 -- so the first version of this check RAISED where
+    # the answer is False, and a runner that cannot say False about an absence
+    # reports nothing. Fourth time in this file.
+    check("§7", "anti-unification KEEPS what the two examples agree about and "
+          "varies only what they do not -- otherwise it is a generalisation but "
+          "not the least one",
+          g.relation_of(lgg) is f and len(g.members(lgg)) == 2
+          and g.member(lgg, 0) is a and g.is_var(g.member(lgg, 1)))
+    shared: dict = {}
+    same = generalise(g, g.rel(f, a, a), g.rel(f, b, b), shared)
+    check("§7", "...and one disagreement is one variable however often it "
+          "appears: f(a,a) and f(b,b) generalise to f(?g, ?g), not to f(?1, ?2)",
+          len(g.members(same)) == 2 and g.member(same, 0) is g.member(same, 1))
+
+    # Now the loop: two examples, a tool, the door, and a case neither example
+    # mentioned.
+    def build(src: str):
+        mm = Machine()
+        kbb = Loader(mm)
+
+        def learn(machine, frame, entry):
+            """Two `pair(premise, conclusion)` arguments in, a rule node out."""
+            gg = machine.g
+            one, two = gg.members(entry.proposition)
+            mapping: dict = {}
+            # ⭐ The SAME mapping for both halves. This is the crux.
+            ant = generalise(gg, gg.member(one, 0), gg.member(two, 0), mapping)
+            con = generalise(gg, gg.member(one, 1), gg.member(two, 1), mapping)
+            if not gg.has_var(ant) or gg.is_var(ant) or gg.is_var(con):
+                # Nothing was learned (the examples are the same), or everything
+                # was (they share no structure). Declining is an answer.
+                return None
+            node = gg.instance(kbb.atom("learned"))
+            w = lambda p: machine.gate.write(frame, p, PLUS, licence=entry.node,
+                                             source=machine.KB, mention=True)
+            w(gg.rel(machine.RULE, node))
+            w(gg.rel(machine.CONN, node, machine.rules.IMPLIES))
+            w(gg.rel(machine.ANT, node, ant, machine.chain.SIGN[PLUS],
+                     machine._numeral(0)))
+            # ⚠ `@likely`, and the reason is §12 rather than modesty: a rule
+            # nobody authored is exactly the kind whose conclusions must stay
+            # weaker than what it was told.
+            w(gg.rel(machine.CON, node, con, machine.chain.SIGN[PLUS],
+                     machine._numeral(0), machine.chain.GRADE["likely"]))
+            return node
+
+        kbb.answerer("learner", "generalise", learn)
+        kbb.load(src)
+        return mm, kbb
+
+    corpus = chr(10).join([
+        "rule <ask> = implies( { +example(?p1, ?c1), +example(?p2, ?c2),",
+        "                        +sooner(?p1, ?p2) },",
+        "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
+        "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
+        "                      { +adopt(?r) } )",
+        "fact +example(seen(door), known(door))",
+        "fact +example(seen(window), known(window))",
+        "fact +sooner(seen(door), seen(window))",
+        "fact +seen(gate)", ""])
+
+    m, kb = build(corpus)
+    before = len(m.rules.rules)
+    m.run(limit=120)
+    check("§17", "⭐ two examples become a rule the agent did not have",
+          len(m.rules.rules) > before)
+    check("§14", "⭐⭐⭐ ...and it applies to a case NEITHER example mentioned, "
+          "which is the whole of what generalising is for",
+          m.holds(kb.term("known(gate)")) == PLUS)
+    learned = m.chain.resolve(kb.term("known(gate)"), m.focus.topic, m.focus.seat)
+    check("§12", "...and concludes no more strongly than a rule nobody authored "
+          "should", learned is not None and learned.grade == "likely")
+
+    # ⚠ Unrelated examples have a BARE VARIABLE as their generalisation -- a
+    # rule that fires on everything. The tool declines, which §17 says is an
+    # answer and not a failure.
+    junk, kb_j = build(chr(10).join([
+        "rule <ask> = implies( { +example(?p1, ?c1), +example(?p2, ?c2),",
+        "                        +sooner(?p1, ?p2) },",
+        "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
+        "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
+        "                      { +adopt(?r) } )",
+        "fact +example(seen(door), known(door))",
+        "fact +example(heard(bell), rang(bell))",
+        "fact +sooner(seen(door), heard(bell))",
+        "fact +seen(gate)", ""]))
+    j_before = len(junk.rules.rules)
+    junk.run(limit=120)
+    check("§17", "⚠ and two examples with nothing in common teach nothing: the "
+          "tool declines rather than proposing a rule that fires on everything",
+          len(junk.rules.rules) == j_before
+          and junk.holds(kb_j.term("known(gate)")) is None)
+
+
 def a_rule_can_author_a_rule() -> None:
     """The reverse of `reify`, and the door the whole acquisition family needs.
 
@@ -5205,6 +5331,7 @@ def main() -> int:
     a_scope_can_span_documents()
     matching_is_incremental()
     a_rule_can_author_a_rule()
+    an_example_becomes_a_rule()
     a_defeat_is_on_the_record()
     a_join_is_not_a_scan()
     the_apparatus_eats_its_own_cooking()

@@ -1,6 +1,49 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **431 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **437 checks, 0 failing**; every instrument green.
+
+## Latest: **an example becomes a rule**. Commit `generalise`.
+
+Acquisition slice 2, in the seam `adopt` said it would be in. `rules.generalise` is Plotkin
+anti-unification — **the dual of `unify`**, and the thing *learn from examples* is made of: matching
+asks what two structures must agree about, this asks what they already do. `unify_patterns` was the
+two-sided version of the first; nothing was the second, so the agent could recognise an instance of a
+rule it had and never propose the rule from the instances.
+
+Two examples in, one rule out, and it fires on a third case:
+
+    fact +example(seen(door), known(door))
+    fact +example(seen(window), known(window))
+    fact +seen(gate)                      ⟹   known(gate) = + @likely
+
+⭐⭐⭐ **One mapping across the premise and the conclusion, and that is the whole of it.** Generalised
+separately they share no variable, so the rule concludes about something nothing binds. Generalised
+together, `door`/`window` becomes one `?g0` on both sides and the result is exactly the rule a person
+would have written. **One dictionary is the difference between learning and noise** — the kill-probe
+that gives each half its own map costs 3 checks.
+
+⚠ **What agrees is KEPT**, which is what makes it the *least* general generalisation: `f(a, b)` and
+`f(a, c)` give `f(a, ?g0)`, never `f(?g0, ?g1)`. And one disagreement is one variable however often it
+appears — `f(a,a)` with `f(b,b)` is `f(?g0, ?g0)`, not `f(?g0, ?g1)`, or the rule fires on pairs that
+never matched. Both are kill-probed and both cost checks.
+
+⚠ **The tool declines rather than generalising anything.** Two examples about different relations have
+a *bare variable* as their least general generalisation — `{+?g0} ⟹ {+?g1}`, a rule that fires on
+everything. Returning `None` is a real answer (§17), and the check is that nothing is adopted.
+
+⚠ The learned rule concludes `@likely`, and that is §12 rather than modesty: a rule nobody authored is
+exactly the kind whose conclusions must stay weaker than what it was told. It composes with the grade
+work in `adopt` — the tool writes the grade, the door obeys it, and the derived entry carries it.
+
+⚠⚠ **A kill-probe crashed my own check instead of failing it.** A lazy generalisation returns a bare
+variable, which has no member 0, and the check indexed one — *a runner has to be able to say False
+about an absence*, fourth time in this file. Guarded, and `flat` now costs 5 checks.
+
+**What is NOT closed, and it is the next slice.** The examples are corpus facts. The agent's own trail
+is the richer source — every derived entry records what it consumed, and `rests_on` has been on the
+graph since `support` — but `rests_on` is part of §12's **skeleton**, a plain relation instance that
+nobody asserted, so ordinary rules do not match it and only stratum 0 can read it. Whether an ordinary
+rule should see the skeleton is a real design question and not a small one.
 
 ## Latest: **a rule can author a rule** — the reverse-reify door. Commit `adopt`.
 

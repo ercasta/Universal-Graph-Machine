@@ -292,6 +292,46 @@ def unify(
     return cur
 
 
+def generalise(
+    g: Graph, a: NodeId, b: NodeId, mapping: Dict[Tuple[NodeId, NodeId], NodeId]
+) -> NodeId:
+    """The least general structure both `a` and `b` are instances of (Plotkin).
+
+    The **dual of `unify`**, and the operation *learn from examples* is made of:
+    matching asks what two structures have to agree about, and this asks what
+    they already agree about. `unify_patterns` is the two-sided version of the
+    first; nothing was the second, so an agent could recognise an instance of a
+    rule it had and never propose the rule from the instances.
+
+    ⭐⭐⭐ **`mapping` is the whole of it, and it is why this takes one.** The
+    same disagreement must produce the same variable *everywhere it appears*,
+    including across the two structures a caller generalises in turn. Without
+    that, `f(a, a)` and `f(b, b)` generalise to `f(?1, ?2)` -- true, useless,
+    and strictly more general than the answer -- and a premise and a conclusion
+    generalised separately share no variable at all, so the rule built from them
+    concludes about something nothing binds. That is the crux of building a rule
+    out of two examples, and it is one dictionary.
+
+    ⚠ What agrees is KEPT. `f(a, b)` and `f(a, c)` give `f(a, ?1)`, never
+    `f(?1, ?2)`: an implementation that variabilises everything returns a
+    generalisation, just not the least one, and the rule it yields fires on
+    everything.
+    """
+    if a == b:
+        return a
+    ra, rb = g.relation_of(a), g.relation_of(b)
+    if ra is not None and ra == rb:
+        ma, mb = g.members(a), g.members(b)
+        if len(ma) == len(mb):
+            return g.rel(ra, *[
+                generalise(g, x, y, mapping) for x, y in zip(ma, mb)
+            ])
+    key = (a, b)
+    if key not in mapping:
+        mapping[key] = g.var(f"?g{len(mapping)}")
+    return mapping[key]
+
+
 def walk(g: Graph, n: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
     """Follow a chain of variable-to-variable bindings to its end.
 
