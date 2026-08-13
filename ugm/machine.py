@@ -537,6 +537,9 @@ class Machine:
         # `_would_change`. None until the first tick, so a verdict asked for
         # outside the loop is simply computed.
         self._verdicts: Optional[dict] = None
+        # Which rules matched here, carried beside the candidate list because
+        # `defeat` reads it and the candidate list no longer contains it.
+        self._matched_rules: dict = {}
         # What matching actually produced, against what the loop then weighed.
         # Two numbers rather than one, because the whole claim is the gap: the
         # loop used to make them equal by rediscovering its options every tick.
@@ -2113,7 +2116,9 @@ class Machine:
         applications = self._applications(proposed, state)
         # Defeat before quiescence -- see `rules.defeat` for why the order is not
         # interchangeable.
-        applications = defeat(self.rules, applications)
+        applications = defeat(
+            self.rules, applications, self._matched_rules.values()
+        )
         # ...and the fourth way not to run, which is the only one that is a
         # decision: this was a live way of getting what I wanted and I took
         # another. Checked here rather than in `defeat` because it is not a claim
@@ -2632,7 +2637,11 @@ class Machine:
         cache = self._match_cache.get(fk)
         if cache is None:
             cache = {"pos": 0, "apps": {}, "rule_pos": {}, "by_prop": {},
-                     "quiet": {}, "quiet_by_prop": {}}
+                     "quiet": {}, "quiet_by_prop": {},
+                     # The candidate set, maintained incrementally. `live` is
+                     # every application not KNOWN to be a no-op; `by_rule` is
+                     # what `defeat` needs and `live` cannot give it.
+                     "live": set(), "by_rule": {}}
             self._match_cache = {fk: cache}  # one seat at a time; forking is a miss
         # `_would_change` reads the same cache, and gets there by this reference
         # rather than by recomputing `fk`: the two must agree about which seat
@@ -2653,7 +2662,8 @@ class Machine:
                 # A verdict can only change if one of those does, so a fresh
                 # entry about one retires it and nothing else has to.
                 for k in cache["quiet_by_prop"].pop(e.proposition, ()):
-                    cache["quiet"].pop(k, None)
+                    if cache["quiet"].pop(k, None) is not None and k in cache["apps"]:
+                        cache["live"].add(k)  # back in the running
                 rel = self.g.relation_of(e.proposition)
                 if rel is self.FORBIDDEN or rel is self.REFUSED:
                     # A norm is not indexed by what it forbids -- `_forbid`
@@ -2666,6 +2676,7 @@ class Machine:
                     # already paid for once.
                     cache["quiet"].clear()
                     cache["quiet_by_prop"].clear()
+                    cache["live"] = set(cache["apps"])
             for k in suspect:
                 app = cache["apps"].get(k)
                 if app is None:
@@ -2677,6 +2688,9 @@ class Machine:
                 )
                 if not alive:
                     del cache["apps"][k]
+                    cache["live"].discard(k)
+                    cache["quiet"].pop(k, None)
+                    cache["by_rule"].get(k[0], set()).discard(k)
                     for c in app.consumed:
                         cache["by_prop"].get(c.proposition, set()).discard(k)
 
@@ -2717,6 +2731,8 @@ class Machine:
                 if k in cache["apps"]:
                     continue
                 cache["apps"][k] = a
+                cache["live"].add(k)
+                cache["by_rule"].setdefault(r.node, set()).add(k)
                 for c in a.consumed:
                     cache["by_prop"].setdefault(c.proposition, set()).add(k)
 
@@ -2737,9 +2753,42 @@ class Machine:
         last = len(order)
         rank = {r.node: i for i, r in enumerate(proposed)}
         live = set(rank)
-        out = [a for k, a in cache["apps"].items() if k[0] in live]
+        # ⭐⭐⭐ **Only what could still have something to do.** This used to walk
+        # every application ever found, on every tick, and hand them all to five
+        # O(candidates) passes -- which is where the quadratic was, and why
+        # remembering each application's VERDICT bought a constant factor and
+        # left the exponent alone: caching a verdict removes the cost per
+        # candidate, not the candidate.
+        #
+        # `live` is maintained where the facts change rather than recomputed:
+        # an application joins it when it is found, leaves when `_would_change`
+        # records that it is a no-op, and rejoins when the entry that made it one
+        # is superseded. So a tick costs O(new + revived), not O(everything).
+        # ⚠ ...except when the rule set uses `supersedes`, which compares
+        # CONSUMED ENTRIES between two applications and therefore cannot be
+        # answered from a list one of them may be missing from. Then the whole
+        # set goes through, at the old cost. Stated rather than hidden, and
+        # measured by a check either way.
+        keys = cache["apps"] if self.rules.supersedes else cache["live"]
+        out = [cache["apps"][k] for k in keys if k[0] in live]
         out.sort(key=lambda a: (rank[a.rule.node],
                                 tuple(order.get(c.node, last) for c in a.consumed)))
+        # ⚠⚠⚠ **What `defeat` must NOT be given is this list**, and that is the
+        # whole difficulty of the change. `rules.defeat` runs before quiescence
+        # on purpose -- *defeat is about whose antecedent holds, not about who
+        # still has work to do* -- so a rule whose conclusion is already written
+        # must go on defeating its rival, or the boss's rule is obeyed once and
+        # the vice's quietly overwrites it on the next tick. Withholding the
+        # quiet applications from the candidate list is right; withholding them
+        # from defeat is that bug.
+        #
+        # So the rules that MATCHED are carried separately, which is all
+        # `_defeated` reads, and maintaining it costs a set per rule.
+        self._matched_rules = {
+            rank_node: proposed[rank[rank_node]]
+            for rank_node, keys in cache["by_rule"].items()
+            if keys and rank_node in live
+        }
         self.considered += len(out)
         return out
 
@@ -2794,6 +2843,11 @@ class Machine:
         answer = self._decide_change(app, touched)
         if key is not None:
             cache["quiet"][key] = answer
+            if not answer:
+                # Out of the running until something it reads changes. This is
+                # the line that moves the exponent; the caching above only made
+                # each re-test cheap.
+                cache["live"].discard(key)
             for p in touched:
                 cache["quiet_by_prop"].setdefault(p, set()).add(key)
         return answer

@@ -3285,6 +3285,30 @@ def matching_is_incremental() -> None:
           m.considered > 3 * m.matched and m.matched > 0)
     check("§4", "...and it still gets there", m.holds(kb.term("boiling(kettle)")) == PLUS)
 
+    # ⭐ And what it does NOT re-weigh. An application known to be a no-op is
+    # withheld from the candidate list until something it reads changes, so a
+    # tick costs O(new + revived) rather than O(everything ever matched).
+    #
+    # ⚠ This is the check the optimisation itself needs, and it is a different
+    # kind from the three around it: removing the withholding breaks nothing, so
+    # nothing else here can tell whether it is still happening. Measured over the
+    # suite, 89.4% of verdicts are no-ops -- so a fixture where the kept set and
+    # the live set are the same size means it has silently stopped working.
+    (cache,) = m._match_cache.values()
+    check(
+        "§18",
+        "the applications are KEPT but not re-weighed: most are withheld as no-ops",
+        len(cache["apps"]) > 0 and len(cache["live"]) * 2 < len(cache["apps"]),
+    )
+    # ...and `defeat` is not told the short list, because whose antecedent holds
+    # is a different question from who still has work to do (`rules.py:617`).
+    check(
+        "§12",
+        "...while the rules that MATCHED are carried whole, for defeat to read",
+        set(m._matched_rules) >= {a.rule.node for a in
+                                  (cache["apps"][k] for k in cache["live"])},
+    )
+
     # ⚠⚠⚠ **The one that is not bookkeeping.** The chain is append-only but
     # `resolve` is not monotone: a denial deposited later makes what a cached
     # application consumed no longer the current claim. Keep it anyway and the

@@ -1,8 +1,52 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **390 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **392 checks, 0 failing**; every instrument green.
 
-## Latest: **the option set is remembered — 2×, and the exponent is UNCHANGED**. Commit `quiet`.
+## Latest: **the quadratic is ARBITRATION, not bookkeeping**. Commit `weigh`.
+
+Went after the exponent by withholding the no-op applications from the candidate list — the move
+`quiet` named, whose blocker was that `defeat` must keep seeing them. Built it, and **the measurement
+refuted the premise it was built on.** On the scaling fixture there is almost nothing to withhold:
+
+| n | candidates considered | `_would_change` **True** | False |
+|---|---|---|---|
+| 200 | 20,300 | **20,100** | 200 |
+| 500 | 125,750 | **125,250** | 500 |
+
+⭐⭐⭐ **99.6% of candidates genuinely have work to do.** With 1,000 independent `edge` facts the agent
+really does have 1,000 applicable rules on tick 1, 999 on tick 2, and §18 lets it make one move at a
+time — so it weighs n, then n−1, then n−2. **The n²/2 is the option set, not waste.**
+
+> **The agent recomputes its option set on every move because the option set IS different on every
+> move.** Nothing that makes each candidate cheaper — an index, a verdict cache, withholding — can
+> change that. The only levers are a ranking maintained incrementally across ticks, or applying more
+> than one rule per tick, and the second is §18's *nothing owns the loop* being sold.
+
+⚠⚠⚠ **And the benchmark that defined the wall is the unrepresentative case.** The same count over the
+whole selftest suite — 56 fixtures of the kind anyone actually writes:
+
+| | True (has work) | False (no-op) |
+|---|---|---|
+| the `edge` chain | **99.6%** | 0.4% |
+| the whole suite | 10.6% | **89.4%** |
+
+One rule with n independent instantiations is the *maximum* of independent applicability, which is
+exactly what this loop is worst at. It is a fair worst case and it was read as a typical one.
+
+**What shipped anyway, because it is right where corpora actually are:** applications withheld once
+known to be no-ops, revived when something they read changes. **1.16× on the suite, 1.3× on the
+scaling fixture**, 390 checks identical. The `defeat` split it required is the part worth keeping
+regardless — `defeat` now takes the matched **rules** separately from the candidate **applications**,
+so the two can come apart without §12's guarantee coming apart.
+
+⭐ **Three kill-probes, all caught by checks that already existed** — no new ones were needed, which is
+the sign the guarantee was already pinned. Give `defeat` only the live candidates: **3 failing**,
+precisely the *boss's rule obeyed once, then undone by the vice's* case `rules.py:617` describes. Ask
+the cycle fallback of the short list instead of the rule set: **1 failing**. Take the fast path when
+`supersedes` is in use: **1 failing** — it compares consumed entries, so it cannot be answered from a
+list something may be missing from, and that path keeps the old cost by design.
+
+## Before that: **the option set is remembered — 2×, and the exponent is UNCHANGED**. Commit `quiet`.
 
 ⚠⚠⚠ **Read the second half of that headline first. I set out to buy the exponent and bought a
 constant factor**, and the measurement says so plainly rather than being framed around what did work.
@@ -825,7 +869,10 @@ floor that is **exactly the two items still open** — nothing retracts a conclu
 withdrawn, and *when may a binding be reconsidered*. The consumer's most ordinary loop lands precisely
 on the arc's last unsolved hat, which is worth knowing before anyone calls those items academic.
 
-⚠⚠⚠ **And the wall is SCALE, measured rather than assumed.** One rule, a chain of `edge` facts:
+⚠⚠⚠ **And the wall is SCALE, measured rather than assumed.** One rule, a chain of `edge` facts —
+⚠ **and see `weigh` at the top of this file: this fixture is the WORST case, not a typical one.**
+99.6% of its candidates genuinely apply, against 10.6% across the selftest suite. The quadratic is
+real; this benchmark maximises the one axis that produces it.
 
 | facts | run | ticks |
 |---|---|---|

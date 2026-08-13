@@ -611,7 +611,11 @@ def arbitrate(
     return best
 
 
-def defeat(rs: RuleSet, applications: Sequence[Application]) -> List[Application]:
+def defeat(
+    rs: RuleSet,
+    applications: Sequence[Application],
+    matched: Optional[Sequence["Rule"]] = None,
+) -> List[Application]:
     """Drop the applications whose rule is overridden by another that matched.
 
     This runs on everything that **matched**, before any quiescence filter --
@@ -620,16 +624,41 @@ def defeat(rs: RuleSet, applications: Sequence[Application]) -> List[Application
     soon as its conclusion is already written, whereupon the loser is
     unopposed and quietly overwrites it: the boss's rule obeyed once, then
     undone by the vice's on the following tick.
+
+    ⭐ Which is exactly why `matched` is a separate argument. The loop now passes
+    only the applications that still have work to do -- that is what stops the
+    tick being linear in everything ever matched -- and the rules that matched
+    are carried alongside, so nothing above changes. `_defeated` reads only the
+    rule set, so the two can come apart without the guarantee coming apart.
+
+    ⚠ `supersedes` is the one test that genuinely needs the applications
+    themselves, because it compares CONSUMED ENTRIES rather than rules. A caller
+    that is withholding applications cannot answer it, so a rule set that uses
+    `supersedes` gets the whole set and the old cost. That is stated rather than
+    hidden: the fast path is for corpora that do not order two rules *for the
+    same case*, which is all of them so far.
     """
-    matched = [a.rule for a in applications]
+    matched = list(matched) if matched is not None else [a.rule for a in applications]
     surviving = [
         a
         for a in applications
         if not _defeated(rs, a.rule, matched) and not _superseded(rs, a, applications)
     ]
+    if surviving:
+        return surviving
     # A cycle in `overrides` would defeat everything. Arbitration must stay
     # total (§14), so fall back rather than answer nothing.
-    return surviving or list(applications)
+    #
+    # ⚠⚠⚠ **Asked of the RULES, not of the applications handed in.** With a
+    # withheld set, *nothing here survived* and *nothing survived at all* are
+    # different claims: a quiet application whose rule is undefeated means the
+    # old code returned it and quiescence then dropped it, ending the tick with
+    # no move. Falling back on the short list instead would revive a defeated
+    # rule and make a move the agent had decided against. The fallback is for a
+    # cycle, and a cycle is a property of the rule set.
+    if any(not _defeated(rs, r, matched) for r in matched):
+        return []
+    return list(applications)
 
 
 def _superseded(rs: RuleSet, app: Application, applications: Sequence[Application]) -> bool:
