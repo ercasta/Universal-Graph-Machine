@@ -3148,6 +3148,48 @@ cases in nineteen spurious pairs.
 for deferring — supposing, backtracking, re-asking — is the same unbuilt thing: nothing says when a
 line of reasoning is finished enough to act on.
 
+### What *in play* means, and why it is the one judgement here nobody argued for
+
+The row above says *matched when that key is in play*, and nothing in this document has ever said
+what **in play** means. It is `Machine._in_play`, and it is a convention: the relations in the
+current delta, plus each live goal's content and that content's relation. It is not floor by any of
+§4's three grounds, no rule can read it, and until it was measured it had no check of its own —
+every mutation of it failed only checks about something else.
+
+Measured against the smallest fixture that can tell a goal-serving rule from a useless one
+(`the_better_move_wins`'s two rules, one of which does nothing for the goal):
+
+| `_in_play` returns | first corpus move | over the whole suite |
+|---|---|---|
+| **as shipped** | `toward` | 0 failing |
+| nothing | `wander` | 9 failing |
+| the delta only, no goals | `wander` | 7 failing |
+| goals only, no delta | `toward` | **2 failing** |
+| everything the state asserts | `wander` | 7 failing |
+
+Three things follow, and the first is the one worth carrying.
+
+> ⭐ **The key is not a subset of what is asserted.** Nothing ever claims `nearer(a)`; what is
+> claimed is `goal(nearer(a))`. So a pass over every proposition and every relation in the state —
+> strictly *more* information than the shipped key — still misses the node the preference is keyed
+> on, because the key reaches **inside** a proposition for its argument. More is not nearer, and a
+> sweep is not a substitute for a judgement about what a situation is *about*.
+
+**The two halves are not one idea, and the split is undeclared.** The goal half decides the case
+above and carries seven of the nine checks; the delta half decides nothing there and carries two,
+both about the recall **budget** rather than about arbitration. They also differ in kind: a goal is
+never denied, so the goal half already accumulates monotonically, while the delta half is genuinely
+per-moment. That asymmetry is why the obvious repair — make the key ordinary `inplay(?k)` facts and
+let a corpus argue with it — is **half available**. The delta half could not be facts on an
+append-only chain, because a key that never expires converges on the state and the table stops
+discriminating. The goal half is already in that condition, so nothing would be lost by moving it,
+and the question of whether it should be is open rather than closed.
+
+**What is not open:** that this is convention. §4's test is whether every decision it embodies can
+be an argument, and *what a situation is about* is exactly the kind of judgement §19 says experience
+should supply. It sits here, in one method, deliberately — a better answer replaces it without
+touching the loop, the table, or any rule — but it sits here **named**, which it did not before.
+
 ### Crossing opens hypotheses, and how many is not a parameter
 
 Supposing was introduced as the alternative to lifting, and `ugm.modality` measures it as the better
@@ -3572,6 +3614,36 @@ and now there is a fact that says one is.
 A watchdog needs nothing further. It is an ordinary rule with `+quiet(?m)` in its antecedent — inert
 until the loop stops, because nothing else ever writes that. No trigger table, no second loop, no
 registry: **the trigger is the fact**.
+
+#### ...and a third: which hypothesis reached which conclusion
+
+`left` says *this hypothesis is over*. It does not say what it found, and for a long time nothing
+did — which was easy to miss, because the information was never lost. Every conclusion carried out
+of a frame is written with the licence `concluded(<frame>)`, so `why()` could always answer *which
+hypothesis produced this*. **A licence is a field on the entry, so no rule could ask.**
+
+That is §21's recurring defect, and this is the eighth instance: `applied(<R>)` closed as
+`exercised`, the entry's grade closed as a wrapper, a tool's binding closed as `answers(<M>, ask)`,
+the effort counters closed as `widened`/`reached`/`bounded`. The fix is the same one every time.
+
+    concluded(<frame>, <what>)       this hypothesis reached this
+
+**What it costs is one write and what it buys is rivalry.** Two suppositions about the same symptom
+both cross their conclusions to the same parent as `likely(q)`, and until this a corpus could open
+rivals and then not compare them — the conclusions were siblings with nothing distinguishing their
+origins. The discriminating case is deliberately *not* that the rivals disagree: what tells two
+diagnoses apart is a prediction only one of them makes, so the comparison is a join over a shared
+conclusion and a distinguishing one:
+
+    { +left(?f, ?a), +concluded(?f, likely(nopressure(tap))) }  ⟹  { +explains(?a, nopressure(tap)) }
+
+It is bookkeeping (§10's closed set), so a nested frame does not carry `likely(concluded(...))` out
+— the same treatment `left` and `quiet` get, and for the same reason: a record of the machinery's
+own event is not a claim about the world for a wrapper to qualify.
+
+⚠ It records that the frame **reached** the conclusion, not that the conclusion is true, so it is
+deposited `+` whatever the conclusion's own sign was. A frame that concluded `?q` still concluded
+something, and *which hypothesis was uncertain about what* is the question this makes askable.
 
 #### A callback is a pointer to a rule, and it may not be a call
 

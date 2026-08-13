@@ -1199,6 +1199,147 @@ def callbacks_on_a_hypothesis() -> None:
     )
 
 
+def rival_hypotheses_are_comparable() -> None:
+    """Which hypothesis concluded WHAT -- §21's defect for the eighth time.
+
+    The deleted `ugm/hypothesis.py` had `rivals(about)`, and its docstring made
+    coexisting rivals the headline advantage over one-at-a-time supposition:
+    *two hypotheses coexist, both readable, and choosing between them is an
+    ordinary comparison.* This floor kept the first half and lost the second.
+    Two suppositions about the same symptom both cross their conclusions to the
+    same parent as `likely(q)`, and which frame produced which was recorded only
+    as the crossed entry's LICENCE -- `concluded(<frame>)`, a Python field, so no
+    rule could ask. A corpus could open rivals and then not compare them.
+
+    Same defect and same fix as `applied(<R>)` -> `exercised`, the entry's grade
+    -> the `possible` wrapper, a tool's binding -> `answers(<M>, ask)`, and the
+    effort counters -> `widened`/`reached`/`bounded`: **deposit the record.**
+
+        concluded(<frame>, <what>)     this hypothesis reached this
+
+    The discriminating case is deliberately NOT *the two rivals disagree*. Both
+    predict `wet(floor)`, which is what makes them rivals worth comparing at all;
+    what tells them apart is a prediction only one of them makes. So the join is
+    over a shared conclusion and a distinguishing one, and a record that merely
+    said *something was concluded here* would pass the first and fail the second.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        # Two rival diagnoses of one symptom. Both predict a wet floor; only the
+        # broken pipe predicts the tap losing pressure.
+        "rule <wet-a>  = implies( { +broken(pipe) },  { +wet(floor) } )",
+        "rule <wet-b>  = implies( { +spilled(jug) },  { +wet(floor) } )",
+        "rule <dry-a>  = implies( { +broken(pipe) },  { +nopressure(tap) } )",
+        # Entertained one after the other rather than nested: the second is
+        # proposed on the occasion of the first being LEFT, so both are children
+        # of the agent's own frame and their conclusions are siblings.
+        "rule <first>  = implies( { +maybe(?p) }, { +suppose(?p, likely) } )",
+        "rule <second> = implies( { +left(?f, broken(pipe)) },",
+        "                        { +suppose(spilled(jug), likely) } )",
+        # ...and the comparison, which is the line no corpus could write before.
+        "rule <blame>  = implies( { +left(?f, ?a), +concluded(?f, likely(nopressure(tap))) },",
+        "                        { +explains(?a, nopressure(tap)) } )",
+        "fact +maybe(broken(pipe))",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, src)
+    steps = m.run(limit=400)
+
+    # ⚠ By NODE, never by name. Every frame prints as `frame(moment(), moment())`,
+    # so a set of `g.show` strings collapses two rivals into one -- the twin trap
+    # this repo has recorded six times, here in an instrument rather than in the
+    # engine. Names are not identity; that is what makes them safe to print.
+    frames = {
+        m.g.member(e.proposition, 0)
+        for mm in m.chain.moments for e in mm.delta
+        if m.g.relation_of(e.proposition) is m.LEFT and e.sign == PLUS
+    }
+    check("§13", "two rival hypotheses were entertained, neither nested in the other",
+          len(frames) == 2 and steps[-1].state == "quiescent")
+    check("§16", "and both crossed the shared prediction out",
+          m.holds(kb.term("likely(wet(floor))")) == PLUS)
+
+    # ⚠ Arity-guarded, so a record that forgot the WHAT reports False instead of
+    # raising. A runner that cannot say False about an absence is the instrument
+    # bug this suite has now hit three times, and it was hit again here: the
+    # first version indexed member 1 unconditionally, so the mutation that
+    # deposits `concluded(<frame>)` alone crashed the run rather than failing.
+    recorded = {
+        (m.g.member(e.proposition, 0), m.g.show(m.g.member(e.proposition, 1)))
+        for mm in m.chain.moments for e in mm.delta
+        if m.g.relation_of(e.proposition) is m.CONCLUDED and e.sign == PLUS
+        and len(m.g.members(e.proposition)) == 2
+    }
+    check(
+        "§21",
+        "the shared conclusion is recorded against BOTH frames -- rivals agreeing is sayable",
+        len({f for f, what in recorded if what == "likely(wet(floor))"}) == 2,
+    )
+    check(
+        "§21",
+        "...and the distinguishing one against exactly one of them",
+        len({f for f, what in recorded if what == "likely(nopressure(tap))"}) == 1,
+    )
+    # The payoff, and the gate: delete the deposit and this is the check that
+    # goes out. A corpus rule discriminated between two hypotheses by what each
+    # one concluded, which is `rivals(about)`'s whole purpose.
+    check(
+        "§21",
+        "so a corpus rule can say WHICH hypothesis explains a prediction",
+        m.holds(kb.term("explains(broken(pipe), nopressure(tap))")) == PLUS,
+    )
+    check(
+        "§12",
+        "...and does not credit the rival that concluded no such thing",
+        m.holds(kb.term("explains(spilled(jug), nopressure(tap))")) is None,
+    )
+    # It is a record about the frame, not a claim about the world: bookkeeping,
+    # so a nested frame does not carry `likely(concluded(...))` out. Same
+    # treatment `left` and `quiet` get, and for the same reason.
+    # The record is bookkeeping, so a nested frame does not carry
+    # `likely(concluded(...))` out -- the treatment `left` and `quiet` get.
+    #
+    # ⚠ This needs its OWN fixture, and finding that out is the finding. Asked of
+    # the rivals above it is a check that cannot fail: they are siblings, so every
+    # `concluded` record is written at the root and no wrapper is ever in a
+    # position to reach one. A `concluded` has to be written INSIDE a frame for
+    # the crossing to have anything to wrap, and only nesting puts it there.
+    # *A fixture can only see a filter that its rules can reach* -- recorded
+    # about a one-member antecedent, arriving here from the frame side.
+    nested = chr(10).join([
+        "rule <outer>  = implies( { +ask(?p) }, { +suppose(?p, likely) } )",
+        "rule <inner>  = implies( { +a },       { +suppose(b, likely) } )",
+        "rule <derive> = implies( { +b },       { +c } )",
+        "fact +ask(a)",
+        "",
+    ])
+    m2 = Machine()
+    kb2 = load(m2, nested)
+    m2.run(limit=400)
+    likely = m2.g.relation_of(kb2.term("likely(c)"))
+    wrapped = [
+        m2.g.show(e.proposition)
+        for mm in m2.chain.moments for e in mm.delta
+        if m2.g.relation_of(e.proposition) is likely
+        and m2.g.relation_of(m2.g.member(e.proposition, 0)) is m2.CONCLUDED
+    ]
+    check(
+        "§13",
+        "a hypothesis inside a hypothesis records its conclusion in the outer one",
+        any(
+            m2.g.relation_of(e.proposition) is m2.CONCLUDED and e.sign == PLUS
+            for mm in m2.chain.moments for e in mm.delta
+        ) and m2.holds(kb2.term("likely(likely(c))")) == PLUS,
+    )
+    check(
+        "§13",
+        "...and the record is bookkeeping -- nothing carries it out of a frame wrapped",
+        not wrapped,
+    )
+
+
 def recall_is_narrowable() -> None:
     """§19's first slice: recall stops proposing everything, and what narrows it
     is a table of ordinary facts.
@@ -1394,6 +1535,125 @@ def the_better_move_wins() -> None:
         "§14",
         "and without `<relevant>` the authored order picks the useless one",
         first_corpus_move(m2) == "wander",
+    )
+
+
+def what_the_situation_is_about() -> None:
+    """`_in_play` -- the one judgement in the loop that nothing argued for.
+
+    §19 says a preference row is *matched when that key is in play* and never
+    says what **in play** means. It is `Machine._in_play`: the relations in the
+    current delta, plus each live goal's content and that content's relation.
+    A convention, in Python, that no rule can read -- and until this it had no
+    check of its own, no section, and no measurement. Every mutation of it was
+    caught only incidentally, by checks about something else.
+
+    Four variants against the same fixture as `the_better_move_wins`, which is
+    the smallest thing that can tell a goal-serving rule from a useless one.
+
+    | `_in_play` returns | first corpus move |
+    |---|---|
+    | as shipped | `toward` |
+    | nothing | `wander` |
+    | the delta only, no goals | `wander` |
+    | goals only, no delta | `toward` |
+    | everything the state asserts | `wander` |
+
+    ⭐ **The key is not a subset of what is asserted**, which is the finding and
+    the reason a sweep is not a substitute. Nothing ever claims `nearer(a)`; what
+    is claimed is `goal(nearer(a))`. So an indiscriminate pass over every
+    proposition and relation in the state -- strictly more than the shipped key
+    -- still misses the one node the preference is keyed on, because the key
+    reaches INSIDE a proposition for its argument. More is not nearer.
+
+    ⚠ And the two halves are not one idea. The goal half decides this; the delta
+    half decides nothing here, and over the whole suite it carries two checks,
+    both about the recall BUDGET rather than about arbitration. They also differ
+    in character: a goal is never denied, so the goal half already accumulates,
+    while the delta half is genuinely per-moment. Whether the first should be
+    facts is therefore open; the second could not be, on an append-only chain.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        "rule <wander> = implies( { +at(?x) }, { +wandered(?x) } )",
+        "rule <toward> = implies( { +at(?x) }, { +nearer(?x) } )",
+        "fact +at(a)",
+        "fact +goal(nearer(a))",
+        "",
+    ])
+
+    def move() -> str:
+        machine = Machine()
+        load(machine, src)
+        bundled = {r.name for r in machine.bundle}
+        for s in machine.run(limit=400):
+            if s.applied and s.applied.rule.name not in bundled:
+                return s.applied.rule.name
+        return None
+
+    def nothing(self):
+        return set()
+
+    def delta_only(self):
+        out = set()
+        for e in self.focus.seat.delta:
+            rel = self.g.relation_of(e.proposition)
+            if rel is not None:
+                out.add(rel)
+        return out
+
+    def goals_only(self):
+        out = set()
+        for s in self._state():
+            if s.sign == PLUS and self.g.relation_of(s.proposition) is self.GOAL:
+                wanted = self.g.member(s.proposition, 0)
+                out.add(wanted)
+                rel = self.g.relation_of(wanted)
+                if rel is not None:
+                    out.add(rel)
+        return out
+
+    def everything_asserted(self):
+        out = set()
+        for s in self._state():
+            rel = self.g.relation_of(s.proposition)
+            if rel is not None:
+                out.add(rel)
+            out.add(s.proposition)
+        return out
+
+    original = Machine._in_play
+    moves = {}
+    try:
+        for name, fn in (
+            ("shipped", original),
+            ("nothing", nothing),
+            ("delta-only", delta_only),
+            ("goals-only", goals_only),
+            ("everything-asserted", everything_asserted),
+        ):
+            Machine._in_play = fn
+            moves[name] = move()
+    finally:
+        # In a `finally`, because a probe that mutates and crashes before
+        # restoring is how a whole turn's edits were once thrown away. Here it
+        # would leave every later check in this run measuring a mutant.
+        Machine._in_play = original
+
+    check("§19", "the key as shipped picks the rule that serves the goal",
+          moves["shipped"] == "toward")
+    check("§19", "an empty key ranks nothing, and authored order decides again",
+          moves["nothing"] == "wander")
+    check("§19", "the GOAL half is what decides -- drop it and the useless rule wins",
+          moves["delta-only"] == "wander")
+    check("§19", "...and the delta half decides nothing here; it serves the recall budget",
+          moves["goals-only"] == "toward")
+    check(
+        "§19",
+        "⭐ the key is not a subset of what is asserted: every proposition in the "
+        "state is strictly more, and still misses the goal's content",
+        moves["everything-asserted"] == "wander",
     )
 
 
@@ -3522,13 +3782,17 @@ def doubt_is_a_tie() -> None:
         "fact +goal(at(p))",
         "",
     ])
-    def first_corpus_move(src):
+    def first_corpus_move(src, ignore=()):
         machine = Machine()
         load(machine, src)
-        bundled = {r.name for r in machine.bundle}
+        # `ignore` is for a corpus rule that is apparatus rather than a
+        # competitor -- a `standing` rule that denies a preference is not one of
+        # the moves being chosen between, and counting it as the first move
+        # measures the wrong thing.
+        skip = {r.name for r in machine.bundle} | set(ignore)
         first = None
         for s in machine.run(limit=600):
-            if first is None and s.applied and s.applied.rule.name not in bundled:
+            if first is None and s.applied and s.applied.rule.name not in skip:
                 first = s.applied.rule.name
         return first, machine
 
@@ -3602,6 +3866,59 @@ def doubt_is_a_tie() -> None:
         "R4",
         "a rule can widen doubt when the step is irreversible -- the knob is arguable",
         doubted(m4),
+    )
+
+    # ⚠⚠ Two properties of the table that the `forest` commit got wrong, measured
+    # here so the record cannot drift again.
+    #
+    # `_priority` resolves each row through the chain and requires `+`, so a
+    # preference is an ordinary DENIABLE claim. `forest` concluded that the
+    # ensemble "has a way for advice to accumulate and no way for it to be
+    # overruled"; the second half is false, and the experiment simply never
+    # reached for the mechanism.
+    denied = stronger + "fact -prefer(<byB>, at(p), 5)" + chr(10)
+    check(
+        "§12",
+        "a preference row is deniable -- advice can be overruled, not only outweighed",
+        first_corpus_move(denied)[0] == "byA",
+    )
+    vetoed = stronger + chr(10).join([
+        "rule <veto> = implies( { +b(?x) }, { -prefer(<byB>, at(?x), 5) } )",
+        "fact standing(<veto>)",
+        "",
+    ])
+    check(
+        "§19",
+        "...and by a rule, not only by a fact -- so overruling is itself arguable",
+        first_corpus_move(vetoed, ignore=("veto",))[0] == "byA",
+    )
+    # ⭐⭐ And the sharper reason bagging failed, which is R7 rather than the
+    # combination rule: propositions intern, so the SAME row twice is one node.
+    #
+    # > An ensemble's agreement is invisible and only its disagreement adds.
+    #
+    # Two trees that learned the same row contribute once; two that learned
+    # different scores accumulate. That is why the summation is left alone -- it
+    # is a representation fact, not a policy choice.
+    twice = stronger + chr(10).join([
+        "fact +prefer(<byA>, at(p), 3)",
+        "fact +prefer(<byA>, at(p), 3)",
+        "",
+    ])
+    check(
+        "R7",
+        "the same preference row twice is ONE proposition -- 3 and 3 do not make 6",
+        first_corpus_move(twice)[0] == "byB",
+    )
+    distinct = stronger + chr(10).join([
+        "fact +prefer(<byA>, at(p), 3)",
+        "fact +prefer(<byA>, at(p), 4)",
+        "",
+    ])
+    check(
+        "§19",
+        "...while two DISTINCT rows do sum, and outweigh the stronger single row",
+        first_corpus_move(distinct)[0] == "byA",
     )
 
 
@@ -4048,8 +4365,10 @@ def main() -> int:
     mention_propagates()
     surprise_is_four_rows()
     callbacks_on_a_hypothesis()
+    rival_hypotheses_are_comparable()
     recall_is_narrowable()
     the_better_move_wins()
+    what_the_situation_is_about()
     crossing_opens_hypotheses()
     a_hypothesis_does_not_happen()
     an_action_is_substituted_by_its_outcome()

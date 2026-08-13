@@ -554,7 +554,17 @@ def main() -> int:
   ⚠ And the signal is one episode deep. Nothing here weighs a route that
   usually works against one that worked once, because a second `prefer` row for
   the same rule and key does not accumulate -- restating is not revising (§8).
-  That is the next thing to measure, not to assume.""")
+
+  ⭐⭐ MEASURED (08-13), and it explains something in a different file. Two
+  IDENTICAL rows are one proposition, so `3 and 3` scores 3; two DISTINCT rows
+  sum, so `3 and 4` scores 7 and outweighs a single 5. Both are checks now. That
+  is also the real reason `forest` failed: its verdict was `summation is not
+  voting`, and the sharper statement is
+
+  > An ensemble's agreement is invisible and only its disagreement adds.
+
+  So this note and that verdict were the same fact, filed as a known limitation
+  in one file and as an unexplained failure in the other.""")
     return 1 if failing else 0
 
 

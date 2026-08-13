@@ -453,6 +453,7 @@ class Machine:
             "enough": self.ENOUGH, "stopped": self.STOPPED, "open": self.OPEN,
             "helped": self.HELPED, "harmed": self.HARMED,
             "forgone": self.FORGONE, "exercised": self.EXERCISED,
+            "concluded": self.CONCLUDED,
             "root": self.ROOT, "rooted": self.ROOTED,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "scoped": self.SCOPED, "loaded": self.LOADED,
@@ -572,7 +573,7 @@ class Machine:
                              self.NEED, self.CHECK, self.UNMET,
                              self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
                              self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED, self.HARMED,
-                             self.FORGONE, self.EXERCISED,
+                             self.FORGONE, self.EXERCISED, self.CONCLUDED,
                              self.ROOT, self.ROOTED,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
@@ -1995,6 +1996,25 @@ class Machine:
         out: List[Entry] = []
         parent = frame.parent or frame
         self.focus = parent
+        # Which hypothesis produced which conclusion. It was already recorded --
+        # as the crossed entry's LICENCE, `concluded(<frame>)` -- and a licence
+        # is a Python field on the entry, so no rule could ask. §21's defect for
+        # the eighth time, and it closes the way the other seven did: deposit the
+        # record. `applied(<R>)` became `exercised`, the entry's grade became a
+        # wrapper, a tool's binding became `answers`, the effort counters became
+        # `widened`/`reached`/`bounded`.
+        #
+        # What it buys is the one thing `hypothesis.py`'s `rivals(about)` had and
+        # this floor did not: two suppositions about the same thing both cross
+        # their conclusions to the same parent as `likely(q)`, and until now
+        # nothing said which came from where -- so a corpus could open rivals and
+        # not compare them. `+left(?f, ?a), +concluded(?f, ?c)` is now a join.
+        #
+        # Deduped per discharge, and it is a claim about the frame rather than a
+        # count: a proposition concluded twice inside crossed once, and says so
+        # once. Bookkeeping, so a nested frame does not carry
+        # `likely(concluded(...))` out -- the same treatment `left` gets.
+        recorded: set = set()
         for moment in reversed(inside):
             for e in moment.delta:
                 if e.licence == assumption_licence:
@@ -2013,10 +2033,11 @@ class Machine:
                 sign = e.sign
                 if sign == MINUS:
                     inner, sign = self.g.rel(self.NOT, e.proposition), PLUS
+                crossed = self.g.rel(wrap, inner)
                 out.append(
                     self.gate.write(
                         parent,
-                        self.g.rel(wrap, inner),
+                        crossed,
                         sign,
                         grade=e.grade,
                         licence=self.g.rel(self.CONCLUDED, frame.node),
@@ -2030,6 +2051,16 @@ class Machine:
                         mention=e.mention,
                     )
                 )
+                # PLUS whatever the conclusion's own sign was: this is not the
+                # claim, it is the record that this frame reached it. A frame
+                # that concluded `?q` still concluded something.
+                if crossed not in recorded:
+                    recorded.add(crossed)
+                    self.gate.write(
+                        parent, self.g.rel(self.CONCLUDED, frame.node, crossed), PLUS,
+                        licence=self.g.rel(self.CONCLUDED, frame.node),
+                        source=self.KB, mention=True,
+                    )
         frame.state = "discharged"
         frame.carried = out
         return out

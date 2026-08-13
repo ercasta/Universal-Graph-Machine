@@ -1,6 +1,70 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **373 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **390 checks, 0 failing**; every instrument green.
+
+## Latest: **the sanity check — would a Rust port have to reason?** Commit `named`.
+
+The user's question, and answering it honestly meant auditing rather than asserting. **Mostly no.** A
+port is `graph`/`chain`/`gate`/`rules`/`tick` — five primitives, nine write-hooks, three guards, a
+parser — and every policy is `bundle.ugm` and the corpus. The three refusals and the six answerers
+are each argued. Two things were **not**, and both are now closed.
+
+⭐⭐⭐ **`_in_play` was the one judgement in the loop nobody had argued for.** §19 says a row is
+*matched when that key is in play* and never said what **in play** means. Measured five ways, on the
+smallest fixture that can tell a goal-serving rule from a useless one:
+
+| `_in_play` returns | first move | whole suite |
+|---|---|---|
+| **as shipped** | `toward` | 0 failing |
+| nothing | `wander` | 9 |
+| the delta only | `wander` | 7 |
+| goals only | `toward` | **2** |
+| everything the state asserts | `wander` | 7 |
+
+> ⭐ **The key is not a subset of what is asserted.** Nothing ever claims `nearer(a)`; what is claimed
+> is `goal(nearer(a))`. A pass over every proposition *and* every relation in the state — strictly
+> more than the shipped key — still misses the node the preference is keyed on, because the key
+> reaches **inside** a proposition for its argument. More is not nearer.
+
+⚠ **And the two halves are not one idea.** The goal half carries seven of the nine checks; the delta
+half carries two, both about the recall **budget** rather than arbitration. They differ in kind too:
+a goal is never denied, so the goal half **already accumulates**, while the delta half is genuinely
+per-moment. So *make the key facts* is **half available** — the delta half could not be, on an
+append-only chain; the goal half already is in that condition, and whether it should move is now open
+rather than closed. ⚠ I first said the transience argument killed the whole idea; it kills one half.
+
+⭐⭐⭐ **`concluded(<frame>, <what>)` — §21's defect for the EIGHTH time**, found by reading the
+deleted `ugm/hypothesis.py`. Its `rivals(about)` made coexisting rivals the headline advantage over
+one-at-a-time supposition; this floor kept the coexisting and lost the comparing. Every crossed
+conclusion has carried the licence `concluded(<frame>)` since discharge was written — so `why()`
+could always answer *which hypothesis produced this*, and **no rule could**, because a licence is a
+field on the entry. Same fix as the seven before it: deposit the record.
+
+    { +left(?f, ?a), +concluded(?f, likely(nopressure(tap))) } ⟹ { +explains(?a, nopressure(tap)) }
+
+The fixture is two diagnoses that **agree** on a wet floor and differ on one prediction, because
+rivals that disagree about everything need no comparing. Four kill-probes, each failing exactly its
+own check: dropping the deposit (4), recording only `concluded(<frame>)` without the what (3), and
+taking it out of `_bookkeeping` (4).
+
+⚠⚠ **Two instrument bugs, both this repo's own recorded traps, in checks written minutes after
+discussing them.** Rival frames were compared by `g.show` — and every frame prints as
+`frame(moment(), moment())`, so a set of names collapsed two rivals into one; **the twin trap, seventh
+time.** And the arity-1 mutation **crashed** the runner instead of failing it, because the check
+indexed member 1 unconditionally — *a runner has to be able to say False about an absence*, third time.
+
+⚠⚠⚠ **And one check could not fail: the bookkeeping one.** Asked of the rivals it is vacuous — they
+are **siblings**, so every `concluded` record is written at the root and no wrapper is ever in a
+position to reach one. It needed its own nesting fixture. *A fixture can only see a filter that its
+rules can reach*, recorded about a one-member antecedent, arriving again from the frame side.
+
+⭐ **What the two deleted modules settle about the port.** `query.py`'s `is_pure` — 45 lines of
+transitive static analysis proving a function never reaches the world — was **not ported, it was made
+unnecessary**: there are no function bodies, and `_hypothetical` refuses to dispatch inside a
+supposition. `hypothesis.py`'s `variant`/`backup`/`restore` went the same way: an append-only chain
+has nothing to back up. ⚠ One thing did **not** survive and is now named: `refutes` handled
+*incompatibility*, and this floor has no vocabulary for it — you can deny a proposition, you cannot
+say two propositions are incompatible.
 
 ## The day in one page
 
@@ -830,6 +894,34 @@ falsifies the claim it was built on — recorded rather than quietly fixed.
 > Here every tree's rows are **added**, so one bag that pruned to an unconditional `prefer` fires in
 > every situation and **cannot be outvoted** by the two trees that learned the condition. The ensemble
 > has a way for advice to accumulate and no way for it to be overruled.
+
+⚠⚠⚠ **CORRECTED 08-13, and the last sentence was wrong.** Probed directly: `_priority` resolves each
+row through the chain and requires `+`, so **a `prefer` row is an ordinary deniable claim** —
+`-prefer(<byB>, at(p), 5)` restores the loser, and so does a `standing` rule concluding the denial.
+The overrule mechanism was there all along; the forest experiment never reached for it.
+
+⭐⭐ **And the real defect is one layer down, in R7 rather than in the combination rule.** Measured:
+
+| | first move |
+|---|---|
+| `B:5` vs `A:3` **and** `A:3` (the same row twice) | `byB` — 3+3 = **3** |
+| `B:5` vs `A:3` **and** `A:4` (distinct rows) | `byA` — 3+4 = 7 |
+
+Two identical rows are **one proposition**, because propositions intern. So:
+
+> **An ensemble's agreement is invisible and only its disagreement adds.** Two trees that learned
+> the same row contribute once; two that learned different scores for the same rule accumulate.
+
+That is a sharper reason bagging failed than *summation is not voting*, and it is a **representation**
+fact rather than a policy choice — which is why `_priority`'s summation is left alone.
+
+⚠ **And it was already written down, in the other file, about the other question.** `ugm.learning`
+has said since `induce` that *a second `prefer` row for the same rule and key does not accumulate —
+restating is not revising (§8)*, filed as a limit on **frequency** (nothing weighs a route that
+usually works against one that worked once) and closing with *that is the next thing to measure, not
+to assume*. Nobody joined it to `forest`'s verdict two commits later. **The same property was a known
+limitation in one file and an unexplained failure in another**, and what closed the gap was measuring
+the note rather than re-deriving the verdict.
 
 ⚠ I claimed the opposite two commits earlier — *combination is already the mechanism, a set of shallow
 rules is a forest natively*. Summation makes an ensemble; it does not make **bagging** sound.
