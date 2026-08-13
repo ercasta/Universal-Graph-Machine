@@ -1,6 +1,70 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **412 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **417 checks, 0 failing**; every instrument green.
+
+## Latest: **a join is not a scan — the SECOND quadratic**. Commit `join`.
+
+`pystrider` sent feedback (`../pystrider/docs/feedback_restart.md`) and its §1 is a finding this repo
+had no way to reach: **there are two quadratics, and `quiet`, `weigh`, `heap` and `kept` all fix the
+other one.** Everything measured here so far has been the *option set* — n ticks, each weighing what
+could apply. Theirs has a **constant option set** and does its damage inside a single tick:
+
+    rule <s1> = implies( { +child(?p, ?x), +child(?x, ?y) }, { +grand(?p, ?y) } )
+
+⭐⭐⭐ **One tick cost 2,006,004 unifications over 1,000 facts**, with `proposed` at 18 and `applied` at
+1. Reproduced here before anything was changed, and their diagnosis was exactly right: `candidates`
+keyed on `(sign, relation)` and nothing else, so member 1 drew **every** instance of `child` for each
+of member 0's N bindings.
+
+| over 1,000 facts | `unify` calls | |
+|---|---|---|
+| as reported | 2,006,004 | |
+| filed by argument too | 6,004 | |
+| ...and the delta's pivot walked first | **3,003** | **668×** |
+| the same, over a 1,000-node tree that actually matches | 4,994,004 → **6,993** | **714×**, 6.60s → 0.40s |
+
+**Two changes, and the second matters as much as the first.** An entry is now also filed under each of
+its arguments — `(sign, relation, position, node)` — and a member whose argument is bound looks there.
+But an argument index is no use to the member that has bound *nothing* yet, so a pass pivoting on
+member 1 still scanned the whole state for member 0, and a corpus deriving one fact per tick stayed
+quadratic. **So the pivot is walked first**, and every other member is narrowed by what it bound.
+
+⚠ **`pystrider` flagged the risky half correctly and it turned out not to be needed.** They asked
+whether member order is free to be chosen, since §18's tiebreaks read the consumed entries. The
+answer is that **the walk may be reordered and the antecedent may not**: `consumed` is filled by
+member *position*, so §12's trail and `heap`'s stamp see exactly what authored order gives them. And
+the narrowing itself removes only candidates `unify` would have rejected, so the matching candidates
+and their order are **identical** — which is why nothing downstream had to change.
+
+⚠⚠ **Atoms only, and that restriction is load-bearing rather than cautious.** `unify` compares a
+ground *structure* member by member, so it accepts a structurally equal node that is not the same
+node — the twin trap — and an identity-keyed bucket drops those. Kill-probed: narrow on structured
+members too and **4 checks fail**, all of them supposition checks, where the members are frames and
+propositions. Filing them is also 4% of the suite for a bucket nothing can ever read.
+
+⚠⚠⚠ **And one invariant here can be broken with the whole suite still green.** Filling `consumed` in
+*walk* order instead of member order: **0 failing**, and `ugm.arbitration` cannot see it either,
+because it compares two paths that would permute alike. So that one is asserted **directly** — a
+match whose delta holds member 1's entry only, so the pivot-first walk actually runs. ⚠ My first
+version of that check handed it the whole state, where pivot 0 finds the application and the dedup
+drops pivot 1's — so the walk under test never ran and the check passed vacuously.
+
+**What it costs, stated rather than buried:** the `edge` chain 0.50s → **0.58s** at 1,600 (+16%), the
+suite 6.20s → 6.39s (+3%). That is the price of maintaining the argument buckets on every deposit, and
+it buys 300–700× on the shape `pystrider` says their whole corpus has.
+
+**Their §4, also closed:** an answerer registered with the wrong arity raised
+`TypeError: takes 2 positional arguments but 3 were given` out of `gate.write`, at the first write,
+naming neither the tool nor the registration. It is refused **at registration** now, naming itself —
+one place, so both doors get it — and `Loader.answerer` documents the protocol, since it is the door
+every note tells people to use.
+
+**Their §2 and §3 need nothing.** §2 is `weigh`'s *the benchmark that defined the wall is the
+unrepresentative case*, derived independently from the other side — and their §1 is offered as a third
+shape rather than the true one, which is the right reading. §3 adopts `artefact`'s *composing the text
+is a function, so rendering is a tool*; the difference they name — their tool renders an artefact it
+did not compose, so it is closer to `_verdict` than to a corpus function — is a real one and does not
+change anything here.
 
 ## Latest: **the loop stops looking at the whole state — and it is LINEAR**. Commit `kept`.
 

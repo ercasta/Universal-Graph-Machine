@@ -13,6 +13,7 @@ where being wrong is recoverable -- so the seam is here, the table is data, and
 the learning is not.
 """
 
+import inspect
 import heapq
 import os
 from typing import Iterable, List, NamedTuple, Optional, Tuple
@@ -1836,6 +1837,28 @@ class Machine:
         # answers a request nobody can write -- measured, and it is the twin trap
         # for the third time this session. `Loader.answerer` is the scoped door;
         # a bare string is right only for a relation `reserved` already carries.
+        # ⚠⚠ **And the protocol is checked HERE, at the one place both doors go
+        # through.** Reported by `pystrider`, who registered a two-argument
+        # function through the scoped door and got
+        # `TypeError: <lambda>() takes 2 positional arguments but 3 were given`
+        # out of `gate.write`, at the first write, with nothing saying the
+        # registration was the problem -- one cycle to find. The mistake is easy
+        # to make because the apparatus's own reifier registers `(frame, entry)`
+        # and wraps it, so both arities are visible in this file.
+        #
+        # A registration is a declaration, and §5 says a silence is the defect:
+        # this refuses it at the moment the claim is made, which is the only
+        # moment the caller is looking at it.
+        try:
+            inspect.signature(fn).bind(None, None, None)
+        except TypeError:
+            raise TypeError(
+                f"answerer {name!r} does not take (machine, frame, entry) -- an "
+                f"answerer is called with three arguments and returns the answer "
+                f"node, or None for *I have nothing to say*"
+            ) from None
+        except (ValueError, AttributeError):
+            pass  # a builtin or C callable has no signature to read; let it run
         rel = request if isinstance(request, int) else (
             self.reserved.get(request) or self.g.atom(request))
         node = self.g.atom(name)

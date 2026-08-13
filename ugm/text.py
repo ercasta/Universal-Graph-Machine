@@ -467,6 +467,12 @@ class Loader:
 
         Registered before `load`, because a rule may name the tool (`<oracle>`)
         and `<...>` is resolved at authoring.
+
+        `fn(machine, frame, entry)` returns the answer node, or `None` for *I
+        have nothing to say*. ⚠ Said here as well as on `Machine.answerer`
+        because this is the door the note above tells everyone to use, and a
+        reader who never opens the other one has no way to learn the arity from
+        the one they are told to call.
         """
         a = self.m.answerer(name, self.atom(request), fn)
         if name in self.rule_nodes:

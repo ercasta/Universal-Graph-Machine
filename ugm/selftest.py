@@ -3407,6 +3407,113 @@ def matching_is_incremental() -> None:
           c.holds(kbc.term("z(a)")) == PLUS)
 
 
+def a_join_is_not_a_scan() -> None:
+    """A rule joined against itself over one relation -- **what recognition is**.
+
+        rule <s1> = implies( { +child(?p, ?x), +child(?x, ?y) }, { +grand(?p, ?y) } )
+
+    Reported by `pystrider`, who read the index and predicted the cause before
+    measuring it, and it was a SECOND quadratic: `quiet`, `weigh`, `heap` and
+    `kept` all address the option set -- n ticks, each weighing what could
+    apply -- and this one has a **constant** option set and does its damage
+    inside one tick. Keyed on the relation alone, member 1 draws every instance
+    of `child` for each of member 0's N bindings.
+
+    | over 1,000 facts | `unify` calls |
+    |---|---|
+    | as reported | 2,006,004 |
+    | filed by argument too | 6,004 |
+    | ...and the delta's pivot walked first | **3,003** |
+
+    Two changes, and the second matters as much as the first: an argument index
+    is no use to the member that has bound nothing yet, so a pass pivoting on
+    member 1 still scanned the whole state for member 0. Walking the pivot first
+    means every other member is narrowed by what it bound.
+
+    ⚠ **What is reordered is the WALK, never the antecedent.** `consumed` is
+    filled by member position, so §12's trail and `heap`'s stamp see exactly
+    what authored order gives them; `ugm.arbitration` compares the move on every
+    tick of every fixture and `ugm.state` the index it read.
+    """
+    from . import rules as R
+    from .text import load
+
+    def counted(n: int):
+        """(unifications, grandparent conclusions) over a binary tree."""
+        src = ["rule <s1> = implies( { +child(?p, ?x), +child(?x, ?y) }, "
+               "{ +grand(?p, ?y) } )"]
+        src += [f"fact +child(n{i // 2}, n{i})" for i in range(1, n)]
+        m = Machine()
+        kb = load(m, chr(10).join(src) + chr(10))
+        calls = [0]
+        original = R.unify
+
+        def counting(g, pattern, node, bindings):
+            calls[0] += 1
+            return original(g, pattern, node, bindings)
+
+        R.unify = counting
+        try:
+            m.run(limit=n * 4 + 50)
+        finally:
+            # In a `finally`: a probe that mutates a module and crashes leaves
+            # every later check in this run counting into a dead list.
+            R.unify = original
+        # ⚠ Ground instances that are CLAIMED, not `instances_of` -- the rule's
+        # own consequent `grand(?p, ?y)` is an instance of the relation and
+        # holds nothing, and counting it read 99 where the answer is 98. The
+        # same miscount this file has recorded once already; and `g.atom` mints
+        # rather than interns, so the relation is taken off a real term.
+        rel = m.g.relation_of(kb.term("grand(n0, n2)"))
+        return calls[0], sum(
+            1 for p in m.g.instances_of(rel)
+            if not m.g.has_var(p) and m.holds(p) == PLUS
+        )
+
+    small_calls, small_found = counted(100)
+    large_calls, large_found = counted(200)
+
+    # ⭐ The claim is the SHAPE, because a count on one size cannot tell a scan
+    # from a lookup. Doubling the tree doubles the work; before it quadrupled.
+    check("§7", "a self-join is linear in the corpus: twice the facts costs "
+          "about twice the unification, where it used to cost four times",
+          0 < small_calls and large_calls < small_calls * 3)
+    # ...and the control that makes it an optimisation rather than a change: a
+    # narrowed candidate list must lose only what `unify` would have rejected.
+    # Every node with a grandchild, and nothing else.
+    check("§7", "...and it finds every grandparent it used to: narrowing drops "
+          "only what would have failed to unify",
+          (small_found, large_found) == (98, 198))
+
+    # ⚠⚠⚠ **And `consumed` is filled by MEMBER, not by the order walked.** This
+    # needs its own check because no outcome can show it: permuting `consumed`
+    # permutes `heap`'s stamp and §12's trail, and the suite -- and
+    # `ugm.arbitration`, which compares two paths that would permute alike --
+    # both pass with it broken. Kill-probed exactly that way, 0 failing, which
+    # is why the invariant is asserted here directly rather than through what
+    # the agent concludes.
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <j> = implies( { +a(?x), +b(?x) }, { +c(?x) } )",
+        "fact +a(t)", "fact +b(t)", ""]))
+    state = m._situation()
+    (rule,) = [r for r in m.rules.rules if r.name == "j"]
+    # ⚠ The delta holds member 1's entry ONLY, which is the case that walks
+    # member 1 before member 0. Handing it the whole state instead finds the
+    # application on the first pivot and dedups the second away -- so the walk
+    # under test never runs, and the check passes vacuously. It did.
+    later = m.chain.resolve(kb.term("b(t)"), m.focus.topic, m.focus.seat)
+    found = R.match(m.g, m.chain, rule, m.focus.topic, m.focus.seat, state,
+                    fresh=R.Situation(m.g, [later]))
+    rel_of = lambda e: m.g.relation_of(e.proposition)
+    check("§12", "however the join is walked, the trail records what each "
+          "ANTECEDENT MEMBER matched, in the order the rule was written",
+          len(found) == 1
+          and all(rel_of(app.consumed[0]) is m.g.relation_of(kb.term("a(t)"))
+                  and rel_of(app.consumed[1]) is m.g.relation_of(kb.term("b(t)"))
+                  for app in found))
+
+
 def the_apparatus_eats_its_own_cooking() -> None:
     """§21: `answers(<M>, ask)` was built so a TOOL's binding could be data, and
     it shipped with **zero apparatus users**. Every request the machinery
@@ -3596,6 +3703,27 @@ def a_tool_is_data() -> None:
           "lets one walk supervise rules and tools together",
           "oracle" in {r.name for r, _ in bad.blame()})
     check("§19", "a tool that advised well is not blamed", not good.blame())
+
+    # ⚠ And the registration says so when it is wrong. Reported by `pystrider`:
+    # a two-argument function registered through the scoped door raised out of
+    # `gate.write` at the first write, naming neither the tool nor the
+    # registration -- one cycle to find, and easy to write because the
+    # apparatus's own reifier takes `(frame, entry)` and wraps it.
+    from .machine import Machine as _Machine
+    from .text import load as _load
+    refused = _Machine()
+    kb_r = _load(refused, "fact +nothing(x)\n")
+    try:
+        kb_r.answerer("stub", "guess", lambda frame, entry: None)
+        raised = ""
+    except TypeError as exc:
+        raised = str(exc)
+    check("§5", "an answerer that cannot take (machine, frame, entry) is refused "
+          "AT REGISTRATION, naming itself -- not at the first write, from inside "
+          "the gate", "stub" in raised and "machine, frame, entry" in raised)
+    check("§5", "...and the three-argument one it should have been is accepted, "
+          "so the refusal is about arity and not about tools",
+          kb_r.answerer("ok", "guess", lambda m, f, e: None) is not None)
 
     # The restriction that makes an unreliable tool safe to be wrong.
     from .machine import Machine
@@ -4787,6 +4915,7 @@ def main() -> int:
     the_state_is_kept_not_rebuilt()
     a_scope_can_span_documents()
     matching_is_incremental()
+    a_join_is_not_a_scan()
     the_apparatus_eats_its_own_cooking()
     a_rule_says_that_it_ran()
     a_tool_is_data()

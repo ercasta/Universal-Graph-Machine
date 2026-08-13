@@ -50,6 +50,22 @@ class Rule:
         # is the source. Without this a rule that ATTACHES a rule to something is
         # dropped by quiescence -- silently, and only at `_would_change`.
         self.mentions = mentions
+        self._orders: Optional[List[Tuple[int, ...]]] = None
+
+    def walk_order(self, pivot: Optional[int]) -> Tuple[int, ...]:
+        """Which order `match` walks the antecedent in, for a given pivot.
+
+        The pivot first and the rest in authored order, so every later member is
+        narrowed by what the delta's member bound. Cached on the rule because it
+        depends on nothing else: built once, and `match` asked for it 40,000
+        times in a 1,600-fact run.
+        """
+        if self._orders is None:
+            w = len(self.antecedent)
+            self._orders = [tuple(range(w))] + [
+                (p,) + tuple(i for i in range(w) if i != p) for p in range(w)
+            ]
+        return self._orders[0 if pivot is None else pivot + 1]
 
     def __repr__(self) -> str:
         return f"<{self.name or self.connective}>"
@@ -488,6 +504,35 @@ class Situation:
     order any more. It is kept because it is what the walk says and this is a
     replacement for the walk -- not because a check would notice. `ugm.state`
     is what notices.
+
+    ⭐⭐⭐ **And by ARGUMENT POSITION, which is the second index and a different
+    quadratic.** Keyed on the relation alone, a member that has already bound
+    one of its arguments still draws every instance of that relation and unifies
+    each: `{ +child(?p, ?x), +child(?x, ?y) }` over N facts is N candidates for
+    each of N bindings, so **one tick costs 2N² unifications** with no option set,
+    no arbitration and no candidate walk involved. Reported from `pystrider`,
+    who measured it as the shape their whole corpus has -- *a broad structural
+    join over one relation is not a corner of what recognition does, it is what
+    recognition IS* -- and reproduced here before anything was changed.
+
+    So an entry is also filed under each of its arguments: `(sign, relation,
+    position, node)`. A member whose argument is bound looks there instead, and
+    the join becomes O(N × matches).
+
+    ⚠ **Only when the argument is an ATOM**, and that is soundness rather than
+    conservatism. `unify` compares a ground *structure* member-by-member, so it
+    accepts a structurally equal node that is not the same node -- the twin
+    trap, which this repo has recorded six times -- and an index keyed on
+    identity would silently drop those. An atom has no members and no relation,
+    so `unify` reduces to identity for it and the bucket is exactly the set that
+    could match.
+
+    ⭐ **The narrowing keeps the ORDER**, which is why nothing else had to change:
+    every candidate it removes is one `unify` would have rejected, so the
+    matching candidates and their sequence are identical. `pystrider` flagged
+    picking the narrowest MEMBER as the risky part -- it reorders the antecedent,
+    and §18's tiebreaks read the consumed entries -- and it is not needed: the
+    narrowing is per member, in the authored order.
     """
 
     ANY = "*"  # the bare-variable bucket; a relation is a NodeId, so no collision
@@ -503,8 +548,24 @@ class Situation:
         for e in reversed(list(entries)):
             self.add(e)
 
-    def _keys(self, e: Entry) -> Tuple[Tuple[str, object], Tuple[str, object]]:
-        return (e.sign, self.g.relation_of(e.proposition)), (e.sign, self.ANY)
+    def _keys(self, e: Entry) -> List[Tuple]:
+        rel = self.g.relation_of(e.proposition)
+        keys = [(e.sign, rel), (e.sign, self.ANY)]
+        if rel is not None:
+            # ⚠ Atoms here too, and for the same reason read from the other end:
+            # the only thing that ever looks in one of these buckets is a
+            # pattern member that is an atom, and an atom cannot equal a
+            # structure. Filing the structured members as well is a bucket per
+            # deposit that nothing can ever read -- worth 4% of the suite
+            # (6.60s against 6.33s), which is small and is the whole of it: I
+            # first wrote 15% here from two runs that differed in another way
+            # as well, and the A/B says otherwise.
+            keys += [
+                (e.sign, rel, i, m)
+                for i, m in enumerate(self.g.members(e.proposition))
+                if self.g.relation_of(m) is None and not self.g.members(m)
+            ]
+        return keys
 
     def add(self, e: Entry) -> None:
         """Claim `e`, at the newest end."""
@@ -531,16 +592,56 @@ class Situation:
             self._entries = list(reversed(self._order.values()))
         return self._entries
 
-    def candidates(self, g: Graph, want: Member) -> List[Entry]:
-        key = (want.sign, self.ANY if g.is_var(want.pattern)
-               else g.relation_of(want.pattern))
+    def candidates(
+        self, g: Graph, want: Member, bindings: Optional[Dict[NodeId, NodeId]] = None
+    ) -> List[Entry]:
+        if g.is_var(want.pattern):
+            key: Tuple = (want.sign, self.ANY)
+        else:
+            rel = g.relation_of(want.pattern)
+            key = (want.sign, rel)
+            if rel is not None and bindings:
+                key = self._narrowest(g, want, rel, bindings, key)
+                if key is None:
+                    return []  # nothing claims that argument there
+        return self.bucket(key)
+
+    def bucket(self, key: Tuple) -> List[Entry]:
+        """One bucket, newest-first. Split out from `candidates` because it is
+        the half that is MAINTAINED -- choosing the key is a pure function of
+        the pattern -- and so it is the half `ugm.state` compares."""
         out = self._read.get(key)
         if out is None:
-            bucket = self._by.get(key)
-            if bucket is None:
+            held = self._by.get(key)
+            if held is None:
                 return []
-            out = self._read[key] = list(reversed(bucket.values()))
+            out = self._read[key] = list(reversed(held.values()))
         return out
+
+    def _narrowest(self, g, want, rel, bindings, key):
+        """The smallest bucket an already-bound argument gives, or `key`.
+
+        `None` means an argument is bound to something nothing claims in that
+        position, so there are no candidates at all -- which is the case worth
+        having: the answer is reached without touching a single entry.
+        """
+        best = None
+        for i, m in enumerate(g.members(want.pattern)):
+            if g.is_var(m):
+                m = bindings.get(m)
+                if m is None:
+                    continue  # not bound yet; this member says nothing here
+            # ⚠ Atoms only: `unify` reduces to identity for a node with no
+            # relation and no members, and to a structural comparison for
+            # anything else -- which can accept a twin an identity key drops.
+            if g.relation_of(m) is not None or g.members(m):
+                continue
+            bucket = self._by.get((want.sign, rel, i, m))
+            if bucket is None:
+                return None
+            if best is None or len(bucket) < best:
+                best, key = len(bucket), (want.sign, rel, i, m)
+        return key
 
 
 def match(
@@ -579,32 +680,54 @@ def match(
     ⚠ The delta is a `Situation` like any other, so this adds no representation.
     §4 already says *a moment is a signed delta*; the matcher simply had not
     been reading it that way.
+
+    ⭐⭐⭐ **And the pivot is walked FIRST**, which is what makes the delta pass
+    cost what the delta costs. Walked in authored order, a pass pivoting on
+    member 1 draws member 0 from the whole state before it ever reaches the
+    delta -- so a corpus deriving one fact per tick pays O(state) per tick and
+    the join is quadratic again, in the one shape `Situation`'s argument index
+    cannot help with. Measured: 4,994,004 unifications over a 1,000-node tree,
+    of which the index removed a third and the ordering removed the rest.
+
+    ⚠ **What may be reordered is the WALK, never the antecedent.** `consumed` is
+    filled by member position, so §12's trail and `heap`'s stamp -- which reads
+    the consumed entries' nodes -- see exactly what authored order would have
+    given them. What does change is the order applications are *discovered* in,
+    and that is measured not to be load-bearing: since `heap` nothing reads it,
+    and `ugm.arbitration` compares the move on every tick of every fixture.
     """
     if state is None:
         state = Situation(g, current_state(chain, locus, seat))
     results: List[Application] = []
     seen: set = set()
+    width = len(rule.antecedent)
 
     def run(pivot: Optional[int]) -> None:
-        def step(
-            i: int, bindings: Dict[NodeId, NodeId], consumed: Tuple[Entry, ...]
-        ) -> None:
-            if i == len(rule.antecedent):
+        # The pivot first, then the rest in authored order. With `pivot` None
+        # this is authored order, and the full match is untouched.
+        order = rule.walk_order(pivot)
+        slots: List[Optional[Entry]] = [None] * width
+
+        def step(j: int, bindings: Dict[NodeId, NodeId]) -> None:
+            if j == width:
                 if pivot is not None:
                     k = (rule.node, frozenset(bindings.items()))
                     if k in seen:
                         return
                     seen.add(k)
-                results.append(Application(rule, bindings, consumed))
+                results.append(Application(rule, bindings, tuple(slots)))
                 return
+            i = order[j]
             want = rule.antecedent[i]
-            source = fresh if (pivot is not None and i == pivot) else state
-            for e in source.candidates(g, want):
+            source = fresh if i == pivot else state
+            for e in source.candidates(g, want, bindings):
                 b = unify(g, want.pattern, e.proposition, bindings)
                 if b is not None:
-                    step(i + 1, b, consumed + (e,))
+                    slots[i] = e
+                    step(j + 1, b)
+            slots[i] = None
 
-        step(0, {}, ())
+        step(0, {})
 
     if fresh is None:
         run(None)

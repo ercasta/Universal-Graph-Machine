@@ -51,27 +51,8 @@ import io
 
 from .chain import PLUS
 from .machine import Machine
-from .rules import Member, Situation, current_state
+from .rules import Situation, current_state
 
-
-class _Ask:
-    """A stand-in graph, so a bucket can be asked for through the read path.
-
-    `candidates` takes the pattern's two properties off the graph, and this
-    instrument has a bucket rather than a pattern. Minting a variable to ask
-    with would be an instrument depositing in the graph it is measuring -- node
-    identities are the arbitration stamps -- so it answers the two questions
-    directly and touches nothing.
-    """
-
-    def __init__(self, is_var: bool, rel) -> None:
-        self._var, self._rel = is_var, rel
-
-    def is_var(self, pattern) -> bool:
-        return self._var
-
-    def relation_of(self, pattern):
-        return self._rel
 
 _tally = {
     "looks": 0,
@@ -165,24 +146,22 @@ def install() -> None:
                 if len(fast) != len(slow)
                 else "same entries, different order",
             )
-        # The index, asked of every key either side has an opinion about --
-        # including the bare-variable bucket, which is the one a rule reading a
-        # channel's report uses and the one an index is most tempted to skip.
+        # The index, asked of every key either side has an opinion about -- the
+        # bare-variable bucket, the per-relation ones, and the per-argument ones
+        # a join narrows to.
         #
-        # ⚠ Asked through `candidates`, never off `_by`, and the difference is
-        # the whole value of the column: a first version compared the buckets
-        # directly and could not see an index read back in the wrong ORDER --
-        # which is exactly the mistake §18's tiebreak makes expensive, and
-        # exactly what a comparison against internals is blind to.
+        # ⚠ Asked through `bucket`, never off `_by`, and the difference is the
+        # whole value of the column: a first version compared the dicts directly
+        # and could not see one read back in the wrong ORDER, or a stale
+        # reversal handed out after the state moved on. Choosing the key is not
+        # compared, because choosing it is a pure function of the pattern --
+        # what is maintained, and so what can drift, is the bucket.
         reference = Situation(self.g, slow)
         for k in set(cache["sit"]._by) | set(reference._by):
-            sign, rel = k
-            ask = _Ask(rel is Situation.ANY, rel)
-            want = Member(sign, None)
-            a = [e.node for e in cache["sit"].candidates(ask, want)]
-            b = [e.node for e in reference.candidates(ask, want)]
+            a = [e.node for e in cache["sit"].bucket(k)]
+            b = [e.node for e in reference.bucket(k)]
             if a != b:
-                _note("index", f"bucket {sign}{rel}: kept {len(a)}, walk {len(b)}")
+                _note("index", f"bucket {k[:2]}: kept {len(a)}, walk {len(b)}")
                 break
 
         f, sl = in_play(self), _slow_keys(self, slow)
