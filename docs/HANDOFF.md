@@ -173,6 +173,35 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
+## Answered: **mid-plan interrupt, ask, resume — and focus stays a pointer**
+
+The user asked whether treating the focus as data would allow *interrupt planning, ask the user, then
+"where were we? oh right, planning", and resume.* Measured end to end, across two processes:
+
+```
+1. planned, got stuck, ASKED: ['ask(heated(kettle))'] -> quiescent
+2. resumed: re-asked? []          (correct -- it already asked)
+   still knows the plan: 2 subgoals
+3. answered -> boiling(kettle) = +
+```
+
+⭐ **It works, and it works because the PLAN is data -- not because the focus is.** *Where were we* is
+answered by `goal`, `plan`, `subgoal`, `binds`, `unmet` and `blocked`: ordinary nodes, all restored.
+The focus is only the pointer, and holds nothing the plan does not already say.
+
+⭐⭐ **And the interesting case cannot arise.** Planning is not a supposition -- backward reading is
+ordinary rules at the agent's own frame -- and `_dispatch` refuses to emit inside a hypothesis, so the
+agent *cannot* ask a user question while supposing. Every interrupt-to-ask is therefore at the root
+frame, where a fresh session already puts the register. Storing focus would buy nothing; where it
+would matter is resuming a half-explored hypothesis, and this design does not do that -- a supposition
+runs to quiescence inside and then discharges.
+
+⚠⚠⚠ **What the scenario DID surface: `achieved` goes stale.** In the first run `boiling(kettle)` was
+true in the world and `achieved(boiling(kettle))` was **None** -- the plan's own bookkeeping never
+updated, because the `check` was asked once, answered `unmet`, and nothing re-asks. The report is
+right (it reads `holds`); the goal machinery is not. That is the re-ask item, demonstrated inside a
+real scenario rather than as a hypothetical, and it is now the most concrete thing on the list.
+
 ## Latest: **its own effort is reasonable over**. Commit `effort`.
 
 The user's reason, and it is the right one: the counters *should be reasonable over*. An agent that
@@ -1413,7 +1442,12 @@ goal outranks the stop, a run with one always finishes at quiescence, so `quiet`
 dropped); a second way to ask about it was not.
 
 **The reaction is a corpus rule, and the round trip needs nothing new.** One line —
-`{+open(?w), +blocked(?w)} ⟹ {+doing(ask(?w))}` — and `doing` crosses at the write, the run ends
+`{+open(?w), +blocked(?w)} ⟹ {+doing(ask(?w))}` — ⚠⚠ **and it has a precondition nobody wrote
+down: `open` exists only on the `enough` path.** The veto deposits it when the agent tries to STOP; an
+agent that merely runs out of work never gets one, so this line does not fire without a stop rule in
+the corpus. `blocked` is the quiescence-side record and `open` the satisfaction-side one, and they do
+not co-occur — key on `{+goal(?w), +blocked(?w)}` for the quiescent case. Found by writing the
+documented line into a fixture and watching it ask nothing. — and `doing` crosses at the write, the run ends
 because a question is not work, and a later utterance resumes it through `<intake>`. Checked end to
 end. ⭐ Note what it asked about: not the goal it was given, but `heat(kettle)`, the precise subgoal
 backward reading found it was missing. Nothing arranged that.
