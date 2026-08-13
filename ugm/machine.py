@@ -13,8 +13,9 @@ where being wrong is recoverable -- so the seam is here, the table is data, and
 the learning is not.
 """
 
+import heapq
 import os
-from typing import List, NamedTuple, Optional, Tuple
+from typing import Iterable, List, NamedTuple, Optional, Tuple
 
 from .chain import GRADES, MINUS, PLUS, UNSURE, Chain, Entry, Moment
 from .channels import Arrival, Channels
@@ -26,6 +27,7 @@ from .rules import (
     Member,
     Rule,
     RuleSet,
+    _defeated,
     arbitrate,
     defeat,
     effective_grade,
@@ -2113,29 +2115,21 @@ class Machine:
         state = Situation(
             self.g, self._state()
         )
-        applications = self._applications(proposed, state)
-        # Defeat before quiescence -- see `rules.defeat` for why the order is not
-        # interchangeable.
-        applications = defeat(
-            self.rules, applications, self._matched_rules.values()
-        )
-        # ...and the fourth way not to run, which is the only one that is a
-        # decision: this was a live way of getting what I wanted and I took
-        # another. Checked here rather than in `defeat` because it is not a claim
-        # that the rule is worse -- it is a claim that the question it answered
-        # has been answered.
-        applications = [a for a in applications if not self._passed_up(a)]
-        applications = [a for a in applications if self._would_change(a)]
-
+        self._applications(proposed, state)
         # What the situation recommends, computed once for this tick.
         keys = self._in_play()
         rank = lambda r: self._rank(r, keys)
-        chosen = arbitrate(self.rules, applications, rank)
+        # Defeat, quiescence, passing-up and arbitration, all of them lazily and
+        # none of them over the whole candidate set. `_choose` is the same four
+        # steps in the same order -- see its docstring for why each may be done
+        # at the top of a heap instead of over a list, and `ugm.arbitration` for
+        # the instrument that holds it to the list version's answer.
+        chosen, rivals, sharing = self._choose(proposed, keys)
         if chosen is not None:
-            self._note_doubt(applications, chosen, rank)
+            self._note_doubt(rivals, chosen, rank)
             # Before applying, not after: the rivals are visible now, and this is
             # §16's ordering trap for the fourth time.
-            self._forgo(applications, chosen)
+            self._forgo(sharing, chosen)
         if chosen is None:
             # Nothing came to mind that had anything to do -- which is not the
             # same as nothing being left to do, and §15 says only the second
@@ -2182,7 +2176,10 @@ class Machine:
         self._widened = False
         wrote = self._apply(chosen)
         self.useful_writes += len(wrote)
-        return Step(arrivals, len(proposed), len(applications), chosen, wrote, "applied")
+        # `matched` in a Step is now *how many candidates were weighed to make
+        # this move*, which is what the field always meant and no longer the
+        # same as how many exist. The chooser stops at the first that survives.
+        return Step(arrivals, len(proposed), 1 + len(rivals), chosen, wrote, "applied")
 
     def run(self, limit: int = 100) -> List[Step]:
         """Bounded, and it returns a result *and* a state -- because a search that
@@ -2587,7 +2584,9 @@ class Machine:
         cache["pos"] = len(seat.delta)
         return [e for _, e in reversed(list(props.values()))]
 
-    def _applications(self, proposed: List[Rule], state: Situation) -> List[Application]:
+    def _applications(
+        self, proposed: List[Rule], state: Situation, materialise: bool = False
+    ) -> List[Application]:
         """What could apply here -- carried across ticks instead of rediscovered.
 
         ⭐⭐⭐ **The loop was stateless between ticks.** Every tick it re-ran every
@@ -2641,7 +2640,13 @@ class Machine:
                      # The candidate set, maintained incrementally. `live` is
                      # every application not KNOWN to be a no-op; `by_rule` is
                      # what `defeat` needs and `live` cannot give it.
-                     "live": set(), "by_rule": {}}
+                     "live": set(), "by_rule": {},
+                     # ...and the two indexes the chooser needs so that a tick
+                     # is not linear in the candidate set. `bucket` is a heap
+                     # per rule, ordered by the STABLE stamp measured equivalent
+                     # to the recomputed state position; `by_want` is what
+                     # `_forgo` reads instead of scanning every candidate.
+                     "bucket": {}, "by_want": {}, "seq": 0}
             self._match_cache = {fk: cache}  # one seat at a time; forking is a miss
         # `_would_change` reads the same cache, and gets there by this reference
         # rather than by recomputing `fk`: the two must agree about which seat
@@ -2663,7 +2668,7 @@ class Machine:
                 # entry about one retires it and nothing else has to.
                 for k in cache["quiet_by_prop"].pop(e.proposition, ()):
                     if cache["quiet"].pop(k, None) is not None and k in cache["apps"]:
-                        cache["live"].add(k)  # back in the running
+                        self._revive(cache, k)  # back in the running, and on the heap
                 rel = self.g.relation_of(e.proposition)
                 if rel is self.FORBIDDEN or rel is self.REFUSED:
                     # A norm is not indexed by what it forbids -- `_forbid`
@@ -2676,7 +2681,10 @@ class Machine:
                     # already paid for once.
                     cache["quiet"].clear()
                     cache["quiet_by_prop"].clear()
-                    cache["live"] = set(cache["apps"])
+                    cache["live"] = set()
+                    cache["bucket"] = {}
+                    for k in cache["apps"]:
+                        self._revive(cache, k)
             for k in suspect:
                 app = cache["apps"].get(k)
                 if app is None:
@@ -2691,6 +2699,11 @@ class Machine:
                     cache["live"].discard(k)
                     cache["quiet"].pop(k, None)
                     cache["by_rule"].get(k[0], set()).discard(k)
+                    # The heap keeps its entry: removing from the middle of one
+                    # is what a lazy check at the top is for, and `apps` is the
+                    # authority on whether a candidate still exists.
+                    for w in self._wants(app):
+                        cache["by_want"].get(w, set()).discard(k)
                     for c in app.consumed:
                         cache["by_prop"].get(c.proposition, set()).discard(k)
 
@@ -2733,6 +2746,23 @@ class Machine:
                 cache["apps"][k] = a
                 cache["live"].add(k)
                 cache["by_rule"].setdefault(r.node, set()).add(k)
+                # The stamp, assigned once and never recomputed: an entry's node
+                # is minted from a monotonic counter at deposit, so descending
+                # node order IS most-recently-claimed-first. Measured equivalent
+                # to the recomputed state position over 2,452 ticks, against an
+                # inverted control that disagreed about 686 moves.
+                #
+                # `seq` only breaks ties the stamp cannot have -- two candidates
+                # of one rule with the same consumed entries are the same
+                # candidate -- and exists so the heap never compares a `key`,
+                # which holds a frozenset and is not orderable.
+                cache["seq"] += 1
+                heapq.heappush(
+                    cache["bucket"].setdefault(r.node, []),
+                    (tuple(-c.node for c in a.consumed), cache["seq"], k),
+                )
+                for w in self._wants(a):
+                    cache["by_want"].setdefault(w, set()).add(k)
                 for c in a.consumed:
                     cache["by_prop"].setdefault(c.proposition, set()).add(k)
 
@@ -2749,10 +2779,23 @@ class Machine:
         # recall proposed them, and within a rule, lexicographically by where
         # each consumed entry sits in the current state -- which is precisely
         # what the nested loop would have produced.
-        order = {e.node: i for i, e in enumerate(state.entries)}
-        last = len(order)
         rank = {r.node: i for i, r in enumerate(proposed)}
         live = set(rank)
+        # ⚠ Which `defeat` reads, and which is O(rules) rather than O(candidates)
+        # -- so it is built whether or not the list is.
+        self._matched_rules = {
+            node: proposed[rank[node]]
+            for node, ks in cache["by_rule"].items()
+            if ks and node in live
+        }
+        if not materialise:
+            # The list, its `order` index and its sort were the last O(state)
+            # work left in a tick that no longer reads any of them: `_choose`
+            # walks the heaps. Building it anyway was pure ceremony, and pure
+            # ceremony repeated once per tick is another factor of n.
+            return []
+        order = {e.node: i for i, e in enumerate(state.entries)}
+        last = len(order)
         # ⭐⭐⭐ **Only what could still have something to do.** This used to walk
         # every application ever found, on every tick, and hand them all to five
         # O(candidates) passes -- which is where the quadratic was, and why
@@ -2784,12 +2827,197 @@ class Machine:
         #
         # So the rules that MATCHED are carried separately, which is all
         # `_defeated` reads, and maintaining it costs a set per rule.
-        self._matched_rules = {
-            rank_node: proposed[rank[rank_node]]
-            for rank_node, keys in cache["by_rule"].items()
-            if keys and rank_node in live
-        }
-        self.considered += len(out)
+        return out
+
+    def _materialise(self, proposed: List[Rule], state: Situation) -> List[Application]:
+        """The candidate list as `tick` used to build it: every live application,
+        defeated and filtered, in the order arbitration read them.
+
+        Nothing in the loop calls this. It exists because `_choose` is an
+        optimisation of a semantics, and §20's floor gate is the standing answer
+        to that: the slow definition has to stay, so the fast one can be held to
+        it rather than trusted. `ugm.arbitration` runs both on every tick of
+        every fixture and compares the move.
+        """
+        out = self._applications(proposed, state, materialise=True)
+        out = defeat(self.rules, out, self._matched_rules.values())
+        out = [a for a in out if not self._passed_up(a)]
+        return [a for a in out if self._would_change(a)]
+
+    def _revive(self, cache: dict, k) -> None:
+        """Put a candidate back in the running, and back on its rule's heap.
+
+        The two have to happen together. `live` says whether a candidate counts;
+        the heap is how the chooser reaches it. Adding to the first without the
+        second is a candidate the agent believes it has and never looks at --
+        which is a silent unsoundness rather than a slow path, because a rule
+        would stop being applied with nothing anywhere saying so.
+        """
+        if k in cache["live"]:
+            return
+        app = cache["apps"][k]
+        cache["live"].add(k)
+        cache["seq"] += 1
+        heapq.heappush(
+            cache["bucket"].setdefault(k[0], []),
+            (tuple(-c.node for c in app.consumed), cache["seq"], k),
+        )
+
+    def _survives(self, app: Application) -> bool:
+        """The two per-candidate filters, in `tick`'s order. Defeat is not here:
+        it is per RULE, and the chooser applies it once per rule rather than
+        once per candidate."""
+        return not self._passed_up(app) and self._would_change(app)
+
+    def _choose(self, proposed: List[Rule], keys: set):
+        """Pick the move without materialising the option set.
+
+        ⭐⭐⭐ **The quadratic was never the cost of a candidate; it was the cost of
+        looking at all of them.** With n independent applicable rules and §18's
+        one move per tick, the loop weighed n, then n−1, then n−2 -- and
+        `weigh` measured that 99.6% of those candidates genuinely applied, so
+        there was nothing left to withhold. What is left is to stop *looking*.
+
+        Three facts make that possible, and each was measured before it was used:
+
+        * **The arbitration key is per RULE.** `rules.arbitrate`'s key is
+          `(score(rule), rules.index(rule))` and contains nothing about the
+          application, so there are |rules| priorities and not n.
+        * **The within-rule order is a stable stamp.** An entry's node is minted
+          from a monotonic counter, so descending node order reproduces
+          most-recently-claimed-first exactly -- 0 disagreements over 2,452
+          ticks, against a control that disagreed about 686 moves.
+        * **Nothing needs the whole list.** `_note_doubt` reads the rivals'
+          RULES, which the rule order gives in rank order; `_forgo` reads the
+          candidates that share a want, which is an index.
+
+        So: rules in rank order, each rule's candidates in stamp order, validate
+        at the top and step to the next on rejection. Returns the chosen
+        application and the two collections `tick` still owes the record.
+
+        ⚠ Laziness is only sound because rejection is *sticky*. A candidate that
+        fails `_would_change` is withheld until something it reads changes, so
+        walking past it is paid once and not once per tick. A candidate that
+        fails `_passed_up` is not withheld -- `forgone` can be denied -- so that
+        one is re-walked, which is a cost this does not hide.
+        """
+        cache = self._verdicts
+        if self.rules.supersedes:
+            # ⚠ `supersedes` is defeat **for this case**, decided by whether two
+            # applications share a consumed entry -- a question about a PAIR of
+            # candidates, which nothing at the top of a heap can answer. So a
+            # rule set that uses it gets the list, and the old cost. Stated
+            # rather than hidden, and gated by a check either way: the fast path
+            # is for corpora that do not order two rules for the same case.
+            state = Situation(self.g, self._state())
+            everything = self._materialise(proposed, state)
+            rank = lambda r: self._rank(r, keys)
+            self.considered += len(everything)
+            picked = arbitrate(self.rules, everything, rank)
+            if picked is None:
+                return None, [], []
+            return picked, everything, everything
+        rank_of = {r.node: i for i, r in enumerate(self.rules.rules)}
+        live_rules = {r.node: r for r in proposed}
+        # `defeat` reads the rules that MATCHED, which is every rule holding a
+        # candidate -- including ones whose candidates are all no-ops. That is
+        # the split `weigh` made, and it is the reason this can be lazy at all.
+        matched = [
+            live_rules[n] for n, ks in cache["by_rule"].items()
+            if ks and n in live_rules
+        ]
+        undefeated = [r for r in matched if not _defeated(self.rules, r, matched)]
+        if not undefeated:
+            # The cycle fallback (§14): arbitration stays total, so nobody is
+            # defeated rather than everybody.
+            undefeated = matched
+        order = sorted(undefeated, key=lambda r: (self._rank(r, keys), rank_of[r.node]))
+
+        def candidates(rule: Rule) -> Iterable[Application]:
+            """This rule's live candidates, newest-claimed first, lazily."""
+            heap = cache["bucket"].get(rule.node)
+            if not heap:
+                return
+            # ⚠⚠⚠ **A heap that keeps its dead is walked past them every tick.**
+            # The first version re-pushed the withheld candidates so they would
+            # keep their place -- and measured 721,800 heappops over 1,202
+            # ticks, because every tick popped the whole accumulated no-op
+            # prefix and put it straight back. That is the quadratic the heap
+            # was built to remove, wearing a heap's clothes.
+            #
+            # So the heap holds only what is LIVE, and revival pushes back
+            # (`_revive`). Popping a withheld candidate drops it for good, which
+            # is safe precisely because being withheld is not permanent and the
+            # invalidation pass is what says so.
+            kept = []
+            try:
+                while heap:
+                    item = heapq.heappop(heap)
+                    k = item[2]
+                    if k not in cache["apps"] or k not in cache["live"]:
+                        continue
+                    # ⚠⚠⚠ **Kept BEFORE the yield, not after.** The consumer
+                    # breaks out of this loop the moment it has its move, which
+                    # closes the generator and raises `GeneratorExit` *at* the
+                    # yield -- so anything after it never runs, and the chosen
+                    # candidate was silently dropped from its heap. It then
+                    # stopped existing for every later tick: 29 checks failed,
+                    # none of them about heaps.
+                    kept.append(item)
+                    yield cache["apps"][k]
+                    if k not in cache["live"]:
+                        # `_would_change` withheld it while we were looking at
+                        # it. Then it does not go back, and `_revive` is what
+                        # returns it if the entry it read is superseded.
+                        kept.pop()
+            finally:
+                for item in kept:
+                    heapq.heappush(heap, item)
+
+        chosen = None
+        best = None
+        rivals: List[Application] = []
+        for rule in order:
+            here = self._rank(rule, keys)
+            if chosen is not None and not self._close(here, best):
+                break  # past the point where anything could still be doubt
+            for app in candidates(rule):
+                self.considered += 1
+                if not self._survives(app):
+                    continue
+                if chosen is None:
+                    chosen, best = app, here
+                    if here[0] == 0:
+                        # A tie among `standing` rules is not doubt, so nothing
+                        # after this is worth walking for.
+                        return chosen, [], self._sharing(chosen)
+                else:
+                    rivals.append(app)
+                break
+        if chosen is None:
+            return None, [], []
+        return chosen, rivals, self._sharing(chosen)
+
+    def _sharing(self, chosen: Application) -> List[Application]:
+        """The candidates `_forgo` has to consider: those serving a goal the
+        chosen application also serves. Read off `by_want` rather than by
+        scanning, which is what keeps a tick off the whole candidate set.
+
+        Empty when the chosen application serves no goal at all, which is
+        `_forgo`'s own first line and the common case."""
+        cache = self._verdicts
+        wants = self._wants(chosen)
+        if not wants:
+            return []
+        out, seen = [], set()
+        for w in wants:
+            for k in cache["by_want"].get(w, ()):
+                if k in seen or k not in cache["apps"] or k not in cache["live"]:
+                    continue
+                seen.add(k)
+                app = cache["apps"][k]
+                if app.rule is not chosen.rule and self._survives(app):
+                    out.append(app)
         return out
 
     def _would_change(self, app: Application) -> bool:

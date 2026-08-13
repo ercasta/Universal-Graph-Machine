@@ -1,8 +1,68 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **392 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **393 checks, 0 failing**; every instrument green.
 
-## Latest: **the quadratic is ARBITRATION, not bookkeeping**. Commit `weigh`.
+## Latest: **the agent stops looking at its whole option set**. Commit `heap`.
+
+`weigh` measured that there was nothing left to *withhold* — 99.6% of candidates genuinely apply. So
+the move was to stop **looking**, and three measurements made it possible, each taken before it was
+used:
+
+* **The arbitration key is per RULE.** `rules.arbitrate`'s key is `(score(rule), rules.index(rule))`
+  and holds nothing about the application — so there are |rules| priorities, not n. My earlier worry
+  that a heap would re-key n candidates every tick was simply wrong about where the key lives.
+* **The within-rule order is a stable stamp.** An entry's node is minted from a monotonic counter, so
+  descending node order reproduces most-recently-claimed-first exactly: **0 disagreements over 2,452
+  ticks**, against an inverted control that disagreed about **686 moves**. ⚠ And the one structurally
+  different case — a consumed entry not in the current state — occurred **0 times in 51,199
+  candidates**, because invalidation retires those applications first. Reachable only through
+  dormancy; no fixture produces it, and that is the fixture to write if this is pushed further.
+* **Nothing needs the whole list.** `_note_doubt` reads the rivals' *rules*, which rule order gives
+  in rank order; `_forgo` reads candidates sharing a want, which is an index (`by_want`).
+
+**So: rules in rank order, each rule's candidates in stamp order on a heap, validate at the top, step
+to the next on rejection.**
+
+| n | before today | after `quiet` | after `weigh` | **now** | candidates weighed |
+|---|---|---|---|---|---|
+| 800 | — | — | — | **1.35s** | 1,600 |
+| 1,600 | — | — | ~16s | **4.70s** | 3,200 |
+| 3,200 | — | — | — | **18.88s** | 6,400 |
+
+⭐⭐⭐ **The candidate walk is now LINEAR: `considered` went from n²/2 to exactly 2n** (500,000 → 2,000
+at n=1,000), with ticks and writes identical throughout.
+
+⚠⚠⚠ **And the runtime is still quadratic — ~4× per doubling.** The candidate walk is no longer the
+cost. Profiled: `Situation.__init__` (3.37s / 2,403 calls) and `_in_play` (2.31s / 1,202 calls), both
+**O(state) per tick**. `_state()` is built incrementally since `state` but still *materialises a list
+of the whole state every tick*, and `_in_play` scans it again for live goals. That is the next layer,
+and `_in_play`'s half is already known to be easy — goals are never denied, so the live-goal set is
+monotone and needs no invalidation at all.
+
+⚠⚠ **Two bugs of my own, both in the lazy machinery, and neither about heaps.**
+
+* **A heap that keeps its dead is walked past them every tick.** The first version re-pushed withheld
+  candidates so they would keep their place, and measured **721,800 heappops over 1,202 ticks** —
+  the quadratic wearing a heap's clothes. The heap now holds only what is live, and `_revive` pushes
+  back.
+* ⚠⚠⚠ **`GeneratorExit` runs at the `yield`, not after it.** The consumer `break`s the moment it has
+  its move, which closes the generator — so the line after `yield` that returned the chosen candidate
+  to its heap never ran, and the winner was silently dropped from the heap for every later tick.
+  **29 checks failed, not one of them about heaps.**
+
+⭐ **`ugm.arbitration`, and it is the point of the commit as much as the speed is.** `_choose` is an
+optimisation of a semantics, so §20's floor gate applies: `_materialise` keeps the slow definition —
+every live application, defeated, filtered, in arbitration's order — and the instrument compares
+**move, doubt and forgone** on every tick of every fixture. **2,636 ticks, 1,934 with a move, 78 with
+a rival, 0 disagreements.** Kill-probed three ways, each landing in its own column: take the second
+survivor (423 move + 423 doubt), drop `_sharing` (6 forgone), drop the rivals (76 doubt).
+
+⚠ **A check of the suite's own was measuring the implementation, not the property.** *The apparatus
+wins most of the agent's choices* spied on `arbitrate`, which the chooser stopped calling — so its
+tally went to zero and it passed **vacuously**. Re-pointed at the move that was made. An instrument
+keyed on which function the loop happens to call is keyed on the implementation.
+
+## Before that: **the quadratic is ARBITRATION, not bookkeeping**. Commit `weigh`.
 
 Went after the exponent by withholding the no-op applications from the candidate list — the move
 `quiet` named, whose blocker was that `defeat` must keep seeing them. Built it, and **the measurement

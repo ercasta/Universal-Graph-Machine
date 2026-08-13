@@ -2228,24 +2228,33 @@ def experience_is_offline() -> None:
     import ugm.machine as MM
     from .workload import corpus, stopping
 
+    # ⚠ Spying on `arbitrate` is what this used to do, and the chooser stopped
+    # calling it -- so the tally went to zero and the check failed VACUOUSLY
+    # rather than reporting anything. An instrument keyed on which function the
+    # loop happens to call is keyed on the implementation; keyed on the move
+    # that was made, it survives the implementation changing under it. The
+    # property is unchanged: `arbitrate` picks the minimum rank, so *the best
+    # available rank was apparatus* and *the winner was apparatus* are the same
+    # claim.
     tally = {"arb": 0, "apparatus": 0}
-    orig = MM.arbitrate
+    orig = Machine._choose
 
-    def spy(rules, applications, rank):
-        if applications:
+    def spy(self, proposed, keys):
+        chosen, rivals, sharing = orig(self, proposed, keys)
+        if chosen is not None:
             tally["arb"] += 1
-            if min(rank(a.rule) for a in applications)[0] == 0:
+            if self._rank(chosen.rule, keys)[0] == 0:
                 tally["apparatus"] += 1
-        return orig(rules, applications, rank)
+        return chosen, rivals, sharing
 
-    MM.arbitrate = spy
+    Machine._choose = spy
     try:
         m3 = Machine()
         load(m3, corpus(4, 4, 0, True) + stopping(4))
         m3.recall_budget = 4
         m3.run(limit=9999)
     finally:
-        MM.arbitrate = orig
+        Machine._choose = orig
     check("§19", "and what stops it paying is measured: the apparatus wins most of the "
           "agent's choices, so a table about domain rules has almost nothing to decide",
           tally["apparatus"] * 4 > tally["arb"] * 3)
@@ -3280,9 +3289,33 @@ def matching_is_incremental() -> None:
         "fact +heat(anna, kettle)", "fact +water(kettle)",
         "fact +goal(boiling(kettle))", ""]))
     m.run(limit=400)
-    check("§4", "the loop weighs far more applications than matching produces, "
-          "because it keeps them: what it re-derived is now what changed",
-          m.considered > 3 * m.matched and m.matched > 0)
+    # ⚠ This check used to assert the OPPOSITE -- `considered > 3 * matched`,
+    # *the loop weighs far more applications than matching produces, because it
+    # keeps them*. That was true, and it was the quadratic: the applications are
+    # kept, and re-weighing all of them on every tick is n²/2. They are still
+    # kept; what changed is that the chooser walks a heap per rule and stops at
+    # the first candidate that survives, so weighing is bounded by the moves
+    # made rather than by the moves available.
+    check("§4", "what it keeps, it no longer re-weighs: weighing is bounded by "
+          "the applications, not by the applications times the ticks",
+          0 < m.considered <= 3 * m.matched)
+
+    # ...and the same claim as a SCALE, because a ratio on one fixture cannot
+    # tell a linear walk from a quadratic one. Double the corpus and the count
+    # of candidates weighed must roughly double; before the chooser it
+    # quadrupled, which is the whole of what this arc was about.
+    def weighed(n):
+        src = ["rule <r> = implies( { +edge(?a, ?b) }, { +seen(?a, ?b) } )"]
+        src += [f"fact +edge(n{i}, n{i + 1})" for i in range(n)]
+        mm = Machine()
+        load(mm, chr(10).join(src) + chr(10))
+        mm.run(limit=n * 4 + 50)
+        return mm.considered
+
+    small, large = weighed(60), weighed(120)
+    check("§18", "and it is LINEAR in the corpus: twice the facts weighs about "
+          "twice as many candidates, where it used to weigh four times as many",
+          small > 0 and large < small * 3)
     check("§4", "...and it still gets there", m.holds(kb.term("boiling(kettle)")) == PLUS)
 
     # ⭐ And what it does NOT re-weigh. An application known to be a no-op is
