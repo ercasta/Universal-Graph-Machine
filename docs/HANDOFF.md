@@ -173,7 +173,39 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
-## Latest: **the knobs are claims**, and the focus is not stored. Commit `knobs`.
+## Latest: **its own effort is reasonable over**. Commit `effort`.
+
+The user's reason, and it is the right one: the counters *should be reasonable over*. An agent that
+reached past its shortlist, or was stopped by a bound, knows something about its own effort -- and
+that lived in Python counters, so no rule could ask. §21's defect for the seventh time.
+
+    widened(<seat>)     recall reached past its shortlist
+    reached(<seat>)     a domain was brought back out of dormancy
+    bounded(<which>)    a bound stopped a supposition, and WHICH one
+
+⭐ **Events, not counts.** A count cannot be a fact here -- `widened(2)` and `widened(3)` are different
+propositions and **both would hold**. §17's pattern was always the right one: deposit the smallest
+unarguable record and let rules say what it means, exactly as `quiet`, `left`, `stopped` and `emitted`
+do. So the claim is *this happened here*, deduped by reading the graph, and *how often* stays a
+question nobody has needed to ask.
+
+⭐⭐ **What it buys, in one line a corpus could not write before:**
+
+    rule <patience> = implies( { +widened(?m) }, { +doing(ask(help)) } )
+
+*I had to reach for that -- ask for help.* Measured: the agent emits `ask(help)` under a budget it has
+to widen past, and nothing under a budget it does not.
+
+⚠⚠ **And it made a false comment true.** `_enter` has said *Bounds, and each reports that it was hit
+rather than stopping silently (§13)* since it was written, and the report was `self.exhausted += 1`.
+**The code claimed a property it did not have** -- a §5 silence sitting behind a comment denying it.
+
+⚠⚠⚠ **Three of five kill-probes were ungated first, and one for an instructive reason.** The dedup
+check counted `instances_of`, which returns **propositions** -- three deposits of one proposition are
+one node, so a node count cannot see duplication at all and could not fail. Entries, not nodes.
+`reached` and the second bound had no fixture. All five bite now.
+
+## Before that: **the knobs are claims**, and the focus is not stored. Commit `knobs`.
 
 Two answers to the same question -- *what state is not in the graph, and should it be?*
 
@@ -1207,12 +1239,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     361 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     368 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 361 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 368 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?

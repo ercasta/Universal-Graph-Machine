@@ -2409,6 +2409,104 @@ def a_domain_can_be_taken_out_of_mind() -> None:
           and m4.g.show(owes.source) == "billing")
 
 
+def its_own_effort_is_reasonable_over() -> None:
+    """§21's hidden state, for the counters -- and the user's reason is the right
+    one: these should be **reasonable over**.
+
+    An agent that reached past its shortlist, or was stopped by a bound, knows
+    something about its own effort. That lived in Python counters, so no rule
+    could ask.
+
+    ⭐ **Events, not counts.** A count cannot be a fact here: `widened(2)` and
+    `widened(3)` are different propositions and both would hold. §17's pattern
+    was always the right one -- deposit the smallest unarguable record and let
+    rules say what it means, as `quiet`, `left`, `stopped` and `emitted` do. So
+    the claim is *this happened here*, deduped by reading the graph, and *how
+    often* stays a question nobody has had to ask.
+
+    ⚠⚠ `_enter`'s comment has said *each reports that it was hit rather than
+    stopping silently (§13)* since it was written, and the report was
+    `self.exhausted += 1`. **The code claimed a property it did not have.**
+    """
+    from .text import load
+
+    chain = ["rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+             "rule <b> = implies( { +q(?x) }, { +r(?x) } )", "fact +p(a)"]
+
+    wide = Machine(); load(wide, chr(10).join(chain + [""])); wide.run(limit=200)
+    tight = Machine()
+    load(tight, chr(10).join(chain + ["fact budget(1)", ""])); tight.run(limit=200)
+    said = lambda m, rel: [n for n in m.g.instances_of(rel) if m.holds(n) == PLUS]
+    check("§21", "reaching past a shortlist is on the record, not only in a "
+          "counter", said(tight, tight.WIDENED) and not said(wide, wide.WIDENED))
+    # ⚠ Counted as ENTRIES, not as nodes. `instances_of` returns propositions,
+    # and three deposits of one proposition are one node -- so a node count
+    # cannot see duplication at all, and the first version of this check could
+    # not fail when the dedup was removed.
+    deposits = sum(1 for mo in tight.chain.moments for e in mo.delta
+                   if tight.g.relation_of(e.proposition) is tight.WIDENED)
+    check("§17", "...as an event and not a count: three widenings at one seat are "
+          "ONE claim deposited once, because restating is not revising",
+          tight.widenings > 1 and deposits == 1)
+
+    b2 = Machine()
+    load(b2, chr(10).join([
+        "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
+        "fact +odd(pipe)", "fact hypotheses(0)", ""]))
+    b2.run(limit=200)
+    check("§13", "...and so does the other bound, by name",
+          [b2.g.show(n) for n in
+           [x for x in b2.g.instances_of(b2.BOUNDED) if b2.holds(x) == PLUS]]
+          == ["bounded(hypotheses)"])
+
+    # Reaching for a domain that was put out of mind is the same kind of record.
+    esc = Machine()
+    kb_e = load(esc, chr(10).join([
+        "rule <r> = implies( { +owes(?c, ?n) }, { +chase(?c) } )", ""]),
+        scope="eff", domain="rules")
+    load(esc, "fact +owes(acme, 100)" + chr(10), scope="eff", domain="billing")
+    load(esc, chr(10).join(
+        ["fact dormant(billing)", "fact +goal(chase(acme))", ""]),
+        scope="eff", domain="ctl")
+    esc.run(limit=300)
+    check("§19", "reaching for a domain out of mind is on the record too, so "
+          "*I had to go and get that* is askable",
+          esc.recoveries == 1
+          and [n for n in esc.g.instances_of(esc.REACHED) if esc.holds(n) == PLUS]
+          and esc.holds(kb_e.term("chase(acme)")) == PLUS)
+
+    b = Machine()
+    load(b, chr(10).join([
+        "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
+        "fact +odd(pipe)", "fact depth(0)", ""]))
+    b.run(limit=200)
+    check("§13", "⚠ a bound that was hit says WHICH one, where the code had "
+          "claimed to report and only counted",
+          [b.g.show(n) for n in said(b, b.BOUNDED)] == ["bounded(depth)"])
+
+    # The point of all of it: a corpus can reason over the agent's own effort.
+    act = Machine()
+    act.actuator("out")
+    load(act, chr(10).join(chain + [
+        "fact budget(1)",
+        "rule <patience> = implies( { +widened(?m) }, { +doing(ask(help)) } )",
+        "fact standing(<patience>)", ""]))
+    act.run(limit=200)
+    check("§19", "⭐ so a rule can act on how hard the agent had to try -- *I had "
+          "to reach for that, ask for help* is now a sentence a corpus can write",
+          [act.g.show(x) for x in act.emitted] == ["ask(help)"])
+
+    # ...and the control, so the fixture can fail: no reaching, no asking.
+    calm = Machine()
+    calm.actuator("out")
+    load(calm, chr(10).join(chain + [
+        "rule <patience> = implies( { +widened(?m) }, { +doing(ask(help)) } )",
+        "fact standing(<patience>)", ""]))
+    calm.run(limit=200)
+    check("§19", "...and an agent that never had to reach does not ask",
+          calm.emitted == [])
+
+
 def the_knobs_are_claims() -> None:
     """§21's hidden state, for the knobs -- and the argument was already written.
 
@@ -3880,6 +3978,7 @@ def main() -> int:
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
     a_domain_can_be_taken_out_of_mind()
+    its_own_effort_is_reasonable_over()
     the_knobs_are_claims()
     a_session_can_be_saved_and_resumed()
     the_agent_can_say_what_became_of_it()

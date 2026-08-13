@@ -393,6 +393,24 @@ class Machine:
         # The DEFAULT stays in Python, exactly as `tolerance`'s zero does: a
         # default nobody has to choose is not a hidden decision, it is the
         # absence of one.
+        # ...and what the machinery does when it reaches one, as EVENTS rather
+        # than counts. A count cannot be a fact here: `widened(2)` and
+        # `widened(3)` are different propositions and both would hold. §17's
+        # pattern is the right one and was always the right one -- deposit the
+        # smallest unarguable record and let rules say what it means, exactly as
+        # `quiet`, `left`, `stopped` and `emitted` do.
+        #
+        #     widened(<seat>)        recall reached past its shortlist
+        #     reached(<seat>)        a domain was brought back out of dormancy
+        #     bounded(<which>)       a bound stopped a supposition
+        #
+        # ⚠ `_enter`'s comment has said *each reports that it was hit rather
+        # than stopping silently (§13)* since it was written, and the report was
+        # `self.exhausted += 1` -- a Python counter no rule can read. The code
+        # claimed a property it did not have.
+        self.WIDENED = self.g.atom("widened")
+        self.REACHED = self.g.atom("reached")
+        self.BOUNDED = self.g.atom("bounded")
         self.BUDGET = self.g.atom("budget")
         self.DEPTH = self.g.atom("depth")
         self.HYPOTHESES = self.g.atom("hypotheses")
@@ -444,6 +462,8 @@ class Machine:
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
             "close": self.CLOSE, "tolerance": self.TOLERANCE,
+            "widened": self.WIDENED, "reached": self.REACHED,
+            "bounded": self.BOUNDED,
             "budget": self.BUDGET, "depth": self.DEPTH,
             "hypotheses": self.HYPOTHESES,
             **{str(i): n for i, n in self.NUMERAL.items()},
@@ -558,7 +578,8 @@ class Machine:
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
                              self.TOLERANCE, self.BUDGET, self.DEPTH,
-                             self.HYPOTHESES}
+                             self.HYPOTHESES, self.WIDENED, self.REACHED,
+                             self.BOUNDED}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -814,10 +835,12 @@ class Machine:
         # of one frame proposes the next.
         if len(self.focus.ancestry()) > self._knob(self.DEPTH, self.max_depth):
             self.exhausted += 1
+            self._note(self.g.rel(self.BOUNDED, self.DEPTH))
             return
         if len(self._supposed) >= self._knob(
                 self.HYPOTHESES, self.supposition_budget):
             self.exhausted += 1
+            self._note(self.g.rel(self.BOUNDED, self.HYPOTHESES))
             return
         assumption, wrap = self.g.members(e.proposition)
         self._enacted.add(e.node)
@@ -1315,6 +1338,26 @@ class Machine:
         """
         return a[0] == b[0] and abs(a[1] - b[1]) <= self._tolerance()
 
+    def _note(self, proposition: NodeId) -> None:
+        """Record that the machinery did something a rule may care about.
+
+        The user's reason, and it is the right one: these should be **reasonable
+        over**. An agent that has reached past its shortlist twice, or been
+        stopped by a bound, knows something about its own effort -- and until
+        now that lived in a Python counter, which is §21's defect for the
+        seventh time.
+
+        Deduped by reading the graph: restating is not revising (§8), and the
+        claim is *this happened here*, not how often.
+        """
+        if self._claims(proposition):
+            return
+        self.gate.write(
+            self.focus, proposition, PLUS,
+            licence=self.g.rel(self.QUIET, self.focus.seat.node),
+            source=self.KB, mention=True,
+        )
+
     def _knob(self, relation: NodeId, default):
         """A knob a corpus can turn, read from the graph.
 
@@ -1369,6 +1412,7 @@ class Machine:
             return False
         self._widened = True
         self.widenings += 1
+        self._note(self.g.rel(self.WIDENED, self.focus.seat.node))
         return True
 
     def _outstanding(self) -> bool:
@@ -1427,6 +1471,7 @@ class Machine:
         if not self._out_of_mind() or not self._outstanding():
             return False
         self.recoveries += 1
+        self._note(self.g.rel(self.REACHED, self.focus.seat.node))
         # A claim, deposited rather than a flag, so *why is billing back?* has an
         # answer and a corpus can argue with the escalation as it can with
         # anything else. `due` is the same fact that wakes a dormant rule.
