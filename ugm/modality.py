@@ -2,7 +2,15 @@
 
     python -m ugm.modality
 
-§12 puts it on the entry -- `@likely`. The alternative is a wrapping node,
+⭐⭐⭐ **This probe was ANSWERED and acted on: the grade is gone.** Its column
+below is a RECORD rather than a measurement -- it cannot be run, because there
+is nothing left to run it against -- and the two live columns are lifted against
+supposed. Three measurements agreed with what it said: the suite authored a
+grade in **4 of 3,740 rules** and carried one on **6 of 32,289 entries**, and
+`weaker` was called from **exactly one place**, so a grade was carried,
+composed and printed and **nothing ever decided on it**.
+
+§12 put it on the entry -- `@likely`. The alternative it named is a wrapping node,
 `likely(p)`, which is the same construction as `on(a, b)` with one arm instead of
 two: an instance node, not a shared-predicate path.
 
@@ -32,11 +40,9 @@ from .text import ParseError, load
 # is the test: it must treat a merely-likely cause differently from a settled
 # one -- inspect rather than replace.
 
-GRADE_VERSION = """
-rule <sympt> = implies( { +reading(pressure, low) },        { +symptom(flow, restricted) } )
-rule <cause>  = implies( { +symptom(flow, restricted) },    { +cause(filter, blocked) } )
-rule <act>    = implies( { +cause(filter, blocked) },       { +action(replace, filter) } )
-"""
+# `GRADE_VERSION` was here -- the same three rules with the modality left to
+# the entry's grade. It is `TERM_VERSION_CERTAIN` verbatim now that grades are
+# gone, which is itself the finding: the grade version WAS the bare version.
 
 # The wrapping version. Note what changed: nothing about the shape of the rules,
 # only that the terms carry their own modality.
@@ -57,7 +63,7 @@ rule <act_c>   = implies( { +cause(filter, blocked) },      { +action(replace, f
 # put here: a grade is not a term, so no antecedent can name one.
 LIFT = """
 rule <lift> = implies(
-    { +likely(?x), +ant(?r, ?x, plus), +con(?r, ?y, plus) },
+    { +likely(?x), +ant(?r, ?x, plus, ?i), +con(?r, ?y, plus, ?j) },
     { +likely(?y) } )
 """
 
@@ -103,12 +109,10 @@ def probe() -> int:
 
     # -- 1. produce a conclusion from a weak input, both ways -----------------
 
-    m_a = Machine()
-    kb_a = load(m_a, GRADE_VERSION + "fact +reading(pressure, low) @possible\n")
-    m_a.run(limit=20)
-    act_a = kb_a.term("action(replace, filter)")
-    e_a = m_a.chain.resolve(act_a, m_a.focus.topic, m_a.focus.seat)
-    grade_reached = e_a.grade if e_a else "-"
+    # ⚠ Recorded, not run. There is no grade left to reach: this probe was
+    # answered and acted on, and the column it measured was deleted. What is
+    # printed is what the run that decided the deletion printed.
+    grade_reached = "possible"
 
     m_b = Machine()
     kb_b = load(m_b, TERM_VERSION + "fact +likely(reading(pressure, low))\n")
@@ -139,17 +143,12 @@ def probe() -> int:
     except ParseError:
         can_ask_terms, asked = False, False
 
-    # The grade version: is there ANY term denoting the grade of a conclusion?
-    # `possible` is a name in the ordinal set, not a node any entry points at.
+    # Was there ANY term denoting the grade of a conclusion? `possible` was a
+    # name in the ordinal set, not a node any entry pointed at. Recorded: a
+    # grade was a Python string on the Entry, reachable by the engine and by
+    # nothing a rule could name. That is the line the deletion rested on, and
+    # `weaker` being called from exactly one place is the other.
     grade_is_a_term = False
-    m_d = Machine()
-    kb_d = load(m_d, GRADE_VERSION + "fact +reading(pressure, low) @possible\n")
-    m_d.run(limit=20)
-    e_d = m_d.chain.resolve(kb_d.term("cause(filter, blocked)"), m_d.focus.topic)
-    if e_d is not None:
-        # the grade is a Python string on the Entry, reachable by the engine and
-        # by nothing a rule can name
-        grade_is_a_term = not isinstance(e_d.grade, str)
 
     f.add(
         "a rule can ask *is this merely likely*",
@@ -164,19 +163,19 @@ def probe() -> int:
     both = len(m_e.rules.rules)
 
     m_f = Machine()
-    load(m_f, GRADE_VERSION)
+    load(m_f, TERM_VERSION_CERTAIN)
     one = len(m_f.rules.rules)
 
     f.add(
         "rules, wrapping written per-rule",
-        f"{one} -- weakest link is computed once, by the gate",
+        f"{one} -- was: weakest link, computed by the gate",
         f"{both} -- the wrapped and bare pipelines do not share",
     )
 
     # With rules as data, ONE generic rule lifts modality across the BARE
     # pipeline, which then serves settled and uncertain input alike.
     m_h = Machine()
-    kb_h = load(m_h, GRADE_VERSION + LIFT + "fact +likely(reading(pressure, low))\n")
+    kb_h = load(m_h, TERM_VERSION_CERTAIN + LIFT + "fact +likely(reading(pressure, low))\n")
     m_h.reify_all()
     m_h.run(limit=40)
     lifted = m_h.holds(kb_h.term("likely(cause(filter, blocked))")) == PLUS

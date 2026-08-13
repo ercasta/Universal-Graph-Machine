@@ -17,7 +17,7 @@ to no occasion. Anchored ones never are.
 
 Three statements, with the author saying which, so the loader branches on nothing:
 
-    rule  boil = causes( { +heat(?a,?w), +water(?w) }, { +boiling(?w) @certain } )
+    rule  boil = causes( { +heat(?a,?w), +water(?w) }, { +boiling(?w) } )
     fact  +on(a, b)                    standing knowledge, stamped source=kb
     say   user: +raining(here)         an arrival on the channel `user`
     fact  overrides(<boil>, <cool>)        an ordinary claim, and it seeds precedence
@@ -37,7 +37,7 @@ writes as an en dash, `->` for its arrow. §8's worked rules parse as printed.
 
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .chain import GRADES, MINUS, PLUS, UNSURE
+from .chain import MINUS, PLUS, UNSURE
 from .graph import NodeId
 from .machine import Machine
 from .rules import CAUSES, IMPLIES, Member
@@ -145,7 +145,6 @@ class Term(NamedTuple):
 class RuleMember(NamedTuple):
     sign: str
     term: Term
-    grade: str
 
 
 class Statement(NamedTuple):
@@ -264,23 +263,19 @@ class Parser:
             # `?` is the unsure sign here; `?x` tokenised as a var, never as this
             sign = SIGNS[self.next().text]
         term = self.term()
-        grade = "certain"
+        # ⚠ `@` is refused rather than ignored. It used to carry a GRADE, and
+        # grades are gone: an uncertain conclusion is `+likely(p)`, an ordinary
+        # proposition a rule can read. A corpus written against the old notation
+        # is a corpus that means something this one no longer does, and §5 says
+        # the silence is the defect -- so it is told, and told what to write.
         if self.at("@"):
-            self.next()
-            g = self.next()
-            if g.kind == "var":
-                raise ParseError(
-                    f"line {g.line}: `@ {g.text}` names a locus, and slice one carries "
-                    f"the one-locus case only -- an antecedent whose members all sit at "
-                    f"the same moment needs no skeleton (§8)."
-                )
-            if g.text not in GRADES:
-                raise ParseError(
-                    f"line {g.line}: {g.text!r} is not a grade. The ordinal set is "
-                    f"{', '.join(GRADES)} (§10)."
-                )
-            grade = g.text
-        return RuleMember(sign, term, grade)
+            g = self.next() and self.next()
+            raise ParseError(
+                f"line {t.line}: `@` is gone with the grades. Uncertainty is a "
+                f"proposition now -- write `+likely(p)` in the consequent and let "
+                f"a rule cross it, rather than annotating how strongly `p` is held."
+            )
+        return RuleMember(sign, term)
 
     def term(self) -> Term:
         t = self.next()
@@ -417,8 +412,7 @@ class Loader:
             source=self.source, mention=True,
         )
 
-    def say(self, channel: str, text: str, sign: str = "+",
-            grade: str = "certain") -> NodeId:
+    def say(self, channel: str, text: str, sign: str = "+") -> NodeId:
         """The world speaks, **in this corpus's scope** -- the scoped door for
         arrivals, beside `channel` and `answerer`.
 
@@ -429,7 +423,7 @@ class Loader:
         node, prop = self.channel(channel), self.term(text)
         self.m._saying_scope = self.scope_name
         try:
-            self.m.channels.deliver(node, prop, sign, grade)
+            self.m.channels.deliver(node, prop, sign)
         finally:
             self.m._saying_scope = None
         return prop
@@ -575,8 +569,8 @@ class Loader:
         if s.name in self.rule_nodes:
             raise ParseError(f"line {s.line}: <{s.name}> is already declared")
         scope: Dict[str, NodeId] = {}
-        ant = [Member(m.sign, self.build(m.term, scope), m.grade) for m in s.antecedent]
-        con = [Member(m.sign, self.build(m.term, scope), m.grade) for m in s.consequent]
+        ant = [Member(m.sign, self.build(m.term, scope)) for m in s.antecedent]
+        con = [Member(m.sign, self.build(m.term, scope)) for m in s.consequent]
         # A consequent that NAMES a rule drags that rule's own variables in with
         # it: `+resume(?h, <cb>)` is generic only because `<cb>`'s patterns are.
         # Those are mentioned, not used, and no antecedent can or should bind
@@ -661,7 +655,6 @@ class Loader:
             self.m.focus,
             prop,
             s.member.sign,
-            grade=s.member.grade,
             licence=self.m.g.rel(self.LOADED, prop),
             source=self.source,
             mention=mentions,
@@ -696,7 +689,7 @@ class Loader:
         prop = self.build(s.member.term, scope)
         if self.m.g.has_var(prop):
             raise ParseError(f"line {s.line}: an arrival may not contain a variable")
-        self.m.channels.deliver(self.channels[s.channel], prop, s.member.sign, s.member.grade)
+        self.m.channels.deliver(self.channels[s.channel], prop, s.member.sign)
 
 
 def _mentions_a_rule(t: Term) -> bool:

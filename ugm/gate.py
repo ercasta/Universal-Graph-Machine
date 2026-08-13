@@ -171,7 +171,6 @@ class Gate:
         frame: Frame,
         proposition: NodeId,
         sign: str,
-        grade: str = "certain",
         licence: Optional[NodeId] = None,
         source: Optional[NodeId] = None,
         consumed: Tuple[Entry, ...] = (),
@@ -211,7 +210,6 @@ class Gate:
                     self.REFUSED, proposition, self.chain.SIGN[sign], forbidding
                 ),
                 sign="+",
-                grade=grade,
                 licence=forbidding,
                 source=source,
                 consumed=tuple(x.node for x in consumed),
@@ -224,7 +222,6 @@ class Gate:
             locus=frame.topic if locus is None else locus,
             proposition=proposition,
             sign=sign,
-            grade=grade,
             licence=licence,
             source=source,
             consumed=tuple(e.node for e in consumed),

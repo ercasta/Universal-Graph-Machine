@@ -18,7 +18,7 @@ import heapq
 import os
 from typing import Iterable, List, NamedTuple, Optional, Tuple
 
-from .chain import GRADES, MINUS, PLUS, UNSURE, Chain, Entry, Moment
+from .chain import MINUS, PLUS, UNSURE, Chain, Entry, Moment
 from .channels import Arrival, Channels
 from .gate import Frame, Gate
 from .graph import Graph, NodeId
@@ -33,7 +33,6 @@ from .rules import (
     _defeated,
     arbitrate,
     defeat,
-    effective_grade,
     match,
     occurs,
     unify,
@@ -806,7 +805,7 @@ class Machine:
         w(self.g.rel(self.RULE, rule.node))
         conn = self.rules.CAUSES if rule.connective == "causes" else self.rules.IMPLIES
         w(self.g.rel(self.CONN, rule.node, conn))
-        # ⚠⚠ **The POSITION, and on the consequent the GRADE.** Both were
+        # ⚠⚠ **The POSITION.** It was missing and it is part of the rule
         # missing and both are part of the rule: an antecedent is a sequence --
         # §18's tiebreak reads the consumed entries and `consumed` is filled by
         # member position -- and a consequent member states how strongly it
@@ -822,8 +821,7 @@ class Machine:
                          self.rules.SIGN[m.sign], self._numeral(i)))
         for i, m in enumerate(rule.consequent):
             w(self.g.rel(self.CON, rule.node, m.pattern,
-                         self.rules.SIGN[m.sign], self._numeral(i),
-                         self.chain.GRADE[m.grade]))
+                         self.rules.SIGN[m.sign], self._numeral(i)))
 
     def _numeral(self, i: int):
         """A node for a small whole number. `NUMERAL` stops at nine because
@@ -841,7 +839,7 @@ class Machine:
     # -- supposing --------------------------------------------------------
 
     def suppose(
-        self, assumption: NodeId, grade: str = "certain", wrap: Optional[NodeId] = None
+        self, assumption: NodeId, wrap: Optional[NodeId] = None
     ) -> Frame:
         """Enter a supposition: assume `assumption` bare, and reason inside.
 
@@ -865,7 +863,7 @@ class Machine:
         # and a read requires somewhere to stand. Everything else about supposing
         # is convention.
         self.focus = child
-        self.gate.write(child, assumption, PLUS, grade=grade, licence=licence, source=self.KB)
+        self.gate.write(child, assumption, PLUS, licence=licence, source=self.KB)
         return child
 
     def _enter(self, frame: Frame, e: Entry) -> None:
@@ -929,7 +927,7 @@ class Machine:
         # `_supposed` stays as a COUNT, for `hypotheses(n)`: how many distinct
         # assumptions have been entered.
         self._supposed.add(assumption)
-        self.suppose(assumption, grade=e.grade, wrap=wrap)
+        self.suppose(assumption, wrap=wrap)
 
     def _fit(self, frame: Frame, e: Entry) -> None:
         """Answer a match request (§5's wall, from the side that can be crossed).
@@ -1951,7 +1949,7 @@ class Machine:
 
         **Not a conclusion.** What lands is `answered(<M>, req, y)` -- a record
         that M said so, the same treatment §17 gives every arrival. Turning it
-        into a belief is an authored rule carrying an authored grade, so a
+        into a belief is an authored rule, which may wrap it as weakly as it likes, so a
         confident tool cannot launder a weak answer into a strong claim, and
         §12's weakest link keeps working with nothing added.
 
@@ -2241,23 +2239,21 @@ class Machine:
             return None
         connective = CAUSES if conn is self.rules.CAUSES else IMPLIES
         sign_of = {v: k for k, v in self.chain.SIGN.items()}
-        grade_of = {v: k for k, v in self.chain.GRADE.items()}
 
-        def side(relation, graded):
+        def side(relation):
             out = []
             for p in self.g.instances_of(relation):
                 if self.g.member(p, 0) is not node or not self._claims(p):
                     continue
                 members = self.g.members(p)
-                grade = grade_of.get(members[4], "certain") if graded else "certain"
-                out.append((self.g.show(members[3]), Member(
-                    sign_of.get(members[2], PLUS), members[1], grade)))
+                out.append((self.g.show(members[3]),
+                            Member(sign_of.get(members[2], PLUS), members[1])))
             return [m for _, m in sorted(out, key=lambda pair: int(pair[0]))]
 
-        con = side(self.CON, True)
+        con = side(self.CON)
         if not con:
             return None  # a rule that concludes nothing is not a rule
-        return connective, side(self.ANT, False), con
+        return connective, side(self.ANT), con
 
     def _hypothetical(self, frame: Frame) -> bool:
         """Is this frame inside a supposition? Derived from the forest, not held.
@@ -2372,7 +2368,6 @@ class Machine:
                         parent,
                         crossed,
                         sign,
-                        grade=e.grade,
                         licence=self.g.rel(self.CONCLUDED, frame.node),
                         source=self.KB,
                         consumed=(e,),
@@ -2661,10 +2656,11 @@ class Machine:
         separate*, and only a magnitude can say how far apart two candidates are.
         So the table carries a score, and scores are compared as **cardinals**.
 
-        This adds nothing ordinal. §10's grades are a different quantity on a
-        different scale and keep their own composition rule (§12's weakest link);
-        an entry's grade here says how confident the agent is *in the
-        recommendation*, which is not how strong the recommendation is.
+        This adds nothing ordinal, and there is no longer anything ordinal for
+        it to be confused with: §10's grades are gone, and *how sure the agent
+        is* is a wrapper around a claim rather than a number beside one. How
+        strong a recommendation is and how sure the agent is of it were always
+        two quantities; now only one of them is a number.
         """
         score = 0
         for node in self.g.instances_of(self.PREFER):
@@ -2708,7 +2704,7 @@ class Machine:
         knew: Appendix C's census, one line of it.
 
         Two things improve by the split rather than merely moving. The arrival's
-        grade now reaches the `says` claim through §16's weakest link instead of
+        uncertainty now reaches the `says` claim as a wrapper a rule can read instead of
         through a keyword argument, so nothing special-cases it. And provenance
         lands where §17 says it should: the raw arrival is the **channel** record,
         unforgeable and sourced to the socket; the `says` claim above it is
@@ -2740,8 +2736,7 @@ class Machine:
             self.ARRIVED, a.channel, a.proposition, self.rules.SIGN[a.sign]
         )
         self.gate.write(
-            own, report, PLUS,
-            grade=a.grade, licence=utterance, source=a.channel,
+            own, report, PLUS, licence=utterance, source=a.channel,
         )
 
     def _apply(self, app: Application) -> Tuple[Entry, ...]:
@@ -2800,7 +2795,6 @@ class Machine:
                     frame,
                     grounded,
                     m.sign,
-                    grade=effective_grade(m.grade, app.consumed),
                     licence=licence,
                     source=self.KB,  # the rule is the licence; the KB is the channel
                     consumed=app.consumed,
@@ -4118,7 +4112,7 @@ class Machine:
                     out.append({"kind": "say", "channel": self.g.show(c),
                                 "scope": scope_of.get(c),
                                 "proposition": surface(prop),
-                                "sign": self.g.show(sign), "grade": e.grade})
+                                "sign": self.g.show(sign)})
                     continue
                 lic = e.licence
                 if lic is None or self.g.relation_of(lic) is not self.LOADED:
@@ -4167,7 +4161,7 @@ class Machine:
                     self.channels.deliver(
                         ldr.channel(item["channel"]),
                         ldr.term(item["proposition"]),
-                        item["sign"], item.get("grade", "certain"),
+                        item["sign"],
                     )
                 # ⭐ Think after each block, to quiescence. `run` is not state
                 # and is not rendered -- *think until there is nothing left* is
@@ -4297,7 +4291,6 @@ class Machine:
 
     def _line(self, e: Entry) -> str:
         bits = [f"{e.sign}{self.g.show(e.proposition)} @{e.locus}"]
-        bits.append(f"grade={e.grade}")
         if e.source is not None:
             bits.append(f"via {self.g.show(e.source)}")
         if e.licence is not None:
@@ -4386,10 +4379,10 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
     def advice(name: str, key: str) -> str:
         """`prefer(...)`, or `possible(prefer(...))` when nothing was observed.
 
-        ⭐⭐⭐ **How sure is a WRAPPER, not a field.** §21's item 5 is that grades
-        are Python fields on the entry, so no rule can read one -- which makes a
-        confidence expressed as a grade unreadable by the very rules that would
-        act on it. A wrapper is an ordinary node: `_priority` does not count it
+        ⭐⭐⭐ **How sure is a WRAPPER, not a field**, and this was the argument
+        that eventually deleted grades outright. §21's item 5 was that a grade
+        is a Python field on the entry, so no rule can read one -- a confidence
+        unreadable by the very rules that would act on it. A wrapper is an ordinary node: `_priority` does not count it
         (an unsure preference must not silently steer), and a corpus rule decides
         whether to take it up:
 

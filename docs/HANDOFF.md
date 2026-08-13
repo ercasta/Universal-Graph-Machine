@@ -1,6 +1,61 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **437 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **436 checks, 0 failing**; every instrument green.
+
+## Latest: **there are no grades**. Commit `ungraded`.
+
+The user's question — *do we really need `@likely`; can't a rule manage `likely(something)`?* —
+measured rather than argued, and the measurement said yes three ways:
+
+* **`ugm.modality` had already ranked the grade last of its three treatments.** Not a term, so **no
+  rule can ask** *is this merely likely*; **no guard to cross**, because a grade annotates a
+  conclusion the actor still sees and can ignore; **does not nest**. Lifting can be asked about and
+  dies on generic rules (use/mention). Supposing wins outright.
+* **Almost nothing used it**: **4 of 3,740 rules** authored a non-certain grade, **6 of 32,289
+  entries** carried one.
+* ⭐⭐⭐ **Nothing ever decided on it.** `weaker` was called from exactly one place. The grade was
+  **carried, composed, printed — and never obeyed**, which is this repo's own *read and not obeyed*
+  defect arriving at the floor. It could not be obeyed, precisely because it is not a term.
+
+So: `@` is refused by the parser (with a message saying what to write instead), `GRADES`, `weaker`,
+`effective_grade`, `Member.grade` and `Entry.grade` are all gone, and `Entry` is back to **three
+members and never a fourth**.
+
+⭐⭐⭐ **The closed set went with it.** Five names Python knew became whatever modalities a corpus
+cares to write, with whatever ordering it authors — §10's *closed is a rate, not a kind*, one place
+further down.
+
+**What replaces weakest link, and it was already built.** Cross `likely(p)` into a supposition, reason
+bare inside with the ordinary rules — supposing *unwraps*, so nothing needs a lifted twin — and the
+conclusion comes back out wrapped. Two uncertain premises give `likely(possible(c(t)))`: **the weakest
+link as structure**, where `min` gave a number and forgot which premise was weak.
+
+⚠ **What is lost, and it is a check rather than a caveat.** Weakest link was automatic and total.
+Now nothing is concluded from an uncertain premise unless a corpus **crossed**, and collapsing the
+nest is a corpus's table whose ordering is a corpus's claim: `{+likely(possible(?x))} ⟹ {+possible(?x)}`.
+The ordinal stops being free and starts being arguable, which is the trade this design makes
+everywhere else.
+
+⭐ **And one thing the deletion bought.** Rule **composition** refused anything but `certain`, because
+composing a grade is a minimum computed once from defeasible constituents — §16's objection one level
+up. With grades gone the objection goes too, and the restriction was **deleted rather than solved**.
+
+⚠⚠ **It cost the two instruments that were built on it, and both got better.** `ugm.tools`'s *the
+corpus's grade governs, not the tool's confidence* is now the corpus's **wrapper**, and the bare claim
+is never asserted. `ugm.forest`'s credit walk needed two corpus lines saying **what this corpus is
+willing to act on** — and that corpus turns out to be *reckless*, acting on a merely-possible
+classification, which is what costs it the goal. Under grades that recklessness was **invisible**:
+`<treat>` matched `is_gothic(?c)` whatever grade the entry carried, because nothing could read a
+grade. Now it is one line, and deleting the line is how you get a careful agent.
+
+⚠ `ugm.modality`'s grade column is now a **record rather than a measurement** — it cannot be run,
+because there is nothing left to run it against. The probe that decided a deletion keeps its verdict
+in prose, the way the deleted engine keeps its in git.
+
+Kill-probes: conclusions leaving a frame **bare** (the replacement mechanism) — **61 failing**; `@`
+accepted and silently ignored — 2. The design doc's own conditional is discharged in place: *if §9's
+open question resolves toward wrapping, this argument needs re-running* — it resolved, and §12's
+"where the grade lives" section now carries the re-run and the measurement.
 
 ## Latest: **an example becomes a rule**. Commit `generalise`.
 

@@ -6,7 +6,7 @@ forward rules. Deliberately absent -- spans, shapes, backward reading, recall
 learning, suppositions.
 """
 
-from .chain import Chain, Entry, Moment, MINUS, PLUS, UNSURE, GRADES, weaker
+from .chain import Chain, Entry, Moment, MINUS, PLUS, UNSURE
 from .channels import Channels
 from .gate import Frame, Gate
 from .graph import Graph
@@ -31,6 +31,4 @@ __all__ = [
     "PLUS",
     "MINUS",
     "UNSURE",
-    "GRADES",
-    "weaker",
 ]

@@ -8,7 +8,7 @@ be fused:
                 cannot misreport its own reading.
 
     authority   who is taken to have spoken, and what their word is worth.
-                An ordinary claim, gradeable and defeasible.
+                An ordinary claim, defeasible like any other.
 
 Fusing them would make authority unforgeable by fiat, so that anyone reaching the
 right socket would thereby be the boss. The knowledge base is a channel like any
@@ -25,7 +25,6 @@ class Arrival(NamedTuple):
     channel: NodeId
     proposition: NodeId
     sign: str
-    grade: str
 
 
 class Channels:
@@ -76,12 +75,12 @@ class Channels:
         return node
 
     def deliver(
-        self, channel: NodeId, proposition: NodeId, sign: str = "+", grade: str = "certain"
+        self, channel: NodeId, proposition: NodeId, sign: str = "+"
     ) -> None:
         """Deliver an arrival. Nothing is believed yet: what arrives is that the
         channel said so, and turning that into a claim about the world is a rule
         the agent can be asked about."""
-        a = Arrival(channel, proposition, sign, grade)
+        a = Arrival(channel, proposition, sign)
         self.arrived += 1
         if self.sink is None:
             self._pending.append(a)

@@ -10,7 +10,7 @@ the same moment needs no skeleton, and the skeleton is what §8 adds for chains.
 
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from .chain import Chain, Entry, Moment, weaker
+from .chain import Chain, Entry, Moment
 from .graph import Graph, NodeId
 
 CAUSES = "causes"
@@ -18,13 +18,15 @@ IMPLIES = "implies"
 
 
 class Member(NamedTuple):
-    """A signed entry in a rule's antecedent or consequent. In the antecedent the
-    grade is unused: what a premise was worth is read off the entry that matched
-    it, not asserted by the rule."""
+    """A signed entry in a rule's antecedent or consequent.
+
+    Two members, and there was a third: the **grade** a consequent would
+    conclude at. It is gone with the rest of `@likely`. What a rule says about
+    the strength of its conclusion is now *in* the conclusion -- `+likely(p)` --
+    which a rule can read and a corpus can argue with, and a grade never was."""
 
     sign: str
     pattern: NodeId
-    grade: str = "certain"
 
 
 class Rule:
@@ -216,20 +218,20 @@ class RuleSet:
         can, and it is. A composed rule is therefore as defeasible as its parts
         only with respect to precedence.
 
-        The **grade** is not composed. §21 records why: it would be a minimum
-        computed once, from constituents that are themselves defeasible, which is
-        a cache of a derived value -- §16's own objection one level up. Until
-        that is settled, composition is refused for anything but `certain`.
+        ⭐ **The grade used to block this.** §21 argued that composing one would
+        be a minimum computed once from constituents that are themselves
+        defeasible -- a cache of a derived value, §16's objection one level up --
+        so composition refused anything but `certain`. With grades gone the
+        objection goes with them: an uncertain conclusion is `+likely(p)`, an
+        ordinary consequent pattern, and composing it is composing a pattern.
+        The restriction was deleted rather than solved.
         """
         fa = {}
-        f_ant = [Member(m.sign, rename(self.g, m.pattern, fa), m.grade) for m in first.antecedent]
-        f_con = [Member(m.sign, rename(self.g, m.pattern, fa), m.grade) for m in first.consequent]
+        f_ant = [Member(m.sign, rename(self.g, m.pattern, fa)) for m in first.antecedent]
+        f_con = [Member(m.sign, rename(self.g, m.pattern, fa)) for m in first.consequent]
         sa: Dict[NodeId, NodeId] = {}
-        s_ant = [Member(m.sign, rename(self.g, m.pattern, sa), m.grade) for m in second.antecedent]
-        s_con = [Member(m.sign, rename(self.g, m.pattern, sa), m.grade) for m in second.consequent]
-
-        if any(m.grade != "certain" for m in f_con + s_con):
-            return None
+        s_ant = [Member(m.sign, rename(self.g, m.pattern, sa)) for m in second.antecedent]
+        s_con = [Member(m.sign, rename(self.g, m.pattern, sa)) for m in second.consequent]
 
         for i, want in enumerate(s_ant):
             for made in f_con:
@@ -239,14 +241,14 @@ class RuleSet:
                 if b is None:
                     continue
                 antecedent = [
-                    Member(m.sign, ground(self.g, m.pattern, b), m.grade) for m in f_ant
+                    Member(m.sign, ground(self.g, m.pattern, b)) for m in f_ant
                 ] + [
-                    Member(m.sign, ground(self.g, m.pattern, b), m.grade)
+                    Member(m.sign, ground(self.g, m.pattern, b))
                     for j, m in enumerate(s_ant)
                     if j != i
                 ]
                 consequent = [
-                    Member(m.sign, ground(self.g, m.pattern, b), m.grade) for m in s_con
+                    Member(m.sign, ground(self.g, m.pattern, b)) for m in s_con
                 ]
                 composed = self.rule(
                     second.connective if first.connective == second.connective else CAUSES,
@@ -931,16 +933,10 @@ def _defeaters(rs: RuleSet, rule: "Rule", matched: Sequence["Rule"]) -> List["Ru
     ]
 
 
-def effective_grade(authored: str, consumed: Sequence[Entry]) -> str:
-    """`min(authored, support)` (§12).
-
-    A rule states how strongly it would conclude, given its premises. What its
-    premises were worth is not its to say -- without this, a rule asserting
-    `@certain` on the strength of a merely-possible input launders a weak premise
-    into a strong conclusion, and the weak link vanishes from the trail the whole
-    soundness argument walks.
-    """
-    out = authored
-    for e in consumed:
-        out = weaker(out, e.grade)
-    return out
+# `effective_grade` was here: `min(authored, every consumed entry's grade)` --
+# §12's weakest link, computed on every write. Gone with the grade itself. What
+# propagates uncertainty now is a supposition's WRAPPER: cross `likely(p)`,
+# reason inside with the ordinary rules, and what comes out is `likely(q)`. Two
+# uncertain premises give `likely(possible(q))` -- the weakest link as STRUCTURE
+# rather than as a number, and collapsing that is a corpus's table and a
+# corpus's claim about which of its modalities is weaker than which.

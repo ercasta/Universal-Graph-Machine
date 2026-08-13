@@ -1929,6 +1929,44 @@ is a shape that was right rather than convenient.
 *If §9's open question resolves toward wrapping, this argument needs re-running: an entry with two
 members still exists, and the grade still rides it, but the "sign is already a member" step is gone.*
 
+#### RESOLVED, 2026-08-13: it resolved toward wrapping, and the grade is gone
+
+The argument above is sound and it answered the wrong question. It asks *where should a grade live*
+and settles it well; what it never asks is *what is a grade for*. Measured three ways, and they
+agreed:
+
+* **`ugm.modality` ranked it last of the three treatments.** A grade is **not a term**, so no rule can
+  ask *is this merely likely*; there is no guard to cross, because a grade annotates a conclusion the
+  actor still sees and can still ignore; and it does not nest, because a grade has no place inside a
+  term. Lifting can be asked about but dies on generic rules (use/mention). **Supposing wins outright**
+  — it unwraps, so the bare corpus is the whole corpus.
+* **Almost nothing used it.** Across the suite, **4 of 3,740 rules** authored a non-certain grade and
+  **6 of 32,289 entries** carried one.
+* ⭐⭐⭐ **Nothing ever decided on it.** `weaker` was called from exactly one place, `effective_grade`.
+  Every other read carried the grade forward or printed it. The grade was **carried, composed and
+  printed, and never obeyed** — and it could not be obeyed, precisely because it is not a term.
+
+So `@likely` is gone, `GRADES` is gone, `weaker` and `effective_grade` are gone, and `Entry` is back
+to *three members and never a fourth* with licence and source as ordinary facts. What replaces it is
+`likely(p)`: an ordinary proposition, crossed into a supposition by an ordinary rule, coming back out
+wrapped.
+
+⭐⭐⭐ **And the closed set went with it.** Five names Python knew became whatever modalities a corpus
+cares to write, with whatever ordering it authors — §10's *closed is a rate, not a kind*, one place
+further down.
+
+⚠ **What is lost, stated rather than buried.** Weakest link was **automatic and total**: every write,
+every rule, nothing authored. Now nothing is concluded from an uncertain premise unless a corpus
+**crossed**, and what comes back is nested — `likely(possible(q))` — where `min` gave one ordinal.
+Collapsing the nest is a corpus's table and its ordering is a corpus's claim. **The ordinal stops
+being free and starts being arguable**, which is the trade, and it is the trade this design makes
+everywhere else.
+
+⭐ One thing the deletion *bought* beyond the argument: rule **composition** refused anything but
+`certain`, because composing a grade would have been a minimum computed once from defeasible
+constituents — a cache of a derived value, this section's own objection one level up. With grades gone
+the objection goes with them, and the restriction was deleted rather than solved.
+
 ### Superseded, not invalidated
 
 If a stored grade is a cache, is a stored derived *fact* not also a cache? No — and the difference is

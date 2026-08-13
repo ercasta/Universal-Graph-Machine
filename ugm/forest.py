@@ -14,7 +14,7 @@ ensemble combined somewhere else.
 ⭐⭐⭐ **An ensemble is a TOOL, and then voting is available.** `ugm.tools`
 established the shape: `answers(<M>, ask)` binds an answerer in data, its answer
 lands as `answered(...)` -- a record, not a claim -- and a corpus rule with an
-authored grade turns it into a belief. Combination happens inside the answerer,
+authored rule turns it into a belief. Combination happens inside the answerer,
 so five trees that disagree produce *one* answer with a count on it, and nothing
 about `_priority` is involved. Measured below against the same ensemble loaded as
 rules, which gets a romanesque cathedral wrong for exactly the recorded reason.
@@ -268,23 +268,23 @@ def facts_for(examples) -> List[str]:
 
 
 ASK = "rule <ask> = implies( { +cathedral(?c) }, { +classify(?c) } )"
-# The corpus's grade, mapped from the count -- rows, not branches, and the whole
-# of what *the corpus's grade governs, not the tool's confidence* means when the
+# The corpus's WRAPPER, mapped from the count -- rows, not branches, and the whole
+# of what *the corpus governs, not the tool's confidence* means when the
 # tool has a real number to report. Nothing here is arithmetic: five trees make
 # six sayable counts and each is a line.
 TRUST = [
     "rule <g5> = implies( { +answered(<forest>, classify(?c), gothic(5)) },"
-    " { +is_gothic(?c) @certain } )",
+    " { +certain(is_gothic(?c)) } )",
     "rule <g4> = implies( { +answered(<forest>, classify(?c), gothic(4)) },"
-    " { +is_gothic(?c) @likely } )",
+    " { +likely(is_gothic(?c)) } )",
     "rule <g3> = implies( { +answered(<forest>, classify(?c), gothic(3)) },"
-    " { +is_gothic(?c) @possible } )",
+    " { +possible(is_gothic(?c)) } )",
     "rule <r0> = implies( { +answered(<forest>, classify(?c), gothic(0)) },"
-    " { +is_romanesque(?c) @certain } )",
+    " { +certain(is_romanesque(?c)) } )",
     "rule <r1> = implies( { +answered(<forest>, classify(?c), gothic(1)) },"
-    " { +is_romanesque(?c) @likely } )",
+    " { +likely(is_romanesque(?c)) } )",
     "rule <r2> = implies( { +answered(<forest>, classify(?c), gothic(2)) },"
-    " { +is_romanesque(?c) @possible } )",
+    " { +possible(is_romanesque(?c)) } )",
 ]
 SEED_FACT = f"fact +seeded(<forest>, {SEED})"
 
@@ -321,13 +321,29 @@ def verdicts(m, kb, examples) -> Dict[str, str]:
     failure -- asserting gothic AND romanesque about one building -- into a
     tidy single verdict. A contradiction is a result; hiding it is not.
     """
+    # ⚠ The verdict is WRAPPED, where it used to be a bare claim with a grade
+    # on the entry. Grades are gone: how sure the corpus is about the tool's
+    # count is said in the conclusion -- `likely(is_gothic(x))` -- which is a
+    # proposition a rule can read and an entry's field never was.
     out = {}
     for name, _, _ in examples:
         held = []
         for concept in ("is_gothic", "is_romanesque"):
-            e = m.chain.resolve(kb.term(f"{concept}({name})"), m.focus.topic)
-            if e is not None and e.sign == "+":
-                held.append(f"{concept[3:]}/{e.grade}")
+            # ⚠ Bare AND wrapped, because the two encodings say it differently:
+            # a rules-as-ensemble member concludes `is_gothic(?c)` flat, and the
+            # tool's corpus concludes `likely(is_gothic(?c))`. An unqualified
+            # claim is the strongest thing a corpus can say, so it reads as
+            # `certain` -- which is what its entry's grade used to be by
+            # default, before there were grades.
+            for term, label in (
+                [(f"{concept}({name})", "certain")]
+                + [(f"{w}({concept}({name}))", w)
+                   for w in ("certain", "likely", "possible")]
+            ):
+                e = m.chain.resolve(kb.term(term), m.focus.topic)
+                if e is not None and e.sign == "+":
+                    held.append(f"{concept[3:]}/{label}")
+                    break
         out[name] = " AND ".join(held) if held else "-"
     return out
 
@@ -479,16 +495,16 @@ def main() -> int:
          all(b > 0 for _, b in same))
 
     # -- the grade is the corpus's, and the count is the tool's -------------
-    print("Every cathedral, and the grade the CORPUS assigned to the count:\n")
+    print("Every cathedral, and how sure the CORPUS made the count:\n")
     m_all, kb_all, asked_all = classify(list(CATHEDRALS) + list(HELD_OUT), model)
     v = verdicts(m_all, kb_all, list(CATHEDRALS) + list(HELD_OUT))
     for name, props, truth in list(CATHEDRALS) + list(HELD_OUT):
         g, r = model.votes(set(props))
         print(f"  {name:<10} {truth:<12} {v.get(name, '-'):<24} gothic({g})")
     print()
-    graded = {x.split("/")[1] for x in v.values()}
+    graded = {x.split("/")[1] for x in v.values() if "/" in x}
     gate("⭐⭐ the tool reports a COUNT and the corpus decides how sure that "
-         "makes it -- more than one grade is reached, so the mapping is live",
+         "makes it -- more than one wrapper is reached, so the mapping is live",
          len(graded) > 1)
     pisa_g, _ = model.votes(set(dict((n, p) for n, p, _ in CATHEDRALS)["pisa"]))
     gate("the answer is a RECORD before it is a claim",
@@ -530,6 +546,21 @@ def main() -> int:
     # -- one credit walk ----------------------------------------------------
     print("\nA misclassification that costs a goal:\n")
     TREAT = [
+        # ⚠⚠ **What this corpus is willing to act on, in two lines.** The two
+        # encodings say the verdict differently -- a rules-as-ensemble member
+        # concludes `is_gothic(?c)` flat, the tool's corpus concludes
+        # `possible(is_gothic(?c))` -- so the corpus has to say which of those
+        # it will treat a cathedral on.
+        #
+        # ⭐ And this corpus is RECKLESS, deliberately: it acts on a merely
+        # possible classification, which is what costs it the goal below. Under
+        # grades that recklessness was invisible -- `<treat>` matched
+        # `is_gothic(?c)` whatever grade the entry carried, because nothing
+        # could read a grade -- so an agent could not have declined even if its
+        # author had wanted it to. Now the recklessness is one line, and
+        # deleting it is how you get a careful agent.
+        "rule <believe> = implies( { +certain(?p) }, { +?p } )",
+        "rule <believe-maybe> = implies( { +possible(?p) }, { +?p } )",
         "rule <treat> = implies( { +is_gothic(?c), +restoring(?c) },"
         " { +doing(repoint(?c)) } )",
         "rule <spoil> = implies( { +did(repoint(?c)), +part(?c, ?p), +barrel(?p) },"

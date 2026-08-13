@@ -18,7 +18,7 @@ phases went. This closes it with two ordinary relations and no new primitive:
     python -m ugm.tools
 
 ⭐⭐⭐ **A tool may propose; it may never conclude.** What lands is a record that
-the tool said so, and a corpus rule with an authored grade turns it into a claim
+the tool said so, and a corpus rule turns it into a claim, as weakly as it likes
 -- exactly the `arrived` -> `says` -> trust-rule path channels have had all along.
 This is not fastidiousness. Let a tool write a belief directly and §12's weakest
 link has a link with nothing behind it, `why()` stops answering at the one place
@@ -153,13 +153,16 @@ def main() -> int:
     kb3.load("\n".join([
         "rule <ask> = implies( { +thing(?x) }, { +guess(?x) } )",
         "rule <trust> = implies( { +answered(<oracle>, guess(?x), ?k) },"
-        " { +kind(?x, ?k) @possible } )",
+        " { +possible(kind(?x, ?k)) } )",
         "fact +thing(kettle)", ""]))
     m3.run(limit=80)
-    e = m3.chain.resolve(kb3.term("kind(kettle, vessel)"), m3.focus.topic)
-    gate("...and the CORPUS's grade governs, not the tool's confidence -- a "
+    # ⚠ The corpus's WRAPPER, where this used to read the corpus's GRADE. Same
+    # argument, and now a rule can act on it: what the tool said is believed
+    # only as `possible(...)`, and the bare claim is never asserted.
+    gate("...and the CORPUS governs, not the tool's confidence -- a "
          "certain-sounding tool cannot launder a weak answer",
-         e is not None and e.grade == "possible")
+         m3.holds(kb3.term("possible(kind(kettle, vessel))")) == "+"
+         and m3.holds(kb3.term("kind(kettle, vessel)")) is None)
 
     gate("a tool may DECLINE, and declining is an answer rather than a failure",
          called_q and not quiet.emitted

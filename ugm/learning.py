@@ -168,7 +168,7 @@ def lesser_of_two_evils(rounds: int = 4) -> Tuple[dict, dict]:
     > with no exploration.** What is missing is not a better rule for picking --
     > it is a SECOND QUANTITY. The design already has both scales and already
     > forbids conflating them: a cardinal score on the table for *how good*, and
-    > §10's ordinal grade on the entry for *how sure*. `+prefer(<R>, k, 3)
+    > and a WRAPPER around the claim for *how sure*. `+prefer(<R>, k, 3)
     > @possible` -- a strong recommendation the agent is not certain of -- is
     > exactly the sentence explore/exploit needs, and nothing writes it from
     > experience. That is §21's item 1 and item 2 turning out to be one item.
@@ -541,7 +541,7 @@ def main() -> int:
   Suppression with no magnitude oscillates; magnitude with no exploration
   sticks. What is missing is a SECOND QUANTITY, and both scales already exist
   and are already kept apart on purpose: a cardinal score on the table for
-  *how good*, §10's ordinal grade on the entry for *how sure*. Nothing writes
+  *how good*, and a wrapper around the claim for *how sure*. Nothing writes
   the pair from experience -- and a learner that yields a value together with
   a spread is exactly the shape of thing that would.
 

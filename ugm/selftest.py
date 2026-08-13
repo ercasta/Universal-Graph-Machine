@@ -5,10 +5,10 @@ Checks are grouped by the section of `docs/rules-design.md` they hold to account
 
 from typing import List, Tuple
 
-from .chain import MINUS, PLUS, UNSURE, weaker
+from .chain import MINUS, PLUS, UNSURE
 from .graph import Graph
 from .machine import Machine
-from .rules import CAUSES, IMPLIES, Member, RuleSet, effective_grade, unify
+from .rules import CAUSES, IMPLIES, Member, RuleSet, unify
 
 _results: List[Tuple[str, str, bool]] = []
 
@@ -134,27 +134,93 @@ def gate() -> None:
     check("§13", "frames form a forest: ancestry is derived", gate_.frame(now, parent=f2).ancestry()[-1] is f2)
 
 
-# -- §12 grades -------------------------------------------------------------
+# -- §12 uncertainty ---------------------------------------------------------
 
 
-def grades() -> None:
-    check("§12", "weakest link picks the weaker", weaker("certain", "possible") == "possible")
-    check("§12", "and is symmetric", weaker("possible", "certain") == "possible")
+def uncertainty_is_a_proposition() -> None:
+    """There is no grade, and `@` is refused. (§10, §12)
 
+    `@likely` was a field on an entry and a closed set of five names in Python,
+    composed by weakest link on every write. It is gone, and what replaces it is
+    `likely(p)`: an **ordinary proposition**, crossed into a supposition by an
+    ordinary rule, coming back out wrapped.
+
+    Measured before deleting, three ways, and they agreed:
+
+    * `ugm.modality` already ranked the grade last of the three treatments --
+      **not a term, so no rule can ask about it**; no guard to cross; does not
+      nest;
+    * the suite authored one in **4 of 3,740 rules** and carried one on **6 of
+      32,289 entries**;
+    * `weaker` was called from **exactly one place**. The grade was carried,
+      composed and printed, and **nothing ever decided on it** -- this repo's
+      own *read and not obeyed* defect, arriving at the floor.
+
+    ⭐⭐⭐ **And the closed set went with it.** `GRADES` was five names Python
+    knew; now a corpus may have whatever modalities it likes, with whatever
+    ordering it authors. §10's *closed is a rate, not a kind*, one place
+    further.
+
+    ⚠ What is lost is that weakest link was AUTOMATIC and TOTAL. Nothing is
+    concluded from an uncertain premise unless a corpus **crossed**, and what
+    comes back is nested where `min` gave one ordinal. That is the trade, and
+    the last check here is the price: the ordinal stops being free and becomes
+    a corpus's table.
+    """
+    from .text import load
+
+    check("§10", "`@` is refused, and says what to write instead",
+          _refuses("rule <r> = implies( { +p(a) }, { +q(a) @likely } )"))
+
+    # Crossing: what a grade did for free, as two corpus lines. ⭐ Supposing
+    # UNWRAPS, so `<wet>` needs no lifted twin -- it is the bare rule, matching
+    # a bare fact, inside the frame.
     m = Machine()
-    g, c = m.g, m.chain
-    p = g.rel(g.atom("said"), g.atom("x"))
-    e = c.deposit(seat=c.root, locus=c.root, proposition=p, sign=PLUS, grade="possible")
-    check(
-        "§17",
-        "no laundering: a @certain rule over a merely-possible premise concludes possible",
-        effective_grade("certain", [e]) == "possible",
-    )
-    check(
-        "§12",
-        "a rule cannot strengthen its own premises",
-        effective_grade("certain", [e]) != "certain",
-    )
+    kb = load(m, chr(10).join([
+        "rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
+        "rule <wet> = implies( { +rain(?x) }, { +wet(?x) } )",
+        "fact +likely(rain(street))", ""]))
+    m.run(limit=80)
+    check("§12", "an uncertain premise carries its uncertainty to the "
+          "conclusion -- as a WRAPPER a rule can read, not a field it cannot",
+          m.holds(kb.term("likely(wet(street))")) == PLUS)
+    check("§12", "...and the bare conclusion is never asserted, so nothing "
+          "downstream can quietly treat it as certain",
+          m.holds(kb.term("wet(street)")) is None)
+
+    # ⭐⭐⭐ Two independent uncertainties: the weakest link as STRUCTURE. `min`
+    # gave one ordinal and threw away which premises were weak; nesting keeps
+    # both, and which is weaker is a claim a corpus makes.
+    two = Machine()
+    kb2 = load(two, chr(10).join([
+        "rule <c1> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
+        "rule <c2> = implies( { +possible(?p) }, { +suppose(?p, possible) } )",
+        "rule <both> = implies( { +a(?x), +b(?x) }, { +c(?x) } )",
+        "fact +likely(a(t))",
+        "fact +possible(b(t))", ""]))
+    two.run(limit=300)
+    check("§12", "⭐ two uncertain premises give a NESTED conclusion -- the "
+          "weakest link as structure, where min gave a number and forgot which "
+          "premise was weak",
+          two.holds(kb2.term("likely(possible(c(t)))")) == PLUS
+          and two.holds(kb2.term("c(t)")) is None)
+
+    # ⚠ And the price, stated as a check rather than as a caveat: collapsing the
+    # nest is a corpus's table, and its ORDERING is a corpus's claim. `min` was
+    # free and unarguable; this costs a line per pair and can be argued with,
+    # which is the whole of the trade.
+    collapsed = Machine()
+    kb3 = load(collapsed, chr(10).join([
+        "rule <c1> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
+        "rule <c2> = implies( { +possible(?p) }, { +suppose(?p, possible) } )",
+        "rule <both> = implies( { +a(?x), +b(?x) }, { +c(?x) } )",
+        "rule <weakest> = implies( { +likely(possible(?x)) }, { +possible(?x) } )",
+        "fact +likely(a(t))",
+        "fact +possible(b(t))", ""]))
+    collapsed.run(limit=300)
+    check("§12", "...and a corpus collapses the nest by saying which of its own "
+          "modalities is the weaker -- the ordinal, authored rather than built in",
+          collapsed.holds(kb3.term("possible(c(t))")) == PLUS)
 
 
 # -- §8, §14 rules, match, arbitration --------------------------------------
@@ -245,12 +311,13 @@ def connectives_differ() -> None:
     g2 = m2.g
     cloudy = g2.rel(g2.atom("cloudy"), g2.atom("mon"))
     rain = g2.rel(g2.atom("rain"), g2.atom("mon"))
-    m2.rules.rule(IMPLIES, [Member(PLUS, cloudy)], [Member(PLUS, rain, "likely")], "R2")
+    m2.rules.rule(IMPLIES, [Member(PLUS, cloudy)], [Member(PLUS, rain)], "R2")
     m2.gate.write(m2.focus, cloudy, PLUS)
     seat_before = m2.focus.seat
     m2.run(limit=5)
     check("§10", "`implies` lands in the same moment", m2.focus.seat is seat_before)
-    check("§12", "and carries the rule's authored grade", m2.chain.resolve(rain, m2.focus.topic).grade == "likely")
+    check("§10", "...and the conclusion is there to be read",
+          m2.chain.resolve(rain, m2.focus.topic) is not None)
 
 
 def quiescence() -> None:
@@ -277,7 +344,7 @@ def trusting_a_channel() -> None:
 
     said = g.rel(m.SAYS, user, raining, m.rules.SIGN["+"])
     trust = m.rules.rule(
-        IMPLIES, [Member(PLUS, said)], [Member(PLUS, raining, "likely")], "trust-user"
+        IMPLIES, [Member(PLUS, said)], [Member(PLUS, raining)], "trust-user"
     )
 
     m.channels.deliver(user, raining)
@@ -293,7 +360,6 @@ def trusting_a_channel() -> None:
     # every check after it went unreported. A runner whose contract is *any False
     # is a failure* has to be able to say False about an absence.
     e = m.chain.resolve(raining, m.focus.topic, m.focus.seat)
-    check("§12", "the conclusion is no stronger than the rule allowed", e is not None and e.grade == "likely")
     check("§5", "the conclusion names what produced it", e is not None and e.licence is not None)
 
     trail = m.chain.trail(e) if e is not None else []
@@ -356,7 +422,9 @@ def surface() -> None:
         _refuses("rule <r> = implies( { +p(?x) }, { +q(?y) } )"),
     )
     check("§10", "a third connective is refused", _refuses("rule <r> = enables( { +p(a) }, { +q(a) } )"))
-    check("§10", "a grade outside the ordinal set is refused", _refuses("rule <r> = implies( { +p(a) }, { +q(a) @0.7 } )"))
+    check("§10", "`@` is refused: grades are gone, and a corpus written against "
+          "the old notation means something this one does not",
+          _refuses("rule <r> = implies( { +p(a) }, { +q(a) @0.7 } )"))
     check(
         "§8",
         "a locus member says slice one carries the one-locus case only",
@@ -561,8 +629,7 @@ def mention_propagates() -> None:
     r, pat = g.var("?r"), g.var("?pat")
     m.rules.rule(
         IMPLIES,
-        [Member(PLUS, g.rel(m.CON, r, pat, m.rules.SIGN[PLUS],
-                             g.var("?i"), g.var("?gr")))],
+        [Member(PLUS, g.rel(m.CON, r, pat, m.rules.SIGN[PLUS], g.var("?i")))],
         [Member(PLUS, g.rel(concludes, r, pat))],
         "what-does-it-conclude",
     )
@@ -742,25 +809,29 @@ def worked_examples() -> None:
     m = Machine()
     kb = load_file(m, path)
     authored = [r for r in m.rules.rules if r not in m.bundle]
-    check("§8", "the document's worked rules parse", len(authored) == 3)
+    check("§8", "the document's worked rules parse", len(authored) == 4)
 
     steps = m.run(limit=30)
     check("§15", "and run to quiescence", steps[-1].state == "quiescent")
 
     check("§8", "<R1> concluded", m.holds(kb.term("boiling(kettle)")) == PLUS)
     check("§6", "including its negative member", m.holds(kb.term("liquid(kettle)")) == MINUS)
-    check("§8", "<R2> concluded", m.holds(kb.term("rain(monday, afternoon)")) == PLUS)
+    # ⚠ `<R2>` concludes `likely(rain(...))` where it used to conclude
+    # `rain(...) @likely`. The bare claim is reached only through `<cross>`,
+    # and that it comes back WRAPPED is what a grade used to say in a field.
+    check("§8", "<R2> concluded, and what it concluded says how strongly",
+          m.holds(kb.term("likely(rain(monday, afternoon))")) == PLUS)
     check(
         "§12",
-        "<R2>'s conclusion carries the grade it authored",
-        m.chain.resolve(kb.term("rain(monday, afternoon)"), m.focus.topic).grade == "likely",
+        "<R2>'s uncertainty survives crossing: supposed bare inside the frame, "
+        "carried back out wrapped -- weakest link as structure",
+        m.holds(kb.term("rain(monday, afternoon)")) is None,
     )
 
     # The trust rule's consequent is a bare variable: whatever the channel says.
-    raining = kb.term("raining(here)")
+    raining = kb.term("likely(raining(here))")
     check("§13", "a rule whose consequent is a variable believes what a channel said", m.holds(raining) == PLUS)
     e = m.chain.resolve(raining, m.focus.topic)
-    check("§12", "and it is no stronger than the rule allowed", e is not None and e.grade == "likely")
     check("§13", "the channel in the rule is the channel delivered on", e is not None and any(t.source == kb.term("user") for t in m.chain.trail(e)))
     check("R5", "the trail reaches the utterance", len(m.why(raining)) > 1)
 
@@ -774,7 +845,7 @@ def rules_as_data() -> None:
         "rule <a> = implies( { +p(x) }, { +q(x) } )",
         "rule <b> = implies( { +q(x) }, { +r(x) } )",
         "rule <lift> = implies( { +likely(?u), +ant(?rl, ?u, plus, ?i), "
-        "+con(?rl, ?v, plus, ?j, ?gr) },",
+        "+con(?rl, ?v, plus, ?j) },",
         "                      { +likely(?v) } )",
         "fact +likely(p(x))",
         "",
@@ -3480,11 +3551,13 @@ def an_example_becomes_a_rule() -> None:
             w(gg.rel(machine.CONN, node, machine.rules.IMPLIES))
             w(gg.rel(machine.ANT, node, ant, machine.chain.SIGN[PLUS],
                      machine._numeral(0)))
-            # ⚠ `@likely`, and the reason is §12 rather than modesty: a rule
+            # ⚠ WRAPPED, and the reason is §12 rather than modesty: a rule
             # nobody authored is exactly the kind whose conclusions must stay
-            # weaker than what it was told.
-            w(gg.rel(machine.CON, node, con, machine.chain.SIGN[PLUS],
-                     machine._numeral(0), machine.chain.GRADE["likely"]))
+            # weaker than what it was told -- and since grades went, saying so
+            # is saying it in the conclusion, where a rule can read it and a
+            # corpus can ask which of its beliefs rest on something learned.
+            w(gg.rel(machine.CON, node, gg.rel(kbb.atom("likely"), con),
+                     machine.chain.SIGN[PLUS], machine._numeral(0)))
             return node
 
         kbb.answerer("learner", "generalise", learn)
@@ -3509,10 +3582,11 @@ def an_example_becomes_a_rule() -> None:
           len(m.rules.rules) > before)
     check("§14", "⭐⭐⭐ ...and it applies to a case NEITHER example mentioned, "
           "which is the whole of what generalising is for",
-          m.holds(kb.term("known(gate)")) == PLUS)
-    learned = m.chain.resolve(kb.term("known(gate)"), m.focus.topic, m.focus.seat)
-    check("§12", "...and concludes no more strongly than a rule nobody authored "
-          "should", learned is not None and learned.grade == "likely")
+          m.holds(kb.term("likely(known(gate))")) == PLUS)
+    check("§12", "...and says so no more strongly than a rule nobody authored "
+          "should -- in the conclusion, where a corpus can ask which of its "
+          "beliefs rest on something learned",
+          m.holds(kb.term("known(gate)")) is None)
 
     # ⚠ Unrelated examples have a BARE VARIABLE as their generalisation -- a
     # rule that fires on everything. The tool declines, which §17 says is an
@@ -3532,7 +3606,7 @@ def an_example_becomes_a_rule() -> None:
     check("§17", "⚠ and two examples with nothing in common teach nothing: the "
           "tool declines rather than proposing a rule that fires on everything",
           len(junk.rules.rules) == j_before
-          and junk.holds(kb_j.term("known(gate)")) is None)
+          and junk.holds(kb_j.term("likely(known(gate))")) is None)
 
 
 def a_rule_can_author_a_rule() -> None:
@@ -3598,15 +3672,16 @@ def a_rule_can_author_a_rule() -> None:
             w(g.rel(machine.CONN, node, machine.rules.IMPLIES))
             w(g.rel(machine.ANT, node, g.rel(kbb.atom("seen"), x),
                     machine.chain.SIGN[PLUS], machine._numeral(0)))
-            # ⚠ `@likely`, not `certain`, and that is the check rather than
-            # the flavour: a learned rule states how strongly it would
-            # conclude, and an adopter that reads the grade and does not obey
-            # it launders a weak rule into a strong one. Recording it and
-            # obeying it are two properties and needed two checks -- adopting
-            # everything at `certain` broke nothing until the second existed.
-            w(g.rel(machine.CON, node, g.rel(kbb.atom("known"), x),
-                    machine.chain.SIGN[PLUS], machine._numeral(0),
-                    machine.chain.GRADE["likely"]))
+            # ⚠ The conclusion is WRAPPED -- `likely(known(?x))` -- and that is
+            # the check rather than the flavour. A rule nobody authored should
+            # not conclude as strongly as one that was told, and since grades
+            # went that is said in the consequent itself, where a rule can read
+            # it. It used to be a fifth member of `con` carrying a grade, and
+            # recording it and obeying it were two properties needing two
+            # checks; now there is nothing extra to obey.
+            w(g.rel(machine.CON, node,
+                    g.rel(kbb.atom("likely"), g.rel(kbb.atom("known"), x)),
+                    machine.chain.SIGN[PLUS], machine._numeral(0)))
             return node
 
         kbb.answerer("builder", "compose", compose)
@@ -3628,12 +3703,10 @@ def a_rule_can_author_a_rule() -> None:
           "described one, a corpus adopted it, and the loop reads it",
           len(m.rules.rules) == before + 1)
     check("§14", "...and it APPLIES -- the round trip is closed, not merely "
-          "recorded", m.holds(kb.term("known(door)")) == PLUS)
-    concluded = m.chain.resolve(kb.term("known(door)"), m.focus.topic, m.focus.seat)
-    check("§12", "...at the GRADE the graph said it would conclude at: an "
-          "adopter that reads a grade and does not obey it launders a weak "
-          "rule into a strong one",
-          concluded is not None and concluded.grade == "likely")
+          "recorded", m.holds(kb.term("likely(known(door))")) == PLUS)
+    check("§12", "...and what it concluded is WRAPPED, so how strongly a rule "
+          "nobody authored may speak is itself a claim a rule can read",
+          m.holds(kb.term("known(door)")) is None)
     # The tool proposed and the corpus disposed: delete the adopting rule and
     # the same offer is on the record and believed by nobody. `artefact`'s
     # measurement at the same boundary.
@@ -3645,7 +3718,7 @@ def a_rule_can_author_a_rule() -> None:
     check("§17", "...and a tool only PROPOSES: without the rule that adopts, "
           "the offer is on the record and nothing is live",
           len(inert.rules.rules) == n_before
-          and inert.holds(kb_i.term("known(door)")) is None
+          and inert.holds(kb_i.term("likely(known(door))")) is None
           and any(inert.g.relation_of(p) is inert.ANSWERED
                   for p in inert.g.instances_of(inert.ANSWERED)
                   if inert.holds(p) == PLUS))
@@ -3679,10 +3752,10 @@ def a_rule_can_author_a_rule() -> None:
           "believes after the frame is gone",
           len(inside.rules.rules) == s_before and len(refused_inside) == 1)
 
-    # ⚠ Position and grade, which `reify` did not record until this needed
-    # them. Without the position the members are ordered by the accident of
-    # minting -- which reproduces authored order for anything `reify` wrote, so
-    # a check over it could never fail. Deposited out of order on purpose.
+    # ⚠ The POSITION, which `reify` did not record until this needed it.
+    # Without it the members are ordered by the accident of minting -- which
+    # reproduces authored order for anything `reify` wrote, so a check over it
+    # could never fail. Deposited out of order on purpose.
     from .text import load as _load
     back = Machine()
     kb_b = _load(back, "rule <two> = implies( { +a(?x), +b(?x) }, { +c(?x) } )\n")
@@ -3696,15 +3769,14 @@ def a_rule_can_author_a_rule() -> None:
           "so reading it back is not a guess about minting order",
           sorted(order) == [("0", back.g.relation_of(kb_b.term("a(z)"))),
                             ("1", back.g.relation_of(kb_b.term("b(z)")))])
-    graded = Machine()
-    _load(graded, "rule <g> = implies( { +a(?x) }, { +c(?x) @likely } )\n")
-    (gr,) = [r for r in graded.rules.rules if r.name == "g"]
-    con = [p for p in graded.g.instances_of(graded.CON)
-           if graded.g.member(p, 0) is gr.node and graded.holds(p) == PLUS]
-    check("§12", "...and a consequent records the GRADE it would conclude at, "
-          "or a rule read back out of the graph launders a weak claim",
-          len(con) == 1
-          and graded.g.member(con[0], 4) is graded.chain.GRADE["likely"])
+    # ⚠ There is no grade member any more: `con` is four, like `ant`. The fifth
+    # carried the grade a consequent would conclude at, and it went with `@` --
+    # an uncertain conclusion is `+likely(p)`, which is already in the pattern.
+    con = [p for p in back.g.instances_of(back.CON)
+           if back.g.member(p, 0) is two.node and back.holds(p) == PLUS]
+    check("§14", "...and a consequent records no grade, because there is none: "
+          "how strongly a rule concludes is now IN what it concludes",
+          len(con) == 1 and len(back.g.members(con[0])) == 4)
 
 
 def a_defeat_is_on_the_record() -> None:
@@ -5290,7 +5362,7 @@ def main() -> int:
     chain_reads()
     two_indices()
     gate()
-    grades()
+    uncertainty_is_a_proposition()
     matching()
     arbitration_is_total()
     a_rule_is_a_node()

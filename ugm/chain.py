@@ -25,24 +25,39 @@ PLUS = "+"
 MINUS = "-"
 UNSURE = "?"
 
-GRADES = ("unknown", "unlikely", "possible", "likely", "certain")
-
-
-def weaker(a: str, b: str) -> str:
-    """Ordinal composition by weakest link (§12). Sound down a chain; §12 records
-    that it is silent about convergence, where belief ought to rise."""
-    return a if GRADES.index(a) <= GRADES.index(b) else b
+# ⭐⭐⭐ **There is no closed set of grades, and that is the point of removing
+# them.** `GRADES` was five names in Python -- unknown, unlikely, possible,
+# likely, certain -- with an ordinal `weaker` composing them by weakest link on
+# every write. It has been deleted, and what replaces it is `likely(p)`: an
+# ordinary proposition, crossed into a supposition by an ordinary rule, coming
+# back out wrapped. So a corpus may now have whatever modalities it likes, with
+# whatever ordering it authors, and §10's *closed is a rate, not a kind* holds
+# one place further.
+#
+# Measured before deleting, three ways. `ugm.modality` already ranked the grade
+# last of the three treatments -- **not a term, so no rule can ask about it; no
+# guard to cross; does not nest**. The suite authored one in **4 of 3,740
+# rules** and carried one on **6 of 32,289 entries**. And `weaker` was called
+# from exactly one place: the grade was carried, composed and printed, and
+# **nothing ever decided on it**, which is this repo's own *read and not obeyed*
+# defect arriving at the floor.
+#
+# ⚠ What is lost is that weakest link was AUTOMATIC and TOTAL. A conclusion
+# drawn from an uncertain premise is now derived only if a corpus crossed, and
+# what comes out is nested -- `likely(possible(x))` -- where `min` gave one
+# ordinal. Collapsing that is a corpus's table and its ordering is a corpus's
+# claim, which is the trade: the ordinal stops being free and starts being
+# arguable.
 
 
 class Entry(NamedTuple):
-    """The unit of assertion. Three members, and never a fourth: grade, licence
-    and source are ordinary facts about the entry (§5)."""
+    """The unit of assertion. Three members, and never a fourth: licence and
+    source are ordinary facts about the entry (§5)."""
 
     node: NodeId  # the entry's own identity, so other facts can be about it
     locus: "Moment"
     proposition: NodeId
     sign: str
-    grade: str
     licence: Optional[NodeId]  # what produced it: an application, an utterance
     source: Optional[NodeId]  # the channel it arrived through (§13)
     consumed: Tuple[NodeId, ...]  # the entries match consumed -- half the trail
@@ -135,12 +150,6 @@ class Chain:
         # `g.atom("+")` would be a different node that no rule could match --
         # the name-identity trap, which has cost this design four silent bugs.
         self.SIGN = {s: g.atom(s) for s in (PLUS, MINUS, UNSURE)}
-        # ...and a node per grade, beside the signs and for the same reason: a
-        # rule's consequent carries one, so anything that writes what a rule IS
-        # has to be able to say which. Interned here so the one that `reify`
-        # deposits and the one a reader resolves are the same node -- `atom`
-        # does not intern, and that twin has cost this repo six findings.
-        self.GRADE = {name: g.atom(name) for name in GRADES}
         self.root = Moment(g.instance(self.MOMENT), None, None)
         g.rel(self.IS_MOMENT, self.root.node)
         self.moments: List[Moment] = [self.root]
@@ -170,7 +179,6 @@ class Chain:
         locus: Moment,
         proposition: NodeId,
         sign: str,
-        grade: str = "certain",
         licence: Optional[NodeId] = None,
         source: Optional[NodeId] = None,
         consumed: Tuple[NodeId, ...] = (),
@@ -192,7 +200,7 @@ class Chain:
             self.g.rel(self.DELTA_NEXT, node, seat.delta[-1].node)
         for c in consumed:
             self.g.rel(self.RESTS_ON, node, c)
-        e = Entry(node, locus, proposition, sign, grade, licence, source, consumed, mention)
+        e = Entry(node, locus, proposition, sign, licence, source, consumed, mention)
         seat.delta.append(e)
         # ...and an index by the entry's own node. `entry_by_node` was a scan of
         # every moment's delta, so the trail walk it serves was quadratic in the

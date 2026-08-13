@@ -9,22 +9,34 @@
 # water you have stopped heating stays boiled.
 rule <boil> = causes(
     { +heat(?a, ?w), +water(?w) },
-    { +boiling(?w) @certain, -liquid(?w) @certain } )
+    { +boiling(?w), -liquid(?w) } )
 
 # §8 <R2>. `implies`, so it lands in the SAME moment and is derived. Written as
 # `causes`, the backward reader would produce a plan to make it rain by making
 # it cloudy -- the two-connective split is what makes that plan unwritable.
+# ⚠ `@likely` was a GRADE on the conclusion. Grades are gone: what a rule says
+# about the strength of its conclusion is now *in* the conclusion, and a rule
+# can read it. Nothing believes `rain(monday, afternoon)` bare until something
+# crosses the modality, which is `<cross>` below.
 rule <weather> = implies(
     { +cloudy(?day, morning) },
-    { +rain(?day, afternoon) @likely } )
+    { +likely(rain(?day, afternoon)) } )
 
-# §13. The consequent is a bare variable: whatever the channel says, believe it.
-# `@likely` is the rule's contribution, and the entry it deposits is graded
-# min(authored, support), so a weak utterance cannot be laundered into a strong
-# claim by a confident rule.
+# §13. The consequent is a bare variable: whatever the channel says, believe it
+# -- but only as `likely`, which is the rule's contribution and is now a claim
+# rather than an annotation. A corpus can ask which of its beliefs came in this
+# way, and could not when it was a grade.
 rule <trust_user> = implies(
     { +says(user, ?p, plus) },
-    { +?p @likely } )
+    { +likely(?p) } )
+
+# ⭐ And the crossing, which is what a grade used to do for free. Supposing
+# UNWRAPS: inside the frame the assumption is an ordinary fact and the ordinary
+# rules apply to it by ordinary matching, so no rule needs a lifted twin. What
+# is concluded comes back out wrapped, which is the weakest link as structure.
+rule <cross> = implies(
+    { +likely(?p) },
+    { +suppose(?p, likely) } )
 
 # Standing knowledge, stamped as having come from the knowledge base.
 fact +heat(anna, kettle)
