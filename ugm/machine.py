@@ -148,6 +148,16 @@ class Machine:
         # The third negative existential, asked and answered like the other two.
         self.SUPPORT = self.g.atom("support")          # the request
         self.UNSUPPORTED = self.g.atom("unsupported")  # the answer, only ever yes
+        # *Not that one* -- what a plan has tried and ruled out for a variable.
+        #
+        # A separate relation rather than a denied `binds`, deliberately. Reading
+        # `-binds(<plan>, ?v, sink)` as an exclusion would give `-` a second
+        # meaning it has nowhere else: everywhere in this design a denial says
+        # *an entry denies this*, and it steers nothing. Here it would also have
+        # to steer a search, and a sign that means one thing in general and
+        # something extra in one place is the kind of quiet asymmetry §5 is for
+        # refusing. One more piece of vocabulary is the cheaper price.
+        self.EXCLUDED = self.g.atom("excluded")
         self.PURSUED = self.g.atom("pursued")  # something fits it
         # Denial as a TERM, beside the sign rather than instead of it (§9).
         # A sign is a member of an entry, so it cannot sit inside another term --
@@ -476,6 +486,7 @@ class Machine:
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
             "support": self.SUPPORT, "unsupported": self.UNSUPPORTED,
+            "excluded": self.EXCLUDED,
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
             "need": self.NEED,
             "causes": self.rules.CAUSES, "implies": self.rules.IMPLIES,
@@ -589,7 +600,7 @@ class Machine:
                              self.FORGONE, self.EXERCISED, self.CONCLUDED,
                              self.ROOT, self.ROOTED,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
-                             self.SUPPORT, self.UNSUPPORTED,
+                             self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
                              self.TOLERANCE, self.BUDGET, self.DEPTH,
@@ -991,6 +1002,21 @@ class Machine:
                 continue
             b = unify(self.g, goal, s.proposition, dict(env))
             if b is None:
+                continue
+            # ⭐ *Not that one.* Reconsidering a binding was the last of the four
+            # hats, and the reason it was stuck is smaller than it looked: a
+            # `binds` fact has always been deniable, and denying it achieves
+            # nothing, because this loop then re-unifies and picks the SAME first
+            # candidate. What was missing was never a way to withdraw a choice;
+            # it was a way to say what has already been tried.
+            #
+            # So the binding stays a construction (§18: deciding identity where
+            # the name is read), and reconsidering one is an ordinary claim a
+            # corpus makes and can itself deny.
+            if any(
+                self._claims(self.g.rel(self.EXCLUDED, plan, var, val))
+                for var, val in b.items()
+            ):
                 continue
             self.gate.write(
                 frame, self.g.rel(self.ACHIEVED, goal), PLUS,

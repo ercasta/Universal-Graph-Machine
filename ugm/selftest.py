@@ -4087,6 +4087,110 @@ def support_can_be_withdrawn() -> None:
     )
 
 
+def a_binding_can_be_reconsidered() -> None:
+    """The last of the four hats: *when may a binding be reconsidered?*
+
+    It was stuck for a smaller reason than it looked. A `binds` fact has always
+    been deniable -- what denying it achieves is nothing, because `_settle` then
+    re-unifies and picks the same first candidate. What was missing was never a
+    way to withdraw a choice; it was **a way to say what has already been tried**.
+
+        excluded(<plan>, ?v, x)     not that one, for this plan's variable
+
+    ⭐ A separate relation rather than a denied `binds`, deliberately. Everywhere
+    else in this design a denial says *an entry denies this* and steers nothing;
+    reading `-binds` as an exclusion would give `-` a second meaning in exactly
+    one place. One more piece of vocabulary is the cheaper price.
+
+    ⚠⚠⚠ **And BOTH halves are needed -- either alone is worse than neither.**
+    Excluding without denying is inert, because the surviving `binds` pins the
+    variable in `_settle`'s env before the exclusion is ever consulted. Denying
+    without excluding **runs away**: the variable goes free, the same candidate
+    is chosen again, and the rule that denied it denies it again, forever. That
+    is `reask`'s criterion in a third place -- *an occasion warrants a re-ask
+    only if re-asking cannot produce one* -- and here the occasion is the binding
+    the re-ask itself recreates.
+
+    ⚠⚠ The exclusion cannot be written as a corpus FACT, and finding that out
+    was the turn's surprise. §8 scopes a statement's variables to it, so the `?t`
+    in `fact +excluded(plan(<pour>, water(kettle)), ?t, butt)` is a different node
+    from the `?t` inside `<pour>`, and the fact excludes nothing. It has to be
+    CONCLUDED by a rule, which binds the plan's own variable through `binds`.
+    Same wall as a norm not being revisable from the surface, arriving from the
+    binding side.
+    """
+    from .text import load
+
+    base = chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
+        "fact +tap(sink)",
+        "fact +tap(butt)",
+        "fact +under(kettle, sink)",
+        "fact +under(kettle, butt)",
+        "fact +heat(anna, kettle)",
+        "fact +goal(boiling(kettle))",
+        "",
+    ])
+    # Asked at `quiet`, which is where a recovery belongs: the loop has finished,
+    # so reconsidering cannot starve anything that was still going to run.
+    redo = chr(10).join([
+        "rule <redo> = implies( { +quiet(?m), +binds(?p, ?v, butt), +subgoal(?p, ?s) },",
+        "                      { +excluded(?p, ?v, butt), -binds(?p, ?v, butt),",
+        "                        +again(check(?p, ?s), ?m) } )",
+        "",
+    ])
+
+    def taps(src, limit=800):
+        m = Machine()
+        kb = load(m, src)
+        steps = m.run(limit=limit)
+        got = [m.g.show(m.g.member(e.proposition, 2))
+               for mm in m.chain.moments for e in mm.delta
+               if m.g.relation_of(e.proposition) is m.BINDS and e.sign == PLUS
+               and m.g.show(m.g.member(e.proposition, 1)) == "?t"]
+        return got, steps, m, kb
+
+    plain, plain_steps, _, kb0 = taps(base)
+    check("§18", "with nothing reconsidered, the plan binds one tap and keeps it",
+          plain == ["butt"] and plain_steps[-1].state == "quiescent")
+
+    both, both_steps, m_both, kb_both = taps(base + redo)
+    check(
+        "§21",
+        "⭐ a rule can reconsider a binding: the plan rebinds to the other tap "
+        "and still gets there",
+        both == ["butt", "sink"]
+        and both_steps[-1].state == "quiescent"
+        and m_both.holds(kb_both.term("boiling(kettle)")) == PLUS,
+    )
+
+    only_excl, _, _, _ = taps(base + redo.replace("-binds(?p, ?v, butt),", ""))
+    check("§18", "⚠ excluding alone is inert -- the surviving binding pins the "
+          "variable before the exclusion is consulted",
+          only_excl == ["butt"])
+
+    only_deny, deny_steps, _, _ = taps(
+        base + redo.replace("+excluded(?p, ?v, butt),", ""), limit=300)
+    check(
+        "§15",
+        "⚠⚠⚠ ...and denying alone RUNS AWAY: the same candidate is chosen again "
+        "and denied again, which is the re-ask criterion in a third place",
+        len(only_deny) > 50 and deny_steps[-1].state == "applied",
+    )
+
+    # The wall this ran into, kept as a check because it is the reason the
+    # exclusion is concluded by a rule and never written as a fact.
+    asfact, _, _, _ = taps(
+        base + "fact +excluded(plan(<pour>, water(kettle)), ?t, butt)" + chr(10))
+    check(
+        "§8",
+        "⚠⚠ and it cannot be a corpus FACT: a statement's variables are scoped "
+        "to it, so that `?t` is a different node and excludes nothing",
+        asfact == ["butt"],
+    )
+
+
 def prohibitions_are_not_recalled() -> None:
     """§19's carve-out, which is the one place the design refuses to be
     incomplete.
@@ -4560,6 +4664,7 @@ def main() -> int:
     taking_one_way_passes_up_the_others()
     doubt_is_a_tie()
     support_can_be_withdrawn()
+    a_binding_can_be_reconsidered()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()
     a_cause_moves_the_register()

@@ -1,8 +1,86 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **393 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **406 checks, 0 failing**; every instrument green.
 
-## Latest: **build it, see which half is right, repair the other**. Commit `artefact`.
+## Latest: **the last two hats — support, and reconsidering a binding**. Commits `support`, `binding`.
+
+Both of the arc's remaining open items, and both turned out to need less machinery than their
+reputation. The user settled the two design questions: **the reaction to lost support belongs in a
+corpus**, and **exclusion is its own relation rather than a re-read denial**.
+
+### Support: the third negative existential, and it deliberately does nothing
+
+    rests_on(<entry>, <entry>)     what an entry was derived from -- STRUCTURAL
+    support(p)                     a request, asked by a corpus rule
+    unsupported(p)                 the answer, deposited only when nothing does
+
+⭐ **`rests_on` is skeleton, not entries.** It joins `pred`, `in_delta` and `delta_next`: nobody
+asserted it, it cannot be denied, dated or attributed, because support is *how the entry was made* and
+not a claim about the world. It was already recorded as `Entry.consumed` — a Python tuple, so no rule
+could ask what anything rested on. **§21's defect for the ninth time**, closed the way the other eight
+were. (It also made `entry_by_node` a dict lookup instead of a scan of every delta ever.)
+
+⭐⭐⭐ **And the machinery does not retract, which is the decision rather than an omission.**
+
+> **Losing your reason is not acquiring a counter-reason.** A discredited source does not make what it
+> told you false; it leaves you without a reason, which is a different state and the one you can act
+> on. An engine depositing `-p` here asserts something nothing justified, and §12's weakest link
+> acquires a link with nothing behind it.
+
+Grepped before proposing it, and it was **already true**: no write hook in `machine.py` or `gate.py`
+deposits a `-`. Every denial in the graph comes from an authored rule or a corpus fact. So what ships
+is the occasion; the reaction is one line and there are at least four sensible ones:
+
+    {+unsupported(?p)} => {-?p}   /  {+goal(?p)}  /  {+doing(ask(?p))}  /  nothing
+
+⚠ **Asked, never volunteered** — `blocked`'s reason exactly: a proposition may rest on several things,
+so one withdrawal says nothing until the rest are looked at. Legitimate at `quiet`, a lie before it.
+
+⚠ **Unsupported and false differ in BOTH directions**, and that is checked: a denied *fact* is not
+unsupported, because it was asserted and so never had a reason to lose. Five kill-probes, each biting
+its own checks — including one that makes the machinery retract, which breaks precisely the check
+recording that it must not.
+
+### Binding revision: the missing piece was *what has already been tried*
+
+    excluded(<plan>, ?v, x)     not that one
+
+A `binds` fact was always deniable; denying it achieved nothing, because `_settle` re-unifies and picks
+the same first candidate. **The gap was never a way to withdraw a choice — it was a way to say what
+had been tried.**
+
+⚠⚠⚠ **And both halves are needed; either alone is worse than neither.** Measured three ways on two
+viable taps:
+
+| | `?t` | |
+|---|---|---|
+| nothing reconsidered | `butt` | quiescent |
+| **exclude only** | `butt` | **inert** — the surviving binding pins the variable before the exclusion is consulted |
+| **deny the binding only** | `butt` ×270 | ⚠⚠⚠ **runaway** — the same candidate chosen and denied forever |
+| **both** | `butt` → **`sink`** | quiescent, 29 ticks, goal reached |
+
+The runaway is `reask`'s criterion in a **third** place — *an occasion warrants a re-ask only if
+re-asking cannot produce one* — with the binding as the occasion the re-ask itself recreates.
+
+⚠⚠ **And the exclusion cannot be a corpus FACT.** §8 scopes a statement's variables to it, so the `?t`
+in `fact +excluded(plan(<pour>, water(kettle)), ?t, butt)` is a different node from the `?t` inside
+`<pour>`, and it excludes nothing. It has to be **concluded by a rule**, which binds the plan's own
+variable through `binds`. Same wall as a norm not being revisable from the surface, reached from the
+binding side; kept as a check.
+
+⭐ **The recovery rule is keyed on `quiet`**, which is the user's framing and is the safer one: the loop
+has finished, so reconsidering cannot starve anything still due to run — the same argument that makes
+`blocked` legitimate there.
+
+    rule <redo> = implies( { +quiet(?m), +binds(?p, ?v, butt), +subgoal(?p, ?s) },
+                           { +excluded(?p, ?v, butt), -binds(?p, ?v, butt),
+                             +again(check(?p, ?s), ?m) } )
+
+**Still open, and now the only thing on the list:** whether the bundle should ship generic recovery
+rules of this shape, and what the occasion for *looping* is — there is a record for quiescence, for
+leaving a frame, for widening and for a bound, and none for going round in circles.
+
+## Before that: **build it, see which half is right, repair the other**. Commit `artefact`.
 
 The user's case: *write an `ls` + `grep` that finds all Python files containing a class definition* —
 can the agent make a first attempt, reread it, notice it satisfies **find the Python files** but not
