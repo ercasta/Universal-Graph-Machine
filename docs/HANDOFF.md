@@ -1,6 +1,6 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **406 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **410 checks, 0 failing**; every instrument green.
 
 ## Latest: **the last two hats — support, and reconsidering a binding**. Commits `support`, `binding`.
 
@@ -76,9 +76,75 @@ has finished, so reconsidering cannot starve anything still due to run — the s
                            { +excluded(?p, ?v, butt), -binds(?p, ?v, butt),
                              +again(check(?p, ?s), ?m) } )
 
-**Still open, and now the only thing on the list:** whether the bundle should ship generic recovery
-rules of this shape, and what the occasion for *looping* is — there is a record for quiescence, for
-leaving a frame, for widening and for a bound, and none for going round in circles.
+### ...and the hole that stopped the two halves joining up. Commit `consumed`
+
+⚠⚠⚠ **`_settle` built its env by READING the plan's bindings and never consumed them.** So a
+conclusion that relied on *which tap* did not rest on the entry that said which tap. R5 says every
+entry has a licence and a source; §12 says a conclusion is no stronger than what match consumed. Both
+were true here and **both were vacuous**, at the one place a plan commits to something.
+
+Three consequences, and only the third would ever have been noticed by reading output:
+
+* `unsupported` could not see a withdrawn binding — so *reconsider a binding* and *notice what rested
+  on it* did **not** compose, which is the entire reason for doing them in one arc;
+* §12's weakest link could not weaken a conclusion by the grade of the binding it assumed — a
+  `@possible` tap laundering into a `@certain` achievement, the exact failure `effective_grade` is for;
+* `why()` never mentioned which tap it had assumed.
+
+Fixed, and now they compose: withdraw the binding and the sibling's `achieved` is reported
+`unsupported`; with it intact, nothing. ⚠ Only the bindings the goal actually **uses** are consumed —
+consuming the whole env would make every sibling's conclusion rest on every other sibling's choice,
+which is the opposite of what plan bindings are for. Kill-probed: with bindings unconsumed, 2 checks
+fail. ⚠ And the fixture had to ask on the **denial** rather than at `quiet`, because two rules keyed on
+the same occasion run in authored order and the question was being answered while the binding still
+held — §16's ordering trap, in a fixture this time rather than in the engine.
+
+## For the next session: **loop detection, designed and measured, not built**
+
+The remaining gap, and the user's design for it. Every occasion this agent has is a record of
+**stopping** — `quiet`, `left`, `stopped`, `widened`, `reached`, `bounded` — and **a loop is the
+failure to stop**, so none of them ever fires. Measured on the deny-only runaway: 800 ticks, final
+state `applied`, never once `quiet`.
+
+**The user's proposal: rhythm detection.** Check whether the recent sequence of applications repeats
+at period 1, 2, 3…, with the maximum period rising as a subgoal drags; and gate an expensive
+state-comparison behind a cheap rhythm hit. That escalation is the shape `_widen` and `_recover`
+already have — *escalate before believing the cheap answer* — here mirrored as **escalate before
+believing you are making progress**.
+
+**Measured before building, and the measurement changed the design.** Sequence of `(seat, rule,
+bindings)` per applied tick, periods 1..8, over the whole suite:
+
+| | period 1 | periods 2–8 |
+|---|---|---|
+| **62 healthy machines, 2,038 applications** | **0** | **0** |
+| the deliberate deny-only runaway | 272 | 0 |
+
+* ⭐ **Phase 1 alone is a perfect discriminator here** — zero false positives. So the cheap filter is
+  not a filter, it is the whole test.
+* ⭐ **Do not build phase 2.** Net-effect-nil was a fix for a false-positive problem that does not
+  exist. The deletion arrived before the code did, for once.
+* ⚠ **The SEAT must be in the key.** Without it the same rule applying inside a hypothesis and outside
+  it reads as a repetition — 4 false positives, in the `explains`, `suppose` and `doing` fixtures. An
+  application repeated in a different frame is not a repetition.
+* ⚠⚠ **My first measurement was contaminated twice** and read as a strong negative result (12% of
+  applications flagged, phase 2 confirming 98%). Both were the instrument: no seat in the key, and the
+  suite now *contains* deliberate runaways, so it cannot measure a runaway detector's false-positive
+  rate without splitting them out. **A fixture that contains the pathology cannot measure the detector.**
+
+**What to build:** rhythm per seat over periods 1..`period(n)`; `period(n)` a **knob-fact** with a
+Python default, so *deepen the search when the subgoal drags* is a corpus rule
+(`{+bounded(?w)} ⟹ {+period(8)}`) rather than a curve in the interpreter — the move `<care>` already
+makes with `tolerance`. Deposit `circling(<seat>)`, deduped like `widened`; **do not stop the loop**,
+for `_notice_open`'s reason. Read the sequence from the chain (licences are already on every entry) so
+it does not become instance #10 of the hidden-state defect.
+
+⚠⚠⚠ **And write a 2-cycle fixture FIRST.** The suite contains exactly one loop of one kind, so
+"period 1 is enough" is a claim about a sample of one, and a longer-period detector shipped today
+would be **unfalsifiable** — no check could tell whether it worked.
+
+**Also still open:** whether the bundle should ship generic recovery rules of the `<redo>` shape at
+all. The user's framing — recovery keyed on `quiet` — is right for every failure except this one.
 
 ## Before that: **build it, see which half is right, repair the other**. Commit `artefact`.
 

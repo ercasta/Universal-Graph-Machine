@@ -4191,6 +4191,101 @@ def a_binding_can_be_reconsidered() -> None:
     )
 
 
+def withdrawing_a_binding_withdraws_what_used_it() -> None:
+    """The two halves of this arc composing, and the hole that stopped them.
+
+    `_settle` builds its env by READING the plan's bindings, and wrote its answer
+    with `consumed=(e, s)` -- so a conclusion that relied on *which tap* did not
+    rest on the entry that said which tap. R5 says every entry has a licence and
+    a source; §12 says a conclusion is no stronger than what match consumed. Both
+    were true here and both were vacuous, because the binding was not consumed.
+
+    Three things were broken by that, and only the third was visible:
+
+    * `unsupported` could not see a withdrawn binding -- so *reconsider a
+      binding* and *notice what rested on it* did not join up, which is the
+      whole point of doing them in one arc;
+    * §12's weakest link could not weaken a conclusion by the grade of the
+      binding it assumed -- a `@possible` tap laundering into a `@certain`
+      achievement, which is the exact failure `effective_grade` exists to stop;
+    * `why()` never mentioned which tap it had assumed.
+
+    ⚠ Only the bindings the goal actually USES are consumed. Consuming the whole
+    env would make every sibling's conclusion rest on every other sibling's
+    choice, which is the opposite of what plan bindings are for (§18).
+    """
+    from .text import load
+
+    base = chr(10).join([
+        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
+        "fact +tap(sink)",
+        "fact +tap(butt)",
+        "fact +under(kettle, sink)",
+        "fact +under(kettle, butt)",
+        "fact +heat(anna, kettle)",
+        "fact +goal(boiling(kettle))",
+        "",
+    ])
+    drop = ("rule <drop> = implies( { +quiet(?m), +binds(?p, ?v, butt) },"
+            " { -binds(?p, ?v, butt) } )" + chr(10))
+    # ⚠ Asked on the DENIAL, not at `quiet`. Both rules key on the same occasion
+    # otherwise, and the one authored first runs first -- so the question was
+    # answered while the binding was still intact and reported nothing. §16's
+    # ordering trap, in a fixture rather than in the engine.
+    ask = ("rule <ask> = implies( { -binds(?p, ?v, butt) },"
+           " { +support(achieved(under(kettle, ?v))) } )" + chr(10))
+    intact = ("rule <askq> = implies( { +quiet(?m), +binds(?p, ?v, butt) },"
+              " { +support(achieved(under(kettle, ?v))) } )" + chr(10))
+
+    def run(src):
+        m = Machine()
+        load(m, src)
+        m.run(limit=400)
+        return {m.g.show(n) for n in m.g.instances_of(m.UNSUPPORTED)
+                if m.holds(n) == PLUS}, m
+
+    withdrawn, m1 = run(base + drop + ask)
+    held, m2 = run(base + intact)
+
+    check(
+        "§12",
+        "⭐ withdraw a binding and what relied on it is unsupported -- the two "
+        "halves of this arc join up",
+        "unsupported(achieved(under(kettle, ?t)))" in withdrawn,
+    )
+    check("§15", "...and with the binding intact, the same question answers nothing",
+          not held)
+
+    # The trail is what makes it work, so the trail is what is checked. Without
+    # the binding among the consumed entries this is a conclusion with a premise
+    # nothing records -- which is how it was for the whole arc until now.
+    ach = None
+    for mm in m2.chain.moments:
+        for e in mm.delta:
+            if m2.g.relation_of(e.proposition) is m2.ACHIEVED and e.sign == PLUS:
+                if "under" in m2.g.show(e.proposition):
+                    ach = e
+    check(
+        "R5",
+        "the conclusion RESTS ON the binding it assumed, in the graph",
+        ach is not None
+        and any(m2.g.relation_of(x.proposition) is m2.BINDS
+                for x in m2.chain.rests_on(ach)),
+    )
+    check(
+        "§18",
+        "⚠ ...and only on the bindings its own goal uses, not on every sibling's "
+        "choice",
+        ach is not None
+        and all(
+            m2.g.show(m2.g.member(x.proposition, 1)) == "?t"
+            for x in m2.chain.rests_on(ach)
+            if m2.g.relation_of(x.proposition) is m2.BINDS
+        ),
+    )
+
+
 def prohibitions_are_not_recalled() -> None:
     """§19's carve-out, which is the one place the design refuses to be
     incomplete.
@@ -4665,6 +4760,7 @@ def main() -> int:
     doubt_is_a_tie()
     support_can_be_withdrawn()
     a_binding_can_be_reconsidered()
+    withdrawing_a_binding_withdraws_what_used_it()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()
     a_cause_moves_the_register()

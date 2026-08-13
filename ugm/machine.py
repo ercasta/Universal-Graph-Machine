@@ -32,6 +32,7 @@ from .rules import (
     defeat,
     effective_grade,
     match,
+    occurs,
     unify,
     Situation,
     current_state,
@@ -989,13 +990,29 @@ class Machine:
             return
         plan, goal = self.g.members(e.proposition)
         state = self._state()
-        env = {
-            self.g.member(s.proposition, 1): self.g.member(s.proposition, 2)
-            for s in state
-            if s.sign == PLUS
-            and self.g.relation_of(s.proposition) is self.BINDS
-            and self.g.member(s.proposition, 0) == plan
-        }
+        # ⚠⚠⚠ **The entries, not only the map.** This built `env` by READING the
+        # plan's bindings and then wrote its answer with `consumed=(e, s)` -- so a
+        # conclusion that relied on *which tap* did not rest on the entry that
+        # said which tap. Three things followed, and all three are R5's
+        # guarantee failing quietly at the one place a plan commits to something:
+        #
+        #   * `unsupported` could not see a withdrawn binding, so the two halves
+        #     of this arc did not compose;
+        #   * §12's weakest link could not weaken a conclusion by the grade of
+        #     the binding it assumed -- a `@possible` tap laundered into a
+        #     `@certain` achievement;
+        #   * `why()` never mentioned which tap it had assumed.
+        env: dict = {}
+        env_from: dict = {}
+        for s in state:
+            if (
+                s.sign == PLUS
+                and self.g.relation_of(s.proposition) is self.BINDS
+                and self.g.member(s.proposition, 0) == plan
+            ):
+                var = self.g.member(s.proposition, 1)
+                env[var] = self.g.member(s.proposition, 2)
+                env_from[var] = s
         licence = self.g.rel(self.ACHIEVED, goal)
         for s in state:
             if s.sign != PLUS or self.g.relation_of(s.proposition) in self._bookkeeping:
@@ -1018,15 +1035,24 @@ class Machine:
                 for var, val in b.items()
             ):
                 continue
+            # Only the bindings this goal actually USED. An env entry for a
+            # variable the goal never mentions is not something the answer rests
+            # on, and consuming it would make every sibling's conclusion depend
+            # on every other sibling's choice -- which is the opposite of what
+            # §18 wants from plan bindings.
+            used = tuple(
+                s2 for var, s2 in env_from.items() if occurs(self.g, var, goal, {})
+            )
             self.gate.write(
                 frame, self.g.rel(self.ACHIEVED, goal), PLUS,
-                licence=licence, source=self.KB, consumed=(e, s), mention=True,
+                licence=licence, source=self.KB, consumed=(e, s) + used, mention=True,
             )
             for var, val in b.items():
                 if var not in env:
                     self.gate.write(
                         frame, self.g.rel(self.BINDS, plan, var, val), PLUS,
-                        licence=licence, source=self.KB, consumed=(e, s), mention=True,
+                        licence=licence, source=self.KB,
+                        consumed=(e, s) + used, mention=True,
                     )
             return
         self.gate.write(
