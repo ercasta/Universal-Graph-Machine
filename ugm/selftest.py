@@ -3407,6 +3407,121 @@ def matching_is_incremental() -> None:
           c.holds(kbc.term("z(a)")) == PLUS)
 
 
+def a_defeat_is_on_the_record() -> None:
+    """`defeated(<loser>, <winner>)` -- §21's defect for the **tenth** time.
+
+    Measured before building it, because *knowledge acquisition and rule
+    harmonization are the pain* (Cyc) is a claim about scale and this repo's
+    corpora are one author and a few days old. Over the whole suite:
+
+    | | |
+    |---|---|
+    | rule pairs whose consequents unify under opposite signs | 3,551 |
+    | ...where the unifier is a **bare variable** (`denial`'s `-?p`) | 3,545 |
+    | ...genuinely specific | **6** |
+    | ...ungoverned by an authored precedence | **1**, and it is a fixture |
+    | `_defeated` asked / returning True | 19,341 / **22** |
+    | distinct pairs that ever fought | **4**, all authored on purpose |
+
+    ⭐⭐⭐ **There is not one unplanned conflict in this repository**, so a static
+    conflict detector shipped today would be unfalsifiable -- 3,545 false
+    positives from a single rule and one true positive already harmonized. What
+    the measurement DID find is that the 22 defeats left no trace: `defeat`
+    computes exactly this, uses it, and throws it away. `ugm.harmony` keeps the
+    census, because the day the last column is not zero is the day a detector
+    can be gated.
+
+    ⭐ So what ships is the occasion (§19). What to do about a rule that keeps
+    losing -- ask its author, raise a precedence, mark it dormant -- is a
+    corpus's, and the last check here is a corpus doing it.
+
+    ⚠ `overrides` only. A `supersedes` defeat is about a pair of APPLICATIONS,
+    not a pair of rules, and there is no two-rule record to write; that is a
+    scope limit rather than an oversight.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        "rule <hot> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <cold> = implies( { +p(?x) }, { -q(?x) } )",
+        "fact overrides(<cold>, <hot>)",
+        "fact +p(a)", ""])
+    m = Machine()
+    kb = load(m, src)
+    m.run(limit=60)
+    check("§14", "when a precedence is exercised, WHICH rule beat which is on "
+          "the record -- the loop's own answer, which nothing else could "
+          "reconstruct",
+          m.holds(kb.term("defeated(<hot>, <cold>)")) == PLUS)
+    check("§14", "...and it is directional: the winner was not defeated",
+          m.holds(kb.term("defeated(<cold>, <hot>)")) is None)
+    # Deduped by reading the graph, like every other record of *this happened
+    # here*: the defeat is recomputed on every tick and restating is not
+    # revising (§8).
+    entries = [e for mo in m.chain.moments for e in mo.delta
+               if e.proposition == kb.term("defeated(<hot>, <cold>)")]
+    check("§8", "...and recorded once however many ticks it kept happening",
+          len(entries) == 1)
+
+    # ⚠ The control, and it is the distinction the whole record turns on: a rule
+    # that merely LOSES arbitration is not defeated. Losing is being deferred,
+    # not rejected -- it applies on the next tick -- and recording that as a
+    # defeat would report a rule base as fighting when it is merely ordered.
+    quiet = Machine()
+    kb_q = load(quiet, chr(10).join([
+        "rule <one> = implies( { +p(?x) }, { +a(?x) } )",
+        "rule <two> = implies( { +p(?x) }, { +b(?x) } )",
+        "fact +p(a)", ""]))
+    quiet.run(limit=60)
+    check("§14", "...while a rule that merely lost the tick is NOT defeated: "
+          "arbitration is scheduling, and both conclusions arrive",
+          quiet.holds(kb_q.term("a(a)")) == PLUS
+          and quiet.holds(kb_q.term("b(a)")) == PLUS
+          and not [p for p in quiet.g.instances_of(quiet.DEFEATED)
+                   if quiet.holds(p) == PLUS])
+
+    # ⚠⚠ And nothing is recorded when arbitration IGNORED the defeat. A cycle in
+    # `overrides` defeats everybody, so §14's fallback lets everybody through to
+    # keep arbitration total -- and then nobody was defeated.
+    cycle = Machine()
+    kb_c = load(cycle, chr(10).join([
+        "rule <up> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <down> = implies( { +p(?x) }, { -q(?x) } )",
+        "fact overrides(<up>, <down>)",
+        "fact overrides(<down>, <up>)",
+        "fact +p(a)", ""]))
+    cycle.run(limit=60)
+    check("§14", "...and a cycle records NO defeat, because the fallback let "
+          "them all through: an event that did not happen is not written",
+          not [p for p in cycle.g.instances_of(cycle.DEFEATED)
+               if cycle.holds(p) == PLUS])
+
+    # ⭐ What the occasion is FOR: a corpus reacting to its own rule base
+    # fighting. This is the acquisition loop's first half -- the agent noticing
+    # that two things it was told disagree, and asking.
+    asked = Machine()
+    load(asked, src + chr(10).join([
+        "rule <harmonize> = implies( { +defeated(?l, ?w) }, { +doing(ask(?l)) } )",
+        "fact standing(<harmonize>)", ""]))
+    asked.run(limit=60)
+    check("§19", "⭐ and a corpus can act on it -- it decides to ask about the "
+          "rule that lost, which is harmonization as a rule and not as machinery",
+          any(asked.g.show(p) == "doing(ask(<hot>))"
+              for p in asked.g.instances_of(asked.DOING)
+              if asked.holds(p) == PLUS))
+    # ⚠⚠⚠ ...and it CANNOT leave the agent, which is the wall this fixture
+    # found and the first thing acquisition runs into. `_dispatch` refuses a
+    # generic intent -- *a description cannot be acted on* -- and a rule node is
+    # generic by construction, because it holds the variables of its own
+    # patterns. So every clarification request about a rule is decided on and
+    # never emitted. Recorded as a check rather than fixed, because the fix is
+    # §14's use/mention (the entry already carries `mention`) and that is a
+    # representation decision to be scored, not slipped in.
+    check("§15", "⚠ but an intent NAMING A RULE never leaves the agent: a rule "
+          "node is generic, and the act boundary refuses a description",
+          not asked.emitted)
+
+
 def a_join_is_not_a_scan() -> None:
     """A rule joined against itself over one relation -- **what recognition is**.
 
@@ -4915,6 +5030,7 @@ def main() -> int:
     the_state_is_kept_not_rebuilt()
     a_scope_can_span_documents()
     matching_is_incremental()
+    a_defeat_is_on_the_record()
     a_join_is_not_a_scan()
     the_apparatus_eats_its_own_cooking()
     a_rule_says_that_it_ran()

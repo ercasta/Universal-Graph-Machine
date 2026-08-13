@@ -1,6 +1,80 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **417 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **424 checks, 0 failing**; every instrument green.
+
+## Latest: **a defeat is on the record** — and the census that says what to build next. Commit `defeated`.
+
+The user's decision to start on **knowledge acquisition and rule harmonization**, *because Cyc teaches
+that is where the pain is*. Measured before choosing anything, and the measurement redirected the work.
+
+### The census: `ugm.harmony`
+
+Two questions — what *could* conflict (two rules whose consequents unify under opposite signs,
+standardised apart) and what *did* (`_defeated` returning True on a real run):
+
+| | |
+|---|---|
+| machines / rules / rule pairs | 187 / 3,645 / 33,989 |
+| latent | 3,551 |
+| ...where the unifier is a **bare variable** | **3,545** |
+| ...genuinely specific | **6** |
+| ...ungoverned by an authored precedence | **1**, and it is a fixture written the same day |
+| `_defeated` asked / True | 19,341 / **22** |
+| distinct pairs that ever fought | **4**, every one authored on purpose |
+
+⭐⭐⭐ **There is not one unplanned conflict in this repository.** A static conflict detector shipped
+today would report 3,545 false positives, one true positive already harmonized, and one that is a test
+rule. It could not be gated by anything.
+
+> **A corpus with no pathology cannot measure a detector for it.**
+
+⚠ **The 3,545 are a fact about the bundle, not noise.** `<denial>` concludes `-?p` — a bare variable —
+so it is in latent conflict with every positive rule in every corpus. No filter on the consequent
+removes that; the real discriminator is whether two antecedents can hold at once, which is a join and
+still only says *potential*. Static pair analysis is the wrong shape to start from.
+
+⚠ So this is **not** evidence that harmonization does not matter — it is evidence that these corpora
+cannot measure it. One author, days, dozens of rules; Cyc's pain is volume and many hands. The census
+ships so the deferral stays revisitable: the day the last column is not zero is the day a detector can
+be gated.
+
+### What the census DID find: `defeated(<loser>, <winner>)`
+
+Twenty-two defeats happened across the suite and **no rule could ask about one of them.** §21's defect
+for the **tenth** time, and the purest case yet: `defeat` computes exactly this on every tick, uses it,
+and throws it away — so *which of my rules actually fight* was a question about a run that no run
+recorded.
+
+⭐ **What ships is the occasion** (§19). What to do about a rule that keeps losing — ask its author,
+raise a precedence, mark it dormant — is a corpus's, and the fixture shows one doing it.
+
+⚠ **Written OUTSIDE `_choose`**, because `ugm.arbitration` re-runs that path against the same state and
+its whole legitimacy is that neither side writes. An instrument that deposits has stopped observing.
+
+⚠ **A defeat is not recorded when arbitration ignored it**: an `overrides` cycle defeats everybody, so
+§14's fallback lets everybody through to keep arbitration total — and then nobody was defeated. And a
+rule that merely **lost** the tick is not defeated either; losing is being deferred, not rejected, and
+recording it would report an ordered rule base as a fighting one. Both are checks, and four kill-probes
+each land on their own: no record (3), reversed pair (4), no cycle guard (1), no dedup (2).
+
+⚠⚠⚠ **And the wall this fixture found, one line from where acquisition starts.** A corpus can conclude
+`doing(ask(<hot>))` — *ask the author about the rule that lost* — and it **never leaves the agent**.
+`_dispatch` refuses a generic intent (*a description cannot be acted on*), and a rule node is generic
+by construction, since it holds the variables of its own patterns. So **every clarification request
+about a rule is decided on and never emitted.** Recorded as a check rather than fixed: the fix is
+§14's use/mention — the entry already carries `mention` — and that is a representation decision to be
+scored, not slipped in. It is the first thing the acquisition arc has to settle.
+
+⚠⚠ **My census under-counted by 3.5× at first** — 53 machines where there are 187 — because it
+remembered which machines it had seen as a set of `id()`, and CPython reuses an address the moment a
+machine is collected. It reported **0 ungoverned** where the answer is 1. The conclusion survived; the
+numbers it was argued from did not. ⚠ And the suite now *contains* deliberate conflicts (an `overrides`
+cycle, 120 defeats), so the actual-conflict rate can no longer be read off it — loop detection's
+recorded trap, caused by the checks written for this very census.
+
+**Next, decided:** acquisition first, Cyc's own order — the reverse-reify door (rules are readable from
+the graph and not writable in it, so a rule cannot author a rule), then anti-unification as a tool so
+examples become rules. Harmonization's detector comes after a workload that can falsify it.
 
 ## Latest: **a join is not a scan — the SECOND quadratic**. Commit `join`.
 

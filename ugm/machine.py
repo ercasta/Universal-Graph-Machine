@@ -23,6 +23,7 @@ from .channels import Arrival, Channels
 from .gate import Frame, Gate
 from .graph import Graph, NodeId
 from .rules import (
+    _defeaters,
     IMPLIES,
     Application,
     Member,
@@ -425,6 +426,7 @@ class Machine:
         # than stopping silently (§13)* since it was written, and the report was
         # `self.exhausted += 1` -- a Python counter no rule can read. The code
         # claimed a property it did not have.
+        self.DEFEATED = self.g.atom("defeated")
         self.WIDENED = self.g.atom("widened")
         self.REACHED = self.g.atom("reached")
         self.BOUNDED = self.g.atom("bounded")
@@ -480,6 +482,7 @@ class Machine:
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
             "close": self.CLOSE, "tolerance": self.TOLERANCE,
+            "defeated": self.DEFEATED,
             "widened": self.WIDENED, "reached": self.REACHED,
             "bounded": self.BOUNDED,
             "budget": self.BUDGET, "depth": self.DEPTH,
@@ -609,7 +612,7 @@ class Machine:
                              self.RECALL, self.RECALLED, self.CLOSE,
                              self.TOLERANCE, self.BUDGET, self.DEPTH,
                              self.HYPOTHESES, self.WIDENED, self.REACHED,
-                             self.BOUNDED}
+                             self.BOUNDED, self.DEFEATED}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -1487,6 +1490,48 @@ class Machine:
                 source=self.KB, mention=True,
             )
 
+    def _note_defeat(self) -> None:
+        """Say which rule beat which, here.
+
+            defeated(<loser>, <winner>)
+
+        §21's defect for the **tenth** time, and this one is the pattern's
+        purest case: `defeat` computes exactly this on every tick, uses it, and
+        throws it away. Twenty-two defeats happened across the whole suite and
+        no rule could ask about one of them -- so *which of my rules actually
+        fight* was a question about a run that no run recorded.
+
+        ⭐ It is the occasion, and §19 says that is all that ships. What to do
+        about a rule that keeps losing -- ask its author, raise a precedence,
+        mark it dormant, delete it -- is a corpus's, and there are at least four
+        sensible answers:
+
+            {+defeated(?l, ?w)} => {+doing(ask(?l))}  /  {+dormant(?l)}  /  nothing
+
+        ⚠ **A defeat is not recorded when arbitration ignored it.** If every
+        matched rule is defeated, §14's cycle fallback lets them all through so
+        that arbitration stays total -- and nobody was defeated, so writing that
+        somebody was would be recording an event that did not happen.
+
+        ⚠ Costs nothing when nothing is ordered, which is most corpora: the
+        authored precedence table is empty and this returns at the first line.
+        """
+        if not self.rules.overrides:
+            return
+        matched = list(self._matched_rules.values())
+        pairs = [
+            (loser, winner)
+            for loser in matched
+            for winner in _defeaters(self.rules, loser, matched)
+        ]
+        if not pairs or len({l.node for l, _ in pairs}) == len(matched):
+            return  # nothing matched, or the cycle fallback let everyone through
+        for loser, winner in pairs:
+            self._note(
+                self.g.rel(self.DEFEATED, loser.node, winner.node),
+                licence=self.g.rel(self.APPLIED, winner.node),
+            )
+
     def _close(self, a: Tuple[int, int], b: Tuple[int, int]) -> bool:
         """Are these two scores close enough to be doubt?
 
@@ -1497,7 +1542,7 @@ class Machine:
         """
         return a[0] == b[0] and abs(a[1] - b[1]) <= self._tolerance()
 
-    def _note(self, proposition: NodeId) -> None:
+    def _note(self, proposition: NodeId, licence: Optional[NodeId] = None) -> None:
         """Record that the machinery did something a rule may care about.
 
         The user's reason, and it is the right one: these should be **reasonable
@@ -1508,12 +1553,17 @@ class Machine:
 
         Deduped by reading the graph: restating is not revising (§8), and the
         claim is *this happened here*, not how often.
+
+        The licence defaults to *the loop ran out of work here*, which is what
+        the effort records are about. A caller with a better answer to **why
+        this is on the record** passes it -- `defeated` names the rule that won,
+        the way `forgone` and `close` name the rule that was chosen.
         """
         if self._claims(proposition):
             return
         self.gate.write(
             self.focus, proposition, PLUS,
-            licence=self.g.rel(self.QUIET, self.focus.seat.node),
+            licence=licence or self.g.rel(self.QUIET, self.focus.seat.node),
             source=self.KB, mention=True,
         )
 
@@ -2277,6 +2327,12 @@ class Machine:
         # at the top of a heap instead of over a list, and `ugm.arbitration` for
         # the instrument that holds it to the list version's answer.
         chosen, rivals, sharing = self._choose(proposed, keys)
+        # Before the move, for §16's reason and for `_note_doubt`'s: what lost
+        # is visible now. ⚠ And OUTSIDE `_choose`, because `ugm.arbitration`
+        # re-runs that path against the same state and its whole legitimacy is
+        # that neither side writes -- an instrument that deposits has stopped
+        # observing and started being a second agent.
+        self._note_defeat()
         if chosen is not None:
             self._note_doubt(rivals, chosen, rank)
             # Before applying, not after: the rivals are visible now, and this is

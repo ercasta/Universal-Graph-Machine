@@ -876,6 +876,21 @@ def _defeated(rs: RuleSet, rule: "Rule", matched: Sequence["Rule"]) -> bool:
     return any(higher in matched and lower is rule for higher, lower in rs.overrides)
 
 
+def _defeaters(rs: RuleSet, rule: "Rule", matched: Sequence["Rule"]) -> List["Rule"]:
+    """*Which* rules defeated it, and that is the whole difference between
+    knowing a rule lost and being able to say to whom.
+
+    `_defeated` answers the question arbitration asks -- may this apply -- and
+    throws the answer away. Nothing else could ever reconstruct it: the losing
+    rule leaves no trace, so *which of my rules actually fight* was a question
+    about a run that no run recorded.
+    """
+    return [
+        higher for higher, lower in rs.overrides
+        if lower is rule and higher in matched
+    ]
+
+
 def effective_grade(authored: str, consumed: Sequence[Entry]) -> str:
     """`min(authored, support)` (§12).
 
