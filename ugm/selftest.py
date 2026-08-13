@@ -561,7 +561,8 @@ def mention_propagates() -> None:
     r, pat = g.var("?r"), g.var("?pat")
     m.rules.rule(
         IMPLIES,
-        [Member(PLUS, g.rel(m.CON, r, pat, m.rules.SIGN[PLUS]))],
+        [Member(PLUS, g.rel(m.CON, r, pat, m.rules.SIGN[PLUS],
+                             g.var("?i"), g.var("?gr")))],
         [Member(PLUS, g.rel(concludes, r, pat))],
         "what-does-it-conclude",
     )
@@ -772,7 +773,8 @@ def rules_as_data() -> None:
     src = chr(10).join([
         "rule <a> = implies( { +p(x) }, { +q(x) } )",
         "rule <b> = implies( { +q(x) }, { +r(x) } )",
-        "rule <lift> = implies( { +likely(?u), +ant(?rl, ?u, plus), +con(?rl, ?v, plus) },",
+        "rule <lift> = implies( { +likely(?u), +ant(?rl, ?u, plus, ?i), "
+        "+con(?rl, ?v, plus, ?j, ?gr) },",
         "                      { +likely(?v) } )",
         "fact +likely(p(x))",
         "",
@@ -787,7 +789,7 @@ def rules_as_data() -> None:
     m.reify_all()
     check("§14", "and reifying again is idempotent", m.holds(kb.term("rule(<a>)")) == PLUS)
     check("§14", "and its connective is askable", m.holds(kb.term("conn(<a>, implies)")) == PLUS)
-    check("§13", "its patterns are MENTIONED, not used", m.holds(kb.term("ant(<a>, p(x), plus)")) == PLUS)
+    check("§13", "its patterns are MENTIONED, not used", m.holds(kb.term("ant(<a>, p(x), plus, 0)")) == PLUS)
 
     m.run(limit=30)
     check("§14", "one generic rule lifts modality across the bare pipeline", m.holds(kb.term("likely(r(x))")) == PLUS)
@@ -3407,6 +3409,178 @@ def matching_is_incremental() -> None:
           c.holds(kbc.term("z(a)")) == PLUS)
 
 
+def a_rule_can_author_a_rule() -> None:
+    """The reverse of `reify`, and the door the whole acquisition family needs.
+
+    A rule has been data since §14's worked example -- `rule(<R>)`, `conn`,
+    `ant`, `con` -- and it went **one way**: `RuleSet.rule` was called by the
+    parser and by tests and by nothing else. So the agent could answer *which
+    rules do I have* and never *and now I have this one*, which is why every
+    amendment was a file edit.
+
+    ⭐⭐⭐ **And the composer has to be a TOOL, which the design settled before
+    this needed it.** Three walls, each hit in order:
+
+    * a `fact` may not contain a variable at all, so a corpus cannot write a
+      rule's patterns;
+    * §8 scopes a statement's variables to it, so parts written on separate
+      lines could not share a `?x` even if it could;
+    * a rule's consequent may only carry variables its antecedent binds, or the
+      variables of an existing `<...>`-named rule -- and a rule being *built*
+      is not one.
+
+    So the corpus never names the new rule's insides. It reaches them by
+    **binding**, which `artefact` established is all any rule needs: composing
+    is a function, and §17 says a request answered by a function is a tool.
+
+    ⚠ The tool PROPOSES. What lands is `answered(<compose>, ..., <R>)`, and the
+    rule becomes live only because a corpus concluded `adopt(?r)` -- so an
+    agent that adopts everything a tool offers is an agent whose corpus said to.
+    """
+    from .text import Loader
+
+    def build(src: str):
+        """A machine with the composer registered, then the corpus. Registered
+        BEFORE loading, because a rule names the tool (`<builder>`) and `<...>`
+        is resolved at authoring."""
+        mm = Machine()
+        kbb = Loader(mm)
+
+        def compose(machine, frame, entry):
+            """Builds `{+seen(?x)} => {+known(?x)}` and returns its node.
+
+            The variable is minted here, once, and used in **both** patterns --
+            which is exactly what no corpus can do, and the whole reason this
+            is a function rather than a rule.
+
+            ⚠⚠⚠ **In the CORPUS's name scope**, and the first version was not.
+            `g.atom("seen")` mints a fresh node, so the rule it built was about
+            a twin of `seen` and matched the corpus's `+seen(door)` never --
+            adopted, live, and inert. That is `Loader.answerer`'s own argument
+            arriving one level up: it made sure the tool answered the request
+            the corpus could write, and this is the same requirement for what
+            the tool BUILDS. *Anything that binds a name has to go through the
+            table that resolves it* -- seventh time.
+            """
+            g = machine.g
+            x = g.var("?x")
+            node = g.instance(kbb.atom("built"))
+            w = lambda p: machine.gate.write(frame, p, PLUS,
+                                             licence=entry.node,
+                                             source=machine.KB, mention=True)
+            w(g.rel(machine.RULE, node))
+            w(g.rel(machine.CONN, node, machine.rules.IMPLIES))
+            w(g.rel(machine.ANT, node, g.rel(kbb.atom("seen"), x),
+                    machine.chain.SIGN[PLUS], machine._numeral(0)))
+            # ⚠ `@likely`, not `certain`, and that is the check rather than
+            # the flavour: a learned rule states how strongly it would
+            # conclude, and an adopter that reads the grade and does not obey
+            # it launders a weak rule into a strong one. Recording it and
+            # obeying it are two properties and needed two checks -- adopting
+            # everything at `certain` broke nothing until the second existed.
+            w(g.rel(machine.CON, node, g.rel(kbb.atom("known"), x),
+                    machine.chain.SIGN[PLUS], machine._numeral(0),
+                    machine.chain.GRADE["likely"]))
+            return node
+
+        kbb.answerer("builder", "compose", compose)
+        kbb.load(src)
+        return mm, kbb
+
+    src = chr(10).join([
+        "rule <ask> = implies( { +want(?w) }, { +compose(?w) } )",
+        "rule <take> = implies( { +answered(<builder>, compose(?w), ?r) },",
+        "                      { +adopt(?r) } )",
+        "fact +want(a_rule)",
+        "fact +seen(door)", ""])
+
+    m, kb = build(src)
+    before = len(m.rules.rules)
+    m.run(limit=80)
+
+    check("§14", "⭐ a rule the agent did not start with is live: the graph "
+          "described one, a corpus adopted it, and the loop reads it",
+          len(m.rules.rules) == before + 1)
+    check("§14", "...and it APPLIES -- the round trip is closed, not merely "
+          "recorded", m.holds(kb.term("known(door)")) == PLUS)
+    concluded = m.chain.resolve(kb.term("known(door)"), m.focus.topic, m.focus.seat)
+    check("§12", "...at the GRADE the graph said it would conclude at: an "
+          "adopter that reads a grade and does not obey it launders a weak "
+          "rule into a strong one",
+          concluded is not None and concluded.grade == "likely")
+    # The tool proposed and the corpus disposed: delete the adopting rule and
+    # the same offer is on the record and believed by nobody. `artefact`'s
+    # measurement at the same boundary.
+    inert, kb_i = build(chr(10).join([
+        "rule <ask> = implies( { +want(?w) }, { +compose(?w) } )",
+        "fact +want(a_rule)", "fact +seen(door)", ""]))
+    n_before = len(inert.rules.rules)
+    inert.run(limit=80)
+    check("§17", "...and a tool only PROPOSES: without the rule that adopts, "
+          "the offer is on the record and nothing is live",
+          len(inert.rules.rules) == n_before
+          and inert.holds(kb_i.term("known(door)")) is None
+          and any(inert.g.relation_of(p) is inert.ANSWERED
+                  for p in inert.g.instances_of(inert.ANSWERED)
+                  if inert.holds(p) == PLUS))
+
+    # ⚠⚠⚠ Adopting inside a supposition is REFUSED, and that is containment.
+    # A frame's conclusions are unreadable from outside by construction, but
+    # `RuleSet.rules` is one list shared by every frame -- so a rule adopted
+    # while supposing would apply after the frame is discharged, and to
+    # everything. Supposing must not bring it about.
+    inside, kb_s = build(chr(10).join([
+        "rule <suppose-it> = implies( { +want(?w) }, { +suppose(q(?w), certain) } )",
+        "rule <ask> = implies( { +q(?w) }, { +compose(?w) } )",
+        "rule <take> = implies( { +answered(<builder>, compose(?w), ?r) },",
+        "                      { +adopt(?r) } )",
+        "fact +want(a_rule)", "fact +seen(door)", ""]))
+    s_before = len(inside.rules.rules)
+    inside.run(limit=120)
+    # ⚠ Looked for in the CHAIN, not with `holds`. The refusal is written inside
+    # the frame, where the attempt happened, and a frame's conclusions are
+    # unreadable from outside by construction -- so asking the root whether it
+    # holds answers None however well the refusal worked. That is the
+    # containment doing its job, and it caught this check before the check
+    # caught anything.
+    refused_inside = [
+        e for mo in inside.chain.moments for e in mo.delta
+        if inside.g.relation_of(e.proposition) is inside.REFUSED
+        and inside.g.relation_of(inside.g.member(e.proposition, 0)) is inside.ADOPT
+    ]
+    check("§4", "⚠ a rule adopted while supposing is REFUSED -- one rule set is "
+          "shared by every frame, so supposing would change what the agent "
+          "believes after the frame is gone",
+          len(inside.rules.rules) == s_before and len(refused_inside) == 1)
+
+    # ⚠ Position and grade, which `reify` did not record until this needed
+    # them. Without the position the members are ordered by the accident of
+    # minting -- which reproduces authored order for anything `reify` wrote, so
+    # a check over it could never fail. Deposited out of order on purpose.
+    from .text import load as _load
+    back = Machine()
+    kb_b = _load(back, "rule <two> = implies( { +a(?x), +b(?x) }, { +c(?x) } )\n")
+    (two,) = [r for r in back.rules.rules if r.name == "two"]
+    order = []
+    for p in back.g.instances_of(back.ANT):
+        if back.g.member(p, 0) is two.node and back.holds(p) == PLUS:
+            order.append((back.g.show(back.g.member(p, 3)),
+                          back.g.relation_of(back.g.member(p, 1))))
+    check("§14", "a rule's antecedent records WHICH POSITION each member is at, "
+          "so reading it back is not a guess about minting order",
+          sorted(order) == [("0", back.g.relation_of(kb_b.term("a(z)"))),
+                            ("1", back.g.relation_of(kb_b.term("b(z)")))])
+    graded = Machine()
+    _load(graded, "rule <g> = implies( { +a(?x) }, { +c(?x) @likely } )\n")
+    (gr,) = [r for r in graded.rules.rules if r.name == "g"]
+    con = [p for p in graded.g.instances_of(graded.CON)
+           if graded.g.member(p, 0) is gr.node and graded.holds(p) == PLUS]
+    check("§12", "...and a consequent records the GRADE it would conclude at, "
+          "or a rule read back out of the graph launders a weak claim",
+          len(con) == 1
+          and graded.g.member(con[0], 4) is graded.chain.GRADE["likely"])
+
+
 def a_defeat_is_on_the_record() -> None:
     """`defeated(<loser>, <winner>)` -- §21's defect for the **tenth** time.
 
@@ -5030,6 +5204,7 @@ def main() -> int:
     the_state_is_kept_not_rebuilt()
     a_scope_can_span_documents()
     matching_is_incremental()
+    a_rule_can_author_a_rule()
     a_defeat_is_on_the_record()
     a_join_is_not_a_scan()
     the_apparatus_eats_its_own_cooking()

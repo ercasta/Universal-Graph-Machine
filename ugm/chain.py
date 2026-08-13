@@ -135,6 +135,12 @@ class Chain:
         # `g.atom("+")` would be a different node that no rule could match --
         # the name-identity trap, which has cost this design four silent bugs.
         self.SIGN = {s: g.atom(s) for s in (PLUS, MINUS, UNSURE)}
+        # ...and a node per grade, beside the signs and for the same reason: a
+        # rule's consequent carries one, so anything that writes what a rule IS
+        # has to be able to say which. Interned here so the one that `reify`
+        # deposits and the one a reader resolves are the same node -- `atom`
+        # does not intern, and that twin has cost this repo six findings.
+        self.GRADE = {name: g.atom(name) for name in GRADES}
         self.root = Moment(g.instance(self.MOMENT), None, None)
         g.rel(self.IS_MOMENT, self.root.node)
         self.moments: List[Moment] = [self.root]

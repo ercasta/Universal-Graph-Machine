@@ -1,6 +1,80 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **424 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **431 checks, 0 failing**; every instrument green.
+
+## Latest: **a rule can author a rule** — the reverse-reify door. Commit `adopt`.
+
+The acquisition arc's first slice, and the thing every item in the harmonization family was blocked on.
+A rule has been data since §14's worked example — `rule(<R>)`, `conn`, `ant`, `con`, deposited at
+authoring — and it went **one way**: `RuleSet.rule` was called by the parser, by tests, and by nothing
+else. So the agent could answer *which rules do I have* and never *and now I have this one*, which is
+why every amendment was a file edit.
+
+    adopt(<R>)
+
+⭐⭐⭐ **A door, not a question.** It belongs with `_dispatch` and `_enter` rather than with the six
+answerers: `_dispatch` is where an intent leaves the agent, and this is where a rule enters it. What
+decides that a rule is worth having is a corpus concluding `adopt(?r)`; what happens then is not a
+judgement.
+
+### The composer HAS to be a tool, and three walls say so
+
+Hit in order, each a clean refusal rather than a silence:
+
+* a `fact` may not contain a variable at all, so a corpus cannot write a rule's patterns;
+* §8 scopes a statement's variables to it, so parts written on separate lines could not share a `?x`
+  even if it could — the `excluded` wall again;
+* a rule's consequent may carry only variables its antecedent binds, or the variables of an existing
+  `<...>`-named rule — and a rule being *built* is not one.
+
+So the corpus never names the new rule's insides. It reaches them by **binding**, which `artefact`
+already established: composing is a function, and §17 says a request answered by a function is a tool.
+⭐ That means slice 1 and *learn from examples* share one seam — anti-unification goes in the same
+place.
+
+⚠⚠⚠ **And the tool must build in the CORPUS's name scope.** My first composer used `g.atom("seen")`,
+which mints; the rule it built was about a twin of `seen`, was adopted, was live, and matched nothing.
+That is `Loader.answerer`'s own argument one level up — it made sure a tool answered the request the
+corpus could *write*, and this is the same requirement for what the tool *builds*. **Anything that
+binds a name has to go through the table that resolves it**, seventh time, minutes after I wrote the
+sixth down.
+
+### Two silent losses in `reify`, closed because this needed them
+
+`ant`/`con` recorded neither the member's **position** nor the consequent's **grade**, so a rule read
+back out of the graph was a different rule. Both are now members: `ant(<R>, pattern, sign, i)` and
+`con(<R>, pattern, sign, i, grade)`.
+
+⚠ Position matters because an antecedent is a sequence — §18's tiebreak reads the consumed entries and
+`consumed` is filled by member position — and because `g.rel` interns, so a rule with two identical
+members would have lost one. ⚠ Reading them back in minting order would have reproduced authored order
+by accident for anything `reify` wrote, so a check over it **could never have failed**; the fixture
+deposits out of order on purpose. The antecedent carries no grade, and that is `Member`'s own argument
+rather than an omission.
+
+⚠⚠ **Recording a grade and obeying it are two properties and needed two checks.** Adopting every
+consequent at `certain` regardless of the graph broke **nothing** until the second one existed — *a
+knob that is read and not obeyed is the same defect wearing the fix's clothes*, arriving where the
+knob is a rule's own strength.
+
+### Refused inside a supposition, and that is containment
+
+⚠⚠⚠ §4 makes a frame's conclusions unreadable from outside by construction — the seat is a successor —
+but `RuleSet.rules` is **one list shared by every frame**. A rule adopted while supposing would apply
+after the frame is discharged, and to everything: supposing would change what the agent believes, which
+is the one thing supposing must not do. `_dispatch`'s argument exactly. Refused on the record, naming
+the supposition.
+
+⚠ And the refusal is written **inside the frame**, so asking the root whether it holds answers `None`
+however well it worked — containment caught my check before the check caught anything. It reads the
+chain instead.
+
+Four kill-probes, each in its own place: no door (3), no hypothesis guard (4), no position or grade
+recorded (2), grade read but not obeyed (1).
+
+**Next:** anti-unification in the same tool seam — two examples, one rule — and then the use/mention
+question `defeated` surfaced (an intent naming a rule cannot leave the agent, because a rule node is
+generic).
 
 ## Latest: **a defeat is on the record** — and the census that says what to build next. Commit `defeated`.
 

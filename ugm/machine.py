@@ -24,6 +24,7 @@ from .gate import Frame, Gate
 from .graph import Graph, NodeId
 from .rules import (
     _defeaters,
+    CAUSES,
     IMPLIES,
     Application,
     Member,
@@ -427,6 +428,7 @@ class Machine:
         # `self.exhausted += 1` -- a Python counter no rule can read. The code
         # claimed a property it did not have.
         self.DEFEATED = self.g.atom("defeated")
+        self.ADOPT = self.g.atom("adopt")
         self.WIDENED = self.g.atom("widened")
         self.REACHED = self.g.atom("reached")
         self.BOUNDED = self.g.atom("bounded")
@@ -482,7 +484,7 @@ class Machine:
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
             "close": self.CLOSE, "tolerance": self.TOLERANCE,
-            "defeated": self.DEFEATED,
+            "defeated": self.DEFEATED, "adopt": self.ADOPT,
             "widened": self.WIDENED, "reached": self.REACHED,
             "bounded": self.BOUNDED,
             "budget": self.BUDGET, "depth": self.DEPTH,
@@ -612,7 +614,7 @@ class Machine:
                              self.RECALL, self.RECALLED, self.CLOSE,
                              self.TOLERANCE, self.BUDGET, self.DEPTH,
                              self.HYPOTHESES, self.WIDENED, self.REACHED,
-                             self.BOUNDED, self.DEFEATED}
+                             self.BOUNDED, self.DEFEATED, self.ADOPT}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -676,6 +678,7 @@ class Machine:
         # only backwards: 15 ticks and two subgoals becomes 4 ticks and none.
         # The narrowing lives in the `prefer` table and the budget, which are
         # separately deniable and were what the criterion was actually about.
+        self.gate.on_write.append(self._adopt)
         self.gate.on_write.append(self._dispatch)
         self.gate.on_write.append(self._enter)
         self.gate.on_write.append(self._answer)
@@ -803,10 +806,31 @@ class Machine:
         w(self.g.rel(self.RULE, rule.node))
         conn = self.rules.CAUSES if rule.connective == "causes" else self.rules.IMPLIES
         w(self.g.rel(self.CONN, rule.node, conn))
-        for m in rule.antecedent:
-            w(self.g.rel(self.ANT, rule.node, m.pattern, self.rules.SIGN[m.sign]))
-        for m in rule.consequent:
-            w(self.g.rel(self.CON, rule.node, m.pattern, self.rules.SIGN[m.sign]))
+        # ⚠⚠ **The POSITION, and on the consequent the GRADE.** Both were
+        # missing and both are part of the rule: an antecedent is a sequence --
+        # §18's tiebreak reads the consumed entries and `consumed` is filled by
+        # member position -- and a consequent member states how strongly it
+        # would conclude. Without them a rule read back out of the graph is a
+        # different rule, silently, and `g.rel` interns, so a rule with two
+        # identical members would have lost one of them as well.
+        #
+        # The antecedent carries no grade, and that is not an omission: `Member`
+        # says so -- what a premise was worth is read off the entry that matched
+        # it, not asserted by the rule.
+        for i, m in enumerate(rule.antecedent):
+            w(self.g.rel(self.ANT, rule.node, m.pattern,
+                         self.rules.SIGN[m.sign], self._numeral(i)))
+        for i, m in enumerate(rule.consequent):
+            w(self.g.rel(self.CON, rule.node, m.pattern,
+                         self.rules.SIGN[m.sign], self._numeral(i),
+                         self.chain.GRADE[m.grade]))
+
+    def _numeral(self, i: int):
+        """A node for a small whole number. `NUMERAL` stops at nine because
+        nothing needed ten; a rule with eleven members is not an error."""
+        if i not in self.NUMERAL:
+            self.NUMERAL[i] = self.g.atom(str(i))
+        return self.NUMERAL[i]
 
     def reify_all(self) -> None:
         """Kept because instruments call it; it should now find nothing to do.
@@ -2138,6 +2162,102 @@ class Machine:
             licence=self.g.instance(self.UTTERANCE, self.KB, what),
             source=self.KB, consumed=(e,),
         )
+
+    def _adopt(self, frame: Frame, e: Entry) -> None:
+        """Make a rule the graph describes into a rule the loop reads.
+
+            adopt(<R>)
+
+        ⭐⭐⭐ **`reify` went one way.** A rule has been data since §14's worked
+        example -- `rule(<R>)`, `conn`, `ant`, `con`, all deposited at authoring
+        -- and `RuleSet.rule` was called only by the parser and by tests. So the
+        agent could be asked *which rules do I have* and could never answer
+        *and now I have this one*. Every amendment was a file edit, which is
+        why nothing in the harmonization family was buildable.
+
+        This is a **door, not a question**, and belongs with `_dispatch` and
+        `_enter` rather than with the six answerers: `_dispatch` is where an
+        intent leaves the agent and this is where a rule enters it. What decides
+        that a rule is worth having is a corpus concluding `adopt(?r)`; what
+        happens then is not a judgement.
+
+        ⚠⚠⚠ **Refused inside a supposition, and this is containment rather than
+        caution.** §4 makes a frame's conclusions unreadable from outside by
+        construction -- the seat is a successor, so the caller's walk never
+        reaches it -- but `RuleSet.rules` is one list shared by every frame. A
+        rule adopted while supposing would apply *after* the frame is discharged
+        and to everything, so supposing would change what the agent believes,
+        which is the one thing supposing must not do. `_dispatch`'s argument
+        exactly: **supposing must not bring it about.** Refused on the record,
+        naming the supposition, because a silent decline is what §5 spent the
+        vocabulary avoiding.
+
+        ⚠ A generic `adopt` is not acted on, for `_dispatch`'s reason: a
+        description of a rule is not a rule.
+        """
+        if e.sign != PLUS or self.g.relation_of(e.proposition) is not self.ADOPT:
+            return
+        if self.g.has_var(e.proposition):
+            return  # a description cannot be adopted; §15's condition again
+        (node,) = self.g.members(e.proposition)
+        if any(r.node == node for r in self.rules.rules):
+            return  # already live -- restating is not revising (§8)
+        if self._hypothetical(frame):
+            refusal = self.g.rel(
+                self.REFUSED, e.proposition, self.chain.SIGN[PLUS],
+                frame.purpose or self.g.rel(self.SUPPOSING, node),
+            )
+            if self.chain.resolve(refusal, frame.topic, frame.seat) is None:
+                self.gate.write(frame, refusal, PLUS, licence=e.node,
+                                source=self.KB, mention=True)
+            return
+        built = self._read_rule(frame, node)
+        if built is None:
+            return
+        connective, ant, con = built
+        # Through `RuleSet.rule`, so an adopted rule is a rule in every respect:
+        # reified, indexed by what it concludes, and visible to `_recall` on the
+        # next tick. ⚠ Its name is the node's, so `why()` and the report print
+        # something a reader can look up rather than ninety characters of its
+        # own structure.
+        self.rules.rule(connective, ant, con, self.g.show(node))
+
+    def _read_rule(self, frame: Frame, node: NodeId):
+        """What the graph says this rule is, or `None` if it does not say.
+
+        Read at the frame's own position through `resolve`, so a retracted part
+        is not read -- amending a rule is denying one of its members, and that
+        has to be what the reader sees.
+
+        ⚠ **Position is what orders the members**, not the order the facts were
+        deposited in. Minting order would reproduce authored order by accident
+        for anything `reify` wrote, and a check over it could never fail.
+        """
+        conn = None
+        for p in self.g.instances_of(self.CONN):
+            if self.g.member(p, 0) is node and self._claims(p):
+                conn = self.g.member(p, 1)
+        if conn is None:
+            return None
+        connective = CAUSES if conn is self.rules.CAUSES else IMPLIES
+        sign_of = {v: k for k, v in self.chain.SIGN.items()}
+        grade_of = {v: k for k, v in self.chain.GRADE.items()}
+
+        def side(relation, graded):
+            out = []
+            for p in self.g.instances_of(relation):
+                if self.g.member(p, 0) is not node or not self._claims(p):
+                    continue
+                members = self.g.members(p)
+                grade = grade_of.get(members[4], "certain") if graded else "certain"
+                out.append((self.g.show(members[3]), Member(
+                    sign_of.get(members[2], PLUS), members[1], grade)))
+            return [m for _, m in sorted(out, key=lambda pair: int(pair[0]))]
+
+        con = side(self.CON, True)
+        if not con:
+            return None  # a rule that concludes nothing is not a rule
+        return connective, side(self.ANT, False), con
 
     def _hypothetical(self, frame: Frame) -> bool:
         """Is this frame inside a supposition? Derived from the forest, not held.
