@@ -2,6 +2,47 @@
 
 Branch `restart`, pushed. **444 checks, 0 failing**; every instrument green.
 
+## Latest: **precedence is READ, not kept** — the Python it took, deleted. Commit `authored`.
+
+The user's question after `precede`: *why are we touching Python files, and not writing rules?* The
+honest audit put the day's Python in three piles, and only one of them was debt.
+
+| what | why it is Python | verdict |
+|---|---|---|
+| `Situation.add`/`drop`, the argument index, `walk_order`, `_kept` | optimisations of a semantics | §20's floor gate licenses them, and `ugm.state`/`ugm.arbitration` hold them to the slow definition every tick |
+| `_adopt` | a **door, not a question**, beside `_dispatch` and `_enter` | argued |
+| `generalise` | a function, so §17 says it **is** a tool | right by the design's own rule |
+| **`_precede` + the precedence table** | **a cache of `overrides` facts** | **debt** |
+
+⭐⭐⭐ **So the table went.** `RuleSet.precedence(relation)` reads what the graph claims, at the
+position the agent is standing — exactly as `_recall` already reads `dormant`/`due`, with the same
+argument: *cheap now; the moment it is not, this is an index, not a redesign.*
+
+**Measured before deleting**, because the table had been kept for speed: the whole suite runs in
+**6.42s against 6.38s**. It was buying nothing but the two ways it could be wrong.
+
+What that deleted: `Machine._precede` (a write hook), `Machine._precedence_for` (a re-scan on
+adoption), `RuleSet.overrides_rule`, `RuleSet.supersedes_rule`, both lists, and — one commit after it
+was written — the whole *maintenance* problem those two hooks existed to solve. Precedence is now
+dated and deniable because it is a claim, not because anything keeps a mirror of one.
+
+⭐ **And the only thing in the suite that broke was a fixture calling Python.** Three checks, all from
+`m2.rules.overrides_rule(a2, a1)` — a test reaching into a table instead of depositing a fact. That is
+the whole answer to the question: the table was the anomaly, and the check that touched it was the
+only thing that noticed.
+
+⚠ `RuleSet.compose` inherits a constituent's defeats, and that is now a **claim the caller deposits**
+rather than an append to a list — a `RuleSet` with no world to write in gets a composition with no
+inherited precedence, which is the honest answer rather than a silent one.
+
+Kill-probes: precedence read but never checked for being **claimed** (2 — a denial stops working);
+`precedence` returning nothing (20).
+
+**What is still Python and argued, for the record:** `_dispatch` and `_enter` are doors; `_forbid`,
+`_widen` and `_notice_open` are §19's three guards; answerer bodies are what a tool *is*; and
+`_in_play` is the one judgement `named` audited and left half-open — the goal half could be facts, the
+delta half cannot on an append-only chain.
+
 ## Latest: **the agent harmonizes itself** — and the composition test earned its keep. Commit `precede`.
 
 `defeated`, `adopt`, `generalise` and the wrapper story all landed the same day and had never met. §2

@@ -99,7 +99,26 @@ class RuleSet:
         self.rules: List[Rule] = []
         # Authored precedence (§14): the bottom-most arbitrator is a lookup that
         # always returns and never searches.
-        self.overrides: List[Tuple[Rule, Rule]] = []
+        # ⭐⭐⭐ **Precedence is READ, not kept.** These were two Python lists,
+        # seeded by the loader once and unreachable from the graph -- so a rule
+        # could conclude `overrides(A, B)`, the fact would hold, and the
+        # arbitrator would never look. Now `precedence()` reads what the graph
+        # claims, at the position the agent is standing, exactly as `_recall`
+        # reads `dormant`/`due`. That makes it **dated, deniable and about a
+        # rule that may not have existed yet** -- and it deleted a write hook,
+        # a re-scan on adoption, two seeders and a loader method.
+        #
+        # Measured before deleting, because the previous version was kept for
+        # speed: the whole suite runs in **6.42s against 6.38s**. The table was
+        # buying nothing.
+        #
+        # Set by the Machine, which owns the nodes and the position. Unset, a
+        # bare RuleSet has no precedence, which is what a RuleSet with no world
+        # to read should say.
+        self.OVERRIDES: Optional[NodeId] = None
+        self.SUPERSEDES: Optional[NodeId] = None
+        self.claims: Optional[Callable[[NodeId], object]] = None
+        self.by_node: Dict[NodeId, "Rule"] = {}
         # ...and defeat about a CASE. `overrides` is per tick: a rule overridden
         # by another that matched anywhere this step does not apply at all, which
         # is right when the two are rival answers to one situation (the boss's
@@ -113,7 +132,7 @@ class RuleSet:
         # entry -- with an application of the higher rule, which is what *about
         # the same case* means when the two rules bind different variables and
         # cannot be compared any other way.
-        self.supersedes: List[Tuple[Rule, Rule]] = []
+
         # What each composed rule collapses. The trail of a shortcut, so
         # `decompose on surprise` knows which sub-steps to re-run (§21).
         self.composed_from: Dict[NodeId, Tuple["Rule", "Rule"]] = {}
@@ -176,6 +195,7 @@ class RuleSet:
             )
         r = Rule(node, connective, antecedent, consequent, name)
         self.rules.append(r)
+        self.by_node[node] = r
         for m in consequent:
             if m.sign != "+" or self.g.is_var(m.pattern):
                 continue
@@ -197,11 +217,26 @@ class RuleSet:
         ]
         return self.g.instance(self.MOMENT, *entries)
 
-    def overrides_rule(self, higher: Rule, lower: Rule) -> None:
-        self.overrides.append((higher, lower))
+    def precedence(self, relation: Optional[NodeId]) -> List[Tuple[Rule, Rule]]:
+        """Which rules the graph says outrank which, here and now.
 
-    def supersedes_rule(self, higher: Rule, lower: Rule) -> None:
-        self.supersedes.append((higher, lower))
+        ⚠ Empty when nothing claims one, which is the common case and the fast
+        path: `instances_of` on a relation nobody has written is empty, so this
+        costs a dict lookup before it costs anything else.
+        """
+        if relation is None or self.claims is None:
+            return []
+        out: List[Tuple[Rule, Rule]] = []
+        for p in self.g.instances_of(relation):
+            members = self.g.members(p)
+            if len(members) != 2:
+                continue
+            higher = self.by_node.get(members[0])
+            lower = self.by_node.get(members[1])
+            if higher is None or lower is None or not self.claims(p):
+                continue
+            out.append((higher, lower))
+        return out
 
     def compose(self, first: Rule, second: Rule, name: str = "") -> Optional[Rule]:
         """Collapse `first` then `second` into one rule (§4).
@@ -268,9 +303,16 @@ class RuleSet:
                     name or f"{first.name}+{second.name}",
                 )
                 self.composed_from[composed.node] = (first, second)
-                for higher, lower in list(self.overrides):
-                    if lower is first or lower is second:
-                        self.overrides.append((higher, composed))
+                # ⚠ Inheriting the defeats is now a CLAIM, deposited by whoever
+                # asked for the composition, because precedence lives in the
+                # graph. `Machine.compose` writes them; a caller that composes
+                # without a world gets a rule with no inherited precedence,
+                # which is the honest answer rather than a silent one.
+                self.inherit = [
+                    (higher, composed)
+                    for higher, lower in self.precedence(self.OVERRIDES)
+                    if lower is first or lower is second
+                ]
                 return composed
         return None
 
@@ -910,10 +952,11 @@ def _superseded(rs: RuleSet, app: Application, applications: Sequence[Applicatio
     matched, because R5 needs it, so nothing is measured that was not already
     kept.
     """
-    if not rs.supersedes:
+    pairs = rs.precedence(rs.SUPERSEDES)
+    if not pairs:
         return False
     mine = {e.node for e in app.consumed}
-    for higher, lower in rs.supersedes:
+    for higher, lower in pairs:
         if lower is not app.rule:
             continue
         for other in applications:
@@ -926,7 +969,8 @@ def _defeated(rs: RuleSet, rule: "Rule", matched: Sequence["Rule"]) -> bool:
     """Overridden by something that matched here. A rule overridden by a rule
     whose antecedent does not hold is not defeated -- that is what makes
     defeasibility about the situation rather than about the rule set."""
-    return any(higher in matched and lower is rule for higher, lower in rs.overrides)
+    return any(higher in matched and lower is rule
+               for higher, lower in rs.precedence(rs.OVERRIDES))
 
 
 def _defeaters(rs: RuleSet, rule: "Rule", matched: Sequence["Rule"]) -> List["Rule"]:
@@ -939,7 +983,7 @@ def _defeaters(rs: RuleSet, rule: "Rule", matched: Sequence["Rule"]) -> List["Ru
     about a run that no run recorded.
     """
     return [
-        higher for higher, lower in rs.overrides
+        higher for higher, lower in rs.precedence(rs.OVERRIDES)
         if lower is rule and higher in matched
     ]
 

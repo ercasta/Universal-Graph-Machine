@@ -259,7 +259,11 @@ def arbitration_is_total() -> None:
     lit2, p2, q2 = g2.atom("lit"), g2.atom("p"), g2.atom("q")
     a1 = m2.rules.rule(IMPLIES, [Member(PLUS, g2.rel(lit2, p2))], [Member(PLUS, g2.rel(lit2, q2))], "A1")
     a2 = m2.rules.rule(IMPLIES, [Member(PLUS, g2.rel(lit2, p2))], [Member(MINUS, g2.rel(lit2, q2))], "A2")
-    m2.rules.overrides_rule(a2, a1)
+    # ⚠ Deposited, not called. Precedence is what the graph claims -- this used
+    # to reach into a Python table, and it was the only thing in the suite that
+    # broke when the table went, which is what said the table was the anomaly.
+    m2.gate.write(m2.focus, g2.rel(m2.OVERRIDES, a2.node, a1.node), PLUS,
+                  source=m2.KB, mention=True)
     m2.gate.write(m2.focus, g2.rel(lit2, p2), PLUS)
     step2 = m2.tick()
     check("§14", "authored precedence beats authored order", step2.applied.rule is a2)
@@ -444,7 +448,8 @@ def surface() -> None:
     # (§4), so any index into the rule list counts the bundle as well.
     cold = next(r for r in m2.rules.rules if r.name == "cold")
     check("R3", "a rule is a thing a fact can be about", kb2.term("<cold>") == cold.node)
-    check("§14", "and `overrides` in the surface seeds the precedence table", len(m2.rules.overrides) == 1)
+    check("§14", "and `overrides` in the surface is read as precedence",
+          len(m2.rules.precedence(m2.OVERRIDES)) == 1)
     m2.run(limit=5)
     check("§14", "so the overriding rule is the one that applied", m2.holds(kb2.term("q(a)")) == MINUS)
 
@@ -1169,7 +1174,8 @@ def the_loop_closes() -> None:
     ])
     m = Machine()
     kb = load(m, src)
-    check("R3", "a fact may NAME a rule, though a rule node contains variables", len(m.rules.overrides) == 1)
+    check("R3", "a fact may NAME a rule, though a rule node contains variables",
+          len(m.rules.precedence(m.OVERRIDES)) == 1)
 
     gauge = kb.term("gauge")
     m.channels.use(gauge)
@@ -2014,7 +2020,7 @@ def an_action_is_substituted_by_its_outcome() -> None:
     check(
         "R3",
         "a corpus can name a bundled rule, so the bundle is finally arguable",
-        len(m2.rules.overrides) == 1,
+        len(m2.rules.precedence(m2.OVERRIDES)) == 1,
     )
     check(
         "§15",
@@ -3836,7 +3842,8 @@ def the_agent_harmonizes_itself() -> None:
     steps = m.run(limit=60)
     check("§14", "⭐ a precedence a RULE concluded is obeyed -- the table is what "
           "the graph claims, not what the loader read",
-          [(h.name, l.name) for h, l in m.rules.overrides] == [("cold", "hot")])
+          [(h.name, l.name) for h, l in m.rules.precedence(m.OVERRIDES)]
+          == [("cold", "hot")])
     check("§14", "...so the agent settles its own conflict: it decides the "
           "precedence, the loser is defeated, and the run reaches quiescence",
           m.holds(kb.term("defeated(<hot>, <cold>)")) == PLUS
@@ -3871,7 +3878,7 @@ def the_agent_harmonizes_itself() -> None:
     undone.run(limit=40)
     check("§14", "...and a precedence can be WITHDRAWN, which is what makes it a "
           "claim rather than a configuration",
-          not undone.rules.overrides)
+          not undone.rules.precedence(undone.OVERRIDES))
 
     # -- 3. the whole arc, end to end --------------------------------------
     #
@@ -3935,7 +3942,8 @@ def the_agent_harmonizes_itself() -> None:
           "and a standing policy orders it against what the agent was told -- "
           "a precedence about a rule that did not exist when it was written",
           len(learned_rules) == 1
-          and any(l is learned_rules[0] for _, l in mm.rules.overrides))
+          and any(l is learned_rules[0]
+                  for _, l in mm.rules.precedence(mm.OVERRIDES)))
     # ⚠ Built with `g.rel`, not `kb.term`: a rule adopted at runtime is named
     # after its node and does not print as anything the surface can parse.
     # That is the wall `artefact` recorded from the other side -- a rule reaches
@@ -3967,7 +3975,8 @@ def the_agent_harmonizes_itself() -> None:
           "the author may say it in either order and cannot tell which they "
           "chose",
           len(early_learned) == 1
-          and any(l is early_learned[0] for _, l in early.rules.overrides)
+          and any(l is early_learned[0]
+                  for _, l in early.rules.precedence(early.OVERRIDES))
           and early.holds(kbe.term("open(vault)")) == MINUS)
     check("§14", "...and the learned rule LOSES to the authored one about the "
           "sealed vault, with the defeat on the record",

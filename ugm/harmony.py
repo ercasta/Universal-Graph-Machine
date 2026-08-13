@@ -91,7 +91,7 @@ def _census(m: Machine) -> None:
     rules = list(m.rules.rules)
     bundled = {r.node for r in m.bundle}
     ordered = {(h.node, l.node) for h, l in
-               list(m.rules.overrides) + list(m.rules.supersedes)}
+               m.rules.precedence(m.OVERRIDES) + m.rules.precedence(m.SUPERSEDES)}
     _tally["machines"] += 1
     _tally["rules"] += len(rules)
     for i, r1 in enumerate(rules):

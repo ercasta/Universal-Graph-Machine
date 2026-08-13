@@ -433,6 +433,13 @@ class Machine:
         # that twin has cost this repo seven findings.
         self.OVERRIDES = self.g.atom("overrides")
         self.SUPERSEDES = self.g.atom("supersedes")
+        # ⭐ The rule set reads precedence off the graph, at wherever the agent
+        # is standing. It owns neither the nodes nor the position, so both are
+        # handed to it -- one place, so the node a corpus writes and the node
+        # the arbitrator looks for cannot come apart.
+        self.rules.OVERRIDES = self.OVERRIDES
+        self.rules.SUPERSEDES = self.SUPERSEDES
+        self.rules.claims = self._claims
         self.ADOPT = self.g.atom("adopt")
         self.WIDENED = self.g.atom("widened")
         self.REACHED = self.g.atom("reached")
@@ -684,7 +691,6 @@ class Machine:
         # only backwards: 15 ticks and two subgoals becomes 4 ticks and none.
         # The narrowing lives in the `prefer` table and the budget, which are
         # separately deniable and were what the criterion was actually about.
-        self.gate.on_write.append(self._precede)
         self.gate.on_write.append(self._adopt)
         self.gate.on_write.append(self._dispatch)
         self.gate.on_write.append(self._enter)
@@ -1546,7 +1552,7 @@ class Machine:
         ⚠ Costs nothing when nothing is ordered, which is most corpora: the
         authored precedence table is empty and this returns at the first line.
         """
-        if not self.rules.overrides:
+        if not self.rules.precedence(self.OVERRIDES):
             return
         matched = list(self._matched_rules.values())
         pairs = [
@@ -2169,73 +2175,13 @@ class Machine:
             source=self.KB, consumed=(e,),
         )
 
-    def _precede(self, frame: Frame, e: Entry) -> None:
-        """Keep the precedence table equal to what the graph claims.
-
-        ⭐⭐⭐ **A rule could write a precedence and the arbitrator never read
-        it.** `overrides(<a>, <b>)` was seeded by the LOADER, from the surface,
-        once -- so the fact held in the graph, `rules.overrides` stayed empty,
-        and nothing happened. §21's defect from the other side: not *the
-        machinery knows something no rule can ask about*, but **a rule says
-        something the machinery does not listen to**, which is worse, because
-        the corpus is not even wrong.
-
-        It blocked both arcs at their join. An agent that reads `defeated(?l,
-        ?w)` and wants to *fix* it by raising a precedence could not; and a rule
-        adopted at runtime could never be ordered against anything, because the
-        loader's table is keyed on names a corpus declared and an adopted rule
-        has none.
-
-        So the table is a derived index, maintained where the claim changes --
-        the discipline `_state` already uses. That makes precedence **dated and
-        deniable** like every other claim, which is what §14 says it is
-        everywhere except here.
-
-        ⚠ Both signs. A denial that is not obeyed is the same defect wearing
-        the fix's clothes, and precedence is exactly where being unable to
-        change your mind hurts.
-        """
-        rel = self.g.relation_of(e.proposition)
-        if rel is not self.OVERRIDES and rel is not self.SUPERSEDES:
-            return
-        if len(self.g.members(e.proposition)) != 2:
-            return
-        a, b = self.g.members(e.proposition)
-        by_node = {r.node: r for r in self.rules.rules}
-        if a not in by_node or b not in by_node:
-            # Not (yet) about two rules. A precedence written before its rule is
-            # adopted is picked up by `_adopt`, which re-reads what the graph
-            # already says about the rule it is making live.
-            return
-        table = (self.rules.overrides if rel is self.OVERRIDES
-                 else self.rules.supersedes)
-        pair = (by_node[a], by_node[b])
-        if e.sign == PLUS:
-            if pair not in table:
-                table.append(pair)
-        elif pair in table:
-            table.remove(pair)
-
-    def _precedence_for(self, rule: Rule) -> None:
-        """What the graph already says about a rule that has just become live.
-
-        ⚠ Order is not the author's to control here: a corpus concluding
-        `overrides(<a>, ?r)` about a rule it is *also* adopting may say either
-        first. `_precede` catches the write; this catches the write that already
-        happened.
-        """
-        for rel, table in ((self.OVERRIDES, self.rules.overrides),
-                           (self.SUPERSEDES, self.rules.supersedes)):
-            by_node = {r.node: r for r in self.rules.rules}
-            for p in self.g.instances_of(rel):
-                members = self.g.members(p)
-                if len(members) != 2 or rule.node not in members:
-                    continue
-                a, b = members
-                if a not in by_node or b not in by_node:
-                    continue
-                if self._claims(p) and (by_node[a], by_node[b]) not in table:
-                    table.append((by_node[a], by_node[b]))
+    # `_precede` and `_precedence_for` were here: a write hook that kept a
+    # Python precedence table equal to the graph, and a re-scan that caught the
+    # precedences written before their rule was live. Both are gone, because
+    # `RuleSet.precedence` reads the graph instead of mirroring it -- so there
+    # is nothing to keep equal and nothing to catch up. Measured before
+    # deleting: the suite runs in 6.42s against 6.38s, so the table was buying
+    # nothing but the two ways it could be wrong.
 
     def _adopt(self, frame: Frame, e: Entry) -> None:
         """Make a rule the graph describes into a rule the loop reads.
@@ -2295,8 +2241,7 @@ class Machine:
         # something a reader can look up rather than ninety characters of its
         # own structure.
         # ⚠ The node the graph described, never a fresh one. See `RuleSet.rule`.
-        adopted = self.rules.rule(connective, ant, con, self.g.show(node), node)
-        self._precedence_for(adopted)
+        self.rules.rule(connective, ant, con, self.g.show(node), node)
 
     def _read_rule(self, frame: Frame, node: NodeId):
         """What the graph says this rule is, or `None` if it does not say.
@@ -3270,7 +3215,8 @@ class Machine:
         # answered from a list one of them may be missing from. Then the whole
         # set goes through, at the old cost. Stated rather than hidden, and
         # measured by a check either way.
-        keys = cache["apps"] if self.rules.supersedes else cache["live"]
+        keys = (cache["apps"] if self.rules.precedence(self.SUPERSEDES)
+                else cache["live"])
         out = [cache["apps"][k] for k in keys if k[0] in live]
         out.sort(key=lambda a: (rank[a.rule.node],
                                 tuple(order.get(c.node, last) for c in a.consumed)))
@@ -3360,7 +3306,7 @@ class Machine:
         one is re-walked, which is a cost this does not hide.
         """
         cache = self._verdicts
-        if self.rules.supersedes:
+        if self.rules.precedence(self.SUPERSEDES):
             # ⚠ `supersedes` is defeat **for this case**, decided by whether two
             # applications share a consumed entry -- a question about a PAIR of
             # candidates, which nothing at the top of a heap can answer. So a

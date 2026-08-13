@@ -69,10 +69,20 @@ def _defeat_survives() -> bool:
     A = next(r for r in m.rules.rules if r.name == "a")
     B = next(r for r in m.rules.rules if r.name == "b")
     veto = next(r for r in m.rules.rules if r.name == "veto")
-    m.rules.overrides_rule(veto, B)
+    # ⚠ The precedence is a CLAIM, deposited like any other -- it used to be a
+    # Python call into a table. Nothing seeds a table any more: the arbitrator
+    # reads what the graph says.
+    order = lambda h, l: m.gate.write(
+        m.focus, m.g.rel(m.OVERRIDES, h.node, l.node), "+",
+        licence=m.g.rel(m.REIFIED, h.node), source=m.KB, mention=True)
+    order(veto, B)
     composed = m.rules.compose(A, B)
     if composed is None:
         return False
+    # ...and the composition inherits them, which `RuleSet.compose` works out
+    # and the caller deposits, because only the caller has a world to write in.
+    for higher, lower in getattr(m.rules, "inherit", []):
+        order(higher, lower)
     m.rules.rules = [r for r in m.rules.rules if r not in (A, B)]
     m.run(limit=40)
     # `veto` overrode `b`; the composition must not slip past it.
