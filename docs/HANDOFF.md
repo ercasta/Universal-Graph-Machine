@@ -173,6 +173,42 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
+## Latest: **a hypothesis can be re-entered**, and the fix was DELETING Python. Commit `reenter`.
+
+The user's case: *explore a hypothesis, find you need something you do not have, go and get it, and
+finish the reasoning.* It could not be done.
+
+Measured: explore `broken(pipe)`, want `wet(pipe)`, conclude nothing, discharge -- then be told
+`wet(pipe)`, and the hypothesis is **never revisited**, not even when a corpus asks outright. The block
+was one line in `_enter` with a reason true only while nothing changes: *supposing the same thing twice
+derives nothing new.*
+
+⚠⚠ **My first repair was worse, and the user named why: this is reasoning, and it must not be handled
+by Python.** I had added a Python test for *was this licensed by `again`* -- the decision back in the
+machinery, one layer down. Two kill-probes agreed before the argument did: removing the dedup entirely
+failed nothing, and accepting any licence failed nothing.
+
+⭐⭐⭐ **Measured instead, and the dedup was REDUNDANT.** Quiescence already stops a rule re-concluding
+`suppose(p, w)`, because the proposition already holds. The runaway the old comment feared -- a rule
+inside the frame re-supposing its own assumption -- runs **4 ticks to quiescence with the dedup and 4
+without, identically.** So both the dedup and my special case are gone, and what decides that a
+hypothesis is worth entering again is a corpus writing
+
+    again(suppose(broken(?x), likely), <occasion>)
+
+which is the argument re-asking was already built on, and now the only one. **The fix removed Python
+rather than adding it**, which is the sign the user asked for.
+
+⚠⚠⚠ **And the re-ask criterion transfers whole.** A corpus that re-supposes on `left(?f, ?a)` -- the
+record of leaving a frame -- generates the occasion for the next re-entry *by re-entering*, and never
+stops (200 ticks, still going). *An occasion warrants a re-ask only if re-asking cannot produce one*,
+in a second place. Not a machinery failure: the criterion is stated and unenforced, and this is an
+author writing the `causes`-shaped mistake again.
+
+⚠ What is NOT claimed: this does not pause a half-explored hypothesis. A supposition still runs to
+quiescence inside and discharges honestly. What it buys is that **finding something out is a reason to
+think again** -- re-enter, do not freeze, which is the same answer session resume gave.
+
 ## Answered: **mid-plan interrupt, ask, resume — and focus stays a pointer**
 
 The user asked whether treating the focus as data would allow *interrupt planning, ask the user, then
@@ -1268,12 +1304,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     368 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     373 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 368 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 373 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?

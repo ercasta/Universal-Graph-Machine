@@ -844,11 +844,28 @@ class Machine:
             return
         assumption, wrap = self.g.members(e.proposition)
         self._enacted.add(e.node)
-        # Supposing the same thing twice derives nothing new: everything
-        # downstream of it was already drawn the first time. Without this the
-        # loop crosses guards it created a moment ago, forever.
-        if assumption in self._supposed:
-            return
+        # ⭐⭐⭐ **Whether to suppose again is REASONING, and it was Python.**
+        # This line used to drop a second supposition of the same assumption --
+        # *supposing the same thing twice derives nothing new* -- which is true
+        # only while nothing has changed, and it made a hypothesis
+        # unfinishable: explore `broken(pipe)`, find the reasoning wants
+        # `wet(pipe)`, conclude nothing and discharge; then be told `wet(pipe)`,
+        # and the hypothesis is never revisited.
+        #
+        # ⚠⚠ The first repair was worse: a Python test for *was this licensed by
+        # `again`*, which put the decision back in the machinery one layer down.
+        # Measured instead -- **the dedup was redundant.** Quiescence already
+        # stops a RULE re-concluding `suppose(p, w)`, because the proposition
+        # already holds; the runaway the old comment feared (a rule inside the
+        # frame re-supposing its own assumption) runs 4 ticks to quiescence with
+        # the dedup and 4 without, identically.
+        #
+        # So both are gone. What decides that a hypothesis is worth entering
+        # again is a corpus writing `again(suppose(p, w), <occasion>)` -- the
+        # same argument re-asking is built on, and now the only one.
+        #
+        # `_supposed` stays as a COUNT, for `hypotheses(n)`: how many distinct
+        # assumptions have been entered.
         self._supposed.add(assumption)
         self.suppose(assumption, grade=e.grade, wrap=wrap)
 

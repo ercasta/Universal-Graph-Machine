@@ -2409,6 +2409,87 @@ def a_domain_can_be_taken_out_of_mind() -> None:
           and m4.g.show(owes.source) == "billing")
 
 
+def a_hypothesis_can_be_re_entered() -> None:
+    """The user's case: *explore a hypothesis, find you need something you do not
+    have, go and get it, and finish the reasoning.*
+
+    ⚠⚠⚠ It could not be done, and the block was one line with a reason true only
+    while nothing changes: *supposing the same thing twice derives nothing new.*
+    Measured -- explore `broken(pipe)`, want `wet(pipe)`, conclude nothing,
+    discharge; then be told `wet(pipe)`, and the hypothesis is **never
+    revisited**, not even when a corpus asks for it outright.
+
+    ⭐ The answer is the one session resume gave: **re-enter, do not freeze.**
+    Nothing is paused mid-flight -- the frame ran to quiescence and discharged
+    honestly -- and what a corpus asks for is the supposition *again*, on the
+    occasion of learning something. That is `again`'s own argument, so the
+    licence already on the entry is the discriminator and nothing new is
+    recorded to know it.
+
+    ⚠ Note what is NOT claimed: this does not pause a half-explored hypothesis.
+    A supposition still runs to quiescence inside and discharges. What it buys
+    is that finding out more is a reason to think again.
+    """
+    from .text import load
+
+    world = [
+        "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
+        "rule <c> = implies( { +broken(?x), +wet(?x) }, { +leaks(?x) } )",
+        "rule <trust> = implies( { +says(user, ?p, plus) }, { +?p } )",
+        "fact standing(<trust>)", "fact +odd(pipe)",
+    ]
+    redo = [
+        "rule <redo> = implies( { +says(user, wet(?x), plus) },"
+        "                       { +again(suppose(broken(?x), likely), ?x) } )",
+        "fact standing(<redo>)",
+    ]
+
+    def run(with_redo):
+        m = Machine()
+        kb = load(m, chr(10).join(world + (redo if with_redo else []) + [""]),
+                  scope="hy")
+        m.run(limit=300)
+        before = m.holds(kb.term("likely(leaks(pipe))"))
+        kb.say("user", "wet(pipe)")
+        steps = m.run(limit=300)
+        return m, kb, before, steps
+
+    m, kb, before, steps = run(True)
+    check("§16", "the hypothesis concludes nothing while the fact is missing",
+          before is None)
+    check("§16", "⭐ ...and once the agent is told, it thinks again and finishes: "
+          "finding something out is a reason to re-enter a hypothesis",
+          m.holds(kb.term("likely(leaks(pipe))")) == PLUS)
+    check("§15", "...and it terminates, for the reason re-asking does: one "
+          "`again` node per occasion, so the same occasion asks once",
+          steps[-1].state in ("quiescent", "stopped") and len(steps) < 300)
+
+    # ⚠⚠⚠ And the re-ask criterion transfers whole: **an occasion warrants a
+    # re-ask only if re-asking cannot produce one.** A corpus that re-supposes
+    # on `left` -- the record of leaving a frame -- generates the occasion for
+    # the next re-entry by re-entering, and never stops. Not a machinery
+    # failure: the criterion is stated and unenforced, and this is an author
+    # writing the `causes`-shaped mistake in a second place.
+    away = Machine()
+    load(away, chr(10).join([
+        "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
+        "rule <l> = implies( { +left(?f, ?a) },"
+        "                    { +again(suppose(?a, likely), ?f) } )",
+        "fact +odd(pipe)", ""]), scope="hy2")
+    ran = away.run(limit=200)
+    check("§21", "⚠ re-supposing on an occasion the re-entry itself creates does "
+          "not terminate -- the same criterion as re-asking, in a second place",
+          len(ran) == 200)
+
+    # The control, and it is the whole claim: without the corpus asking, the
+    # hypothesis stays unrevisited even though the fact is now known.
+    c, kbc, _, _ = run(False)
+    check("§16", "...where a corpus that does not ask gets no re-entry, even "
+          "with the fact in hand -- the machinery does not decide this",
+          c.holds(kbc.term("wet(pipe)")) == PLUS
+          and c.holds(kbc.term("likely(leaks(pipe))")) is None)
+
+
 def its_own_effort_is_reasonable_over() -> None:
     """§21's hidden state, for the counters -- and the user's reason is the right
     one: these should be **reasonable over**.
@@ -3978,6 +4059,7 @@ def main() -> int:
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
     a_domain_can_be_taken_out_of_mind()
+    a_hypothesis_can_be_re_entered()
     its_own_effort_is_reasonable_over()
     the_knobs_are_claims()
     a_session_can_be_saved_and_resumed()
