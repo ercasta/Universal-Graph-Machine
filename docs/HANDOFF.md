@@ -2,6 +2,61 @@
 
 Branch `restart`, pushed. **448 checks, 0 failing**; every instrument green.
 
+## The session in one page
+
+Nine commits. The first two were speed, the next four built **acquisition**, and the last three are
+what happened when acquisition was made to meet **harmonization** — two of which are deletions the
+meeting forced.
+
+| commit | what it settled |
+|---|---|
+| `kept` | the loop went **linear** — index and keys maintained where the state is; 12,800 facts in less time than 1,600 took that morning |
+| `join` | ⭐ `pystrider` found a **second quadratic** — the join, not the option set. 2,006,004 unifications → **3,003** |
+| `defeated` | `defeated(<loser>, <winner>)`, and `ugm.harmony`: **not one unplanned conflict in the repo**, so a detector could not be gated |
+| `adopt` | **a rule can author a rule** — the reverse of `reify`, a door beside `_dispatch` and `_enter` |
+| `generalise` | anti-unification, **the dual of `unify`**: two examples become a rule that fires on a third case |
+| `ungraded` | **`@likely` deleted** — `weaker` was called from one place; the grade was carried, composed, printed and never obeyed |
+| `precede` | the **composition test**, which broke in two places and found both |
+| `authored` | precedence **read, not kept** — the table deleted at a measured cost of nothing |
+| `wrapped` | the third precedence relation this all seemed to need **does not exist and should not** |
+
+**Four shapes, each of which paid more than once.**
+
+1. ⭐⭐⭐ **The fix is a deletion, four times.** Grades, the precedence table, `Loader._maybe_precedence`,
+   and — the best one — a relation that was never built, because measuring showed a wrapped conclusion
+   cannot conflict at all.
+2. ⭐⭐⭐ **Measure before building, and the measurement keeps refuting the plan.** Harmonization's
+   detector: unfalsifiable on these corpora. The grade: used by 4 of 3,740 rules. The third
+   precedence: unnecessary. Every one of those was going to be built.
+3. ⭐⭐ **Composition is where the bugs are.** `precede` existed only to make four commits meet, and it
+   found both a §21-shaped defect (a rule says what the machinery ignores) and a twin (the adopted
+   rule was not the rule the graph described). Neither was visible from inside its own commit.
+4. ⚠⚠⚠ **My instruments failed five times, all recorded traps.** `id()` reuse under-counted a census
+   3.5×; a comparison instrument scored the suite's own deliberate mutants as disagreements; a check
+   asked machine 2's key set about machine 1's node; a learner closed over the wrong machine's loader;
+   a kill-probe crashed a check instead of failing it. The pattern is stable: **the instrument is
+   where the mistake is.**
+
+### The debt, in one place
+
+* `docs/rules-design.md` has ~80 references to grades. §12's *where the grade lives* carries the
+  re-run and the measurement; **the rest is now partly describing an engine that does not exist.**
+  CLAUDE.md calls that file the only doc, so this is real and it grows with every commit.
+* **The collapse table** for nested modalities (`{+likely(possible(?x))} ⟹ {+possible(?x)}`) is a
+  corpus's to write and the bundle ships nothing. §19-correct, and the same shape as the `<recheck>`
+  line now recorded three times as missing — worth deciding once whether the bundle carries this
+  family.
+* **`_in_play`** is the one judgement still in Python that `named` left half-open: the goal half could
+  be facts, the delta half cannot on an append-only chain.
+* **Loop detection** is still designed, measured and unbuilt — but no longer unfalsifiable: two
+  fixtures now produce the pathology on demand (an `overrides` cycle, and a conflict that starves the
+  rule that would settle it).
+* **The named next slice:** retire a learned rule on the **credit walk** (`harmed` carries a count),
+  not on `defeated`, which is deduped per pair and so can only say *once is enough* — measured wrong.
+* Still open from earlier: the **use/mention wall** (an intent naming a rule cannot leave the agent,
+  because a rule node is generic), and **examples from the agent's own trail** (blocked on `rests_on`
+  being skeleton rather than entries).
+
 ## Latest: **what a learned rule may conclude** — and the vocabulary that looked missing is not. Commit `wrapped`.
 
 Pushing the learning-and-harmonizing arc on its normal case: the agent generalises
