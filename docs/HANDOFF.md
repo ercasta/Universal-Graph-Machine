@@ -1,4 +1,38 @@
-# Handoff — 2026-08-12
+# Handoff — 2026-08-13
+
+Branch `restart`, pushed. **373 checks, 0 failing**; every instrument green.
+
+## The day in one page
+
+Eleven commits, and the shape of them is worth more than the list. **Two of the three things that
+looked like features turned out to be Python being deleted**, and the two biggest wins came from the
+user's proposals rather than from the plan.
+
+| commit | what it settled |
+|---|---|
+| `reask` | `again(<req>, <occasion>)` — the ENTRY needed to be fresh, not the request |
+| `cooking` | all six apparatus answerers bound by `answers(<M>, ask)` facts; 4 are `standing` |
+| `survey` | ⚠ the two sibling consumers are dark, and the wall is scale — measured |
+| `delta` | matching keyed on the delta — **98.7% of it was re-derivation**, and 92.9% at fixture scale |
+| `scopes` | a scope can span documents; **bounded references make coreference ABSENT, not solved** |
+| `state` | the resolved state kept, not rebuilt — 8.3x, and 3 of 4 mutations were invisible to 323 checks |
+| `domains` | ⭐ `dormant(billing)` — **14.5x from one corpus line**, the strongest lever measured |
+| `escalate` | a dry search reaches for what is out of mind, but only with a goal outstanding |
+| `report` / `persist` / `rendered` | a door (`python -m ugm`), and a session saved as **what it was told**, rendered from the graph |
+| `knobs` / `effort` | the last hidden state: bounds are claims, and the agent's own effort is **reasonable over** |
+| `reenter` | a hypothesis can be thought about again — by **removing** the Python that stopped it |
+
+**Three recurring shapes, each of which paid more than once today.**
+
+1. ⭐⭐⭐ **The fix is usually a deletion.** `reenter`'s dedup was redundant with quiescence; my first
+   repair added a Python test and was worse. `rendered` deleted a journal that duplicated the chain.
+2. ⚠⚠⚠ **A check that cannot fail is the default, not the exception.** Kill-probing found ungated
+   lines in *every* commit: 3 of 4 in `state`, 3 of 4 in `domains`, 3 of 5 in `effort`. Twice the
+   suite could not see a genuine soundness hole (concluding from a denied premise; a knob read and
+   not obeyed).
+3. ⚠⚠ **My instruments lied twice, both by reading silence as a result.** A buffered stdout made a
+   12.7s run look like a timeout and produced a headline 20x too flattering; a probe counted `FAIL`
+   lines and read a crash as clean.
 
 Branch `restart`, pushed. `main` still holds the old 46-module engine on purpose.
 
@@ -1304,79 +1338,83 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     373 checks, 0 failing        the runner; any False is a failure
-
-⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
-the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
-of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 373 · backward 7 · compose 5 · workload 25 ·
-learning 31 · tools 11 (agreement and bundle already reported theirs).
-python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
-python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?
-python -m ugm.backward       0 failing, 0 blind         backward reading, as rules
-python -m ugm.compose        0 failing, n steps -> 1    composition, measured
-python -m ugm.modality       (table)                    grade vs lifted vs supposed
-python -m ugm.workload       0 failing                  stopping pays; and what BAD ADVICE costs
-python -m ugm.learning       0 failing, 31 gates        does an episode teach the next one?
-python -m ugm.tools          0 failing, 11 gates        can a tool be data?
+python -m ugm.selftest      373 checks, 0 failing   the runner; any False is a failure
+python -m ugm.agreement      28 reads, 12/12        the rule-level read against the native one
+python -m ugm.bundle         17 rules, 6 answerers  is every shipped rule and answerer load-bearing?
+python -m ugm.backward        7 checks, 0 blind     backward reading, as rules
+python -m ugm.compose         5 checks              composition, measured
+python -m ugm.modality        (table)               grade vs lifted vs supposed
+python -m ugm.workload       25 checks              stopping pays; and what BAD ADVICE costs
+python -m ugm.learning       31 checks              does an episode teach the next one?
+python -m ugm.tools          11 checks              can a tool be data?
 ```
+
+⚠ **Every instrument prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads the
+same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten of
+`ugm.learning`'s and nothing noticed.
+
+⚠⚠ **`ugm.bundle` now asks §20's question of ANSWERERS too**, in two columns, because *is it
+load-bearing* and *may a corpus turn it off* are two questions. ⚠ And a removal that makes the runner
+**raise** prints `raised` rather than a count — a count there is a lie, since the run stopped at the
+first check that could not survive the absence.
 
 ## The state of the code
 
-18 modules, ~7.8k lines. `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine;
-`selftest` `agreement` `bundle` `backward` `compose` `modality` `workload` `learning` `tools` are instruments;
-`stratum0` is the rule-level read.
+**20 modules.** `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine; `__main__`
+is the door; `selftest` `agreement` `bundle` `backward` `compose` `modality` `workload` `learning`
+`tools` are instruments; `stratum0` is the rule-level read.
 
-**No phases.** `tick()` is: read `enough` → recall → match → defeat → **forgone** → quiescence →
-arbitrate → doubt → **forgo** → apply; plus `_leave` when a hypothesis runs out of work and `_wake`
-when the loop does. Nothing in it is a line a rule could have written.
+    python -m ugm <corpus.ugm> [--limit N] [--why TERM] [--save FILE]
+    python -m ugm --resume FILE
 
-**Seventeen bundled rules**, authored in the surface as `ugm/rules/bundle.ugm` and loaded by
-`Machine._install_bundle`: `intake`, `did`, `taken`, `assert-act`,
-`denial`, four `deviation-*`, `resuming`, `relevant`, and backward reading's `ask-recall`, `ask-fit`,
-`plan`, `expand`, `ask-check`, `give-up`.
+**No phases.** `tick()` is: read `enough` → recall → match (**delta only**) → defeat → forgone →
+quiescence → arbitrate → doubt → forgo → apply; plus `_leave`, `_wake`, and two escalations —
+`_widen` for a dry shortlist and `_recover` for a domain out of mind.
 
-**Write-time hooks**: three — `_dispatch`, `_enter`, `_answer`. ✅ §21's debt is **closed at its
-principled floor**: the six request-answerers (`<fit>` `<settle>` `<verdict>` `<root>` `<remember>`
-`<re-ask>`) are bound by `answers(<M>, ask)` facts and dispatched by `_answer`, four of them carrying
-`standing` so a denial is refused rather than obeyed. What stays native is each answerer's **body**,
-which is what an answerer is; and `_dispatch`/`_enter`, which are **doors, not questions**.
+**Two caches, both semantically load-bearing and each gated by mutations the suite could not see
+before they were written**: applications carried across ticks (`_applications`), and the resolved
+state carried across ticks (`_state`). ⚠ *An optimisation of a read is a re-implementation of its
+semantics* — `resolve` now has two implementations and only the suite says they agree.
 
-**Three guards, and they are one move — *escalate before believing a decline*:** `_widen` at a dry
-shortlist, `_forbid` at a write (§19's norm veto), `_notice_open` at a stop. None is a phase; each
-answers one question at one machinery decision.
+**Seventeen bundled rules** in `ugm/rules/bundle.ugm`, plus **six answerers** bound by
+`answers(<M>, ask)` facts (`<fit>` `<settle>` `<verdict>` `<root>` `<remember>` `<re-ask>`), four of
+them `standing` so a denial is refused on the record.
 
-**Offline, outside the loop:** `review()` / `blame()` / `learned()` — credit and blame from the trail.
+**Write-time hooks**: three — `_dispatch`, `_enter`, `_answer`. **Three guards, one move —
+*escalate before believing a decline***: `_widen`, `_forbid`, `_notice_open`, and now `_recover`.
+
+**Offline, outside the loop:** `review()` / `blame()` / `learned()` / `refine()` / `induce()`.
+
+**What is still not in the graph**, audited: mirrors of graph facts (`emitted`, `_acted`, `_quieted`,
+…), and the genuinely privileged — the one register, the **name tables** (which cannot be in the graph
+without making names identity), answerer bodies, and the caches. The hidden-claims bucket is empty.
 
 ## Where I would pick up
 
-Forgoing left three narrow things open; the `learning` commit reordered them. Then the older thread:
+Nothing on this list is blocking; the engine runs, reports, saves and resumes. In order of how much
+they would buy:
 
-1. **Rivals are noticed only at the tick the choice is made**, so an alternative that becomes
-   applicable later is not passed up. Unmeasured whether that matters.
-2. **Complementary work must be declared**, and there is no way to declare it beyond denying the
-   deposit. (Two rules that should *both* run for one want.)
-3. ~~**How badly a rule cost something is unsayable**~~ ✅ **DONE, commit `magnitude`** — harm is a
-   count of what was lost, so it is non-negative and no `-3` was ever needed. What remains of the item
-   is only the *second* quantity below. Original wording kept for the argument:
-   **How badly a rule cost something is unsayable** — `harmed` is two-valued and the table's numerals
-   are non-negative, so a small cost cannot be weighed against a large benefit. ⬆⬆ **Now item 1, merged
-   with item 4 below: `evils` measured that they are ONE item.** Magnitude without exploration sticks on
-   whatever was tried first; suppression without magnitude oscillates. The missing thing is the PAIR
-   (cardinal score = how good, ordinal grade = how sure), both already writable, neither written from
-   experience. ⬆ Promoted to first by the `learning` commit: it is now the *one* thing blocking the loop that closes. Learning can
-   suppress a route and promote the alternative that was passed up; it cannot say *this route is worth
-   its cost and that one is not*, so a world where every route does damage recommends nothing.
-4. **Experience is one episode deep.** A second `prefer` row for the same rule and key does not
-   accumulate — *restating is not revising* (§8) — so a route that has worked twenty times and one that
-   worked once are indistinguishable. This is the same missing notion as item 3 from the other side, and
-   `ugm.learning` closes on the note that it should be measured, not assumed.
-5. ~~*when may a request be re-asked*~~ ✅ **DONE, commit `reask`** — `again(<request>, <occasion>)`.
-   What is left is **when may a binding be reconsidered**, the last of the original four hats, and it
-   does not fall to the same move: a request is a proposition and can be re-delivered; a binding is
-   not one. ⚠ Also left is that the re-ask criterion (*an occasion warrants a re-ask only if
-   re-asking cannot produce one*) is **stated and unenforced** — nothing stops an author writing the
-   `causes` version that asks forever.
+1. ⭐ **The re-ask that closes two stale records.** `achieved` goes stale after a goal is satisfied
+   later, and `blocked` goes stale after an escalation brings a domain back — both because a `check`
+   was asked once and nothing re-asks. `again` exists for exactly this and nothing ships concluding
+   it. One corpus rule; demonstrated inside a real interrupt-and-resume scenario, not hypothetical.
+2. **`current_state` is no longer the wall, but the loop still applies ONE application per tick**, so
+   tick count grows with the corpus. 10,000 facts is 75s. Batching applications, or keeping the
+   `Situation` incremental, is the next structural move if anything needs book scale.
+3. **When may a binding be reconsidered** — the last of the original four hats. `binds(plan, ?t, sink)`
+   is reference as BINDING, and nothing revisits one. Re-asking did not reach it: a request is a
+   proposition and can be re-delivered; a binding is not one.
+4. **Experience is one episode deep** (a second `prefer` row does not accumulate), and **rivals are
+   noticed only at the tick the choice is made**. Both older, both unmeasured as to whether they matter.
+5. **Complementary work cannot be declared** — two rules that should *both* run for one want.
+
+⚠ **Standing hazards, none of them enforced.** *An occasion warrants a re-ask only if re-asking cannot
+produce one* — now demonstrated to break in two places (`causes`-shaped re-asks, and re-supposing on
+`left`). And the `open(?w)` idiom only fires on the `enough` path, not at quiescence.
+
+⚠ **The two sibling repos are deliberately dark.** `../pystrider` works against a `main` worktree at
+`../ugm-classic` (editable install repointed there); `../harneskills_new` is stale against every ref
+and needs real porting. The user's call: leave them, finish the engine.
 
 ---
 
