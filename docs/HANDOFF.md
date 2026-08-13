@@ -1,6 +1,48 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **444 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **448 checks, 0 failing**; every instrument green.
+
+## Latest: **what a learned rule may conclude** — and the vocabulary that looked missing is not. Commit `wrapped`.
+
+Pushing the learning-and-harmonizing arc on its normal case: the agent generalises
+`{+hinged(?x)} ⟹ open(?x)` from two examples, and already knows `{+sealed(?x)} ⟹ -open(?x)`. A sealed
+hinged vault is a conflict; an unsealed hinged gate is not. **What should the corpus do about it?**
+
+Measured four ways, and the answer is *nothing*:
+
+| the learned rule concludes | precedence | vault | gate | ends |
+|---|---|---|---|---|
+| bare | `overrides` | `-open` | **never applies** | quiescent |
+| bare | `supersedes` | `-open` | `open` | ⚠ **runaway, 300 ticks** |
+| **wrapped** | **none** | `-open` | `likely(open)` | **quiescent, 7 ticks** |
+
+⚠ **`overrides` is too broad.** It is per TICK and per RULE, so one sealed object suppresses the
+learned rule about *every* object — the gate is hinged and not sealed, and the agent still will not
+conclude it is open. That is `rules.py`'s own warning about the two relations, arriving from the
+acquisition side.
+
+⚠ **`supersedes` is too narrow.** It defeats applications sharing a consumed **entry**, and two rules
+reaching one conclusion from different premises share none: `<secret>` consumes `sealed(vault)`, the
+learned rule consumes `hinged(vault)`. Nothing is defeated, and the two oscillate forever.
+
+⭐⭐⭐ **So the third precedence relation this looked like it needed does not exist and should not.** A
+learned rule concluding `likely(open(?x))` never contradicts `-open(?x)`, because they are different
+propositions — the agent holds a generalisation *and* a specific fact at once, which is what it should
+do. The conflict arises only if a corpus **crosses**, and then the corpus is the one asserting it and
+can decline.
+
+> **A learned rule that concludes wrapped cannot fight what the agent was told.**
+
+⭐ **This is the grade deletion paying off somewhere nobody designed for.** *How strongly a rule may
+speak* had to be **in the conclusion** for any of this to be sayable: with `@likely` it was a field
+nothing could read, so a learned rule and an authored one wrote the same proposition and had to be
+arbitrated. Two commits later the arbitration is unnecessary.
+
+⚠ **And retiring on defeat is the blunt instrument.** `{+defeated(?l, ?w)} ⟹ {+dormant(?l)}` works and
+throws away every case the rule was **right** about — measured: the learned rule was retired before it
+ever applied. `defeated` is deduped per pair, so *how often* a rule loses is not askable, and the
+corpus can only say *once is enough* — which this shows is wrong. **That** is where the credit walk
+(`harmed`, which carries a count) belongs, and it is the next thing to try rather than a new relation.
 
 ## Latest: **precedence is READ, not kept** — the Python it took, deleted. Commit `authored`.
 

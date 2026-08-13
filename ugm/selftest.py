@@ -3985,6 +3985,114 @@ def the_agent_harmonizes_itself() -> None:
                                 secret.node)) == PLUS)
 
 
+def what_a_learned_rule_may_conclude() -> None:
+    """A learned rule that concludes WRAPPED cannot fight what it was told.
+
+    Acquisition's normal case: the agent generalises `{+hinged(?x)} ⟹ open(?x)`
+    from two examples, and it already knows `{+sealed(?x)} ⟹ -open(?x)`. A
+    sealed hinged vault is a conflict; an unsealed hinged gate is not. What
+    should the corpus do about it?
+
+    Measured four ways, and the answer is *nothing*:
+
+    | the learned rule concludes | precedence | vault | gate | ends |
+    |---|---|---|---|---|
+    | bare | `overrides` | `-open` | **never applies** | quiescent |
+    | bare | `supersedes` | `-open` | `open` | ⚠ **runaway, 300 ticks** |
+    | **wrapped** | **none** | `-open` | `likely(open)` | **quiescent, 7 ticks** |
+
+    ⚠ **`overrides` is too broad.** It is per TICK and per RULE, so one sealed
+    object suppresses the learned rule for every object -- the gate is hinged
+    and not sealed, and the agent still will not conclude it is open. That is
+    `rules.py`'s own warning about the two relations, met from the acquisition
+    side.
+
+    ⚠ **And `supersedes` is too narrow.** It defeats applications that share a
+    consumed ENTRY, and two rules reaching the same conclusion from different
+    premises share none: `<secret>` consumes `sealed(vault)`, the learned rule
+    consumes `hinged(vault)`. So nothing is defeated and the two oscillate
+    forever.
+
+    ⭐⭐⭐ **So the vocabulary that looked missing is not needed.** A learned rule
+    concluding `likely(open(?x))` never contradicts `-open(?x)`, because they
+    are different propositions -- the agent holds a generalisation and a
+    specific fact at once, which is what it should do. The conflict exists only
+    if a corpus **crosses**, and then the corpus is the one asserting it and can
+    decline. This is the grade deletion paying off somewhere nobody designed
+    for: *how strongly a rule may speak* had to be in the conclusion for this to
+    be sayable at all.
+    """
+    from .rules import generalise
+    from .text import Loader
+
+    def episode(wrapped: bool, precedence: str):
+        m = Machine()
+        kb = Loader(m)
+
+        def learn(machine, frame, entry):
+            gg = machine.g
+            one, two = gg.members(entry.proposition)
+            mp: dict = {}
+            ant = generalise(gg, gg.member(one, 0), gg.member(two, 0), mp)
+            con = generalise(gg, gg.member(one, 1), gg.member(two, 1), mp)
+            if not gg.has_var(ant) or gg.is_var(ant) or gg.is_var(con):
+                return None
+            if wrapped:
+                con = gg.rel(kb.atom("likely"), con)
+            node = gg.instance(kb.atom("learned"))
+            w = lambda p: machine.gate.write(frame, p, PLUS, licence=entry.node,
+                                             source=machine.KB, mention=True)
+            w(gg.rel(machine.RULE, node))
+            w(gg.rel(machine.CONN, node, machine.rules.IMPLIES))
+            w(gg.rel(machine.ANT, node, ant, machine.chain.SIGN[PLUS],
+                     machine._numeral(0)))
+            w(gg.rel(machine.CON, node, con, machine.chain.SIGN[PLUS],
+                     machine._numeral(0)))
+            return node
+
+        kb.answerer("learner", "generalise", learn)
+        kb.load(chr(10).join([
+            "rule <secret> = implies( { +sealed(?x) }, { -open(?x) } )",
+            "rule <ask> = implies( { +example(?p1, ?c1), +example(?p2, ?c2),",
+            "                        +sooner(?p1, ?p2) },",
+            "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
+            "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
+            "                      { " + precedence + "+adopt(?r) } )",
+            "fact +example(hinged(a), open(a))",
+            "fact +example(hinged(b), open(b))",
+            "fact +sooner(hinged(a), hinged(b))",
+            "fact +hinged(vault)", "fact +sealed(vault)",
+            "fact +hinged(gate)", ""]))
+        steps = m.run(limit=300)
+        return m, kb, steps
+
+    broad, kb_b, _ = episode(False, "+overrides(<secret>, ?r), ")
+    check("§14", "⚠ `overrides` is too broad for what an agent learns: one "
+          "sealed object suppresses the learned rule about every object, "
+          "including the one it is right about",
+          broad.holds(kb_b.term("open(vault)")) == MINUS
+          and broad.holds(kb_b.term("open(gate)")) is None)
+
+    narrow, kb_n, steps_n = episode(False, "+supersedes(<secret>, ?r), ")
+    check("§14", "⚠ ...and `supersedes` is too narrow: it defeats applications "
+          "sharing a consumed entry, and two rules reaching one conclusion from "
+          "different premises share none -- so they oscillate and never stop",
+          narrow.holds(kb_n.term("open(gate)")) == PLUS
+          and steps_n[-1].state == "applied")
+
+    kept, kb_k, steps_k = episode(True, "")
+    check("§12", "⭐⭐⭐ ...and a learned rule that concludes WRAPPED needs no "
+          "precedence at all: it never contradicts what the agent was told, so "
+          "the generalisation and the specific fact are held at once",
+          kept.holds(kb_k.term("likely(open(gate))")) == PLUS
+          and kept.holds(kb_k.term("open(vault)")) == MINUS
+          and steps_k[-1].state == "quiescent")
+    check("§15", "...and it does not assert the bare claim about EITHER, so "
+          "nothing downstream acts on a generalisation the agent merely drew",
+          kept.holds(kb_k.term("open(gate)")) is None
+          and kept.holds(kb_k.term("likely(open(vault))")) == PLUS)
+
+
 def a_defeat_is_on_the_record() -> None:
     """`defeated(<loser>, <winner>)` -- §21's defect for the **tenth** time.
 
@@ -5611,6 +5719,7 @@ def main() -> int:
     a_rule_can_author_a_rule()
     an_example_becomes_a_rule()
     the_agent_harmonizes_itself()
+    what_a_learned_rule_may_conclude()
     a_defeat_is_on_the_record()
     a_join_is_not_a_scan()
     the_apparatus_eats_its_own_cooking()
