@@ -3979,6 +3979,114 @@ def doubt_is_a_tie() -> None:
     )
 
 
+def support_can_be_withdrawn() -> None:
+    """*Nothing holds this up any more* -- the third negative existential, and
+    the one that deliberately stops short of doing anything about it.
+
+    §12's argument that `blocked` cannot be a rule applies unchanged: *no
+    remaining support* is a claim about every entry that ever claimed `p`, and a
+    `-` member says *an entry denies this*, never *for no entry*. So `support(p)`
+    is asked and `unsupported(p)` answers, only ever yes.
+
+    ⭐⭐⭐ **And the machinery does not retract.** Losing your reason is not
+    acquiring a counter-reason: a source being discredited does not make what it
+    told you false, it leaves you without a reason, which is a different state
+    and the one you can act on. So `unsupported` is the occasion and the reaction
+    is a corpus's -- tear down, re-derive, ask, or nothing. The check that this is
+    real is the pair below: the same corpus with and without one line.
+
+    ⚠ It is ASKED, never volunteered, for `blocked`'s reason: a proposition may
+    rest on several things, so one withdrawal says nothing until the rest have
+    been looked at. That makes it an aggregate over a finished search, which is
+    why the fixture asks at `quiet` and not before.
+    """
+    from .text import load
+
+    base = chr(10).join([
+        "rule <derive> = implies( { +p(a) }, { +q(a) } )",
+        # Authored after <derive>, so the conclusion is drawn before its premise
+        # is withdrawn -- which is the case that matters. A premise denied before
+        # anything used it leaves nothing to be unsupported.
+        "rule <recant> = implies( { +told(bad) }, { -p(a) } )",
+        # Asked when the loop has stopped, which is the only moment at which
+        # *nothing holds this up* is about a finished search.
+        "rule <ask>    = implies( { +quiet(?m) }, { +support(q(a)) } )",
+        "fact +p(a)",
+        "fact +told(bad)",
+        "",
+    ])
+    m = Machine()
+    kb = load(m, base)
+    m.run(limit=200)
+
+    check("§12", "the premise was withdrawn after the conclusion was drawn",
+          m.holds(kb.term("p(a)")) == MINUS)
+    check("§12", "and the machinery says so: nothing holds the conclusion up",
+          m.holds(kb.term("unsupported(q(a))")) == PLUS)
+    check(
+        "§17",
+        "⭐⭐⭐ ...and it did NOT retract -- losing a reason is not acquiring a "
+        "counter-reason, so the claim stands until a rule says otherwise",
+        m.holds(kb.term("q(a)")) == PLUS,
+    )
+
+    # The reaction, which is one corpus line and could have been three others.
+    tear = base + "rule <tear> = implies( { +unsupported(?x) }, { -?x } )" + chr(10)
+    m2 = Machine()
+    kb2 = load(m2, tear)
+    m2.run(limit=200)
+    check("§19", "one corpus rule tears it down, and that is where the choice "
+          "belongs -- teardown and keep-believing are both right, for different "
+          "deployments",
+          m2.holds(kb2.term("q(a)")) == MINUS)
+
+    # The control: nothing was withdrawn, so nothing is unsupported. Without this
+    # the answerer could be writing `unsupported` for everything it is asked.
+    intact = base.replace("fact +told(bad)", "")
+    m3 = Machine()
+    kb3 = load(m3, intact)
+    m3.run(limit=200)
+    check("§15", "and with the premise intact, the same question answers nothing",
+          m3.holds(kb3.term("q(a)")) == PLUS
+          and m3.holds(kb3.term("unsupported(q(a))")) is None)
+
+    # ⚠ Unsupported and false are different in BOTH directions, which is the
+    # distinction the whole design of this rests on. `p(a)` is denied and yet not
+    # unsupported: it was asserted, so it rests on nothing and has not lost a
+    # reason -- it has been contradicted, which is a different thing.
+    m4 = Machine()
+    kb4 = load(m4, base + "rule <ask-p> = implies( { +quiet(?m) }, { +support(p(a)) } )" + chr(10))
+    m4.run(limit=200)
+    check(
+        "§9",
+        "⚠ a denied fact is not an unsupported one: it was asserted, so it never "
+        "had a reason to lose",
+        m4.holds(kb4.term("p(a)")) == MINUS
+        and m4.holds(kb4.term("unsupported(p(a))")) is None,
+    )
+
+    # -- and the support is in the GRAPH now, not only in a Python field -------
+    #
+    # §21's defect for the ninth time. `Entry.consumed` was a Python tuple, so no
+    # rule could ask what anything rested on and `why()` had to be a native walk.
+    # `rests_on` joins `pred` and `in_delta` in the structural mirror: nobody
+    # asserted it, it cannot be denied, dated or attributed.
+    derived = m.chain.resolve(kb.term("q(a)"), m.focus.topic)
+    check("§6", "an entry's support is readable from the graph",
+          derived is not None and bool(m.chain.rests_on(derived)))
+    check(
+        "§20",
+        "⚠ and it AGREES with the field it mirrors -- an index is a "
+        "re-implementation of what it indexes, and only a check says they match",
+        all(
+            {x.node for x in mm.chain.rests_on(e)} == set(e.consumed)
+            for mm in (m, m2, m3, m4)
+            for moment in mm.chain.moments
+            for e in moment.delta
+        ),
+    )
+
+
 def prohibitions_are_not_recalled() -> None:
     """§19's carve-out, which is the one place the design refuses to be
     incomplete.
@@ -4451,6 +4559,7 @@ def main() -> int:
     subgoals_make_blame_sayable()
     taking_one_way_passes_up_the_others()
     doubt_is_a_tie()
+    support_can_be_withdrawn()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()
     a_cause_moves_the_register()

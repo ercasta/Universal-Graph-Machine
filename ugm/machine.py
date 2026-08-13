@@ -145,6 +145,9 @@ class Machine:
         # produced. It runs no search of its own: `fits` entries are the rules'
         # own work, and this only reads them.
         self.VERDICT = self.g.atom("verdict")  # the request
+        # The third negative existential, asked and answered like the other two.
+        self.SUPPORT = self.g.atom("support")          # the request
+        self.UNSUPPORTED = self.g.atom("unsupported")  # the answer, only ever yes
         self.PURSUED = self.g.atom("pursued")  # something fits it
         # Denial as a TERM, beside the sign rather than instead of it (§9).
         # A sign is a member of an entry, so it cannot sit inside another term --
@@ -472,6 +475,7 @@ class Machine:
             **{str(i): n for i, n in self.NUMERAL.items()},
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
+            "support": self.SUPPORT, "unsupported": self.UNSUPPORTED,
             "fit": self.FIT, "fits": self.FITS, "unfit": self.UNFIT,
             "need": self.NEED,
             "causes": self.rules.CAUSES, "implies": self.rules.IMPLIES,
@@ -585,6 +589,7 @@ class Machine:
                              self.FORGONE, self.EXERCISED, self.CONCLUDED,
                              self.ROOT, self.ROOTED,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
+                             self.SUPPORT, self.UNSUPPORTED,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
                              self.TOLERANCE, self.BUDGET, self.DEPTH,
@@ -661,6 +666,11 @@ class Machine:
             ("settle", "check", self._settle, True),
             ("verdict", "verdict", self._verdict, True),
             ("root", "root", self._root, False),
+            # NOT `standing`: unlike `<fit>` and `<verdict>`, nothing in the
+            # apparatus asks it, so a corpus that retires it loses only what it
+            # chose to ask. The status quo ante is its absence, which is §20's
+            # own test for a capability that is safe to retire.
+            ("supported", "support", self._supported, False),
             ("remember", "recall", self._remember, True),
             ("re-ask", "again", self._again, False),
         ):
@@ -1043,6 +1053,73 @@ class Machine:
             frame, self.g.rel(self.ROOTED, wanted), PLUS,
             licence=self.g.rel(self.GOAL, wanted), source=self.KB, mention=True,
         )
+
+    def _supported(self, frame: Frame, e: Entry) -> None:
+        """Answer *does anything still hold this up?* -- the third negative
+        existential, and it gets the treatment the other two got.
+
+            support(p)        a REQUEST, asked by a corpus rule
+            unsupported(p)    the answer, deposited only when nothing does
+
+        §12's argument against making it a rule is the same one that settled
+        `blocked` and `rooted`: *no remaining support* is a claim about every
+        entry that ever claimed `p`, and a `-` member says *an entry denies
+        this*, never *for no entry*. So it is machinery, and it **answers only
+        yes** -- a machinery that answered *no* would be asserting a negative
+        existential of its own (§17: deposit the smallest unarguable record).
+
+        ⭐⭐⭐ **And what it does NOT do is retract.** Losing your reason is not
+        acquiring a counter-reason. If a source is discredited, what it told you
+        does not thereby become false; you have stopped having a reason, which is
+        a different state and the one you can act on. An engine that deposited
+        `-p` here would be making a claim about the world that nothing justified,
+        and §12's weakest link would have a link with nothing behind it.
+
+        It is also not the machinery's call. *Undo what the plan asserted* and
+        *keep believing it until something contradicts it* are both correct, for
+        different deployments, so the reaction is a corpus's:
+
+            {+unsupported(?p)} => {-?p}                tear down
+            {+unsupported(?p)} => {+goal(?p)}          go and re-derive it
+            {+unsupported(?p)} => {+doing(ask(?p))}    ask
+                                                      ...or nothing
+
+        ⚠ **Asked, never volunteered**, and for `blocked`'s reason exactly: a
+        proposition may rest on several things, so withdrawing one says nothing
+        until the rest have been looked at. That makes this an aggregate over a
+        finished search, legitimate at `quiet` and a lie before it.
+
+        A fact nobody derived rests on nothing and is supported by its own
+        assertion -- that is what makes this bottom out rather than regress.
+        """
+        if self.g.relation_of(e.proposition) is not self.SUPPORT or e.sign != PLUS:
+            return
+        (about,) = self.g.members(e.proposition)
+        for claim in self.chain.claims_about(about):
+            if claim.sign != PLUS:
+                continue
+            if not self._seat_holds(claim):
+                continue
+            if all(self._current(c) for c in self.chain.rests_on(claim)):
+                return  # something still holds it up
+        self.gate.write(
+            frame, self.g.rel(self.UNSUPPORTED, about), PLUS,
+            licence=self.g.rel(self.SUPPORT, about), source=self.KB,
+            consumed=(e,), mention=True,
+        )
+
+    def _seat_holds(self, claim: Entry) -> bool:
+        """Is this entry on the branch the register is standing on? Containment
+        again: an entry made inside a supposition is not support out here."""
+        return self.focus.seat.at_or_after(claim.locus) or claim.locus is self.focus.seat
+
+    def _current(self, c: Entry) -> bool:
+        """Is this consumed entry still what `resolve` returns for its own
+        proposition? The chain is append-only, but `resolve` is not monotone --
+        a later denial makes what an entry rested on no longer the claim."""
+        return self.chain.resolve(
+            c.proposition, self.focus.topic, self.focus.seat
+        ) is c
 
     def _verdict(self, frame: Frame, e: Entry) -> None:
         """Answer *did anything fit this goal?* -- the aggregate, and the last

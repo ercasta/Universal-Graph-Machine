@@ -118,6 +118,17 @@ class Chain:
         # about the same locus are told apart by which was deposited later -- and
         # that order lived in a Python list, where no rule could reach it.
         self.DELTA_NEXT = g.atom("delta_next")
+        # What an entry was derived FROM. Beside `pred` and `in_delta` rather
+        # than as entries, and for their reason: nobody asserted it, it cannot be
+        # denied, dated or attributed. Support is *how the entry was made*, not a
+        # claim about the world -- so it is skeleton, and a rule may match it
+        # without any of it being arguable.
+        #
+        # It was already recorded, as `Entry.consumed`: a Python tuple, so no
+        # rule could ask what anything rested on and `why()` had to be a native
+        # walk. §21's defect for the ninth time, and the fix is the one the other
+        # eight got.
+        self.RESTS_ON = g.atom("rests_on")
         # Sign atoms live here rather than in the rule set, because an entry's
         # third member is a sign and the chain is what mints entries. Everything
         # else takes them from here: `atom` does not intern, so a second
@@ -131,6 +142,7 @@ class Chain:
         # Deposit-side, so it indexes what was asserted and never what was
         # derived -- the condition §12 puts on any index in this design.
         self._claims: Dict[NodeId, List[Tuple[Moment, int, Entry]]] = {}
+        self._by_node: Dict[NodeId, Entry] = {}
 
     def succeed(self, predecessor: Moment, licence: Optional[NodeId]) -> Moment:
         """Succession: the shared core of time and derivation (§4). Which of the
@@ -172,8 +184,15 @@ class Chain:
         self.g.rel(self.IN_DELTA, seat.node, node)
         if seat.delta:
             self.g.rel(self.DELTA_NEXT, node, seat.delta[-1].node)
+        for c in consumed:
+            self.g.rel(self.RESTS_ON, node, c)
         e = Entry(node, locus, proposition, sign, grade, licence, source, consumed, mention)
         seat.delta.append(e)
+        # ...and an index by the entry's own node. `entry_by_node` was a scan of
+        # every moment's delta, so the trail walk it serves was quadratic in the
+        # history -- invisible because nothing in the loop calls it, and about to
+        # stop being invisible now that support is a question the agent asks.
+        self._by_node[node] = e
         # One index, over what was asserted rather than over what was derived --
         # the same licence §3 gives the substrate, applied to the chain. `resolve`
         # is the design's most consequential cost (§4) and it was scanning every
@@ -247,8 +266,24 @@ class Chain:
         return list(seen.values())
 
     def entry_by_node(self, node: NodeId) -> Optional[Entry]:
-        for m in reversed(self.moments):
-            for e in reversed(m.delta):
-                if e.node == node:
-                    return e
-        return None
+        return self._by_node.get(node)
+
+    def claims_about(self, proposition: NodeId) -> List[Entry]:
+        """Every entry ever deposited about this proposition, in order. The
+        deposit-side index, which §12 permits precisely because it indexes what
+        was asserted and never what was derived."""
+        return [e for _, _, e in self._claims.get(proposition, ())]
+
+    def rests_on(self, e: Entry) -> List[Entry]:
+        """What this entry was derived from, one hop, read from the graph rather
+        than from the Python field. The two must agree, and `ugm.support` is what
+        holds them to it -- an index is a re-implementation of what it indexes,
+        which is the lesson `state` paid for."""
+        out = []
+        for node in self.g.instances_of(self.RESTS_ON):
+            if self.g.member(node, 0) != e.node:
+                continue
+            found = self._by_node.get(self.g.member(node, 1))
+            if found is not None:
+                out.append(found)
+        return out
