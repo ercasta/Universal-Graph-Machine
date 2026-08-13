@@ -380,6 +380,22 @@ class Machine:
         # `doing(...)` is in play, and *how careful am I being* becomes a claim
         # with a trail.
         self.TOLERANCE = self.g.atom("tolerance")
+        # ⭐⭐ The other three knobs, by the SAME argument `tolerance` was made a
+        # fact for: *how careful am I being is a claim with a trail, and a rule
+        # can raise it before an irreversible step.* They were Python fields,
+        # which made them the one kind of decision this design does not allow --
+        # one nobody can ask about or argue with.
+        #
+        #     budget(3)       how many rules recall may propose
+        #     depth(4)        how deep a hypothesis may nest
+        #     hypotheses(5)   how many may be open at once
+        #
+        # The DEFAULT stays in Python, exactly as `tolerance`'s zero does: a
+        # default nobody has to choose is not a hidden decision, it is the
+        # absence of one.
+        self.BUDGET = self.g.atom("budget")
+        self.DEPTH = self.g.atom("depth")
+        self.HYPOTHESES = self.g.atom("hypotheses")
         self.RECALL = self.g.atom("recall")
         self.RECALLED = self.g.atom("recalled")
         self.FORBIDDEN = self.g.atom("forbidden")
@@ -428,6 +444,8 @@ class Machine:
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
             "close": self.CLOSE, "tolerance": self.TOLERANCE,
+            "budget": self.BUDGET, "depth": self.DEPTH,
+            "hypotheses": self.HYPOTHESES,
             **{str(i): n for i, n in self.NUMERAL.items()},
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
@@ -539,7 +557,8 @@ class Machine:
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
-                             self.TOLERANCE}
+                             self.TOLERANCE, self.BUDGET, self.DEPTH,
+                             self.HYPOTHESES}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -793,10 +812,11 @@ class Machine:
         # Bounds, and each reports that it was hit rather than stopping silently
         # (§13). Depth recurses by construction: a wrapped conclusion carried out
         # of one frame proposes the next.
-        if len(self.focus.ancestry()) > self.max_depth:
+        if len(self.focus.ancestry()) > self._knob(self.DEPTH, self.max_depth):
             self.exhausted += 1
             return
-        if len(self._supposed) >= self.supposition_budget:
+        if len(self._supposed) >= self._knob(
+                self.HYPOTHESES, self.supposition_budget):
             self.exhausted += 1
             return
         assumption, wrap = self.g.members(e.proposition)
@@ -1295,6 +1315,25 @@ class Machine:
         """
         return a[0] == b[0] and abs(a[1] - b[1]) <= self._tolerance()
 
+    def _knob(self, relation: NodeId, default):
+        """A knob a corpus can turn, read from the graph.
+
+        Generalised out of `_tolerance`, which had this shape and this argument
+        first: a numeral is an ordinary atom whose *name* reads as a number, so
+        nothing in the graph learns arithmetic and only the reader that wants one
+        does. Highest wins, so raising a bound is a claim and lowering it is a
+        different claim about the same thing, settled by §12's ordinary defeat.
+        """
+        best = None
+        for node in self.g.instances_of(relation):
+            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            if e is None or e.sign != PLUS:
+                continue
+            name = self.g.show(self.g.member(node, 0))
+            if name.isdigit() and (best is None or int(name) > best):
+                best = int(name)
+        return default if best is None else best
+
     def _tolerance(self) -> int:
         """How far apart two scores may be and still count as close -- read from
         the graph, so the agent can raise it and can be asked why.
@@ -1326,7 +1365,7 @@ class Machine:
         finished search. Reaching `quiet` on a shortlist would report *no rule
         fits* about rules nobody asked.
         """
-        if self.recall_budget is None or self._widened:
+        if self._knob(self.BUDGET, self.recall_budget) is None or self._widened:
             return False
         self._widened = True
         self.widenings += 1
@@ -2100,7 +2139,8 @@ class Machine:
         # wrong costs a worse choice this tick instead of a plan that stalls.
         # What narrows here stays what a corpus *claimed*: `dormant` unless
         # `due`. An optional cap is kept for measuring, and defaults to off.
-        if self.recall_budget is None:
+        budget = self._knob(self.BUDGET, self.recall_budget)
+        if budget is None:
             return live
         keys = self._in_play()
         # By preference alone, not by `_rank`: `standing` is a claim about
@@ -2110,7 +2150,7 @@ class Machine:
             enumerate(live),
             key=lambda pair: (-self._priority(pair[1], keys), pair[0]),
         )
-        out = [r for _, r in ranked[: self.recall_budget]]
+        out = [r for _, r in ranked[:budget]]
         for r in live:
             # Two things a cap may not starve, and they are §19's carve-out
             # arriving for the third and fourth time.

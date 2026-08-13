@@ -173,7 +173,49 @@ anyway. Two instrument errors compounding into a headline roughly 20× too flatt
 ⚠ **What is now the top cost, same disease one layer down:** `current_state` is rebuilt from the whole
 chain twice per tick. That is why 5,000 facts still costs 11× what 2,000 does.
 
-## Latest: **there is no journal — the session is RENDERED out of the graph**. Commits `persist`, `rendered`.
+## Latest: **the knobs are claims**, and the focus is not stored. Commit `knobs`.
+
+Two answers to the same question -- *what state is not in the graph, and should it be?*
+
+⭐⭐ **Three knobs became facts**, by the argument `tolerance` was already made a fact for: *how careful
+am I being is a claim with a trail, and a rule can raise it before an irreversible step.*
+
+    budget(3)       how many rules recall may propose
+    depth(4)        how deep a hypothesis may nest
+    hypotheses(5)   how many may be open at once
+
+⚠ The DEFAULT stays in Python, exactly as `tolerance`'s zero does. A default nobody has to choose is
+not a hidden decision; it is the absence of one. And a denial restores it, because these are ordinary
+claims.
+
+⚠⚠ **Reading a knob is not obeying it, and the kill-probe found the difference.** With the readers in
+place, mutating `depth` and `hypotheses` back to their Python fields failed **nothing** -- the checks
+asserted the value came back, never that it steered. The same for the budget, which is read in *two*
+places (whether to widen, and how much shortlist to keep) and only the first was covered. All five
+sites are gated now, the budget by comparing a corpus-written bound against the Python field it
+replaces: with one site unconverted the run widens and never narrows, and the tick counts come apart.
+
+> **A knob that is read and not obeyed is the same defect wearing the fix's clothes.**
+
+### And the focus is NOT stored — measured, not assumed
+
+The user asked whether persistence should record it separately. It should not, and the reason is the
+same one that removed the journal: **the focus is derived.** Replaying what the agent was told and
+thinking to quiescence reconstructs it. Measured on a session interrupted mid-run:
+
+| | entries |
+|---|---|
+| lived, interrupted at 12 ticks | 161 |
+| resumed | **190** |
+| lived, run to quiescence | **190** |
+
+> **A resumed session has finished thinking.** The record says what the agent was *told*, never how
+> much it had thought about it -- and thinking further is what it does, not something it was told.
+
+⚠ So exact-tick resumption is not offered, and that is a decision rather than an omission: recording
+`run(limit)` would be recording an external interruption as though it were part of the session.
+
+## Before that: **there is no journal — the session is RENDERED out of the graph**. Commits `persist`, `rendered`.
 
 The user's question, and it was the right one: *shouldn't the journal be part of the graph? is there
 any state that is not within the graph?* The first version of `persist` kept a Python list of
@@ -1165,12 +1207,12 @@ Where the two disagree, this header block and the sections directly under it win
 ## Verify in one go
 
 ```
-python -m ugm.selftest     354 checks, 0 failing        the runner; any False is a failure
+python -m ugm.selftest     361 checks, 0 failing        the runner; any False is a failure
 
 ⚠ **Every instrument now prints its COUNT, not only its failures** (commit `counts`). `0 failing` reads
 the same whether it ran thirty checks or none, which is how the `magnitude` commit silently deleted ten
 of `ugm.learning`'s and nothing noticed. `ugm.selftest` printed `291 checks` all along and was the only
-one that could have said so. Current counts: selftest 354 · backward 7 · compose 5 · workload 25 ·
+one that could have said so. Current counts: selftest 361 · backward 7 · compose 5 · workload 25 ·
 learning 31 · tools 11 (agreement and bundle already reported theirs).
 python -m ugm.agreement     28 reads, 12/12 exercised   the rule-level read against the native one
 python -m ugm.bundle        17/17 bundled rules exercised  is every shipped rule load-bearing?

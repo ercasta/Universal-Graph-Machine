@@ -2409,6 +2409,95 @@ def a_domain_can_be_taken_out_of_mind() -> None:
           and m4.g.show(owes.source) == "billing")
 
 
+def the_knobs_are_claims() -> None:
+    """§21's hidden state, for the knobs -- and the argument was already written.
+
+    `tolerance` is a **fact** for a reason the design states out loud: *how
+    careful am I being is a claim with a trail, and a rule can raise it before an
+    irreversible step.* Three other knobs -- how many rules recall may propose,
+    how deep a hypothesis may nest, how many may be open -- stayed Python
+    fields, which made them the one kind of decision this design does not allow:
+    one nobody can ask about or argue with.
+
+    ⚠ The DEFAULT stays in Python, exactly as `tolerance`'s zero does. A default
+    nobody has to choose is not a hidden decision; it is the absence of one.
+    """
+    from .text import load
+
+    m = Machine()
+    load(m, "fact +x(a)" + chr(10))
+    check("§15", "with nothing said, the defaults hold and no constant was chosen",
+          m._tolerance() == 0
+          and m._knob(m.BUDGET, m.recall_budget) is None)
+
+    c = Machine()
+    load(c, chr(10).join([
+        "fact tolerance(2)", "fact budget(3)", "fact depth(9)",
+        "fact hypotheses(7)", ""]))
+    check("§21", "⭐ a corpus can turn every one of them, so *how careful am I "
+          "being* is answerable rather than compiled in",
+          (c._tolerance(), c._knob(c.BUDGET, c.recall_budget),
+           c._knob(c.DEPTH, c.max_depth),
+           c._knob(c.HYPOTHESES, c.supposition_budget)) == (2, 3, 9, 7))
+
+    # ...and it really steers: a budget written as a fact narrows recall, which
+    # is what `m.recall_budget = 3` did from Python and nothing could argue with.
+    chain = chr(10).join([
+        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "fact +p(a)", ""])
+    wide = Machine(); load(wide, chain); wide.run(limit=400)
+    tight = Machine(); load(tight, chain + "fact budget(1)" + chr(10))
+    tight.run(limit=400)
+    check("§19", "...and the fact steers the machinery: a budget written in the "
+          "corpus makes recall narrow, and widening reports itself",
+          wide.widenings == 0 and tight.widenings > 0)
+
+    # ⚠ ...and it steers BOTH places the budget is read: whether to widen, and
+    # how much of the shortlist to keep. Gated by comparing against the Python
+    # field it replaces -- with only the first site reading the fact, the run
+    # widens and never narrows, and the tick counts come apart. The `widenings`
+    # check above could not see that.
+    pyb = Machine(); load(pyb, chain); pyb.recall_budget = 1
+    pysteps = pyb.run(limit=400)
+    factb = Machine(); load(factb, chain + "fact budget(1)" + chr(10))
+    factsteps = factb.run(limit=400)
+    check("§19", "a budget written as a fact behaves exactly as the Python field "
+          "it replaces -- same ticks, same widenings, both places it is read",
+          (len(pysteps), pyb.widenings) == (len(factsteps), factb.widenings))
+
+    # ...and the other two steer as well. ⚠ Checking that they READ was not
+    # enough: with only the reader in place, mutating the depth bound back to
+    # its Python field failed nothing. A knob that is read and not obeyed is
+    # the same defect wearing the fix's clothes.
+    supposing = [
+        "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
+        "rule <c> = implies( { +broken(?x) }, { +leaks(?x) } )",
+        "fact +odd(pipe)", "",
+    ]
+    free = Machine(); kb_f = load(free, chr(10).join(supposing)); free.run(limit=200)
+    deep = Machine(); kb_d = load(deep, chr(10).join(
+        supposing[:-1] + ["fact depth(0)", ""])); deep.run(limit=200)
+    many = Machine(); kb_m = load(many, chr(10).join(
+        supposing[:-1] + ["fact hypotheses(0)", ""])); many.run(limit=200)
+    check("§21", "a depth bound written in the corpus stops the agent supposing, "
+          "and says it was hit rather than declining in silence",
+          free.holds(kb_f.term("likely(leaks(pipe))")) == PLUS
+          and free.exhausted == 0
+          and deep.holds(kb_d.term("likely(leaks(pipe))")) is None
+          and deep.exhausted > 0)
+    check("§21", "...and so does a bound on how many hypotheses may be open",
+          many.holds(kb_m.term("likely(leaks(pipe))")) is None
+          and many.exhausted > 0)
+
+    # A denial turns it off again, because it is an ordinary claim.
+    off = Machine()
+    load(off, chain + chr(10).join(["fact budget(1)", "fact -budget(1)", ""]))
+    off.run(limit=400)
+    check("§9", "...and denying it restores the default, since it is a fact like "
+          "any other", off.widenings == 0)
+
+
 def a_session_can_be_saved_and_resumed() -> None:
     """A session is **what it was told**, and §3's determinism is why that is
     enough.
@@ -3791,6 +3880,7 @@ def main() -> int:
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
     a_domain_can_be_taken_out_of_mind()
+    the_knobs_are_claims()
     a_session_can_be_saved_and_resumed()
     the_agent_can_say_what_became_of_it()
     a_dry_search_reaches_for_what_is_out_of_mind()
