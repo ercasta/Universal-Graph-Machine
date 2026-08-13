@@ -2,7 +2,54 @@
 
 Branch `restart`, pushed. **393 checks, 0 failing**; every instrument green.
 
-## Latest: **the agent stops looking at its whole option set**. Commit `heap`.
+## Latest: **build it, see which half is right, repair the other**. Commit `artefact`.
+
+The user's case: *write an `ls` + `grep` that finds all Python files containing a class definition* —
+can the agent make a first attempt, reread it, notice it satisfies **find the Python files** but not
+**containing a class definition**, and fix that half? `python -m ugm.artefact`, 11 checks.
+
+**Yes, and nothing had to be built.** The goal is a conjunction, so backward reading splits it and
+`check` answers each half separately — *that per-conjunct answer is the whole of what a partial
+result means here.* The repair is one rule keyed on `unmet`, and the control is the discriminator: it
+fires on the `ls`-only attempt and **not** when the command already does both.
+
+⭐⭐ **The artefact is a node; what it DOES is claims about it.** The goal decomposes over
+`finds(?c, py_files)`, never over shell syntax — which is what makes the repair a rule instead of a
+string edit, and why rendering is a **tool**: composing text is a function, and §17 already says a
+request answered by a function is exactly what a tool is. Measured at that boundary: the string lands
+as `answered(<render>, spell(cmd), …)`, delete the trust rule and it is still on the record and
+believed by nobody, and a corpus can retire the renderer.
+
+⚠⚠⚠ **The finding, and it is a defect this file has now recorded in a third place: the
+partial-satisfaction signal is STALE.** Out of the box **both** halves report `unmet` — including the
+one satisfiable from the start — because `check` is asked the moment a subgoal appears, before
+anything is derived, and nothing asks again. So the repair fired for the right half only because the
+author happened to name it; a symmetric rule for the other half would have fired too, wrongly.
+
+| | ticks | halves recorded as achieved |
+|---|---|---|
+| as shipped | 43 | **none** |
+| plus one `<recheck>` line | 46 | both |
+
+`{+unmet(?p, ?sub), +?sub} ⟹ {+again(check(?p, ?sub), ?sub)}` — the `again` machinery from `reask`,
+no new anything. Nothing ships concluding it (§19: what ships is the occasion, not the reaction), but
+this is now the **third** place the same gap appears — `achieved` going stale mid-plan, escalation not
+re-asking a dormant-period `blocked`, and this. Worth reconsidering whether the bundle should carry it.
+
+⚠⚠ **And a limit found by writing a check: a tool may return something no corpus can name.**
+`kb.term("answered(<render>, spell(cmd), ls *.py | xargs grep -l '^class ')")` is a **ParseError** —
+stars, spaces and quotes are not term syntax. A rule reaches the rendered artefact by **binding**
+(`?s`), which is all any rule needs; what is impossible is a rule mentioning one particular rendered
+string literally. Same wall as a norm not being revisable from the surface, and it lands exactly where
+the values stop being the corpus's vocabulary and become someone else's.
+
+**Scope decision, recorded: bidirectional surface is NOT next.** Generation is a tool and is now
+demonstrated; the engine's own language already round-trips (`rendered`, byte-identical across four
+hash seeds). Parsing domain text is the intake seam — **0/50 on raw prose, 26% on a book corpus** in
+the previous arc, and `ugm.workload` calls it a seam with no algorithm at all. That is where a model
+belongs and it is a different project. Next is `_in_play`/`Situation`, then binding revision.
+
+## Before that: **the agent stops looking at its whole option set**. Commit `heap`.
 
 `weigh` measured that there was nothing left to *withhold* — 99.6% of candidates genuinely apply. So
 the move was to stop **looking**, and three measurements made it possible, each taken before it was
