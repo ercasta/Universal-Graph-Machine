@@ -565,6 +565,8 @@ class Machine:
         self.considered = 0
         # The resolved state, kept rather than rebuilt. See `_state`.
         self._state_cache: dict = {}
+        # ...and what the seat has mentioned, accumulated over the same delta.
+        self._play_cache: dict = {}
         self._stopped: set = set()
         self._noticed: set = set()
         self._vetoed: set = set()
@@ -2241,9 +2243,7 @@ class Machine:
         # One walk, for every rule proposed. §4 calls the walk the design's most
         # consequential cost and it is: measured, it was 86% of runtime, and 16
         # of every 17 of those walks were the same walk repeated.
-        state = Situation(
-            self.g, self._state()
-        )
+        state = self._situation()
         self._applications(proposed, state)
         # What the situation recommends, computed once for this tick.
         keys = self._in_play()
@@ -2417,31 +2417,31 @@ class Machine:
         cheapest thing that recurs across situations, and the point of putting it
         here is that it is one method: a better answer replaces it without
         touching the loop, the table, or any rule.
+
+        ⚠ Both halves are accumulated rather than scanned, and they accumulate
+        for different reasons -- which is the same asymmetry `named` measured
+        when it asked whether either could be a fact. The delta half is
+        **monotone by construction**: a moment's delta only ever grows, so what
+        it has mentioned is a running union over a cursor. The goal half is not
+        monotone -- a goal can be denied, and then it is no longer in play -- so
+        it is a count maintained where the state is, not a union.
         """
-        out = set()
-        for e in self.focus.seat.delta:
-            rel = self.g.relation_of(e.proposition)
+        seat = self.focus.seat
+        play = self._play_cache.get(seat.node)
+        if play is None:
+            play = {"pos": 0, "rels": set()}
+            self._play_cache = {seat.node: play}  # one seat at a time
+        for i in range(play["pos"], len(seat.delta)):
+            rel = self.g.relation_of(seat.delta[i].proposition)
             if rel is not None:
-                out.add(rel)
+                play["rels"].add(rel)
+        play["pos"] = len(seat.delta)
         # ...and what the agent is TRYING TO DO, which is not the same question
         # and turned out to be the one that matters. Keyed only on what changed,
         # a table cannot discriminate on goal-directed work: every domain the
         # agent knows about is in play all the time, and being in play says
         # nothing about being useful. A live goal does.
-        for s in self._state():
-            if s.sign == PLUS and self.g.relation_of(s.proposition) is self.GOAL:
-                wanted = self.g.member(s.proposition, 0)
-                out.add(wanted)
-                # ...and its RELATION, which is the half that transfers. A key
-                # that is the goal itself is true of one episode: what an agent
-                # learned about `boiling(kettle)` says nothing when it is next
-                # asked for `boiling(pot)`, and a table that cannot generalise is
-                # a cache. The relation is the coarsest thing two episodes can
-                # share, so it is where experience can accumulate at all.
-                rel = self.g.relation_of(wanted)
-                if rel is not None:
-                    out.add(rel)
-        return out
+        return play["rels"] | self._kept()["goals"].keys()
 
     def _rank(self, rule: Rule, keys: set) -> Tuple[int, int]:
         """The sort key arbitration uses after defeat. Lower is better.
@@ -2629,7 +2629,7 @@ class Machine:
             and not self._claims(self.g.rel(self.DUE, c))
         )
 
-    def _state(self) -> List[Entry]:
+    def _kept(self) -> dict:
         """The resolved state here, kept across ticks instead of rebuilt.
 
         `current_state` is §4's walk and the design calls it the single most
@@ -2658,6 +2658,19 @@ class Machine:
         ⚠ A different topic or seat is a different state, so it is a cache miss
         and a full rebuild -- which is the safe direction, and what supposing,
         leaving and re-seating each want.
+
+        ⭐⭐⭐ **What is kept is the SITUATION, not a list.** Keeping the state and
+        then materialising it -- and indexing it, and scanning it for goals --
+        once per tick left the tick O(everything known) anyway, which is the
+        whole of what `heap` measured and could not fix. The three consumers are
+        maintained through the same one-claim-at-a-time walk that maintains the
+        state: `Situation.add`/`drop` for the matcher's index, and a count per
+        key for `_in_play`. A tick is then O(what changed).
+
+        ⚠ The keys are a COUNT and not a set, because two goals can put the same
+        relation in play and one of them going away must not take the other's key
+        with it. The same reason `emitted` had to be read off the graph: a
+        derived set that forgets who contributed to it cannot be maintained.
         """
         # ⭐⭐⭐ **What is in mind, for FACTS.** The agent has always narrowed
         # which rules come to mind -- `dormant` until something claims `due` --
@@ -2684,6 +2697,8 @@ class Machine:
         cache = self._state_cache.get(key)
         if cache is None:
             props: dict = {}
+            sit = Situation(self.g)
+            goals: dict = {}
             # Oldest first, so the dict's insertion order is claim order and
             # reading it back reversed gives the walk's newest-first order.
             for e in reversed(current_state(self.chain, topic, seat)):
@@ -2692,11 +2707,14 @@ class Machine:
                 props[e.proposition] = (
                     (e.locus.depth, seat.depth, 0), e
                 )
-            cache = {"pos": len(seat.delta), "props": props}
+                sit.add(e)
+                self._count_goal(goals, e, +1)
+            cache = {"pos": len(seat.delta), "props": props,
+                     "sit": sit, "goals": goals}
             self._state_cache = {key: cache}
-            return [e for _, e in reversed(list(cache["props"].values()))]
+            return cache
 
-        props = cache["props"]
+        props, sit, goals = cache["props"], cache["sit"], cache["goals"]
         for i in range(cache["pos"], len(seat.delta)):
             e = seat.delta[i]
             if not topic.at_or_after(e.locus):
@@ -2709,9 +2727,49 @@ class Machine:
                 if k <= prev[0]:
                     continue
                 del props[e.proposition]  # re-inserted below, so it moves to
-            props[e.proposition] = (k, e)  # the newest end of the order
+                sit.drop(prev[1])         # the newest end of the order, and
+                self._count_goal(goals, prev[1], -1)  # stops being in play
+            props[e.proposition] = (k, e)
+            sit.add(e)
+            self._count_goal(goals, e, +1)
         cache["pos"] = len(seat.delta)
-        return [e for _, e in reversed(list(props.values()))]
+        return cache
+
+    def _count_goal(self, goals: dict, e: Entry, by: int) -> None:
+        """What an entry puts in play by being a live goal, counted.
+
+        Two keys and not one: the goal itself, and its RELATION, which is the
+        half that transfers. A key that is the goal itself is true of one
+        episode -- what an agent learned about `boiling(kettle)` says nothing
+        when it is next asked for `boiling(pot)`, and a table that cannot
+        generalise is a cache. The relation is the coarsest thing two episodes
+        can share, so it is where experience can accumulate at all.
+        """
+        if e.sign != PLUS or self.g.relation_of(e.proposition) is not self.GOAL:
+            return
+        wanted = self.g.member(e.proposition, 0)
+        rel = self.g.relation_of(wanted)
+        for k in ((wanted,) if rel is None else (wanted, rel)):
+            n = goals.get(k, 0) + by
+            if n:
+                goals[k] = n
+            else:
+                goals.pop(k, None)
+
+    def _situation(self) -> Situation:
+        """The kept state, indexed for matching. See `_kept`. This is what the
+        loop wants: it never needed the list, and building one for it was the
+        last O(everything known) work in a tick."""
+        return self._kept()["sit"]
+
+    def _state(self) -> List[Entry]:
+        """The kept state as a list, newest-first. See `_kept`.
+
+        ⚠ The list is the Situation's own and is rebuilt only when the state
+        changes, so a caller that sorted it in place would be sorting the
+        state. Every caller iterates.
+        """
+        return self._kept()["sit"].entries
 
     def _applications(
         self, proposed: List[Rule], state: Situation, materialise: bool = False

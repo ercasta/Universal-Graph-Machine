@@ -462,22 +462,85 @@ class Situation:
     one. A member that is a **bare variable** has no relation to key on and still
     scans everything, which is correct: `+?p` is a rule that says *believe what
     this channel reported*, and it genuinely is about anything.
+
+    ⭐⭐⭐ **And it is MAINTAINED, not rebuilt.** The index was built from the
+    whole state once per tick, which is the same disease `state` cured one layer
+    down: the state itself stopped being rebuilt and the index over it did not,
+    so a tick stayed O(everything known) whatever matching cost. Measured:
+    `Situation.__init__` was the single largest cost in the loop.
+
+    A state changes by one claim at a time -- §4 says so -- so the index changes
+    by one claim at a time too. `add` and `drop` are what a caller holding a kept
+    state calls instead of constructing a new one; the constructor is still there
+    for the callers that genuinely have a fresh list (a delta, the instrument).
+
+    ⚠ **Order is part of the answer.** Entries arrive here **newest-first** and
+    §18's *a description with two candidates resolves to the most recent* rests
+    on it. So a bucket is a dict in ARRIVAL order -- oldest first, which is the
+    order a maintained state can append to -- and read back reversed. The
+    reversal is cached per bucket and dropped when that bucket changes, so a
+    rule reading a bucket nothing touched this tick pays nothing.
+
+    ⚠⚠ And the honest limit of that, measured rather than assumed: reversing
+    the STATE breaks 6 checks, and reversing the BUCKETS breaks none. Since
+    `heap` the within-rule order is a stamp off the consumed entries' nodes, not
+    the order they were discovered in, so nothing downstream reads a bucket's
+    order any more. It is kept because it is what the walk says and this is a
+    replacement for the walk -- not because a check would notice. `ugm.state`
+    is what notices.
     """
 
-    def __init__(self, g: Graph, entries: List[Entry]) -> None:
-        self.entries = entries
-        self._by: Dict[Tuple[str, Optional[NodeId]], List[Entry]] = {}
-        for e in entries:
-            key = (e.sign, g.relation_of(e.proposition))
-            self._by.setdefault(key, []).append(e)
-        self._by_sign: Dict[str, List[Entry]] = {}
-        for e in entries:
-            self._by_sign.setdefault(e.sign, []).append(e)
+    ANY = "*"  # the bare-variable bucket; a relation is a NodeId, so no collision
+
+    def __init__(self, g: Graph, entries: Sequence[Entry] = ()) -> None:
+        self.g = g
+        # Oldest-first, keyed by the entry's own node: a delta may hold two
+        # entries about one proposition, and both are candidates.
+        self._order: Dict[NodeId, Entry] = {}
+        self._by: Dict[Tuple[str, object], Dict[NodeId, Entry]] = {}
+        self._read: Dict[Tuple[str, object], List[Entry]] = {}
+        self._entries: Optional[List[Entry]] = None
+        for e in reversed(list(entries)):
+            self.add(e)
+
+    def _keys(self, e: Entry) -> Tuple[Tuple[str, object], Tuple[str, object]]:
+        return (e.sign, self.g.relation_of(e.proposition)), (e.sign, self.ANY)
+
+    def add(self, e: Entry) -> None:
+        """Claim `e`, at the newest end."""
+        self._order[e.node] = e
+        for k in self._keys(e):
+            self._by.setdefault(k, {})[e.node] = e
+            self._read.pop(k, None)
+        self._entries = None
+
+    def drop(self, e: Entry) -> None:
+        """`e` is no longer what the state claims -- superseded, or out of mind."""
+        self._order.pop(e.node, None)
+        for k in self._keys(e):
+            bucket = self._by.get(k)
+            if bucket is not None and bucket.pop(e.node, None) is not None:
+                self._read.pop(k, None)
+        self._entries = None
+
+    @property
+    def entries(self) -> List[Entry]:
+        """The state as a list, newest-first. Materialised only when asked for:
+        the loop stopped needing it, and `_materialise` still does."""
+        if self._entries is None:
+            self._entries = list(reversed(self._order.values()))
+        return self._entries
 
     def candidates(self, g: Graph, want: Member) -> List[Entry]:
-        if g.is_var(want.pattern):
-            return self._by_sign.get(want.sign, [])
-        return self._by.get((want.sign, g.relation_of(want.pattern)), [])
+        key = (want.sign, self.ANY if g.is_var(want.pattern)
+               else g.relation_of(want.pattern))
+        out = self._read.get(key)
+        if out is None:
+            bucket = self._by.get(key)
+            if bucket is None:
+                return []
+            out = self._read[key] = list(reversed(bucket.values()))
+        return out
 
 
 def match(

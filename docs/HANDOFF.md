@@ -1,8 +1,89 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **410 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **412 checks, 0 failing**; every instrument green.
 
-## Latest: **the last two hats — support, and reconsidering a binding**. Commits `support`, `binding`.
+## Latest: **the loop stops looking at the whole state — and it is LINEAR**. Commit `kept`.
+
+The item the last handoff named: `heap` made the candidate walk linear and the runtime stayed
+quadratic, because `Situation.__init__` (3.37s / 2,403 calls) and `_in_play` (2.31s / 1,202) are both
+**O(state) per tick**. Both are gone, and the shape of the fix is `state`'s own argument one layer up:
+
+> **Keeping the state and then rebuilding everything read off it keeps the cost you were paying.**
+> §4 says a state changes by one claim at a time, so the index over it changes by one claim at a
+> time, and so does what is read off it.
+
+| n | before today | **now** | ticks / writes / considered |
+|---|---|---|---|
+| 400 | 0.40s | **0.12s** | identical |
+| 800 | 1.28s | **0.25s** | identical |
+| 1,600 | 4.79s | **0.48s** | identical |
+| 3,200 | — | 0.98s | |
+| 6,400 | — | 2.07s | |
+| 12,800 | — | **4.13s** | |
+
+⭐⭐⭐ **Doubling now doubles.** Eight times the corpus costs less than 1,600 facts did this morning,
+and the profile has no O(state) call left in it at all — `Situation.__init__` and `_in_play` are not
+in the top eighteen. The suite is 1.15× too (6.78s → 5.89s), so this is not a big-corpus concern
+either.
+
+Three things are maintained where the state is, by the same one-claim-at-a-time walk `_kept` already
+ran:
+
+* **`Situation` gained `add`/`drop`** — the matcher's index, per sign and relation. The constructor
+  stays for the callers that genuinely have a fresh list (the delta, the instrument).
+* **`_state()` is a view**, materialised only when something asks for the list. The loop never wanted
+  one: it wants the Situation, and building a list to build an index from was pure ceremony repeated
+  once a tick.
+* **`_in_play`'s two halves accumulate differently, and finding out why is the finding.** The delta
+  half is a running union over a cursor — a moment's delta only grows. The goal half is a **count**.
+
+⚠⚠ **"A goal is never denied" was written in this repo as the reason the goal half is monotone, and
+it is a claim about the fixtures rather than about the design.** `{+nearer(?x)} ⟹ {-goal(nearer(?x))}`
+is an ordinary rule. So the keys are counted, not unioned: two goals can put one relation in play and
+one of them going away must not take the other's key with it. That denial is now a check, and without
+it nothing in the suite could tell a maintained key set from one that never forgets.
+
+⭐ **`ugm.state` — §20's floor gate for the state**, beside `stratum0` for the read and
+`ugm.arbitration` for the move. The walk stays as the slow definition and the kept state is held to
+it on **every look, in every fixture: 7,288 looks, 0 disagreements** in three columns.
+
+| break | the suite | state | index | keys |
+|---|---|---|---|---|
+| never drop a superseded entry | 2 | 806 | 806 | 0 |
+| never decrement a goal's key | 1 | 0 | 0 | 8 |
+| never invalidate a bucket's read | 29 | 0 | 3,884 | 0 |
+| rebuild the state newest-first | 6 | 6,456 | 6,456 | 0 |
+| **one key cache for every seat** | **0** | 0 | 0 | **1,597** |
+
+⭐⭐⭐ **The suite cannot see the last row, and that is not a gap in the fixtures.** Wrong keys make a
+worse choice, never a wrong conclusion — and every fixture asserts an outcome the loop reaches
+anyway. *Nothing that asserts what the agent concluded can see what it was thinking about while it
+concluded it.* That is the whole argument for the third column existing.
+
+⚠⚠⚠ **Three instrument bugs of my own, and all three are traps already written down here.**
+
+* **The instrument read `self._in_play`** — so it compared each of the five deliberate mutants in
+  `what_the_situation_is_about` against the definition and reported **90 disagreements**, every one a
+  fixture doing its job. `ugm.bundle`'s trap from the other side: *a comparison instrument cannot
+  read a mutation the fixture already talks about.* It captures the shipped method at install.
+* **My new check could not fail: it asked machine 2's key set about machine 1's node.** A graph per
+  machine means `nearer(a)` is a different node in each, so `wanted not in forgotten` was true
+  whatever happened. The twin trap, arriving from the two-fixtures side — and it took a kill-probe
+  that *failed to bite* to find it.
+* ⚠ **The index column compared `_by` rather than `candidates`**, so it could not see a bucket read
+  back in the wrong order. Asked through the read path now, with a stand-in graph rather than a
+  minted variable: an instrument that mints nodes is depositing in the graph it is measuring, and
+  node identity is the arbitration stamp.
+
+⚠ **And the honest limit, measured rather than assumed:** reversing the **state** breaks 6 checks;
+reversing the **buckets** breaks none. Since `heap` the within-rule order is a stamp off the consumed
+entries' nodes rather than the order they were discovered in, so nothing downstream reads a bucket's
+order. The reversal is kept because it is what the walk says and this replaces the walk — not because
+a check would notice. `ugm.state` is what notices.
+
+**What is next, unchanged:** loop detection, designed and measured below and still not built.
+
+## Before that: **the last two hats — support, and reconsidering a binding**. Commits `support`, `binding`.
 
 Both of the arc's remaining open items, and both turned out to need less machinery than their
 reputation. The user settled the two design questions: **the reaction to lost support belongs in a

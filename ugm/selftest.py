@@ -1568,10 +1568,19 @@ def what_the_situation_is_about() -> None:
 
     ⚠ And the two halves are not one idea. The goal half decides this; the delta
     half decides nothing here, and over the whole suite it carries two checks,
-    both about the recall BUDGET rather than about arbitration. They also differ
-    in character: a goal is never denied, so the goal half already accumulates,
-    while the delta half is genuinely per-moment. Whether the first should be
-    facts is therefore open; the second could not be, on an append-only chain.
+    both about the recall BUDGET rather than about arbitration. Whether the first
+    should be facts is therefore open; the second could not be, on an
+    append-only chain.
+
+    ⚠⚠ **And the two halves accumulate differently, which is what maintaining
+    them found.** *A goal is never denied* was written here as the reason the
+    goal half is monotone, and it is a claim about the fixtures rather than about
+    the design: `{+nearer(?x)} ⟹ {-goal(nearer(?x))}` is an ordinary rule and
+    denies one. So the delta half is a running union -- a moment's delta only
+    grows -- and the goal half is a COUNT, because two goals can put one relation
+    in play and one of them going away must not take the other's key with it.
+    The last check here is that denial, and without it nothing in the suite could
+    tell a maintained key set from one that never forgets.
     """
     from .text import load
 
@@ -1654,6 +1663,33 @@ def what_the_situation_is_about() -> None:
         "⭐ the key is not a subset of what is asserted: every proposition in the "
         "state is strictly more, and still misses the goal's content",
         moves["everything-asserted"] == "wander",
+    )
+
+    # ...and the key set FORGETS, which is the half nothing else here can see.
+    # The keys are maintained where the state is rather than scanned off it, so
+    # what puts a key in play has to be able to take it out again -- and the
+    # only thing that does is a goal being denied. One corpus line apart, so the
+    # control is the same run without the denying rule.
+    # ⚠ Each machine's OWN node, and the first version of this shared one. A
+    # graph per machine means `nearer(a)` is a different node in each, so
+    # asking machine 2's key set about machine 1's node passes whatever
+    # happens -- the twin trap, arriving from the two-fixtures side.
+    def in_play(extra: str) -> bool:
+        machine = Machine()
+        kb = load(machine, src + extra)
+        machine.run(limit=400)
+        return kb.term("nearer(a)") in machine._in_play()
+
+    kept = in_play("")
+    forgotten = in_play(
+        "rule <done> = implies( { +nearer(?x) }, { -goal(nearer(?x)) } )" + chr(10)
+    )
+    check("§19", "a live goal puts its content in play", kept)
+    check(
+        "§19",
+        "...and denying the goal takes it out again: the key set is maintained, "
+        "so it has to forget as well as accumulate",
+        not forgotten,
     )
 
 
