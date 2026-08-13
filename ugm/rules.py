@@ -144,6 +144,7 @@ class RuleSet:
         antecedent: Sequence[Member],
         consequent: Sequence[Member],
         name: str = "",
+        node: Optional[NodeId] = None,
     ) -> Rule:
         """A rule is a fact relating **two** moments (§8) -- never a flat list of
         its patterns.
@@ -160,9 +161,19 @@ class RuleSet:
         different authors, precedence and provenance.
         """
         rel = self.CAUSES if connective == CAUSES else self.IMPLIES
-        node = self.g.instance(
-            rel, self._moment(antecedent), self._moment(consequent)
-        )
+        # ⚠⚠⚠ **A caller may supply the node, and `adopt` must.** A rule the
+        # graph describes is already a node -- a corpus concluded `ant(<R>,
+        # ...)` about it, and `<R>` is what any precedence, any `defeated`
+        # record and any later claim will name. Minting a fresh node here made
+        # the live rule a TWIN of the described one: everything a corpus had
+        # said about it went to a node that was not a rule, and everything the
+        # machinery said about it named a node no corpus could reach. Found by
+        # a standing policy that ordered a learned rule and quietly did
+        # nothing. The twin trap, eighth time.
+        if node is None:
+            node = self.g.instance(
+                rel, self._moment(antecedent), self._moment(consequent)
+            )
         r = Rule(node, connective, antecedent, consequent, name)
         self.rules.append(r)
         for m in consequent:

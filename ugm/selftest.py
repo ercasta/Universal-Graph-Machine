@@ -3702,6 +3702,19 @@ def a_rule_can_author_a_rule() -> None:
     check("§14", "⭐ a rule the agent did not start with is live: the graph "
           "described one, a corpus adopted it, and the loop reads it",
           len(m.rules.rules) == before + 1)
+    # ⚠⚠⚠ And it IS the node the graph described. Minting a fresh one made the
+    # live rule a twin: everything a corpus had said about the described rule
+    # went to a node that was not a rule, and everything the machinery said
+    # about the live one named a node no corpus could reach. Invisible until a
+    # standing policy tried to order a learned rule and quietly did nothing --
+    # the twin trap, eighth time, and the only check that can see it.
+    adopted = [r for r in m.rules.rules if r.name.startswith("built")]
+    described = [p for p in m.g.instances_of(m.RULE)
+                 if m.holds(p) == PLUS and m.g.show(m.g.member(p, 0)).startswith("built")]
+    check("§3", "...and it IS the rule the graph described, not a twin of it: "
+          "a precedence, a defeat or any later claim names the same node",
+          len(adopted) == 1 and len(described) == 1
+          and adopted[0].node is m.g.member(described[0], 0))
     check("§14", "...and it APPLIES -- the round trip is closed, not merely "
           "recorded", m.holds(kb.term("likely(known(door))")) == PLUS)
     check("§12", "...and what it concluded is WRAPPED, so how strongly a rule "
@@ -3777,6 +3790,190 @@ def a_rule_can_author_a_rule() -> None:
     check("§14", "...and a consequent records no grade, because there is none: "
           "how strongly a rule concludes is now IN what it concludes",
           len(con) == 1 and len(back.g.members(con[0])) == 4)
+
+
+def the_agent_harmonizes_itself() -> None:
+    """Do the four pieces compose? (§2, §14, §19)
+
+    `defeated`, `adopt`, `generalise` and the wrapper story all landed the same
+    day and had never met. §2 makes composition the criterion, so this is the
+    fixture that makes them meet: **learn a rule, adopt it, discover it fights
+    a rule the agent already had, and settle the fight from inside.**
+
+    ⭐⭐⭐ **It did not compose, and the break was exactly one thing.** A rule
+    could conclude `overrides(<a>, <b>)`, the fact held in the graph, and the
+    arbitrator never read it -- §14's precedence table was Python state seeded
+    by the LOADER, once, from the surface. So:
+
+    * an agent that reads `defeated(?l, ?w)` and wants to fix it by raising a
+      precedence could not;
+    * and a rule adopted at runtime could never be ordered against anything,
+      because the loader's table is keyed on names a corpus declared and an
+      adopted rule has none.
+
+    §21's defect from the far side: not *the machinery knows something no rule
+    can ask about*, but **a rule says something the machinery does not listen
+    to** -- worse, because the corpus is not even wrong. Now the table is
+    maintained from the write (`Machine._precede`), so precedence is dated and
+    deniable like every other claim, and `Loader._maybe_precedence` is deleted.
+
+    ⚠⚠ **And a conflict starves the rule that would settle it.** Two rules
+    concluding opposite things about the same case oscillate -- `hot`, `cold`,
+    `hot`, `cold` -- and the rule concluding the precedence never gets a turn:
+    60 ticks, still going. It needs `standing`, which is §19's carve-out for
+    the fifth time. This is also the loop-detection case, still unbuilt.
+    """
+    from .text import load
+
+    # -- 1. a precedence a RULE concluded is obeyed -------------------------
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <hot> = implies( { +go(?x) }, { +q(?x) } )",
+        "rule <cold> = implies( { +go(?x) }, { -q(?x) } )",
+        "rule <referee> = implies( { +p(?x) }, { +overrides(<cold>, <hot>) } )",
+        "fact standing(<referee>)",
+        "fact +p(a)", "fact +go(a)", ""]))
+    steps = m.run(limit=60)
+    check("§14", "⭐ a precedence a RULE concluded is obeyed -- the table is what "
+          "the graph claims, not what the loader read",
+          [(h.name, l.name) for h, l in m.rules.overrides] == [("cold", "hot")])
+    check("§14", "...so the agent settles its own conflict: it decides the "
+          "precedence, the loser is defeated, and the run reaches quiescence",
+          m.holds(kb.term("defeated(<hot>, <cold>)")) == PLUS
+          and steps[-1].state == "quiescent"
+          and len([s for s in steps if s.applied]) < 5)
+
+    # ⚠ The control, and it is the finding: without the precedence the two
+    # rules undo each other forever, and the rule that would settle it is
+    # starved. Same corpus, one word (`standing`) removed.
+    loud = Machine()
+    load(loud, chr(10).join([
+        "rule <hot> = implies( { +go(?x) }, { +q(?x) } )",
+        "rule <cold> = implies( { +go(?x) }, { -q(?x) } )",
+        "rule <referee> = implies( { +p(?x) }, { +overrides(<cold>, <hot>) } )",
+        "fact +p(a)", "fact +go(a)", ""]))
+    noisy = loud.run(limit=60)
+    check("§19", "⚠ ...and a conflict STARVES the rule that would settle it: "
+          "without `standing` the two undo each other and the settler never "
+          "gets a turn",
+          noisy[-1].state == "applied"
+          and "referee" not in {s.applied.rule.name for s in noisy if s.applied})
+
+    # -- 2. and it can be withdrawn ----------------------------------------
+    undone = Machine()
+    load(undone, chr(10).join([
+        "rule <hot> = implies( { +go(?x) }, { +q(?x) } )",
+        "rule <cold> = implies( { +go(?x) }, { -q(?x) } )",
+        "fact overrides(<cold>, <hot>)",
+        "rule <undo> = implies( { +oops }, { -overrides(<cold>, <hot>) } )",
+        "fact standing(<undo>)",
+        "fact +oops", ""]))
+    undone.run(limit=40)
+    check("§14", "...and a precedence can be WITHDRAWN, which is what makes it a "
+          "claim rather than a configuration",
+          not undone.rules.overrides)
+
+    # -- 3. the whole arc, end to end --------------------------------------
+    #
+    # ⭐⭐⭐ Two examples become a rule (`generalise`), the rule becomes live
+    # (`adopt`), the corpus decides an authored rule outranks anything it
+    # learned (`overrides`, concluded), and the loser is on the record
+    # (`defeated`). Four commits, one run.
+    from .rules import generalise
+    from .text import Loader
+
+    # ⚠ One learner PER LOADER, and the first version had one closing over the
+    # first machine's. A name resolved through `kb.atom` is a node in THAT
+    # machine's graph, so the second machine got node ids from the first --
+    # ints that mean something else. The twin trap across two graphs, which is
+    # the same mistake the `_in_play` denial check made an hour earlier.
+    def make_learner(kb):
+        def learn(machine, frame, entry):
+            gg = machine.g
+            one, two = gg.members(entry.proposition)
+            mapping: dict = {}
+            ant = generalise(gg, gg.member(one, 0), gg.member(two, 0), mapping)
+            con = generalise(gg, gg.member(one, 1), gg.member(two, 1), mapping)
+            if not gg.has_var(ant) or gg.is_var(ant) or gg.is_var(con):
+                return None
+            node = gg.instance(kb.atom("learned"))
+            w = lambda p: machine.gate.write(frame, p, PLUS, licence=entry.node,
+                                             source=machine.KB, mention=True)
+            w(gg.rel(machine.RULE, node))
+            w(gg.rel(machine.CONN, node, machine.rules.IMPLIES))
+            w(gg.rel(machine.ANT, node, ant, machine.chain.SIGN[PLUS],
+                     machine._numeral(0)))
+            w(gg.rel(machine.CON, node, con, machine.chain.SIGN[PLUS],
+                     machine._numeral(0)))
+            return node
+        return learn
+
+    mm = Machine()
+    kbb = Loader(mm)
+    kbb.answerer("learner", "generalise", make_learner(kbb))
+    kbb.load(chr(10).join([
+        # What it already knew, and what it is about to learn contradicts it.
+        "rule <secret> = implies( { +sealed(?x) }, { -open(?x) } )",
+        "rule <ask> = implies( { +example(?p1, ?c1), +example(?p2, ?c2),",
+        "                        +sooner(?p1, ?p2) },",
+        "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
+        "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
+        "                      { +adopt(?r) } )",
+        # ⭐ The corpus's standing policy about what it learns, written once and
+        # applying to a rule that does not exist yet -- which is only sayable
+        # because the precedence is concluded rather than parsed.
+        "rule <trust-what-i-was-told> = implies( { +rule(?r), +adopt(?r) },",
+        "                      { +overrides(<secret>, ?r) } )",
+        "fact standing(<trust-what-i-was-told>)",
+        "fact +example(hinged(a), open(a))",
+        "fact +example(hinged(b), open(b))",
+        "fact +sooner(hinged(a), hinged(b))",
+        "fact +hinged(vault)", "fact +sealed(vault)", ""]))
+    mm.run(limit=200)
+    learned_rules = [r for r in mm.rules.rules if r.name.startswith("learned")]
+    check("§2", "⭐⭐⭐ the whole arc composes: two examples become a live rule, "
+          "and a standing policy orders it against what the agent was told -- "
+          "a precedence about a rule that did not exist when it was written",
+          len(learned_rules) == 1
+          and any(l is learned_rules[0] for _, l in mm.rules.overrides))
+    # ⚠ Built with `g.rel`, not `kb.term`: a rule adopted at runtime is named
+    # after its node and does not print as anything the surface can parse.
+    # That is the wall `artefact` recorded from the other side -- a rule reaches
+    # what a tool made by BINDING, never by naming it literally.
+    (secret,) = [r for r in mm.rules.rules if r.name == "secret"]
+    # ⚠⚠ ...and the author does not have to know the order. Written the other
+    # way round -- the precedence in the SAME consequent as the adoption, and
+    # before it -- the fact lands while `?r` is not yet a rule, so the write
+    # hook drops it. `_adopt` re-reads what the graph already says about the
+    # rule it is making live. §16's ordering trap, and here the author has no
+    # way to see it: both orders read the same.
+    early = Machine()
+    kbe = Loader(early)
+    kbe.answerer("learner", "generalise", make_learner(kbe))
+    kbe.load(chr(10).join([
+        "rule <secret> = implies( { +sealed(?x) }, { -open(?x) } )",
+        "rule <ask> = implies( { +example(?p1, ?c1), +example(?p2, ?c2),",
+        "                        +sooner(?p1, ?p2) },",
+        "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
+        "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
+        "                      { +overrides(<secret>, ?r), +adopt(?r) } )",
+        "fact +example(hinged(a), open(a))",
+        "fact +example(hinged(b), open(b))",
+        "fact +sooner(hinged(a), hinged(b))",
+        "fact +hinged(vault)", "fact +sealed(vault)", ""]))
+    early.run(limit=200)
+    early_learned = [r for r in early.rules.rules if r.name.startswith("learned")]
+    check("§16", "⚠ a precedence written BEFORE the rule is live still counts: "
+          "the author may say it in either order and cannot tell which they "
+          "chose",
+          len(early_learned) == 1
+          and any(l is early_learned[0] for _, l in early.rules.overrides)
+          and early.holds(kbe.term("open(vault)")) == MINUS)
+    check("§14", "...and the learned rule LOSES to the authored one about the "
+          "sealed vault, with the defeat on the record",
+          mm.holds(kbb.term("open(vault)")) == MINUS
+          and mm.holds(mm.g.rel(mm.DEFEATED, learned_rules[0].node,
+                                secret.node)) == PLUS)
 
 
 def a_defeat_is_on_the_record() -> None:
@@ -5404,6 +5601,7 @@ def main() -> int:
     matching_is_incremental()
     a_rule_can_author_a_rule()
     an_example_becomes_a_rule()
+    the_agent_harmonizes_itself()
     a_defeat_is_on_the_record()
     a_join_is_not_a_scan()
     the_apparatus_eats_its_own_cooking()

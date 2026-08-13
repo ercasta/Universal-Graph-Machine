@@ -659,25 +659,14 @@ class Loader:
             source=self.source,
             mention=mentions,
         )
-        self._maybe_precedence(s, prop)
 
-    def _maybe_precedence(self, s: Statement, prop: NodeId) -> None:
-        """`overrides(A, B)` is an ordinary claim *and* seeds the authored
-        precedence table §14 requires. Both, because arbitration must be a lookup
-        that never searches, and because *which rules override which* has to stay
-        an ordinary query."""
-        g = self.m.g
-        rel = g.relation_of(prop)
-        if rel not in (self.OVERRIDES, self.SUPERSEDES):
-            return
-        a, b = g.members(prop)
-        by_node = {v.node: v for v in self.rules_by_name.values()}  # type: ignore[attr-defined]
-        if a not in by_node or b not in by_node:
-            return
-        if rel == self.OVERRIDES:
-            self.m.rules.overrides_rule(by_node[a], by_node[b])
-        else:
-            self.m.rules.supersedes_rule(by_node[a], by_node[b])
+    # `_maybe_precedence` was here: it read `overrides(A, B)` off a statement as
+    # the loader parsed it and seeded §14's precedence table. It is gone, and
+    # `Machine._precede` does it from the WRITE instead -- so a precedence a
+    # rule concludes counts, a precedence a rule denies is withdrawn, and a
+    # rule adopted at runtime can be ordered against anything. Doing both was
+    # the bug that found this: the pair went into the table twice, and one
+    # denial took out one copy.
 
     def _say(self, s: Statement) -> None:
         assert s.member is not None

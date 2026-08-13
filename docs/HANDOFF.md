@@ -1,6 +1,69 @@
 # Handoff — 2026-08-13
 
-Branch `restart`, pushed. **436 checks, 0 failing**; every instrument green.
+Branch `restart`, pushed. **444 checks, 0 failing**; every instrument green.
+
+## Latest: **the agent harmonizes itself** — and the composition test earned its keep. Commit `precede`.
+
+`defeated`, `adopt`, `generalise` and the wrapper story all landed the same day and had never met. §2
+makes composition the criterion, so the fixture was built to make them meet: **learn a rule, adopt it,
+find it fights a rule the agent already had, and settle the fight from inside.**
+
+⭐⭐⭐ **It did not compose, and it broke in two places — both invisible until something tried to refer
+to a rule.**
+
+### 1. A rule could conclude a precedence and the arbitrator never read it
+
+    rule <referee> = implies( { +p(?x) }, { +overrides(<cold>, <hot>) } )
+
+The fact **held in the graph** and `rules.overrides` stayed **empty**: §14's precedence table was
+Python state seeded by the **loader**, once, from the surface. §21's defect from the far side — not
+*the machinery knows something no rule can ask about*, but **a rule says something the machinery does
+not listen to**, which is worse, because the corpus is not even wrong.
+
+It blocked both arcs exactly at their join: an agent reading `defeated(?l, ?w)` could not fix it by
+raising a precedence, and a rule adopted at runtime could never be ordered against anything, because
+the loader's table is keyed on names a corpus declared and an adopted rule has none.
+
+So the table is maintained from the **write** (`Machine._precede`), and `Loader._maybe_precedence` is
+deleted — *the fix is a deletion*, and doing both was the bug that found it: the pair went in twice and
+one denial removed one copy. Precedence is now **dated and deniable** like every other claim, which is
+what §14 says it is everywhere else.
+
+⭐ **And the agent settles its own conflict**: it decides the precedence, the loser is defeated, and
+the run reaches quiescence in **2 applications** where the unsettled pair oscillates for 60 ticks.
+
+⚠⚠ **A conflict starves the rule that would settle it.** `hot`, `cold`, `hot`, `cold` — and `<referee>`
+never gets a turn. It needs `standing`, which is §19's carve-out for the fifth time. That is also the
+loop-detection case, still unbuilt, now with a fixture that produces it on demand.
+
+### 2. ⚠⚠⚠ The adopted rule was a TWIN of the rule the graph described
+
+`_adopt` called `RuleSet.rule`, which **mints** a node. So the tool described rule `942` and the live
+rule was `979`: everything a corpus had said about the described rule went to a node that was not a
+rule, and everything the machinery said about the live one named a node no corpus could reach. **The
+twin trap, eighth time**, in code I wrote two commits ago — and nothing could see it until a standing
+policy tried to order a learned rule and quietly did nothing.
+
+    rule <trust-what-i-was-told> = implies( { +rule(?r), +adopt(?r) },
+                                            { +overrides(<secret>, ?r) } )
+
+⭐⭐⭐ That line is what the arc was for: **a precedence about a rule that did not exist when it was
+written**, applying to whatever the agent learns. Two examples become a live rule, a standing policy
+orders it under what the agent was told, the learned rule loses about the sealed vault, and the defeat
+is on the record. Four commits, one run.
+
+⚠ **And the author may say it in either order.** Written in the same consequent *before* the adoption,
+the precedence lands while `?r` is not yet a rule and the write hook drops it — so `_adopt` re-reads
+what the graph already says about the rule it is making live. §16's ordering trap, and here the author
+has no way to see it: both orders read the same.
+
+Kill-probes: no `_precede` (16), denial ignored (1), a fresh node for the adopted rule (4), no re-scan
+on adopt (1 — and it was **0** until the either-order check existed).
+
+⚠⚠ **Two mistakes of my own in the fixture, both the same trap one layer out.** The learner closed
+over the *first* machine's loader, so the second machine got node ids from the first — ints that mean
+something else. And the check named an adopted rule with `kb.term`, which cannot parse a runtime rule's
+printed form; it reaches one by **binding**, which is `artefact`'s finding from the other side.
 
 ## Latest: **there are no grades**. Commit `ungraded`.
 
