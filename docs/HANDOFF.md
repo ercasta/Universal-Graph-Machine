@@ -1,4 +1,168 @@
-# Handoff — 2026-08-13
+# Handoff — 2026-08-14
+
+Branch `restart`, pushed. **491 checks, 0 failing**; every instrument green, including a **foreign
+corpus** (`ugm.dungeon`, 17/0) that another session wrote and that now exercises everything below.
+
+## The session in one page
+
+Twenty-five commits, and the shape of them is the point. The task was *rewrite the design doc*. What
+actually happened is that **writing the document down honestly turned four documented conventions into
+to-do items in an afternoon**, and then a foreign corpus arrived and turned three more into features.
+
+| commit | what it settled |
+|---|---|
+| `rederived` | the doc re-derived from §1, grades gone throughout, **§20 acquisition** added, §21/§22 renumbered |
+| `unbuilt` | ⚠ the **skeleton, spans and shapes are described and not implemented** — §13's worked example has never run |
+| `rises` | §16's change-term: direction is a wrapping proposition beside `?`, and the definition mentions before/after |
+| `shapes` | `ugm.shapes` — the census, the expressibility probes, the composition proof |
+| `trigger` | composition gets a **corpus-side trigger**; `composed(<c>,<a>,<b>)` closes §1's defect for the 12th time |
+| `boundary` | ⚠⚠⚠ composing across a `causes` **loses conclusions** — refused, exactly |
+| `authoring` | `docs/authoring.md`, every snippet verified against the engine |
+| `unsayable` | the **four kinds** of unsayable — and two rows struck through the same day |
+| `class` | ⭐ a **variable in relation position**: `sells(smith, weapon)` names a class, `?kind(?item)` applies it |
+| `magnitude` | a known amount is a **tool**; an unknown one is a **node** (§13's move for plurality, on a scalar) |
+| `shadowed` | ⚠ `plus`/`minus` were reserved and a corpus found out **silently** — now reported at load |
+| `halfway` | ⚠⚠⚠ a transfer mid-flight was observable **and actionable**: the agent emitted on twelve gold that never existed |
+| `skeleton` | ⭐ `+acts(goblin) at ?m` — a member says **where** its entry sits |
+| `names` | `+on(?x,?y) as ?t` — a member names **what** it matched; the same node, not a copy |
+| `computator` | ⭐⭐⭐ values in, a value out, **never the graph** — purity is structural, and the transfer becomes atomic |
+| `transit`/`unknown` | the atomicity item, corrected **three times**, ending in: `?` was always the vocabulary |
+| `skeleton2` | ⭐⭐⭐ the **skeleton is an ordinary member** — `sanc(?mq, ?mp)`, no request, no second matcher |
+| `retired` | ...and the `order`/`precedes` answerer built that afternoon is **deleted** |
+
+**Four shapes, each of which paid more than once.**
+
+1. ⭐⭐⭐ **A wall nobody had argued for.** `?p(?x)`, magnitude, and the skeleton's locus were all on
+   the open-questions list as representational limits. Each was **three independent refusals with no
+   argument behind any of them** — a parser that would not read it, a comparison by identity, a
+   substitution that would not rebuild. Each took about an hour. **The information was already there
+   and one line did not look at it**, four times.
+2. ⭐⭐⭐ **The user asked *why*, and the answer deleted the work.** Every correction this session came
+   from a question rather than from building: *is it the engine or our rules?* · *doesn't a genuinely
+   slow change really have an intermediate?* · *isn't structure graph like anything else?* · *are we
+   enforcing policy on the open class?* Two features were **deleted** and one open item **closed**
+   as a result.
+3. ⚠⚠⚠ **My checks passed for the wrong reason, three times.** A containment check that read
+   containment's own silence as a refusal; an ancestry check whose discriminating case was
+   unreachable; a downward-walk check anchored where nothing descended. **A check about what cannot
+   be reached needs a fixture where there is something to reach.**
+4. ⚠⚠⚠ **The twin trap, twice more, by the author of the note warning about it.** `self.BINDS`
+   collided with plan bindings (every plan printed `names(...)`); a computator built its result with
+   `g.atom`, so `twice(4, 8)` landed under a **twin** `8` and every question about it answered
+   nothing. Both found by instruments in under a minute; neither by reading.
+
+### What a foreign corpus bought, and it is the headline
+
+Another session wrote `ugm/rules/dungeon.ugm` — 21 rules, a D&D combat round — and answered
+`docs/authoring.md` §8 with `docs/dungeon-feedback.md`. **Every number in it reproduced exactly.** It
+found a live bug we could not have found (`plus`/`minus`), predicted a soundness hole we then
+constructed (atomicity), and **corrected the shape census**:
+
+| | internal | dungeon |
+|---|---|---|
+| the two primitives cover | **73.9%** | **28.6%** |
+| rules retracting in their own consequent | **1 of 17 bundled — 6%** | **12 of 21 — 57%** |
+
+⭐⭐⭐ **The bundle was derived from an agent that CONCLUDES; a world model CHANGES.** That is the
+whole gap in one number, and it explains why arithmetic, ordering, comparison and joint update were
+all absent *consistently* — none is needed to reason and all are needed to simulate.
+
+And it answered §6's sizing question precisely: they needed **sequencing only, never a fact's own
+history**, and **24% of their corpus was clock scaffold** re-implementing a moment ordinal. That is
+what justified building `at`, `sanc` and the rest.
+
+### The debt, in one place
+
+* ⭐ **`stratum0.py` is still a second matcher**, which §5's *one interpreter* forbids and §6
+  explicitly disclaims. **Feasibility is established**: an entry is an ordinary relation instance
+  (`entry(moment(), on(a,b), +)`), and the read's own rules are all **anchored** — up from the seat,
+  then bounded enumeration. So the read is expressible under the anchoring discipline.
+  ⚠ It rewrites *the bundle's central program*, and `ugm.agreement` uses `stratum0` as the **baseline**
+  it measures the native read against — so the gate's comparison has to be rebuilt with it. **Start
+  this fresh, not at the end of a session.**
+* **Still absent**: `where` as a keyword, §12's `?t = entry(...)` prefix form, **spans as loci** (so
+  §13's shapes remain unwritable), and `unless`.
+* **The dungeon's two open items**, neither touched: an instrument for *did the agent keep deriving
+  after its verdict, and how much* (they saw a correctly-decided fight run to round 417 with every
+  outcome check green); and — the one that flatters every number above — **zero goals were authored**
+  in their corpus, so **backward reading has never been exercised by a foreign one**.
+* **A transitional state has no marker, and should not get one.** Corrected three times: the artifact
+  half is fixed by computators; the real half is *true* and should be visible; and saying it needs
+  nothing new, because `?` already means *I do not know this yet*. ⚠ What has no enforcement is an
+  author remembering to write `?` instead of a number they cannot justify.
+* **Composition's trigger is a corpus's**, deliberately (§21's judgement census). *Compose what has run
+  often and never surprised* is still nobody's rule.
+* ⚠ The **judgement census** (§21) has three entries and one of them, `_in_play`, is still unargued.
+
+## Verify in one go
+
+```
+python -m ugm.selftest      491 checks, 0 failing    the runner; any False is a failure
+python -m ugm.dungeon        17 checks               a FOREIGN corpus -- a D&D combat round
+python -m ugm.arbitration     0 disagreements        the move, fast against the slow definition
+python -m ugm.state           0 disagreements        the kept state, against the walk
+python -m ugm.agreement      28 reads, 12/12         the rule-level read against the native one
+python -m ugm.bundle         17 rules, 8 answerers   is every shipped rule and answerer load-bearing?
+python -m ugm.backward        7 checks, 0 blind      backward reading, as rules
+python -m ugm.compose         7 checks               composition, and the `causes` boundary
+python -m ugm.shapes         10 probes, 3 checks     what shapes rules have; what the surface expresses
+python -m ugm.modality · workload · learning · tools · harmony
+```
+
+⚠ `ugm.bundle` takes several minutes -- it re-runs the whole suite per mutation. Background it.
+
+## The state of the code
+
+**27 modules.** `chain` `graph` `gate` `rules` `channels` `machine` `text` are the engine; `__main__`
+is the door; `stratum0` is the rule-level read **and still a second matcher**; the rest are
+instruments.
+
+**What a rule may now write**, all new this session:
+
+```
++acts(goblin) at ?m           WHERE the entry sits          -- a member's locus binds
++on(?x, ?y) as ?t             WHAT it matched, named        -- the same node, not a copy
+sanc(?later, ?earlier)        the SKELETON, directly        -- anchored, upward, no answerer
+minus(?x, ?n) as ?new         a COMPUTATOR                  -- values in, a value out, never the graph
++?kind(?item)                 a relation named by a variable -- a class as data
+```
+
+**Seventeen bundled rules**, **eight answerers** (four `standing`), **three doors** (`_adopt`,
+`_dispatch`, `_enter`), **four guards, one move** (`_forbid`, `_widen`, `_recover`, `_notice_open`),
+**two evaluated-member kinds** (computators, structural relations), **zero phases**.
+
+⚠ **Registration doors**: `Loader.computator` and `Loader.answerer`. Both resolve names in the
+CORPUS's scope, and both must -- a value or request minted beside the corpus's table is a twin the
+corpus can never name. That trap fired twice this session.
+
+## Where I would pick up
+
+In order of how much they would buy, and the first is the only large one.
+
+1. ⭐ **Merge the matchers — the read as ordinary rules, then delete `stratum0.py`.** §5's *one
+   interpreter* and §6's *one more row, not one more branch*, both currently false of the code.
+   Feasibility is established (see the debt above). ⚠ Rebuild `ugm.agreement`'s baseline as part of
+   it, not after -- a gate whose comparison moves under it is worth nothing.
+2. **`where` and §12's `?t = entry(...)`** -- smaller now that structural members exist, and it is
+   what §13's shapes need after spans.
+3. **Spans as loci.** `Entry.locus` is typed as a moment; until it is not, §11 describes a construct
+   the engine does not build and §13's shapes cannot be written at all.
+4. **The dungeon's instrument**: *did the agent keep deriving after its verdict, and how much.* Same
+   family as §21's judgement census -- something no outcome check can see.
+5. **Get a foreign corpus to author a GOAL.** Backward reading -- `fit`, `check`, `verdict`,
+   `subgoal`, `blocked`, `<give-up>` -- has never been exercised by one. Half the apparatus is
+   untested outside this repo, and that is the biggest unknown on this list.
+
+⚠ **Standing hazards, none enforced.** *An occasion warrants a re-ask only if re-asking cannot produce
+one* -- now violated in five separate places, four of them fixtures written this session. And a
+corpus that asserts a value it cannot yet justify re-creates the atomicity hole with no help from
+anything; `?` is the answer and nothing insists on it.
+
+⭐ **A habit worth keeping.** Every correction this session came from being asked *why*, not from
+building. Two features were deleted and one open item closed that way. When something reads as a wall,
+the prior that earned its keep today is: **it is three refusals nobody argued for.**
+
+# Superseded: 2026-08-13
 
 Branch `restart`, pushed. **448 checks, 0 failing**; every instrument green.
 
