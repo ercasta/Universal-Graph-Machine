@@ -10,7 +10,7 @@ the same moment needs no skeleton, and the skeleton is what §8 adds for chains.
 
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from .chain import Chain, Entry, MINUS, Moment
+from .chain import Chain, Entry, MINUS, Moment, Span, scope_of
 from .graph import Graph, NodeId
 
 CAUSES = "causes"
@@ -856,16 +856,27 @@ def current_state(chain: Chain, locus: Moment, seat: Moment) -> List[Entry]:
     """Every proposition the chain has an answer for at `locus`, as believed at
     `seat`, resolved to the one entry that governs it. This is the walk of §4,
     and it is the design's single most consequential cost."""
-    props: List[NodeId] = []
+    # ⚠ Keyed by proposition AND by the span it is about (`scope_of`): two
+    # recognitions over different stretches supersede nothing of each other, so
+    # each is asked about separately. On a chain of moments the scope is always
+    # `None` and this is the walk it always was.
+    keys: List[Tuple[NodeId, Optional["Span"]]] = []
     seen = set()
     for m in seat.ancestors():  # newest moment first
         for e in reversed(m.delta):  # ...and newest within a moment
-            if e.proposition not in seen:
-                seen.add(e.proposition)
-                props.append(e.proposition)
+            k = (e.proposition, scope_of(e.locus))
+            if k not in seen:
+                seen.add(k)
+                keys.append((e.proposition, e.locus if k[1] is not None else None))
     out = []
-    for p in props:
-        e = chain.resolve(p, locus, seat)
+    for p, span in keys:
+        if span is None:
+            e = chain.resolve(p, locus, seat)
+        elif locus.at_or_after(span):
+            # A stretch that is not over yet is not yet anything to read.
+            e = chain.resolve(p, span, seat)
+        else:
+            e = None
         if e is not None:
             out.append(e)
     return out
@@ -1428,6 +1439,67 @@ def _members_of(g, chain, want, bindings):
     yield b
 
 
+def _span_of(g, chain, want, bindings):
+    """`span_of(?s, ?start, ?end)` -- a stretch of the chain (§11).
+
+    `entry_of`'s shape one construct along, and read the same two ways:
+
+      * **endpoints bound** -- the span is MINTED. §11 says spans are *minted by
+        recognisers, never enumerated*, and a rule with this member is what a
+        recogniser is: `<TT-base>` builds the stretch it has just recognised.
+      * **the span bound** -- it is decomposed, like any other node's members.
+
+    ⚠ Unanchored it yields nothing, and here that is not politeness but the
+    population: any two moments form a span, so enumerating them is quadratic in
+    the history and every one of them meaningless until something recognises
+    over it.
+
+    ⚠⚠⚠ **Yes, this MINTS while matching, and the interning trap is why that
+    needs an argument rather than a shrug.** A quiescence verdict computed with
+    `substitute` was unsound precisely because minting made the conclusion exist
+    -- so a matcher that creates nodes is the same shape. The difference is what
+    the node's existence means. A stratum-0 conclusion IS the fact, so creating
+    it answers the question being asked; a span node is a *name for a pair of
+    moments*, and nothing anywhere reads whether one exists -- `span` is in no
+    structural relation, so no rule can enumerate spans and no walk visits them.
+    Interning then makes this idempotent: the same endpoints give the same node
+    however many times any path asks. So the match is pure in the only sense the
+    trap is about -- asking twice gives the same answer, and asking does not
+    change what anything else would answer.
+    """
+    args = g.members(want.pattern)
+    if len(args) != 3:
+        return
+    s = walk(g, args[0], bindings)
+    if not g.is_var(s):
+        span = chain.span_by_node(s)
+        if span is None:
+            return  # not a span: a member that names one matches nothing
+        b = bindings
+        for pattern, got in zip(args[1:], (span.start.node, span.end.node)):
+            b = unify(g, pattern, got, b)
+            if b is None:
+                return
+        yield b
+        return
+    start = walk(g, args[1], bindings)
+    end = walk(g, args[2], bindings)
+    if g.is_var(start) or g.is_var(end):
+        return  # unanchored: quadratic, and meaningless until recognised over
+    first, last = chain.moment_by_node(start), chain.moment_by_node(end)
+    if first is None or last is None:
+        return
+    # §11's ancestry check, at the minting site. In the matcher it is a member
+    # that finds nothing -- the engine's uniform answer to a pattern nothing
+    # satisfies -- while `Chain.span` raises, because a machinery reaching there
+    # with an inverted pair has made a mistake that is still attributable.
+    if last is first or not last.at_or_after(first):
+        return
+    b = unify(g, args[0], chain.span(first, last).node, bindings)
+    if b is not None:
+        yield b
+
+
 def structural_relations(chain) -> Dict[NodeId, Callable]:
     """The skeleton, as members an ordinary rule may write (§6, §12).
 
@@ -1465,6 +1537,7 @@ def structural_relations(chain) -> Dict[NodeId, Callable]:
         chain.DELTA_NEXT: _stored,
         chain.RESTS_ON: _stored,
         chain.ENTRY_OF: _members_of,
+        chain.SPAN_OF: _span_of,
         chain.ASKING: _bounded,
     }
 

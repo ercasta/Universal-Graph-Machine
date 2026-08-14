@@ -328,14 +328,13 @@ session. You will reach for all of them in an RPG.
 |---|---|
 | *the goblin acts after the hero* — relating two moments | ✅ **BUILT.** `at ?m` binds a locus; `sanc`/`anc` relate them |
 | *the door was open and now is closed* — one fact's own history | ✅ **BUILT.** Two rules over the raw chain; see below |
-| *while poisoned*, *throughout the battle* — a span as a locus | **an entry's locus is a moment**; no span is ever built as one |
-| §13's shapes — *taking turns*, recursive definitions over spans | follows from the span row: **cannot be written at all** |
-| `unless(<R>, +condition)` | described in §12, implemented nowhere |
+| *while poisoned*, *throughout the battle* — a span as a locus | ✅ **BUILT.** `span_of` mints a stretch; a consequent's `at ?s` deposits at one |
+| §13's shapes — *taking turns*, recursive definitions over spans | ✅ **BUILT.** They run; see below |
+| `unless(<R>, +condition)` | described in §12, implemented nowhere — **the only one left** |
 
-⚠ **The remaining constraint is the SPAN, not the moment.** Both halves of *relating two moments* now
-work — the earlier note here said no rule could relate two at all, and that a fact's own history was
-materially harder. Neither is true any more, and what is left is that a locus is always a moment and
-never a stretch of them.
+⭐ **`unless` is now the only unbuilt row.** Every other constraint this section recorded has gone:
+relating two moments, a fact's own history, and — as of this session — spans as loci and the shapes
+that follow from them.
 
 ⭐ **It has been probed and sized, and it splits in two. Tell us which half you needed.**
 
@@ -381,6 +380,7 @@ is an ordinary rule and concludes an ordinary claim. That is the whole bridge.
 | `entry_of(?e, ?locus, ?prop, ?sign)` | an entry's three members |
 | `delta_next(?e, ?f)` | deposit order within one moment |
 | `rests_on(?e, ?c)` | what an entry was derived from — **the agent's own trail** |
+| `span_of(?s, ?start, ?end)` | a **stretch** of the chain. Endpoints bound ⟹ it mints one; the span bound ⟹ it decomposes |
 
 ⚠⚠⚠ **Every one of them must be anchored, and the authored order is what anchors it.** Start from
 `asking(?s)` and walk outward; a member whose turn comes before anything binds it finds **nothing**,
@@ -412,6 +412,80 @@ node*, so it is reference rather than a copy. ⚠ Two members hoping to co-refer
 
 ⚠ Please distinguish the two when you write your list. They look identical when you hit them and they
 cost completely different amounts.
+
+### ✅ *Throughout the battle* — a claim whose subject is a STRETCH
+
+Some claims are not about a moment at all. *They took turns*, *it rained throughout*, *he was poisoned
+for three rounds* — none is true of any instant. Those take a **span** as their locus:
+
+```
+rule <r> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp),
+                      span_of(?s, ?mp, ?mq) },
+                   { +took_turns(?p, ?q) at ?s } )
+```
+
+`span_of(?s, ?start, ?end)` **mints** the stretch when both endpoints are bound — that is what a
+recogniser does — and **decomposes** one when the span is bound instead. `at ?s` on the consequent is
+what puts the claim there. No new notation: `at` is the member locus you already have, on the other
+side of the rule.
+
+**Three things to know before you write one.**
+
+⚠ **Only the endpoints are stored.** What lies between them is the chain's to settle, and asking a
+span *what is inside you* is not a question — the answer would be a second story that could disagree
+with the chain. Participants stay in the proposition (`took_turns(anna, bo)`), never in the span, so
+one stretch can host several unrelated recognitions.
+
+⚠⚠⚠ **A claim about an instant does NOT become a claim about the stretch.** *It rained at M9* will
+not answer *did it rain throughout M7..M12* — deliberately, because the read returns one winner rather
+than scanning an interval, so a denial in the middle would be invisible and you would get a confident
+wrong answer. If your corpus wants *it held at the start, so it held throughout*, **write that rule**;
+then it is yours, and it is dated and deniable like everything else. The same goes for one span
+answering about a shorter one inside it: `during(?s2, ?s1)` is an ordinary fact about endpoints.
+
+✅ **What does hold: a recognition is an ordinary fact once the stretch is over.** From the end moment
+onward any ordinary rule reads `+took_turns(anna, bo)` without knowing a span was involved. That is
+what makes a shape worth recognising.
+
+⚠ An **inverted** span (`span_of(?s, ?later, ?earlier)`) and a **degenerate** one (start = end) are
+both refused. The second is deliberate: a one-moment span would be a second name for a moment, and two
+ways to say one locus is exactly the ambiguity the read cannot afford.
+
+### ✅ §13's shapes — a pattern of indefinite extent
+
+*Taking turns* is a **recursive definition over spans**: a base case of two turns, and a step that
+consumes one turn and defers the rest. It needs the **raw chain** rather than the resolved state, and
+for the reason above — an alternation repeats its actors, so `acts(anna)` at M1 is superseded by
+`acts(anna)` at M3, and the step needs precisely that earlier turn.
+
+So it is the `<flip>`/`<note>` split again, one construct larger: **two structural rules to see it,
+one ordinary rule to say it.**
+
+```
+rule <tt-base> = implies(
+  { asking(?q), anc(?q, ?p),
+    in_delta(?p, ?ep), entry_of(?ep, ?p, acts(?b), plus),
+    pred(?p, ?n),
+    in_delta(?n, ?en), entry_of(?en, ?n, acts(?a), plus),
+    pred(?n, ?m), span_of(?s, ?m, ?p) },
+  { turns(?s, ?a, ?b) } )
+
+rule <tt-step> = implies(
+  { turns(?s2, ?b, ?a), span_of(?s2, ?n, ?e),
+    in_delta(?n, ?en), entry_of(?en, ?n, acts(?a), plus),
+    pred(?n, ?m), span_of(?s, ?m, ?e) },
+  { turns(?s, ?a, ?b) } )
+
+rule <say> = implies( { turns(?s, ?a, ?b), +watching(x) },
+                     { +taking_turns(?a, ?b) at ?s } )
+```
+
+Over five alternating moments that recognises the pattern over **every stretch it holds over** — ten
+of them. ⭐ The **argument swap** (`?a, ?b` in the head, `?b, ?a` in the recursive member) is the whole
+of it: remove it and the definition says *someone acts repeatedly*.
+
+⚠ You must call for the structural layer to settle (`ask_read`, then the stratum-0 fixpoint) before
+the ordinary loop can see `turns`. Nothing in the tick loop does that for you yet.
 
 ---
 

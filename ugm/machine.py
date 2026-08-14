@@ -18,7 +18,7 @@ import heapq
 import os
 from typing import Iterable, List, NamedTuple, Optional, Tuple
 
-from .chain import MINUS, PLUS, UNSURE, Chain, Entry, Moment
+from .chain import MINUS, PLUS, UNSURE, Chain, Entry, Locus, Moment, scope_of
 from .channels import Arrival, Channels
 from .gate import Frame, Gate
 from .graph import Graph, NodeId
@@ -530,6 +530,9 @@ class Machine:
             "delta_next": self.chain.DELTA_NEXT,
             "rests_on": self.chain.RESTS_ON,
             "entry_of": self.chain.ENTRY_OF,
+            # ...and a stretch of it. `span_of(?s, ?start, ?end)` mints when the
+            # endpoints are bound and decomposes when the span is (§11).
+            "span_of": self.chain.SPAN_OF, "span": self.chain.SPAN,
             "asking": self.chain.ASKING,
             "names": self.NAMES, "computes": self.COMPUTES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
@@ -3081,9 +3084,61 @@ class Machine:
                     source=self.KB,  # the rule is the licence; the KB is the channel
                     consumed=app.consumed,
                     mention=mention,
+                    locus=self._conclude_at(m, app.bindings),
                 )
             )
         return tuple(wrote)
+
+    def _conclude_at(self, member, bindings, strict: bool = True) -> Optional[Locus]:
+        """A consequent member's own locus (§8), or None for the frame's topic.
+
+        ⚠⚠⚠ **This was parsed, boundness-checked, reified -- and ignored.**
+        `text.py` refuses a consequent whose locus variable no antecedent binds,
+        `_reify_locus` records it so the round trip through the graph keeps it,
+        and `_apply` then wrote every conclusion at the frame's topic anyway. So
+        `{ +noted(?p) at ?mp }` matching entries at M1 and M2 deposited BOTH at
+        M2, and nothing could see it: the two differ only in a field no outcome
+        check reads. §21's defect for the eleventh time, and this face of it --
+        *a knob read and not obeyed* -- is the one `adopt` recorded about a
+        rule's grade, arriving at the locus.
+        ⚠ It is also what spans needed: a span can only be a locus if a rule can
+        SAY which locus it concludes at, and until this line the only locus a
+        rule could ever produce was the one the frame supplied.
+
+        The locus a rule may name is one the antecedent bound, so it is a moment
+        or span already on the frame's walk. The seat check is kept anyway,
+        because `reify`/`adopt` can hand this a rule nobody parsed.
+
+        ⚠ `strict=False` is for quiescence, which asks this about applications
+        that may never be chosen. It answers `None` where the strict form
+        refuses, so a malformed locus is reported once at the write -- where the
+        rule is actually being applied and the mistake is attributable -- rather
+        than from inside a verdict about a move nobody made.
+        """
+        if member.locus is None:
+            return None
+        node = substitute(self.g, member.locus, bindings)
+        if self.g.is_var(node):
+            return None  # unbound: the frame's topic, as before
+        locus = self.chain.locus_by_node(node)
+        if locus is None:
+            if not strict:
+                return None
+            raise ValueError(
+                f"a consequent's locus must be a moment or a span, and "
+                f"{self.g.show(node)} is neither"
+            )
+        if not self.focus.seat.at_or_after(locus):
+            if not strict:
+                return None
+            # The gate's own rule for a frame, one level down: a claim about a
+            # locus the seat does not reach is a claim about the future, and §8
+            # gives it nowhere to sit.
+            raise ValueError(
+                f"cannot conclude at {locus}: the seat {self.focus.seat} does "
+                f"not reach it"
+            )
+        return locus
 
     # -- stratum 0 (§6) ----------------------------------------------------
 
@@ -3307,7 +3362,11 @@ class Machine:
             for e in reversed(current_state(self.chain, topic, seat)):
                 if e.source in hidden:
                     continue
-                props[e.proposition] = (
+                # ⚠ (proposition, span) rather than proposition -- see
+                # `chain.scope_of`. Two recognitions over different stretches
+                # supersede nothing of each other, and keyed by proposition the
+                # state kept exactly one of them.
+                props[(e.proposition, scope_of(e.locus))] = (
                     (e.locus.depth, seat.depth, 0), e
                 )
                 sit.add(e)
@@ -3325,14 +3384,15 @@ class Machine:
             if e.source in hidden:
                 continue  # a domain that is not in mind
             k = (e.locus.depth, seat.depth, i)
-            prev = props.get(e.proposition)
+            scope = (e.proposition, scope_of(e.locus))
+            prev = props.get(scope)
             if prev is not None:
                 if k <= prev[0]:
                     continue
-                del props[e.proposition]  # re-inserted below, so it moves to
+                del props[scope]          # re-inserted below, so it moves to
                 sit.drop(prev[1])         # the newest end of the order, and
                 self._count_goal(goals, prev[1], -1)  # stops being in play
-            props[e.proposition] = (k, e)
+            props[scope] = (k, e)
             sit.add(e)
             self._count_goal(goals, e, +1)
         cache["pos"] = len(seat.delta)
@@ -3999,7 +4059,18 @@ class Machine:
                 if self.chain.resolve(record, self.focus.topic, self.focus.seat) is None:
                     return True
                 continue
-            cur = self.chain.resolve(grounded, self.focus.topic, self.focus.seat)
+            # ⚠⚠⚠ **At the consequent's OWN locus, and this is the same defect
+            # as the write's twice over.** Quiescence asked whether the
+            # proposition already holds at the frame's TOPIC -- so a rule
+            # concluding `+taking_turns(?a, ?b) at ?s` was told *nothing to do*
+            # the moment any span had it, and §13's recursion produced its first
+            # recognition and stopped. Fixing the write alone was not enough:
+            # the loop never reached the write, because the verdict was computed
+            # about a different locus than the one the conclusion would land at.
+            at = self._conclude_at(m, app.bindings, strict=False)
+            cur = self.chain.resolve(
+                grounded, self.focus.topic if at is None else at, self.focus.seat
+            )
             if cur is None or cur.sign != m.sign:
                 return True
         return False

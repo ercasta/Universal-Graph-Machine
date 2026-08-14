@@ -804,6 +804,201 @@ def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
     )
 
 
+def a_span_is_a_locus() -> None:
+    """§11's spans, built -- and §13's worked example, run for the first time.
+
+    §11 has said *a locus is a moment or a span* since it was written, over a
+    box reading **DESCRIBED AND NOT IMPLEMENTED**, and §13's *taking turns* --
+    this document's own worked example of a shape -- carried the matching one:
+    *neither of those two rules can be written in any corpus this engine loads.*
+    Both are discharged here.
+
+    ⭐⭐⭐ **And the wall was not where §11 put it.** The section's costs are
+    normalisation, the quadratic population and the ancestry check, and all three
+    were an afternoon. What actually stood between the document and a running
+    example was **three places that read a locus and ignored it** -- the write,
+    quiescence, and the resolved state's key -- none of which §11 mentions,
+    because each is a line that was correct exactly while every locus was a
+    moment. *A wall nobody argued for*, for the fifth time in this file, and this
+    time the refusals were not even refusals: they were assumptions with no
+    reason to notice they had been made.
+    """
+    from .text import load
+
+    # -- the span itself (§11) --------------------------------------------
+    m = Machine()
+    c = m.chain
+    ms = [c.root]
+    for _ in range(5):
+        ms.append(c.succeed(ms[-1], None))
+
+    s = c.span(ms[1], ms[4])
+    check("§11", "a span is a node with two members, a start and an end",
+          m.g.members(s.node) == (ms[1].node, ms[4].node))
+    check("§11", "...and it is INTERNED, so a stretch has one identity however "
+          "many recognisers reach it -- the twin trap, which a second node here "
+          "would split every claim about the span across",
+          c.span(ms[1], ms[4]) is s and c.span(ms[1], ms[4]).node is s.node)
+
+    # §11: *nothing prevents constructing a span whose start is not an ancestor
+    # of its end. Such a span is meaningless, so the check belongs at the
+    # minting site, where it is cheap and where the mistake is still
+    # attributable.*
+    inverted = degenerate = False
+    try:
+        c.span(ms[4], ms[1])
+    except ValueError:
+        inverted = True
+    try:
+        c.span(ms[2], ms[2])
+    except ValueError:
+        degenerate = True
+    check("§11", "an INVERTED span is refused where it is minted, not where it "
+          "is read", inverted)
+    check("§11", "...and so is a degenerate one -- `span(M2, M2)` is a second "
+          "name for a moment, and two ways to say one locus is the ambiguity "
+          "the read cannot afford", degenerate)
+
+    # -- inheritance is within a kind of locus (§10, §11) -------------------
+    tt = m.g.rel(m.g.atom("taking_turns"), m.g.atom("anna"), m.g.atom("bo"))
+    c.deposit(seat=ms[4], locus=s, proposition=tt, sign=PLUS)
+    check("§10", "⭐ a recognition over a stretch is an ordinary fact once the "
+          "stretch is OVER, so ordinary rules can read what a shape concluded",
+          c.holds(tt, ms[5], ms[5]) == PLUS)
+    check("§10", "...and not before it is over: at M2 the stretch to M4 has not "
+          "happened", c.holds(tt, ms[2], ms[2]) is None)
+
+    # ⭐⭐⭐ The load-bearing refusal, and the one that costs something.
+    rain = m.g.rel(m.g.atom("rain"), m.g.atom("tuesday"))
+    c.deposit(seat=ms[1], locus=ms[1], proposition=rain, sign=PLUS)
+    check("§11", "⭐⭐⭐ a claim about an INSTANT does not become a claim about a "
+          "stretch: *it rained at M1* is not *it rained throughout M1..M4*, and "
+          "inheriting it would answer *did it hold throughout* from an entry "
+          "that cannot see a denial in the middle",
+          c.holds(rain, s, ms[5]) is None and c.holds(rain, ms[2], ms[5]) == PLUS)
+
+    # -- the state's key (§10) ---------------------------------------------
+    # ⚠⚠⚠ Two recognitions over DIFFERENT stretches supersede nothing of each
+    # other. Keyed by proposition alone the state kept exactly one, and §13's
+    # recursion cannot see its own output -- so the shape stops after one step.
+    short = c.span(ms[2], ms[4])
+    c.deposit(seat=ms[4], locus=short, proposition=tt, sign=PLUS)
+    m.gate.reseat(m.focus, ms[5])
+    seen = {repr(e.locus) for e in m._state() if e.proposition == tt}
+    check("§10", "⭐⭐⭐ two recognitions over different stretches are BOTH in "
+          "view -- one entry per proposition was an assumption about loci, and "
+          "it is right exactly while every two of them are comparable",
+          seen == {"S1..4", "S2..4"})
+
+    # -- a rule may CONCLUDE at a locus it bound (§8, §12) ------------------
+    # ⚠⚠⚠ This was parsed, boundness-checked and reified, and the write ignored
+    # it: `{ +noted(?p) at ?mp }` matching entries at M1 and M2 deposited both at
+    # M2. Two entries differing only in a field no outcome check reads.
+    m2 = Machine()
+    load(m2, chr(10).join([
+        "rule <a> = causes( { +start(x) }, { +acts(hero) } )",
+        "rule <b> = causes( { +acts(hero) }, { +acts(goblin) } )",
+        "rule <back> = implies( { +acts(?p) at ?mp }, { +noted(?p) at ?mp } )",
+        "fact +start(x)", ""]))
+    m2.run(limit=120)
+    landed = {m2.g.show(e.proposition): repr(e.locus)
+              for mo in m2.chain.moments for e in mo.delta
+              if m2.g.show(e.proposition).startswith("noted(")}
+    check("§8", "⭐⭐⭐ a rule concludes at the locus its antecedent bound -- "
+          "`+noted(?p) at ?mp` lands where the act was, not where the frame is",
+          landed == {"noted(hero)": "M1", "noted(goblin)": "M2"})
+
+    # -- §13's worked example, over the raw chain --------------------------
+    # ⚠ It has to read the CHAIN rather than the state, and §12 says why in
+    # advance: *a single fact's own history is not relatable -- the superseded
+    # entry is not in the state*. An alternation repeats its actors by
+    # definition, so `acts(anna)` at M1 is superseded by `acts(anna)` at M3 and
+    # the step can never see the earlier turn. §12 names the remedy in the same
+    # breath -- *reaching that means matching over the raw chain, which is what
+    # §6's stratum-0 read is for* -- and since `merged` that is one interpreter
+    # rather than two.
+    #
+    # ⭐⭐⭐ So the shape is TWO rules and a third: the recogniser reads only
+    # structure, so §6's test makes its conclusion structure; and one ordinary
+    # rule says it, at the span, as a claim that is dated, attributed and
+    # deniable. *One to see it, one to say it*, exactly as `reached` found.
+    m3 = Machine()
+    c3 = m3.chain
+    kb3 = load(m3, chr(10).join([
+        "rule <tt-base> = implies(",
+        "  { asking(?q), anc(?q, ?p),",
+        "    in_delta(?p, ?ep), entry_of(?ep, ?p, acts(?b), plus),",
+        "    pred(?p, ?n),",
+        "    in_delta(?n, ?en), entry_of(?en, ?n, acts(?a), plus),",
+        "    pred(?n, ?m), span_of(?s, ?m, ?p) },",
+        "  { turns(?s, ?a, ?b) } )",
+        "rule <tt-step> = implies(",
+        "  { turns(?s2, ?b, ?a), span_of(?s2, ?n, ?e),",
+        "    in_delta(?n, ?en), entry_of(?en, ?n, acts(?a), plus),",
+        "    pred(?n, ?m), span_of(?s, ?m, ?e) },",
+        "  { turns(?s, ?a, ?b) } )",
+        "rule <say> = implies( { turns(?s, ?a, ?b), +watching(x) },",
+        "                     { +taking_turns(?a, ?b) at ?s } )",
+        "fact +watching(x)", ""]))
+    steps = [c3.root]
+    for _ in range(5):
+        steps.append(c3.succeed(steps[-1], None))
+    for i, who in enumerate(["anna", "bo", "anna", "bo", "anna"], start=1):
+        c3.deposit(seat=steps[i], locus=steps[i],
+                   proposition=kb3.term(f"acts({who})"), sign=PLUS)
+    m3.gate.reseat(m3.focus, steps[5])
+    m3.ask_read(steps[5])
+
+    check("§6", "the recogniser is stratum 0 by §6's own test -- every antecedent "
+          "member is structural, and nobody assigned it a layer",
+          sorted(r.name for r in m3.rules.rules if m3.rules.is_stratum0(r))
+          == ["tt-base", "tt-step"])
+    m3.settle_structure()
+    m3.run(limit=300)
+
+    said = sorted({(repr(e.locus), m3.g.show(e.proposition))
+                   for mo in c3.moments for e in mo.delta
+                   if m3.g.show(e.proposition).startswith("taking_turns")})
+    # anna acts at M1, M3, M5 and bo at M2, M4, so a stretch ending at an even
+    # moment is *anna then bo* and one ending at an odd moment is *bo then anna*.
+    want = [("S0..2", "taking_turns(anna, bo)"),
+            ("S0..3", "taking_turns(anna, bo)"),
+            ("S0..4", "taking_turns(anna, bo)"),
+            ("S0..5", "taking_turns(anna, bo)"),
+            ("S1..3", "taking_turns(bo, anna)"),
+            ("S1..4", "taking_turns(bo, anna)"),
+            ("S1..5", "taking_turns(bo, anna)"),
+            ("S2..4", "taking_turns(anna, bo)"),
+            ("S2..5", "taking_turns(anna, bo)"),
+            ("S3..5", "taking_turns(bo, anna)")]
+    check("§13", "⭐⭐⭐ THE DESIGN DOCUMENT'S OWN WORKED EXAMPLE RUNS: *taking "
+          "turns* recognised over every stretch it holds over, by a recursive "
+          "definition whose base case is two turns and whose step consumes one "
+          "and defers the rest", said == want)
+    check("§13", "...and the ALTERNATION is what was recognised -- the argument "
+          "swap in the step is the back-reference that makes this a definition "
+          "rather than *someone acts repeatedly*",
+          ("S0..5", "taking_turns(anna, bo)") in said
+          and ("S0..5", "taking_turns(bo, anna)") not in said)
+    widest = c3.span(steps[0], steps[5])
+    check("§11", "⭐ the extent is DESCRIBED, never enumerated: the recognition "
+          "spanning five moments stores two endpoints, and what lies between is "
+          "the chain's to settle -- membership is not stored because the "
+          "predecessor relation is single-valued",
+          len(m3.g.members(widest.node)) == 2
+          and [x.depth for x in (widest.start, widest.end)] == [0, 5])
+
+    # ⚠⚠⚠ **The recursion needs quiescence to ask at the CONSEQUENT's locus.**
+    # Asking at the frame's topic, the second recognition of one proposition is
+    # *nothing to do* however different the stretch -- so the shape produced its
+    # first two spans and stopped, with every rule right and the loop unable to
+    # tell it had not finished. Fixing the write alone did not reach it: the loop
+    # never got to the write, because the verdict was about another locus.
+    check("§18", "⚠⚠⚠ ...and quiescence asked at the consequent's own locus, "
+          "or the recursion halts after its first recognition with everything "
+          "green", len(said) == 10)
+
+
 def worked_examples() -> None:
     """§8's rules, as printed in the design, actually run."""
     import os
@@ -6826,6 +7021,7 @@ def main() -> int:
     a_computation_happens_inside_the_application()
     a_member_can_name_what_it_matched()
     the_skeleton_is_an_ordinary_member()
+    a_span_is_a_locus()
     the_matchers_are_one()
     a_half_finished_change_is_observable_and_actionable()
     a_reserved_name_no_longer_changes_meaning_silently()

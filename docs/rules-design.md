@@ -1533,10 +1533,24 @@ A **span** is a node with exactly two members: a start moment and an end moment.
 Spans are loci. Nothing else about the entry changes — which is the point: §8 said the locus is a
 moment *or a span*, and nothing in the read (§10) had to grow to accommodate the second.
 
-> ⚠ **DESCRIBED AND NOT IMPLEMENTED.** An entry's locus is a moment, and only a moment: no span is
-> ever built as one, and the surface has no way to write one. This section is a design for a
-> convention that does not exist in the engine, and §22 records it beside `unless`. Everything below
-> is argued rather than built, and the argument has not been checked by anything running.
+> ⭐ **BUILT.** An entry's locus is a moment **or a span**, a corpus writes one with the member
+> `span_of(?s, ?start, ?end)`, and §13's worked example runs on it. Everything below has now been
+> checked by something running — including the two costs, which are checks rather than cautions.
+>
+> ⚠⚠⚠ **And the wall was not where this section put it.** The costs below — normalisation, the
+> quadratic population, the ancestry check — were an afternoon between them. What actually stood
+> between this page and a running example was **three lines that read a locus and ignored it**, none
+> of which appears anywhere in §11, because each was correct exactly while every locus was a moment:
+>
+> | where | what it did |
+> |---|---|
+> | the **write** | a consequent's `at ?m` was parsed, boundness-checked, reified — and the gate stamped the frame's topic anyway |
+> | **quiescence** | asked whether the conclusion already held at the frame's *topic*, so a second recognition of one proposition was *nothing to do* however different the stretch |
+> | the **resolved state's key** | one entry per proposition, which is an assumption about **loci** and not about propositions |
+>
+> The first two are the same defect twice, and fixing only the write bought nothing: the loop never
+> reached the write, because the verdict was computed about a different locus than the one the
+> conclusion would land at.
 
 ### Membership is not stored
 
@@ -1577,15 +1591,82 @@ generic span, option (C) is not a rejected alternative but the only one availabl
 given by a *description*, and §13 is what descriptions are made of. The ❌ in (C)'s composability
 column is the bill that comes with it, and §13 states what it costs.
 
+### How a corpus writes one
+
+`span_of(?s, ?start, ?end)` — `entry_of`'s shape one construct along (§12), and read the same two
+ways. With the **endpoints bound** it mints the stretch, which is what a recogniser does; with the
+**span bound** it decomposes into its two members. Unanchored it finds nothing, and here that is the
+population rather than politeness: any two moments form a span.
+
+```
+rule <r> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp),
+                      span_of(?s, ?mp, ?mq) },
+                   { +took_turns(?p, ?q) at ?s } )
+```
+
+The consequent's `at ?s` is what makes a span a locus in fact: **a rule concludes at a locus its
+antecedent bound**. No new notation — `at` is §12's member locus, and it was already in the surface
+on both sides of a rule.
+
+### Inheritance is within a kind of locus
+
+A locus that is a span meets the read at four directions, and only one of them is free:
+
+| | reads | verdict |
+|---|---|---|
+| a **moment** asking about a **span**-located claim | *they took turns over M7..M12; is that so at M14?* | ✅ **yes, once the stretch is over.** A recognition is an ordinary fact from its end onward, and without this a shape's conclusion is visible to nothing |
+| a **span** asking about a **moment**-located claim | *it rained at M9; did it rain throughout M7..M12?* | ❌ **no.** See below |
+| a **span** asking about another **span** | *it held over M7..M12; did it hold over M9..M11?* | ❌ not read — an interval relation is an ordinary fact about endpoints, so `during(?s2, ?s1)` is a corpus's to conclude |
+
+The ❌ in the middle row is the load-bearing one, and it is scored the way everything else here is:
+
+| | (A) a moment's claim inherits into a span | (B) it does not |
+|---|---|---|
+| not leaking | ❌ answers *did it hold throughout* from an entry that says only *it held then* — and the read returns one winner rather than scanning an interval, so **a denial in the middle of the stretch is invisible** | ✅ nothing is inherited that nobody claimed |
+| not lossy | ✅ | ✅ *it held at the start, so it held throughout* is a rule a corpus writes, and then it is dated, attributed and deniable |
+| readable | ⚠ *sometimes true* is the hardest kind of rule to state | ✅ one sentence: inheritance is within a kind of locus |
+| composable | ⚠ | ✅ |
+
+(A) is free and wrong only sometimes, which is the worst combination this design knows. §12's grade
+deletion made the same trade in the other direction: **the free ordinal becomes the arguable one.**
+
+⚠ **And the resolved state's key follows from it.** One entry per proposition is right exactly while
+every two loci are comparable — on a chain of moments one is always at or before the other, so the
+later governs. Two spans are not comparable, so a claim is superseded only by a claim it is
+comparable *with*, and the state is keyed by the proposition **and the span it is about**.
+
+> ⚠⚠ **And the first version of that paragraph claimed more than was measured.** It said §13's
+> recursion cannot see its own output without this. That is false of the shape as built: *taking
+> turns* recurses in the **structural** layer, which never consults the resolved state, so the
+> kill-probe breaks exactly one check — the one asserting it directly — and all ten recognitions still
+> land. What the key buys is **reading** two recognitions over different stretches, which is what
+> every rule downstream of a shape does. The claim was written before the probe and corrected by it.
+
 ### Costs
 
 * Spans are **directional**, so equality of content must be normalised by chain order, not by member
-  order — otherwise two spans over the same stretch can fail to be equal.
+  order — otherwise two spans over the same stretch can fail to be equal. ✅ Settled by interning on
+  the ordered pair: `span(M7, M12)` is one node however many recognisers reach it, and the inverted
+  pair is not a span at all.
 * Any two moments form a span, so the population is quadratic. Spans are therefore **minted by
-  recognisers, never enumerated**.
+  recognisers, never enumerated**. ✅ `span_of` finds nothing when neither the span nor both
+  endpoints are bound, so there is no pattern that enumerates them.
 * Nothing prevents constructing a span whose start is not an ancestor of its end. Such a span is
   meaningless, so the ancestry check belongs at the **minting site**, where it is cheap and where the
-  mistake is still attributable.
+  mistake is still attributable. ✅ Twice, at its own site each time: the matcher's member *finds
+  nothing*, which is the engine's uniform answer to a pattern nothing satisfies, and `Chain.span`
+  *raises*, because a machinery reaching there with an inverted pair has made a mistake that is
+  attributable. A **degenerate** span is refused with it — `span(M7, M7)` is a second name for a
+  moment, and two ways to say one locus is exactly the ambiguity the read cannot afford.
+
+⚠ **What minting inside a matcher costs, since the interning trap has been this design's most
+expensive recurring bug.** `span_of` creates a node while deciding whether a rule applies, which is
+the same shape as the quiescence verdict that was unsound for exactly that reason. The difference is
+what the node's existence *means*: a stratum-0 conclusion **is** the fact, so creating it answers the
+question being asked, whereas a span node is a name for a pair of moments that **nothing reads the
+existence of** — `span` is in no structural relation, so no rule enumerates spans and no walk visits
+them. Interning then makes the match idempotent. The verdict is pure in the only sense the trap is
+about: asking twice gives the same answer, and asking changes no other answer.
 
 ---
 
@@ -1779,9 +1860,9 @@ one and is written without either keyword, using the short form above.
 > can. `ugm.arbitration` reported 20 disagreements the hour it became possible, and both paths now
 > share one declared order. §10's rule, one level up.
 >
-> ⚠ **Still absent**: `where` as a keyword, §12's `?t = entry(...)` **prefix** form, and spans as loci
-> — so §13's shapes remain unwritable and §15's *an arrival should be a moment* has no route. §22
-> records what is left.
+> ⚠ **Still absent**: `where` as a keyword and §12's `?t = entry(...)` **prefix** form — both cosmetic
+> now that the member forms exist. Spans **are** loci (§11), so §13's shapes are writable and have
+> run; §15's *an arrival should be a moment* still has no route. §22 records what is left.
 >
 > ⭐ **What is no longer absent**, and it closed §22's largest open question rather than a small one:
 > the rest of the skeleton is now members too — `anc`, `in_delta`, `delta_next`, `rests_on`, and
@@ -1978,11 +2059,31 @@ is the base case, and the step case consumes one turn and defers the rest:
 `acts` is an entry rather than anything special, because §15 already settles that an action is an
 ordinary fact holding over an interval.
 
-> ⚠ **NEITHER OF THOSE TWO RULES CAN BE WRITTEN IN ANY CORPUS THIS ENGINE LOADS.** They use §12's
-> skeleton, which is not in the surface, and they conclude at a span locus, which no entry can have.
-> *Taking turns* is this document's worked example of a shape and it has never run. The section is
-> kept because the argument for describing an extent rather than enumerating it is independent of
-> whether spans are built — but every code block in it is a proposal, and §22 records the gap.
+> ⭐⭐⭐ **BOTH OF THOSE RULES NOW RUN**, over a five-moment alternation, recognising *taking turns*
+> over **every stretch it holds over** — ten of them, from `M0..M2` out to `M0..M5`, with the argument
+> swap correct in each. This document's worked example of a shape had never once executed.
+>
+> ⚠ **And it needs the RAW CHAIN rather than the resolved state, which §12 said in advance.** An
+> alternation repeats its actors by definition, so `acts(anna)` at M1 is superseded by `acts(anna)` at
+> M3 — and §12's limit is exact: *a single fact's own history is not relatable, because the superseded
+> entry is not in the state.* The step case needs precisely that earlier turn. §12 names the remedy in
+> the same breath — *reaching that means matching over the raw chain, which is what §6's stratum-0
+> read is for* — and since the matchers merged that is one interpreter rather than two.
+>
+> ⭐⭐⭐ **So a shape is three rules, and the split is §6's own.** The two recognisers mention only
+> structure (`asking`, `anc`, `pred`, `in_delta`, `entry_of`, `span_of`), so §6's test makes their
+> conclusion structure — a `turns(?s, ?a, ?b)` that is undated, unattributed and deniable by nothing,
+> which is what a walk's intermediate result has to be or the bootstrap circle returns. Then **one
+> ordinary rule says it**:
+>
+> ```
+> rule <say> = implies( { turns(?s, ?a, ?b), +watching(x) },
+>                      { +taking_turns(?a, ?b) at ?s } )
+> ```
+>
+> *One to see it, one to say it* — the same shape `reached` found for reading the chain, arriving
+> independently at the shape a recogniser needs. The claim it deposits is an ordinary entry at a span
+> locus: dated, attributed, deniable, and readable by any rule from the end of the stretch onward.
 
 **The alternation is the argument swap** — `?a, ?b` in the head, `?b, ?a` in the recursive member.
 Remove it and the definition says *someone acts repeatedly*. That swap is a back-reference, and it is
@@ -4767,9 +4868,9 @@ New with §20, and the first two are the reason it is a section rather than a pa
   entry sits** — `+acts(goblin) at ?m` — so a rule relates two moments, which is what a foreign corpus
   was spending 24% of itself simulating with a round counter. ✅ And the skeleton's *structural*
   members are all there: `asking`, `anc`, `sanc`, `pred`, `in_delta`, `entry_of`, `delta_next`,
-  `rests_on`. What remains absent: `where` as a keyword, the `?t = entry(...)` **prefix** notation
-  (the member form is `entry_of`), and **spans as loci** — an entry's locus is a moment and never a
-  span, so a span is not a locus in fact however clearly §11 says it is one.
+  `rests_on`. ✅ **And spans are loci** — `span_of(?s, ?start, ?end)` mints a stretch, a consequent's
+  `at ?s` deposits at one, and §13's *taking turns* runs. What remains absent: `where` as a keyword
+  and the `?t = entry(...)` **prefix** notation (the member form is `entry_of`), both cosmetic.
 
   ⭐⭐⭐ **And the bound the read placed on it is gone.** This item recorded that a matcher sees the
   resolved state — one entry per proposition — so two *different* facts at different moments relate
@@ -5205,9 +5306,9 @@ left to be discovered by an author writing the notation this document uses throu
 
 | convention | section | status |
 |---|---|---|
-| the **skeleton** — `where`, named entries, a member's locus | §12 | no surface, and the engine carries the one-locus case only |
-| **spans as loci** | §11 | an entry's locus is a moment; no span is ever built as one |
-| **shapes** | §13 | follows from the two above — the worked definitions cannot be written |
+| the **skeleton** — `where`, named entries, a member's locus | §12 | ✅ built as **members** (`entry_of`, `span_of`, `at`, `as`); `where` as a keyword and the `?t = entry(...)` prefix form remain cosmetic gaps |
+| **spans as loci** | §11 | ✅ built — `span_of` mints, `at ?s` deposits at one |
+| **shapes** | §13 | ✅ follows from the two above — `<TT-base>`/`<TT-step>` run, over the raw chain |
 | **`unless`** | §12 | precedence exists; the other half of defeasibility does not |
 
 ⚠ **Nothing in §21's gates can see any of these**, and that is the general lesson rather than an

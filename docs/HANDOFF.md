@@ -1,4 +1,132 @@
-# Handoff — 2026-08-14 (later)
+# Handoff — 2026-08-14 (spans)
+
+Branch `restart`. **520 checks, 0 failing**; every instrument green — `ugm.dungeon` 17/0,
+`ugm.arbitration` and `ugm.state` 0 disagreements, `ugm.agreement` 28/0 with 7/7 exercised,
+`ugm.backward` 7/0/0 blind, `ugm.shapes` 10 probes 0 changed, `ugm.workload` 25/0.
+
+One item: the handoff's item 1, **spans as loci** — and with it §13's *taking turns*, this design
+document's own worked example of a shape, **which had never once run.**
+
+## The session in one page
+
+> §11, for as long as it has existed: ⚠ **DESCRIBED AND NOT IMPLEMENTED.**
+> §13, underneath its two worked rules: ⚠ **NEITHER OF THOSE TWO RULES CAN BE WRITTEN IN ANY CORPUS
+> THIS ENGINE LOADS.**
+
+Both boxes are gone. A span is a node with two members, `span_of(?s, ?start, ?end)` mints or
+decomposes one, an entry's locus may be either, and §13's `<TT-base>`/`<TT-step>` recognise *taking
+turns* over **every stretch it holds over** — ten of them across five moments, argument swap correct.
+
+⭐⭐⭐ **And the wall was not where §11 put it.** The section lists three costs — normalisation, the
+quadratic population, the ancestry check — and all three together were an afternoon. What actually
+stood between the page and a running example was **three lines that read a locus and ignored it**,
+none of which §11 mentions, because each was correct exactly while every locus was a moment:
+
+| where | what it did | kill-probe |
+|---|---|---|
+| the **write** | a consequent's `at ?m` was parsed, boundness-checked and reified — and the gate stamped the frame's topic anyway | 4 |
+| **quiescence** | asked whether the conclusion already held at the frame's *topic*, so a second recognition of one proposition was *nothing to do* however different the stretch | 3 |
+| the **resolved state's key** | one entry per proposition — an assumption about **loci**, not about propositions | 1 |
+
+⚠⚠⚠ **The first two are one defect twice, and fixing the write alone bought nothing** — the loop never
+reached the write, because the verdict was computed about a different locus than the one the
+conclusion would land at. This is *a knob read and not obeyed* (`adopt`'s finding about a rule's
+grade) arriving at the locus, and it was invisible because two entries differing only in their locus
+look identical to every outcome check in the suite.
+
+**Measured cost of the whole change: nothing.** The unmodified 506-check suite runs on the new engine
+in **8.7s against 8.7s**, and passes.
+
+## The four decisions, each scored before it was taken
+
+1. ⭐⭐⭐ **Inheritance is within a kind of locus.** A moment asking about a span-located claim gets
+   it once the stretch is **over** — without that a shape's conclusion is visible to nothing. A span
+   asking about a moment-located claim gets **nothing**: *it rained at M9* must not answer *did it
+   rain throughout M7..M12*, because the read returns one winner rather than scanning an interval, so
+   **a denial in the middle of the stretch would be invisible**. Free, unarguable, and wrong only
+   sometimes is the worst combination this design knows. A corpus that wants the entailment writes
+   the rule, and then it is dated and deniable — §12's grade deletion, made again.
+2. **`span_of`, a member, not notation.** `entry_of`'s shape one construct along: endpoints bound
+   ⟹ mint (which is what §11 means by *minted by recognisers*), span bound ⟹ decompose, unanchored
+   ⟹ nothing, because any two moments form a span.
+3. **The ancestry check twice, at its own site each time.** The matcher's member *finds nothing* —
+   the engine's uniform answer to a pattern nothing satisfies — and `Chain.span` *raises*, because a
+   machinery reaching there with an inverted pair has made a mistake that is still attributable.
+   A **degenerate** span is refused with it: `span(M7, M7)` is a second name for a moment.
+4. **The state is keyed by proposition AND span.** Supersession needs comparable loci; two spans
+   are not comparable, so each is its own key space.
+
+## A shape is three rules, and the split is §6's own
+
+§13's example needs the **raw chain**, and §12 said so in advance: an alternation repeats its actors,
+so `acts(anna)` at M1 is superseded by `acts(anna)` at M3, and *a single fact's own history is not
+relatable* through the resolved state. §12 names the remedy in the same breath — *matching over the
+raw chain, which is what §6's stratum-0 read is for* — and since `merged` that is one interpreter.
+
+So the two recognisers mention only structure and therefore **conclude structure** (§6's test), and
+one ordinary rule says it:
+
+```
+rule <say> = implies( { turns(?s, ?a, ?b), +watching(x) },
+                     { +taking_turns(?a, ?b) at ?s } )
+```
+
+⭐ **One to see it, one to say it** — `reached`'s finding, arrived at independently from the shape
+side. The claim deposited is an ordinary entry at a span locus: dated, attributed, deniable, and
+readable by any rule from the end of the stretch onward.
+
+## What the instruments caught that I would not have
+
+* ⚠⚠⚠ **Without interning, the recursion never terminates.** The kill-probe minting a fresh node per
+  span is the only one that does not fail — it **runs away**, no answer in 300s. The twin trap's cost,
+  for once, as a hang rather than as a silent wrong answer.
+* ⚠⚠ **My own prose claimed more than the probe supported.** I wrote that the state key is what lets
+  §13's recursion see its own output; it is not, because that recursion is in the structural layer,
+  which never consults the resolved state. Removing the key breaks exactly **one** check — the one
+  asserting it directly. Corrected in `chain.scope_of` and in §11, both of which had already been
+  written up as the stronger claim. *Measure before writing down that you did*, from `seminaive`,
+  holding for a second session running.
+* ⚠⚠ **Two of my probes were twins, and neither engine bug existed.** `g.atom` mints, so a fixture
+  building `acts(anna)` beside the corpus's table matched nothing and looked exactly like a broken
+  matcher. Twice, minutes apart. The fixtures go through `kb.term`.
+
+## The debt this leaves
+
+* ⚠⚠ **`at_or_after` now answers two different questions with one function.** For `resolve` it means
+  *does this claim answer my question*; for `practice._charge` and the containment checks it means
+  *is this locus within my reach*. Those agree for moments and **come apart for spans**:
+  `Span.at_or_after(moment)` is `False`, which is right for inheritance and wrong for containment —
+  a span starting after a frame's origin *is* the frame's own doing. No live path reaches it (the
+  callers are moment-only today) and nothing would catch it if one did.
+* **`settle_structure` is still not called by the tick loop**, and spans make that sharper rather
+  than answering it: a shape recogniser only runs when something calls `ask_read` and settles the
+  structural layer. A corpus author has to know that, and `docs/authoring.md` now says so.
+* **Span containment is unread** — a claim over M7..M12 does not answer about M9..M11. That is
+  deliberate (an interval relation is an ordinary fact about endpoints), but no corpus has written
+  `during` yet, so the claim that it is *expressible* rather than merely *permitted* is unexercised.
+* **Still absent**: `unless` — now the **only** unbuilt row in `docs/authoring.md`'s table — plus
+  `where` as a keyword and §12's `?t = entry(...)` prefix form, both cosmetic now that the member
+  forms exist.
+* Unchanged and untouched: the dungeon's *did it keep deriving after its verdict* instrument, and
+  **no foreign corpus has authored a goal**, which remains the biggest unknown on the list.
+
+## Where I would pick up
+
+1. **Get a foreign corpus to author a GOAL.** Now the largest unknown by some distance — backward
+   reading has never been exercised from outside this repo, and every other item on this list is
+   smaller than it.
+2. **Examples from the agent's own trail**, still unblocked and still not done: `rests_on` is a
+   member, so anti-unification can read the agent's own derivations. Open since `generalise`.
+3. **Decide whether the tick loop settles structure.** A design question, and shapes are the first
+   thing that makes an author trip over the answer.
+4. `unless` — the last unbuilt row, and the one a corpus author asks for by name.
+
+⭐ **The habit held again, and from the other side.** §11 had a costs section listing three things,
+and none of them was the problem; the problem was in three files §11 does not mention. **A section
+that lists its own costs is not the same as a section that knows what it costs** — and the way to
+tell is to run its worked example.
+
+# Superseded: 2026-08-14 (later)
 
 Branch `restart`. **506 checks, 0 failing**; every instrument green, `ugm.dungeon` 17/0,
 `ugm.bundle` 17/17 and 8 answerers with 0 anomalies, `ugm.arbitration` 0 disagreements.
