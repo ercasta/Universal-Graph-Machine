@@ -4541,11 +4541,26 @@ New with §20, and the first two are the reason it is a section rather than a pa
   agent knows exactly which sub-steps to re-run — more than the compilation loop can offer, since that
   can only say *run the slow path* and not *look here*.
 
-  **When to compose, and when to decompose.** Unspecified. And composing a recursive shape is
-  unrolling, which is unbounded, so it takes expansion's budget-and-state discipline.
+  **When to compose, and when to decompose.** Unspecified — and now unspecified in the right place.
+  And composing a recursive shape is unrolling, which is unbounded, so it takes expansion's
+  budget-and-state discipline.
 
-  ✅ One item that *was* here is closed: composition no longer refuses uncertain conclusions, because
-  §16 deleted the thing that made composing them a cache.
+  ✅ **Two items that were here are closed.** Composition no longer refuses uncertain conclusions,
+  because §16 deleted the thing that made composing them a cache. And it **has a trigger**:
+  `compose(<a>, <b>)` is an ordinary request, answered by `<composer>` and refused inside a
+  supposition for `adopt`'s reason — one rule set is shared by every frame, so a shortcut built while
+  supposing would apply after the frame is discharged and to everything.
+
+  ⭐ The trigger is shaped by §21's judgement census rather than by convenience. *Which* rules are
+  worth collapsing is a judgement, and a judgement the machinery makes alone is a seam — the agent
+  could not notice it was composing the wrong things, because a bad shortcut makes worse work and
+  never a wrong conclusion, so no fixture fails. So the answerer never proposes: **the corpus decides,
+  the function executes**, and *compose what has run often and never surprised* stays a corpus's rule
+  rather than becoming a constant in the loop.
+
+  ⭐ And `composed(<c>, <a>, <b>)` is deposited, which closes §1's defect for the twelfth time:
+  `composed_from` was a Python dict, so *which rules is this a shortcut for* was unanswerable — and it
+  is exactly what *decompose on surprise* needs, since the agent has to know which sub-steps to re-run.
 * **A seat move is not yet an entry** (§17). *Every seat move is a write*, and the re-seating that
   keeps the agent's own frame current while it hypothesises is not recorded as one.
 * **Write-time hooks are not rules** (§4, Appendix C). Moving action dispatch to the write was right —
@@ -4888,11 +4903,19 @@ Seventeen, in one authored file, in an order that is itself a precedence claim a
 | `adopt` | inward | a rule becoming live is an act, not a verdict (§20) |
 | `kb` | — | the channel a derived entry is sourced to |
 
-**Answerers — six, each bound by a fact**
+**Answerers — eight, each bound by a fact**
 
-`<fit>`, `<settle>`, `<verdict>`, `<root>`, `<remember>`, `<re-ask>`. Their bodies are native, which is
-what an answerer *is*; their **bindings** are claims, so *which of these exist* is a query. Four carry
-`standing`, and a denial of those is refused on the record (§19).
+`<fit>`, `<settle>`, `<verdict>`, `<root>`, `<supported>`, `<composer>`, `<remember>`, `<re-ask>`.
+Their bodies are native, which is what an answerer *is*; their **bindings** are claims, so *which of
+these exist* is a query. Four carry `standing`, and a denial of those is refused on the record (§19).
+The other four are safe to retire by §19's test — their absence is the status quo ante.
+
+⚠ **A corpus tool may not share a request relation with the apparatus**, and this is refused at
+registration. `_answer` calls *every* answerer bound to a relation, so a corpus tool and an apparatus
+answerer on one request both fire on every such write — the twin trap inverted, two answerers for one
+node rather than two nodes for one name, and worse than a twin because a tool **proposes** where the
+apparatus **concludes**. Found by the apparatus taking a name a fixture already used, where the two
+coexisted only because each declined the other's arity.
 
 **Guards — four, one move**
 

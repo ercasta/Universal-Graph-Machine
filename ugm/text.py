@@ -468,7 +468,31 @@ class Loader:
         reader who never opens the other one has no way to learn the arity from
         the one they are told to call.
         """
-        a = self.m.answerer(name, self.atom(request), fn)
+        # ⚠⚠⚠ **The apparatus must not be joined on its own requests, and this
+        # was found by the apparatus squatting on a name a fixture already
+        # used.** `_answer` calls EVERY answerer bound to a relation, so a
+        # corpus tool registered on `compose` and the apparatus's own composer
+        # both fire on every such write -- and they coexisted only because each
+        # declined the other's arity, which is coincidence, not design.
+        #
+        # It is the twin trap inverted: not two nodes for one name, but two
+        # answerers for one node. The consequence is worse than a twin, because
+        # a tool PROPOSES and the apparatus CONCLUDES (§19), so the collision
+        # silently gives a corpus's tool a share of a request whose answer the
+        # agent acts on directly.
+        #
+        # Refused at registration, which is where the claim is made and the only
+        # moment the caller is looking at it -- the same argument the arity check
+        # beside this one is made from.
+        rel = self.atom(request)
+        taken = [x.name for x in self.m.answerers if x.request is rel]
+        if taken:
+            raise ParseError(
+                f"{request!r} is already answered by {', '.join(sorted(taken))} -- "
+                f"a corpus tool may not share a request relation with the "
+                f"apparatus; choose a request name of your own"
+            )
+        a = self.m.answerer(name, rel, fn)
         if name in self.rule_nodes:
             raise ParseError(f"<{name}> is already declared -- a tool and a rule "
                              f"cannot share a name (see `rule_ref`)")

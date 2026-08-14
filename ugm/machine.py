@@ -441,6 +441,13 @@ class Machine:
         self.rules.SUPERSEDES = self.SUPERSEDES
         self.rules.claims = self._claims
         self.ADOPT = self.g.atom("adopt")
+        # §4's larger optimisation, as a request. ⭐ `composed` closes the same
+        # defect `defeated` and `rests_on` did: `RuleSet.composed_from` is a
+        # Python dict, so *which rules is this a shortcut for* was a question
+        # about the agent's own rule set that no rule could ask -- and §22 needs
+        # exactly that to decompose on surprise.
+        self.COMPOSE = self.g.atom("compose")
+        self.COMPOSED = self.g.atom("composed")
         self.WIDENED = self.g.atom("widened")
         self.REACHED = self.g.atom("reached")
         self.BOUNDED = self.g.atom("bounded")
@@ -497,6 +504,7 @@ class Machine:
             "recall": self.RECALL, "recalled": self.RECALLED,
             "close": self.CLOSE, "tolerance": self.TOLERANCE,
             "defeated": self.DEFEATED, "adopt": self.ADOPT,
+            "compose": self.COMPOSE, "composed": self.COMPOSED,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
             "bounded": self.BOUNDED,
@@ -705,6 +713,9 @@ class Machine:
             # chose to ask. The status quo ante is its absence, which is §20's
             # own test for a capability that is safe to retire.
             ("supported", "support", self._supported, False),
+            # NOT `standing`, by the same test: deny it and the agent is exactly
+            # what it was before composition had a trigger, which is sound.
+            ("composer", "compose", self._compose, False),
             ("remember", "recall", self._remember, True),
             ("re-ask", "again", self._again, False),
         ):
@@ -2242,6 +2253,93 @@ class Machine:
         # own structure.
         # ⚠ The node the graph described, never a fresh one. See `RuleSet.rule`.
         self.rules.rule(connective, ant, con, self.g.show(node), node)
+
+    def _compose(self, frame: Frame, e: Entry) -> None:
+        """Collapse two rules into one, because a corpus asked.
+
+            compose(<a>, <b>)     ⟹     composed(<c>, <a>, <b>)
+
+        §4 calls composition the design's larger optimisation -- it removes
+        steps rather than making them cheaper -- and it had no trigger: the
+        function existed and only Python called it, which is where `adopt` was
+        before it was a door.
+
+        ⭐⭐⭐ **The corpus decides; the function executes.** Which rules are
+        worth collapsing is a judgement, and §21's judgement census says a
+        judgement the machinery makes alone is a seam: the agent could not
+        notice it was composing the wrong things, because a bad shortcut makes
+        worse work and never a wrong conclusion, so no fixture fails. So this
+        answers a request and never proposes one. `{+exercised(?a), +exercised(?b)}
+        ⟹ {+compose(?a, ?b)}` is a corpus's line, and *compose what has run
+        often and never surprised* stays §22's open trigger rather than becoming
+        a constant in here.
+
+        ⚠⚠⚠ **Refused inside a supposition, and it is `_adopt`'s argument
+        exactly.** `RuleSet.rules` is one list shared by every frame, and
+        `compose` appends through `RuleSet.rule` -- so a shortcut built while
+        supposing would apply after the frame is discharged and to everything.
+        Supposing would change what the agent believes, which is the one thing
+        supposing must not do. This guard is the reason composition could not
+        simply be wired to the existing function.
+
+        ⚠ **What it deposits closes a defect rather than adding vocabulary.**
+        `composed_from` was a Python dict, so *which rules is this a shortcut
+        for* was unanswerable by any rule -- §1's pattern, and the one §22 needs
+        for *decompose on surprise*, since the licence has to name the
+        constituents for the agent to know which sub-steps to re-run.
+
+        ⚠ Inherited precedence is deposited here, not appended to a list: since
+        precedence is READ from the graph (§18), a defeat that binds a
+        constituent has to bind the composition as a **claim** or it does not
+        bind at all.
+        """
+        members = self.g.members(e.proposition)
+        if len(members) != 2:
+            return None
+        # ⚠⚠⚠ **`has_var` is not a usable guard here, and copying `_adopt`'s was
+        # the bug.** A LIVE rule node is `causes(moment(...), moment(...))` and
+        # therefore holds the variables of its own patterns, so
+        # `compose(<s1>, <s2>)` reports generic however ground the claim is.
+        # That is §5's use/mention distinction: a ground claim ABOUT a rule names
+        # a node containing variables, and structurally the two are identical.
+        # `_adopt` gets away with the test only because the rule it names has
+        # been described and not yet built.
+        #
+        # What tells them apart is membership of the live set: `by_node` answers
+        # *is this a rule* without asking what it looks like. A genuinely generic
+        # `compose(?x, ?y)` has variables as members, and a variable is in no
+        # rule set, so the same line refuses it.
+        first = self.rules.by_node.get(members[0])
+        second = self.rules.by_node.get(members[1])
+        if first is None or second is None:
+            # Not live rules. `None` is a real answer (§17) -- a tool that must
+            # answer everything is one nothing can decline.
+            return None
+        if self._hypothetical(frame):
+            refusal = self.g.rel(
+                self.REFUSED, e.proposition, self.chain.SIGN[PLUS],
+                frame.purpose or self.g.rel(self.SUPPOSING, e.proposition),
+            )
+            if self.chain.resolve(refusal, frame.topic, frame.seat) is None:
+                self.gate.write(frame, refusal, PLUS, licence=e.node,
+                                source=self.KB, mention=True)
+            return None
+        self.rules.inherit = []
+        composed = self.rules.compose(first, second)
+        if composed is None:
+            return None  # nothing of the first's consequent meets the second
+        self.gate.write(
+            frame,
+            self.g.rel(self.COMPOSED, composed.node, first.node, second.node),
+            PLUS, licence=e.node, source=self.KB, mention=True,
+        )
+        for higher, lower in self.rules.inherit:
+            self.gate.write(
+                frame, self.g.rel(self.OVERRIDES, higher.node, lower.node),
+                PLUS, licence=e.node, source=self.KB, mention=True,
+            )
+        self.rules.inherit = []
+        return None
 
     def _read_rule(self, frame: Frame, node: NodeId):
         """What the graph says this rule is, or `None` if it does not say.

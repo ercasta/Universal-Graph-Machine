@@ -3486,6 +3486,119 @@ def matching_is_incremental() -> None:
           c.holds(kbc.term("z(a)")) == PLUS)
 
 
+def a_corpus_can_shorten_its_own_reasoning() -> None:
+    """§4's larger optimisation, given a trigger. (§4, §19, §21)
+
+    Composition removes STEPS where compilation only makes them cheaper, and it
+    had no way in: `RuleSet.compose` existed and only Python called it, which is
+    exactly where `adopt` was before it was a door.
+
+    What decides *which* rules are worth collapsing is a judgement, and §21's
+    judgement census says a judgement the machinery makes alone is a seam -- the
+    agent could not notice it was composing the wrong things, because a bad
+    shortcut makes worse work and never a wrong conclusion, so no fixture fails
+    and nothing reports it. So the request is answered and never proposed:
+    **the corpus decides, the function executes.**
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <s1> = implies( { +p1(?a,?b), +p2(?b,?c) }, { +i1(?a,?c) } )",
+        "rule <s2> = implies( { +i1(?a,?c), +p3(?c,?d) }, { +q(?a,?d) } )",
+        "fact +compose(<s1>, <s2>)",
+        "fact +p1(a, b)", "fact +p2(b, c)", "fact +p3(c, d)", ""]))
+    m.run(limit=80)
+    made = [r for r in m.rules.rules if r.name.startswith("s1+s2")]
+    check("§4", "a corpus asks, and a rule it did not author is live: "
+          "composition has a trigger", len(made) == 1)
+    # ⭐ Arity and the JOIN are what composition builds, and they are what no
+    # schema rule could take as data -- a rule's antecedent is fixed structure,
+    # and there is no way to pass it *join member 0 with member 2 on `?c`*.
+    ant = made[0].antecedent if made else []
+    check("§12", "...and it carries the union of the premises with the join "
+          "threaded -- 2 + 2 members become 3, not 4",
+          len(ant) == 3 and len(made[0].consequent) == 1)
+    # ⚠ `composed_from` was a Python dict, so *which rules is this a shortcut
+    # for* was unanswerable -- §1's defect, and the one §21 needs for
+    # *decompose on surprise*, since the agent has to know which sub-steps to
+    # re-run. Kill-probe: drop the deposit and only this check falls.
+    rec = [p for p in m.g.instances_of(m.COMPOSED) if m.holds(p) == PLUS]
+    check("§1", "...and what it is a shortcut FOR is on the record, so the "
+          "constituents are askable rather than kept in the machinery",
+          len(rec) == 1 and made and m.g.member(rec[0], 0) is made[0].node)
+    check("§4", "...and the shortcut reaches the same conclusion",
+          m.holds(kb.term("q(a, d)")) == PLUS)
+
+    # ⚠⚠⚠ Containment, and it is `_adopt`'s argument exactly: `RuleSet.rules`
+    # is one list shared by every frame, so a shortcut built while supposing
+    # would apply after the frame is discharged and to everything. Supposing
+    # would change what the agent believes, which is the one thing supposing
+    # must not do.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "rule <s1> = implies( { +p1(?a) }, { +i1(?a) } )",
+        "rule <s2> = implies( { +i1(?a) }, { +q(?a) } )",
+        "rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
+        "rule <inside> = implies( { +trigger(?x) }, { +compose(<s1>, <s2>) } )",
+        "fact +likely(trigger(now))", ""]))
+    n0 = len(m2.rules.rules)
+    m2.run(limit=80)
+    check("§17", "⚠⚠⚠ ...and it is REFUSED inside a supposition, because one "
+          "rule set is shared by every frame",
+          len(m2.rules.rules) == n0
+          and not [r for r in m2.rules.rules if r.name.startswith("s1+s2")])
+    # ...and the refusal is on the record rather than silent, which is the
+    # whole of §5's third place the machinery can decline.
+    refused = any("refused(compose" in m2.g.show(e.proposition)
+                  for e in m2._state())
+    check("§5", "...on the record, wrapped, not silently", refused)
+
+    # ⚠⚠⚠ **`has_var` is not a usable guard for anything naming a rule**, and
+    # copying `_adopt`'s was the bug this fixture found. A LIVE rule node holds
+    # the variables of its own patterns, so `compose(<s1>, <s2>)` reads generic
+    # however ground the claim is -- §5's use/mention distinction, arriving at
+    # the composer. Membership of the live set is what tells them apart.
+    m3 = Machine()
+    kb3 = load(m3, chr(10).join([
+        "rule <s1> = implies( { +p1(?a) }, { +i1(?a) } )",
+        "rule <anything> = implies( { +go(?x, ?y) }, { +compose(?x, ?y) } )",
+        "fact +go(notarule, alsonot)", ""]))
+    n3 = len(m3.rules.rules)
+    m3.run(limit=60)
+    check("§5", "...and naming something that is not a live rule composes "
+          "nothing, which is also what refuses a generic request",
+          len(m3.rules.rules) == n3)
+
+    # ⚠⚠⚠ **The twin trap INVERTED, and this fixture is what found it.** Not
+    # two nodes for one name, but two ANSWERERS for one node: `_answer` calls
+    # every answerer bound to a relation, so a corpus tool registered on
+    # `compose` and the apparatus's own composer both fired on every such
+    # write. They coexisted only because each declined the other's arity, which
+    # is coincidence and not design -- and it is worse than a twin, because a
+    # tool PROPOSES and the apparatus CONCLUDES (§19), so the corpus's tool got
+    # a share of a request the agent acts on directly.
+    from .text import Loader, ParseError
+    m4 = Machine()
+    kb4 = Loader(m4)
+    try:
+        kb4.answerer("mine", "compose", lambda mm, f, e: None)
+        refused_reg = False
+    except ParseError:
+        refused_reg = True
+    check("§19", "⚠⚠⚠ ...and a corpus tool may not share a request relation "
+          "with the apparatus -- refused at registration, where the claim is "
+          "made", refused_reg)
+    # ...and a request of its own is still fine, or the refusal would have
+    # closed the door instead of guarding it.
+    # ⚠ A DIFFERENT tool name, because the first registration is refused and a
+    # probe that removes the refusal would otherwise trip the name check
+    # instead -- a kill-probe that raises where the answer is False reports
+    # nothing, and that trap is now recorded five times in this file.
+    check("§17", "...while a request of its own is registered as ever",
+          kb4.answerer("ownreq", "shorten", lambda mm, f, e: None) is not None)
+
+
 def an_example_becomes_a_rule() -> None:
     """Two cases in, one rule out, and it applies to a third. (§17, §14)
 
@@ -3639,7 +3752,7 @@ def a_rule_can_author_a_rule() -> None:
     **binding**, which `artefact` established is all any rule needs: composing
     is a function, and §17 says a request answered by a function is a tool.
 
-    ⚠ The tool PROPOSES. What lands is `answered(<compose>, ..., <R>)`, and the
+    ⚠ The tool PROPOSES. What lands is `answered(<builder>, ..., <R>)`, and the
     rule becomes live only because a corpus concluded `adopt(?r)` -- so an
     agent that adopts everything a tool offers is an agent whose corpus said to.
     """
@@ -3690,13 +3803,13 @@ def a_rule_can_author_a_rule() -> None:
                     machine.chain.SIGN[PLUS], machine._numeral(0)))
             return node
 
-        kbb.answerer("builder", "compose", compose)
+        kbb.answerer("builder", "build", compose)
         kbb.load(src)
         return mm, kbb
 
     src = chr(10).join([
-        "rule <ask> = implies( { +want(?w) }, { +compose(?w) } )",
-        "rule <take> = implies( { +answered(<builder>, compose(?w), ?r) },",
+        "rule <ask> = implies( { +want(?w) }, { +build(?w) } )",
+        "rule <take> = implies( { +answered(<builder>, build(?w), ?r) },",
         "                      { +adopt(?r) } )",
         "fact +want(a_rule)",
         "fact +seen(door)", ""])
@@ -3730,7 +3843,7 @@ def a_rule_can_author_a_rule() -> None:
     # the same offer is on the record and believed by nobody. `artefact`'s
     # measurement at the same boundary.
     inert, kb_i = build(chr(10).join([
-        "rule <ask> = implies( { +want(?w) }, { +compose(?w) } )",
+        "rule <ask> = implies( { +want(?w) }, { +build(?w) } )",
         "fact +want(a_rule)", "fact +seen(door)", ""]))
     n_before = len(inert.rules.rules)
     inert.run(limit=80)
@@ -3749,8 +3862,8 @@ def a_rule_can_author_a_rule() -> None:
     # everything. Supposing must not bring it about.
     inside, kb_s = build(chr(10).join([
         "rule <suppose-it> = implies( { +want(?w) }, { +suppose(q(?w), certain) } )",
-        "rule <ask> = implies( { +q(?w) }, { +compose(?w) } )",
-        "rule <take> = implies( { +answered(<builder>, compose(?w), ?r) },",
+        "rule <ask> = implies( { +q(?w) }, { +build(?w) } )",
+        "rule <take> = implies( { +answered(<builder>, build(?w), ?r) },",
         "                      { +adopt(?r) } )",
         "fact +want(a_rule)", "fact +seen(door)", ""]))
     s_before = len(inside.rules.rules)
@@ -5717,6 +5830,7 @@ def main() -> int:
     a_scope_can_span_documents()
     matching_is_incremental()
     a_rule_can_author_a_rule()
+    a_corpus_can_shorten_its_own_reasoning()
     an_example_becomes_a_rule()
     the_agent_harmonizes_itself()
     what_a_learned_rule_may_conclude()
