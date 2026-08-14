@@ -2,7 +2,7 @@
 
 `Machine._choose` is an optimisation of a semantics, and §20's floor gate is
 this design's standing answer to that: the slow definition stays, so the fast
-one can be **held to it** rather than trusted. `stratum0` does it for the read;
+one can be **held to it** rather than trusted. `agreement` does it for the read;
 this does it for the move.
 
 The slow definition is `Machine._materialise` -- every live application,

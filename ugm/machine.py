@@ -519,7 +519,16 @@ class Machine:
             "defeated": self.DEFEATED, "adopt": self.ADOPT,
             "compose": self.COMPOSE, "composed": self.COMPOSED,
             "at": self.AT,
+            # The skeleton, as names a corpus may write (§6, §12). `pred` is the
+            # stored immediate predecessor; `anc`/`sanc` are the reflexive and
+            # strict walks; the rest are what the chain deposits as it builds.
             "pred": self.chain.PRED, "sanc": self.chain.SANC,
+            "anc": self.chain.ANC,
+            "in_delta": self.chain.IN_DELTA,
+            "delta_next": self.chain.DELTA_NEXT,
+            "rests_on": self.chain.RESTS_ON,
+            "entry_of": self.chain.ENTRY_OF,
+            "asking": self.chain.ASKING,
             "names": self.NAMES, "computes": self.COMPUTES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
@@ -3014,6 +3023,27 @@ class Machine:
         frame = self.focus
         mention = self._is_mention(app)
 
+        # ⭐⭐⭐ **§6's price, charged by §6's own test.** A rule whose antecedent
+        # is entirely structural is applied without a read, so it must conclude
+        # without one: *stratum 0 must produce structure, not entries. If the
+        # walk deposited its intermediate results as claims, it would be reading
+        # entries and the circle would return.* So the conclusion is an ordinary
+        # interned relation instance -- undated, unattributed, deniable by
+        # nothing -- which is exactly what the skeleton is everywhere else.
+        #
+        # ⚠ That is the whole of the difference between the two matchers. Same
+        # recall, same match, same arbitration, same rule type, same surface;
+        # one more row deciding where the consequent lands, and the row is read
+        # off the antecedent rather than authored. §5's *one interpreter* and
+        # §6's *one more row, not one more branch* are both true of the code now.
+        #
+        # ⚠ Interning is what makes the fixpoint detectable: a fact already
+        # derived mints no node, so a stratum-0 rule re-applying is a no-op and
+        # quiescence sees it as one.
+        if self.rules.is_stratum0(app.rule):
+            self._mint_structure(app)
+            return ()
+
         wrote: List[Entry] = []
         for m in app.rule.consequent:
             grounded = substitute(self.g, m.pattern, app.bindings)
@@ -3031,6 +3061,82 @@ class Machine:
                 )
             )
         return tuple(wrote)
+
+    # -- stratum 0 (§6) ----------------------------------------------------
+
+    def _mint_structure(self, app: Application) -> int:
+        """A stratum-0 rule's conclusion: an ordinary interned relation
+        instance, undated and unattributed. Returns how many were NEW, which is
+        what makes the fixpoint detectable -- interning means a fact already
+        derived mints no node.
+        """
+        added = 0
+        for m in app.rule.consequent:
+            # ⚠⚠⚠ **The count is taken BEFORE substitution, and that is the
+            # whole of the fixpoint.** `substitute` builds the grounded node with
+            # `g.rel`, which interns -- so the fact is created there, and a
+            # novelty test made afterwards always finds it already present. The
+            # loop then derived everything correctly and believed it had derived
+            # nothing: one pass per layer, no fixpoint, and a read that answered
+            # from a third of the candidates. It failed as a wrong ANSWER rather
+            # than as a crash, which is the only reason the gate caught it.
+            before = self.g.count()
+            grounded = substitute(self.g, m.pattern, app.bindings)
+            if self.g.has_var(grounded):
+                continue
+            if m.sign != PLUS:
+                # There is nothing to deny. A skeleton fact is how the graph was
+                # built; a rule concluding `-pred(...)` is not saying something
+                # false, it is saying something with no meaning, and silence
+                # would hide the author's mistake rather than tolerate it.
+                raise ValueError(
+                    f"{app.rule}: a stratum-0 rule concludes structure, and "
+                    f"structure has no sign -- '{m.sign}' on "
+                    f"{self.g.show(m.pattern)} cannot be deposited"
+                )
+            self.g.rel(self.g.relation_of(grounded), *self.g.members(grounded))
+            if self.g.count() != before:
+                added += 1
+        return added
+
+    def ask_read(self, *seats) -> None:
+        """Seed `asking(<seat>)` -- what the rule-level read is anchored on.
+
+        Skeleton, so it is minted rather than deposited: the question is not a
+        claim about the world, and §6's price applies to it as to every other
+        structural fact the read produces.
+        """
+        for s in seats:
+            self.g.rel(self.chain.ASKING, s.node)
+
+    def settle_structure(self) -> int:
+        """Run the stratum-0 rules to fixpoint, layer by layer.
+
+        ⭐ §6's recall policy, and it is the whole of what makes stratum 0
+        different: *recall for stratum 0 is all of them, every time -- the set
+        is small and fixed, so the policy is a different table, not a different
+        mechanism.* Match is the shared one, the rules are ordinary rules, and
+        the conclusion is minted by the shared `_mint_structure`.
+
+        ⚠ Each LAYER to fixpoint before the next begins, because a negated
+        member reads a lower layer and must read a finished one (`RuleSet.strata`).
+        """
+        derived = 0
+        for layer in self.rules.strata():
+            while True:
+                added = 0
+                for r in layer:
+                    for app in match(
+                        self.g, self.chain, r, self.focus.topic, self.focus.seat,
+                        Situation(self.g, []),
+                        computes=self.rules.computes,
+                        structural=self.rules.skeleton(),
+                    ):
+                        added += self._mint_structure(app)
+                if not added:
+                    break
+                derived += added
+        return derived
 
     # -- helpers ----------------------------------------------------------
 
@@ -3335,7 +3441,7 @@ class Machine:
                 found = match(
                     self.g, self.chain, r, self.focus.topic, self.focus.seat, state,
                     computes=self.rules.computes,
-                    structural=self.rules.structural,
+                    structural=self.rules.skeleton(),
                 )
             elif start < here:
                 if start not in deltas:
@@ -3346,7 +3452,7 @@ class Machine:
                 found = match(
                     self.g, self.chain, r, self.focus.topic, self.focus.seat, state,
                     fresh=deltas[start], computes=self.rules.computes,
-                    structural=self.rules.structural,
+                    structural=self.rules.skeleton(),
                 )
             else:
                 continue

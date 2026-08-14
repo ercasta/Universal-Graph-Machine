@@ -2,7 +2,7 @@
 
 `Machine._kept` is an optimisation of a semantics, and §20's floor gate is this
 design's standing answer to that: the slow definition stays, so the fast one can
-be **held to it** rather than trusted. `stratum0` does it for the read,
+be **held to it** rather than trusted. `agreement` does it for the read,
 `ugm.arbitration` for the move; this does it for the state.
 
 The slow definition is §4's walk -- `rules.current_state`, every proposition the

@@ -10,7 +10,7 @@ the same moment needs no skeleton, and the skeleton is what §8 adds for chains.
 
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from .chain import Chain, Entry, Moment
+from .chain import Chain, Entry, MINUS, Moment
 from .graph import Graph, NodeId
 
 CAUSES = "causes"
@@ -158,6 +158,8 @@ class RuleSet:
         # nothing is refused, a downward pattern simply finds nothing, exactly as
         # a rule matching an entry nobody wrote finds nothing.
         self.structural: Dict[NodeId, Callable] = {}
+        # ...and the CLOSURE of that under §6's test, cached. See `skeleton`.
+        self._skeleton: Optional[Dict[NodeId, Callable]] = None
         self.by_node: Dict[NodeId, "Rule"] = {}
         # ...and defeat about a CASE. `overrides` is per tick: a rule overridden
         # by another that matched anywhere this step does not apply at all, which
@@ -235,6 +237,10 @@ class RuleSet:
             )
         r = Rule(node, connective, antecedent, consequent, name)
         self.rules.append(r)
+        # ⚠ A new rule can move the fixpoint -- it may read only structure and
+        # so make its own conclusion structural. `adopt` makes this a run-time
+        # event, not a load-time one.
+        self._skeleton = None
         self.by_node[node] = r
         for m in consequent:
             if m.sign != "+" or self.g.is_var(m.pattern):
@@ -245,6 +251,157 @@ class RuleSet:
         for hook in self.on_rule:
             hook(r)
         return r
+
+    # -- §6's test ---------------------------------------------------------
+
+    def skeleton(self) -> Dict[NodeId, Callable]:
+        """Every relation an ordinary rule reads as STRUCTURE rather than as a
+        claim: the chain's own (`self.structural`) plus whatever a stratum-0
+        rule concludes.
+
+        ⭐⭐⭐ **The strata are derived, not assigned.** §6 defines stratum 0 as
+        *a property of a rule* -- every antecedent member is structural --
+        decided *by inspecting an antecedent rather than by a designer assigning
+        layers*. That is computable, so it is computed: start from what the
+        chain deposits, and add the conclusions of every rule that reads only
+        those. Monotone, so it converges; and because it is a fixpoint from
+        BELOW, a relation is structural only if something grounded in the chain
+        makes it so. A cycle of rules concluding about each other adds nothing.
+
+        ⚠ Recomputed when a rule is added, because `adopt` means the rule set
+        moves at run time and a stratum a rule was classified into before it
+        existed is a stale answer. Cached because `match` asks per member.
+        """
+        if self._skeleton is None:
+            out = dict(self.structural)
+            changed = True
+            while changed:
+                changed = False
+                for r in self.rules:
+                    if not self.is_stratum0(r, out):
+                        continue
+                    for m in r.consequent:
+                        rel = self.g.relation_of(m.pattern)
+                        if rel is not None and rel not in out:
+                            out[rel] = _bounded
+                            changed = True
+            self._skeleton = out
+        return self._skeleton
+
+    def strata(self) -> List[List["Rule"]]:
+        """The stratum-0 rules, grouped into layers that must run in order.
+
+        ⚠⚠⚠ **Negation makes the ORDER load-bearing, and structure cannot be
+        taken back.** `best` is *a candidate nothing beats*. Applied before
+        `beaten` has finished deriving, it mints a fact that is wrong and that
+        nothing can deny -- a skeleton fact has no sign, which is the whole
+        point of it. An entry would merely be superseded; this is permanent. So
+        the layers are not a convenience, they are what makes the negation mean
+        what it says.
+
+        Standard stratification, and it is DERIVED like everything else here:
+        a relation's layer is at least that of every relation a rule reads to
+        conclude it, and strictly greater than that of any relation it reads
+        NEGATED. Chain relations are layer 0. Iterated to a fixpoint, with a
+        ceiling: if the layers keep rising, the rules negate each other in a
+        cycle and there is no stratification to find.
+
+        ⚠ Refused loudly rather than run in some order that happens to work.
+        An unstratifiable set gives a different answer depending on the order
+        the rules are tried, and this is the one component whose whole purpose
+        is to agree with the walk on every look.
+        """
+        rules = [r for r in self.rules if self.is_stratum0(r)]
+        if not rules:
+            return []
+        rel_of = self.g.relation_of
+        chain_rels = set(self.structural)
+
+        # What each derived relation is read FROM, and which of those reads are
+        # negated. Chain relations are the floor and depend on nothing.
+        deps: Dict[NodeId, set] = {}
+        negated: Dict[NodeId, set] = {}
+        for r in rules:
+            for m in r.consequent:
+                c = rel_of(m.pattern)
+                deps.setdefault(c, set())
+                negated.setdefault(c, set())
+                for a in r.antecedent:
+                    b = rel_of(a.pattern)
+                    if b in chain_rels:
+                        continue
+                    deps[c].add(b)
+                    if a.sign == MINUS:
+                        negated[c].add(b)
+
+        # ⚠ RECURSION is not a cycle to be refused -- `dep_after` is transitive
+        # and reads itself. Mutually recursive relations must share a layer and
+        # settle together, so the layers are over the strongly connected
+        # components rather than over the relations. Iterative, because the
+        # derivation graph of a corpus's read is not the recursion depth of this
+        # process.
+        comp = _components(deps)
+
+        level: Dict[int, int] = {}
+        for _ in range(len(comp) + 1):
+            changed = False
+            for c, members in comp.items():
+                want = 0
+                for rel in members:
+                    for b in deps.get(rel, ()):
+                        cb = _find(comp, b)
+                        if cb is None:
+                            continue
+                        step = 1 if (cb != c or b in negated.get(rel, ())) else 0
+                        if cb == c and b in negated.get(rel, ()):
+                            # ⚠⚠⚠ Negation INSIDE a recursion has no
+                            # stratification: the answer depends on the order
+                            # the rules happened to be tried, and this is the
+                            # one component whose whole purpose is to agree with
+                            # the walk on every look.
+                            raise ValueError(
+                                f"{self.g.show(rel)} negates a relation it is "
+                                f"mutually recursive with -- the read has no "
+                                f"order that gives one answer"
+                            )
+                        want = max(want, level.get(cb, 0) + step)
+                if level.get(c, 0) < want:
+                    level[c] = want
+                    changed = True
+            if not changed:
+                break
+
+        layers: Dict[int, List["Rule"]] = {}
+        for r in rules:
+            n = max(
+                (level.get(_find(comp, rel_of(m.pattern)), 0) for m in r.consequent),
+                default=0,
+            )
+            layers.setdefault(n, []).append(r)
+        return [layers[n] for n in sorted(layers)]
+
+    def is_stratum0(
+        self, rule: "Rule", structural: Optional[Dict[NodeId, Callable]] = None
+    ) -> bool:
+        """§6's test: *every antecedent member is structural*.
+
+        Such a rule is applied without a read, so it must also CONCLUDE without
+        one -- §6's price, stated: *stratum 0 must produce structure, not
+        entries. If the walk deposited its intermediate results as claims, it
+        would be reading entries and the circle would return.* So this one
+        predicate decides both halves, which is why there is no second rule
+        type, no marker on the surface and no second interpreter.
+
+        ⚠ An antecedent-less rule is NOT stratum 0. It claims unconditionally,
+        and a conclusion nothing structural licensed is a claim about the world
+        however few premises it has.
+        """
+        structural = self.skeleton() if structural is None else structural
+        if not rule.antecedent:
+            return False
+        return all(
+            self.g.relation_of(m.pattern) in structural for m in rule.antecedent
+        )
 
     def _moment(self, members: Sequence[Member]) -> NodeId:
         """A generic moment: signed members, and no anchored predecessor (§4).
@@ -931,6 +1088,27 @@ def match(
             if walk_fn is not None:
                 # An evaluated member that reads the chain. It yields each way
                 # its arguments can be satisfied, anchored by what is bound.
+                #
+                # ⭐⭐⭐ **A MINUS here is negation as failure, and it needs no
+                # notation.** On an ordinary member the sign says what an entry
+                # claims; a structural member has no entry, so the only thing a
+                # sign can mean is *this was not derived*. `-beaten(...)` is
+                # exactly `stratum0`'s `Item(negated=True)`, written in the
+                # surface a corpus already has.
+                #
+                # ⚠⚠⚠ Safe only because the strata are ORDERED. §6's fixpoint
+                # is built from below, so a negated member names a relation
+                # whose derivation is finished before this rule is reached --
+                # and `_settled` below is what makes that true of the run and
+                # not only of the classification. Negating a relation still
+                # being derived would answer from a half-built extension, which
+                # is the one way a rule-level read could disagree with the walk
+                # non-deterministically.
+                if want.sign == MINUS:
+                    for _ in walk_fn(g, chain, want, bindings):
+                        return  # something satisfies it: the negation fails
+                    step(j + 1, bindings)
+                    return
                 for b in walk_fn(g, chain, want, bindings):
                     step(j + 1, b)
                 return
@@ -1037,6 +1215,161 @@ def _anchored(g, chain, want, bindings, strict: bool):
         m = m.predecessor
 
 
+def _stored(g, chain, want, bindings):
+    """A skeleton relation that is IN the graph -- `pred`, `in_delta`,
+    `delta_next`, `rests_on`, and whatever a stratum-0 rule concludes --
+    matched by unifying against its ground instances.
+
+    ⭐⭐⭐ **This is the whole of the second matcher, and it is four lines.**
+    `stratum0._facts` read exactly this: the ground instances of a relation,
+    told apart from the patterns that look for them by §7's anchored/generic
+    split. A separate engine was never needed to do it; the relations simply
+    were not in the resolved state, which is what `match` was being handed.
+
+    ⚠⚠ **At least one argument must be bound**, and the discipline is *bounded
+    by something already known* rather than *bounded by a named position*. My
+    first version fixed the anchor at argument 0, which reads `in_delta` only as
+    *a moment's entries* -- and deposit order across moments needs it the other
+    way, as *an entry's moment*. Both directions are bounded; neither
+    enumerates the history.
+
+    ⚠⚠⚠ **This is weaker than `_anchored`'s guarantee and the difference is
+    worth stating.** An upward walk cannot reach a sibling branch *whatever* is
+    bound (§11: one parent, several successors). Here containment holds
+    COMPOSITIONALLY instead -- the binding that anchors this member came from
+    somewhere, and if that somewhere was on the frame's walk so is this. The
+    forking-chain check is what holds it, and it is a measurement rather than a
+    construction now. Recorded, not hidden.
+    """
+    rel = g.relation_of(want.pattern)
+    args = g.members(want.pattern)
+    if not any(not g.is_var(walk(g, a, bindings)) for a in args):
+        return  # unbounded: this would enumerate the history, so it finds nothing
+    for node in g.instances_of(rel):
+        if g.has_var(node):
+            continue  # a pattern, not a fact (§7)
+        b = unify(g, want.pattern, node, bindings)
+        if b is not None:
+            yield b
+
+
+def _components(deps: Dict[NodeId, set]) -> Dict[int, set]:
+    """Strongly connected components of a dependency graph, iteratively.
+
+    Tarjan, without recursion: a corpus's read may be deeper than this process's
+    stack, and a stratifier that crashes on a large rule set is a stratifier
+    that decides how many rules a corpus may have.
+    """
+    index: Dict[NodeId, int] = {}
+    low: Dict[NodeId, int] = {}
+    on: Dict[NodeId, bool] = {}
+    stack: List[NodeId] = []
+    out: Dict[int, set] = {}
+    counter = [0]
+
+    for root in list(deps):
+        if root in index:
+            continue
+        work = [(root, iter(deps.get(root, ())))]
+        index[root] = low[root] = counter[0]
+        counter[0] += 1
+        stack.append(root)
+        on[root] = True
+        while work:
+            node, it = work[-1]
+            for nxt in it:
+                if nxt not in deps:
+                    continue  # a chain relation: the floor, not a component
+                if nxt not in index:
+                    index[nxt] = low[nxt] = counter[0]
+                    counter[0] += 1
+                    stack.append(nxt)
+                    on[nxt] = True
+                    work.append((nxt, iter(deps.get(nxt, ()))))
+                    break
+                if on.get(nxt):
+                    low[node] = min(low[node], index[nxt])
+            else:
+                work.pop()
+                if work:
+                    low[work[-1][0]] = min(low[work[-1][0]], low[node])
+                if low[node] == index[node]:
+                    group = set()
+                    while True:
+                        w = stack.pop()
+                        on[w] = False
+                        group.add(w)
+                        if w == node:
+                            break
+                    out[index[node]] = group
+    return out
+
+
+def _find(comp: Dict[int, set], rel) -> Optional[int]:
+    for c, members in comp.items():
+        if rel in members:
+            return c
+    return None
+
+
+def _bounded(g, chain, want, bindings):
+    """A skeleton relation that needs no anchor, because it is bounded by
+    construction: `asking(<seat>)`, and whatever a stratum-0 rule concludes.
+
+    ⭐⭐⭐ **This is where the anchoring discipline actually divides, and it is
+    not where I first drew it.** `_stored` refuses an unbound pattern because
+    the chain's own relations are facts about the WHOLE HISTORY -- deposited
+    whether or not anything asked -- so an unanchored `in_delta` would walk all
+    of it and reach another frame's delta.
+
+    These are not that. `asking` IS the question, and a derived relation exists
+    only because the question was asked: every instance of `cand` was reached
+    through an anchored walk from a seeded seat, so enumerating them enumerates
+    what the anchor already admitted. Requiring an anchor here refuses the read
+    its own conclusions -- which it did, and `beaten` and `best` derived
+    nothing at all while `cand` derived 193.
+
+    ⚠ The containment argument therefore rests on the SEED. A machinery that
+    seeds a seat the frame cannot see would derive facts about it, and nothing
+    structural would stop it. `Machine.ask_read` is the one caller.
+    """
+    rel = g.relation_of(want.pattern)
+    for node in g.instances_of(rel):
+        if g.has_var(node):
+            continue
+        b = unify(g, want.pattern, node, bindings)
+        if b is not None:
+            yield b
+
+
+def _members_of(g, chain, want, bindings):
+    """`entry_of(?e, ?locus, ?prop, ?sign)` -- an entry's own three members.
+
+    §12's `?t = entry(?m, p, +)` prefix form, as a member rather than as
+    notation. An entry node IS `entry(locus, proposition, sign)`, so this reads
+    what is already there; nothing is stored for it.
+
+    ⚠ Anchored on the ENTRY. Decomposing is single-valued -- one entry has one
+    locus, one proposition, one sign -- so from an anchored entry this yields at
+    most one binding, and unanchored it would enumerate the whole history.
+    """
+    args = g.members(want.pattern)
+    if len(args) != 4:
+        return
+    e = walk(g, args[0], bindings)
+    if g.is_var(e) or g.relation_of(e) != chain.ENTRY:
+        return
+    parts = g.members(e)
+    if len(parts) != 3:
+        return
+    b = bindings
+    for pattern, got in zip(args[1:], parts):
+        b = unify(g, pattern, got, b)
+        if b is None:
+            return
+    yield b
+
+
 def structural_relations(chain) -> Dict[NodeId, Callable]:
     """The skeleton, as members an ordinary rule may write (§6, §12).
 
@@ -1044,11 +1377,37 @@ def structural_relations(chain) -> Dict[NodeId, Callable]:
     structural -- decided *by inspecting an antecedent rather than by a designer
     assigning layers*, and that it *runs under the same interpreter*. A separate
     engine with its own rule and item types is the branch that sentence forbids.
-    This is the first step of removing it.
+    This is what removes it.
+
+    Two kinds, and the difference is whether the fact is stored:
+
+      * **stored** -- `pred`, `in_delta`, `delta_next`, `rests_on` are relation
+        instances the chain deposits as it builds. Matched against the graph.
+      * **walked** -- `anc`, `sanc` are transitive closures, and §3 says a
+        stored closure would be a cache of something derived. Anchored, upward,
+        and single-valued by §11, which is what keeps containment structural.
+
+    ⚠ `entry_of` is a third thing again: not stored and not walked, but *read
+    off the node's own members*. An entry is a relation instance like any other
+    and always was.
     """
+    # ⚠⚠⚠ **`pred` was the reflexive-transitive walk, under the name of the
+    # immediate one.** It was registered for corpora to write (`machine.py`'s
+    # name table) and no rule in this repo or the foreign one ever wrote it, so
+    # nothing could see that `pred(?m, ?n)` yielded every ancestor AND `?m`
+    # itself. `anc` is that walk and now carries the name; `pred` is the stored
+    # immediate-predecessor fact the chain actually deposits. A name a corpus
+    # may write whose meaning is not what the name says is worse than an absent
+    # one, because a corpus that used it would have been right to trust it.
     return {
-        chain.PRED: lambda g, c, w, b: _anchored(g, c, w, b, strict=False),
+        chain.PRED: _stored,
+        chain.ANC: lambda g, c, w, b: _anchored(g, c, w, b, strict=False),
         chain.SANC: lambda g, c, w, b: _anchored(g, c, w, b, strict=True),
+        chain.IN_DELTA: _stored,
+        chain.DELTA_NEXT: _stored,
+        chain.RESTS_ON: _stored,
+        chain.ENTRY_OF: _members_of,
+        chain.ASKING: _bounded,
     }
 
 

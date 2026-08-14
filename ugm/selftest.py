@@ -3756,6 +3756,237 @@ def the_skeleton_is_an_ordinary_member() -> None:
           total > 0 and off == 0)
 
 
+def the_matchers_are_one() -> None:
+    """§5's *one interpreter* and §6's *one more row, not one more branch*, made
+    true of the code rather than of the intent.
+
+    `stratum0.py` is deleted. It was a second engine -- its own rule type, its
+    own item type, its own solver -- matching the very same nodes, and §6
+    explicitly disclaims it. What replaces it is ordinary rules under the
+    ordinary matcher, and `ugm.agreement` runs the whole read that way.
+
+    Three things had to exist, and each is §6's own sentence made operational
+    rather than a construct invented for it. The checks below are for the two
+    that are engine, not corpus.
+    """
+    from .text import load
+
+    # ⭐⭐⭐ §6's test decides WHERE A CONCLUSION LANDS. *Every antecedent member
+    # is structural* is computable, so a rule that reads only structure
+    # concludes structure -- which is §6's price (*stratum 0 must produce
+    # structure, not entries*) charged by §6's own definition.
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <up> = implies( { asking(?s), anc(?s, ?a) }, { above(?s, ?a) } )",
+        "rule <ord> = implies( { +seen(?x) }, { +noted(?x) } )",
+        "fact +seen(a)", ""]))
+    up = [r for r in m.rules.rules if r.name == "up"][0]
+    ord_ = [r for r in m.rules.rules if r.name == "ord"][0]
+    check("§6", "⭐⭐⭐ §6's test is computable, so the strata are DERIVED and not "
+          "assigned: a rule reading only structure is stratum 0, one reading an "
+          "entry is not",
+          m.rules.is_stratum0(up) and not m.rules.is_stratum0(ord_))
+
+    # ⚠⚠⚠ Driven by the ORDINARY LOOP, not by `settle_structure`. The first
+    # version of this check ran the settler, which calls `_mint_structure`
+    # directly -- so a kill-probe removing the branch in `_conclude` broke
+    # nothing and the check passed for the wrong reason. `_conclude` is the path
+    # that matters: it is where a stratum-0 rule reached by ordinary recall
+    # would otherwise deposit a claim and reinstate §6's circle. A check about
+    # which of two paths is taken has to take the path.
+    m.chain.succeed(m.chain.root, None)
+    m.ask_read(m.chain.moments[-1])
+    m.run(limit=60)
+    above = kb.term("above")
+    facts = [n for n in m.g.instances_of(above) if not m.g.has_var(n)]
+    check("§6", "⭐⭐⭐ ...and its conclusion is STRUCTURE -- an interned relation "
+          "instance, so the read does not deposit claims and §6's circle stays "
+          "closed, on the ORDINARY loop's path and not only the settler's",
+          len(facts) > 0
+          and not [e for e in m._state()
+                   if m.g.relation_of(e.proposition) == above])
+
+    # ⚠ Interning is what makes the fixpoint detectable, and the count has to be
+    # taken BEFORE substitution -- `substitute` builds the grounded node with
+    # `g.rel`, which interns, so a novelty test made afterwards always finds the
+    # fact already present. That bug derived every fact correctly and reported
+    # deriving nothing, so the loop stopped after one pass per layer and the
+    # read answered from a third of its candidates. It failed as a wrong ANSWER
+    # rather than as a crash.
+    # ⚠ Settled FIRST, then asserted -- the loop above advanced the chain, so
+    # the seeded seat has ancestors the ordinary path never derived about, and
+    # the first settle legitimately finds them.
+    m.settle_structure()
+    check("§6", "⚠ a stratum-0 fixpoint that has settled derives NOTHING on a "
+          "second run -- the novelty test survives interning",
+          m.settle_structure() == 0)
+
+    # ⭐⭐⭐ Negation as failure, and it needed no notation. On an ordinary member
+    # a sign says what an entry claims; a structural member has no entry, so the
+    # only thing a sign can mean there is *not derived*.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "rule <r1> = implies( { asking(?s), anc(?s, ?a) }, { reach(?s, ?a) } )",
+        "rule <r2> = implies( { asking(?s), pred(?s, ?p) }, { near(?s, ?p) } )",
+        "rule <r3> = implies( { reach(?s, ?a), -near(?s, ?a) }, { far(?s, ?a) } )",
+        ""]))
+    a = m2.chain.succeed(m2.chain.root, None)
+    b = m2.chain.succeed(a, None)
+    m2.ask_read(b)
+    m2.settle_structure()
+    far = kb2.term("far")
+    reached = {m2.g.members(n)[1]
+               for n in m2.g.instances_of(kb2.term("reach"))
+               if not m2.g.has_var(n)}
+    got = {m2.g.members(n)[1]
+           for n in m2.g.instances_of(far) if not m2.g.has_var(n)}
+    check("§6", "⭐⭐⭐ a MINUS on a structural member is negation as failure, and "
+          "needs no notation -- there is no entry for a sign to be a claim about",
+          got == reached - {a.node} and b.node in got)
+
+    # ⚠⚠⚠ And it is safe only because the strata are ORDERED. `far` negates
+    # `near`; run in one layer, `far` is derived against a half-built `near` and
+    # the answer depends on the order the rules were tried. Structure has no
+    # sign, so a wrong one cannot be taken back -- an entry would merely be
+    # superseded. The layering is what makes the negation mean what it says.
+    layers = m2.rules.strata()
+    names = [[r.name for r in L] for L in layers]
+    check("§6", "⚠⚠⚠ ...and the negated relation is settled in an EARLIER layer, "
+          "because structure has no sign and a wrong fact cannot be denied",
+          len(names) > 1 and "r3" in names[-1] and "r2" in names[0])
+
+    # ⚠ Recursion is not a cycle to be refused -- `dep_after` is transitive and
+    # reads itself -- but negation INSIDE a recursion has no stratification at
+    # all, and refusing it loudly is the only honest answer.
+    #
+    # ⚠⚠ And the trap needs a POSITIVE rule to open it, which is the fixpoint
+    # working from below doing something useful. A relation that only ever
+    # appears negated in its own definition never becomes structural in the
+    # first place -- `<y>` alone leaves `q` outside the skeleton, so the rule is
+    # simply not stratum 0 and there is nothing to stratify. `<q0>` is what
+    # makes `q` structure, and only then can `<y>` negate it recursively.
+    m3 = Machine()
+    load(m3, chr(10).join([
+        "rule <x> = implies( { asking(?s), anc(?s, ?a) }, { p(?s, ?a) } )",
+        "rule <y> = implies( { p(?s, ?a), -q(?s, ?a) }, { q(?s, ?a) } )",
+        ""]))
+    lone = [r for r in m3.rules.rules if r.name == "y"][0]
+    check("§6", "⚠⚠ a relation that appears ONLY negated in its own definition "
+          "never enters the skeleton -- the fixpoint works from below, so it is "
+          "not stratum 0 and there is nothing to stratify",
+          not m3.rules.is_stratum0(lone) and m3.rules.strata())
+
+    m3b = Machine()
+    load(m3b, chr(10).join([
+        "rule <x> = implies( { asking(?s), anc(?s, ?a) }, { p(?s, ?a) } )",
+        "rule <q0> = implies( { p(?s, ?a) }, { q(?s, ?a) } )",
+        "rule <y> = implies( { p(?s, ?a), -q(?s, ?a) }, { q(?s, ?a) } )",
+        ""]))
+    try:
+        m3b.rules.strata()
+        refused = False
+    except ValueError:
+        refused = True
+    check("§6", "⚠ ...and once it IS structure, negating it recursively is "
+          "refused, naming itself -- there is no order over it that gives one "
+          "answer",
+          refused)
+
+    # ⚠⚠⚠ `pred` was the reflexive-transitive walk under the name of the
+    # immediate one. Registered for corpora to write, and written by nothing, so
+    # nothing could see it. A name whose meaning is not what the name says is
+    # worse than an absent one: a corpus that used it would have been right to
+    # trust it.
+    m4 = Machine()
+    kb4 = load(m4, chr(10).join([
+        "rule <p> = implies( { asking(?s), pred(?s, ?x) }, { parent(?s, ?x) } )",
+        "rule <a> = implies( { asking(?s), anc(?s, ?x) }, { ancestor(?s, ?x) } )",
+        ""]))
+    c0 = m4.chain.root
+    c1 = m4.chain.succeed(c0, None)
+    c2 = m4.chain.succeed(c1, None)
+    m4.ask_read(c2)
+    m4.settle_structure()
+    parents = {m4.g.members(n)[1] for n in m4.g.instances_of(kb4.term("parent"))
+               if not m4.g.has_var(n)}
+    ancestors = {m4.g.members(n)[1]
+                 for n in m4.g.instances_of(kb4.term("ancestor"))
+                 if not m4.g.has_var(n)}
+    check("§11", "⚠⚠⚠ `pred` is the IMMEDIATE predecessor and `anc` is the "
+          "reflexive walk -- one name, one meaning, and `pred` used to be the "
+          "walk",
+          parents == {c1.node} and ancestors == {c0.node, c1.node, c2.node})
+
+    # ⚠⚠⚠ **A fixpoint has to be shown to REACH one**, and *nothing new on the
+    # second run* cannot show it: a novelty test that never fires satisfies that
+    # trivially, and the kill-probe proved it -- breaking novelty broke zero
+    # checks. What discriminates is a derivation deeper than one pass. A
+    # transitive closure over a chain of five needs the layer re-run until it
+    # settles; with novelty broken the layer runs ONCE, each rule sees a
+    # partially built `step`, and the closure comes back short.
+    #
+    # This is the shape of the real bug: `substitute` interns the grounded node,
+    # so a novelty test made after it always found the fact present. Everything
+    # derived correctly and the loop believed it had derived nothing.
+    m6 = Machine()
+    kb6 = load(m6, chr(10).join([
+        "rule <p1> = implies( { asking(?s), pred(?s, ?x) }, { step(?s, ?x) } )",
+        "rule <p2> = implies( { step(?a, ?b), pred(?b, ?c) }, { step(?a, ?c) } )",
+        ""]))
+    walk_up = [m6.chain.root]
+    for _ in range(5):
+        walk_up.append(m6.chain.succeed(walk_up[-1], None))
+    m6.ask_read(walk_up[-1])
+    m6.settle_structure()
+    steps = {m6.g.members(n)[1] for n in m6.g.instances_of(kb6.term("step"))
+             if not m6.g.has_var(n)}
+    check("§6", "⚠⚠⚠ the stratum-0 fixpoint REACHES one -- a transitive closure "
+          "five deep is complete, which *nothing new on the second run* cannot "
+          "show and a broken novelty test satisfies trivially",
+          steps == {mo.node for mo in walk_up[:-1]})
+
+    # ⭐⭐⭐ Containment, with the anchoring discipline doing the work. `in_delta`
+    # is bounded by whatever anchored it, so a read seeded at one branch never
+    # names an entry on its sibling -- measured on a fork rather than argued.
+    m5 = Machine()
+    kb5 = load(m5, chr(10).join([
+        "rule <mine> = implies( { asking(?s), anc(?s, ?d), in_delta(?d, ?e) },",
+        "                      { held(?s, ?e) } )",
+        # ⚠⚠⚠ The DISCRIMINATING case, and the check was vacuous without it.
+        # `<mine>` binds `?d` from the walk before `in_delta` is reached, so
+        # removing the anchoring requirement altogether changes nothing about it
+        # -- the kill-probe broke zero checks. The requirement only ever bites on
+        # a member nothing has bound, and that is the member that would
+        # enumerate the whole history and reach the sibling branch. A check about
+        # what cannot be reached needs a fixture where there is something to
+        # reach AND a pattern that would otherwise reach it.
+        "rule <loose> = implies( { asking(?s), in_delta(?d, ?e) },",
+        "                       { anywhere(?s, ?e) } )", ""]))
+    r = m5.chain.root
+    left = m5.chain.succeed(r, None)
+    right = m5.chain.succeed(r, None)
+    m5.gate.write(m5.gate.frame(left), m5.g.rel(m5.g.atom("on"), m5.g.atom("l")), "+")
+    m5.gate.write(m5.gate.frame(right), m5.g.rel(m5.g.atom("on"), m5.g.atom("r")), "+")
+    m5.ask_read(left)
+    m5.settle_structure()
+    reached_entries = {m5.g.members(n)[1]
+                       for n in m5.g.instances_of(kb5.term("held"))
+                       if not m5.g.has_var(n)}
+    sibling = {e.node for e in right.delta}
+    check("§17", "⭐⭐⭐ containment holds on a FORK: a read anchored at one branch "
+          "reaches no entry on its sibling, because every member is bounded by "
+          "what anchored it",
+          reached_entries and not (reached_entries & sibling))
+
+    loose = [n for n in m5.g.instances_of(kb5.term("anywhere"))
+             if not m5.g.has_var(n)]
+    check("§4", "⚠⚠⚠ ...and an UNANCHORED skeleton member finds nothing rather "
+          "than the whole history -- nothing is prohibited, it simply has no "
+          "bound to walk from, which is what the fork check needs to be able to "
+          "fail",
+          not loose)
+
+
 def a_half_finished_change_is_observable_and_actionable() -> None:
     """A transfer, mid-flight, looks exactly like a finished state. (§8, §19)
 
@@ -6498,6 +6729,7 @@ def main() -> int:
     a_computation_happens_inside_the_application()
     a_member_can_name_what_it_matched()
     the_skeleton_is_an_ordinary_member()
+    the_matchers_are_one()
     a_half_finished_change_is_observable_and_actionable()
     a_reserved_name_no_longer_changes_meaning_silently()
     a_relation_can_be_named_by_a_variable()

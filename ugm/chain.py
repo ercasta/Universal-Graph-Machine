@@ -132,7 +132,36 @@ class Chain:
         # bounded and upward, and a stored transitive closure would be a cache
         # of something derived (§3).
         self.SANC = g.atom("sanc")
+        # ...and the reflexive one. `anc(?m, ?m)` holds, which is what lets a
+        # read asked AT the seat find what the seat itself deposited -- the case
+        # a strict walk silently drops. Both are walked rather than stored, for
+        # `sanc`'s reason.
+        self.ANC = g.atom("anc")
         self.IN_DELTA = g.atom("in_delta")
+        # An entry's own three members, as a relation a rule may write:
+        # `entry_of(?e, ?locus, ?prop, ?sign)`. Nothing is deposited for it --
+        # the entry node already IS `entry(locus, proposition, sign)`, so this
+        # is §12's `?t = entry(...)` prefix form arriving as a member instead of
+        # as notation. The read could not be written without it: every rule
+        # below `in_delta` needs an entry's locus and sign, and until now only a
+        # second matcher's `capture` could reach them.
+        self.ENTRY_OF = g.atom("entry_of")
+        # ⭐⭐⭐ **The question, as a skeleton fact.** `asking(<seat>)` is what the
+        # read is anchored ON, and it is the difference between a read and an
+        # enumeration of the history. Every other member of the read's rules
+        # walks or looks up from something already bound; this is what binds the
+        # first one.
+        #
+        # It is skeleton by the same test as the rest -- nobody asserted it, it
+        # cannot be denied, dated or attributed, and it says how the graph is
+        # being read rather than anything about the world. The machinery seeds
+        # it; §6's price applies to it exactly as to `cand` and `best`.
+        #
+        # ⚠ Without it the read's first member is unanchored, and the only way
+        # to bind a seat is to enumerate every moment -- which is what the second
+        # matcher did, and why it was *deliberately slow*: it derived the read
+        # for every seat in the history whether or not anything asked.
+        self.ASKING = g.atom("asking")
         self.IS_MOMENT = g.atom("moment_of")
         # Position within a delta. A moment's entries are ordered -- two claims
         # about the same locus are told apart by which was deposited later -- and
