@@ -1,12 +1,47 @@
 # Handoff — 2026-08-14 (later)
 
-Branch `restart`. **505 checks, 0 failing**; every instrument green, `ugm.dungeon` 17/0,
+Branch `restart`. **506 checks, 0 failing**; every instrument green, `ugm.dungeon` 17/0,
 `ugm.bundle` 17/17 and 8 answerers with 0 anomalies, `ugm.arbitration` 0 disagreements.
 
-Two commits. `merged` is the handoff's item 1 — **the matchers are one, and `stratum0.py` is
+Three commits. `merged` is the handoff's item 1 — **the matchers are one, and `stratum0.py` is
 deleted**, 306 lines out, the read written as ordinary rules in the surface a corpus writes. `reached`
 is what it took to make that capability **reachable by a corpus**, which turned out to be three
-separate defects and a fourth that was a genuine soundness bug.
+separate defects and a fourth that was a genuine soundness bug. `seminaive` made the merged read
+**34× faster**, and the larger half of that was somewhere nobody was looking.
+
+## `seminaive`: 14.4s → 0.42s, and only a third of it was the planned change
+
+The last handoff named semi-naive evaluation as the one thing between the merged read and being
+usable outside the gate. It was the right change and it was **not most of the cost.**
+
+| | |
+|---|---|
+| naive fixpoint | 14.4s |
+| **semi-naive** — a rule re-runs only when a relation it READS has grown | **5.6s** |
+| **`has_var` decided at mint** instead of walked per question | **0.42s** |
+
+⭐⭐⭐ **Profiling said `has_var` was 91% of what remained** — 7.6M calls, re-walking a whole structure
+each time, because the structural generators ask it of every instance in a bucket on every
+enumeration. A node's relation and members are fixed when it is built, so its genericity is fixed with
+them; deciding it once is O(arity) at mint instead of O(size) per question. **The gate went from about
+two minutes to 2.9 seconds**, and the whole suite benefits, because every matcher asks this.
+
+⚠ **And one optimisation I made bought nothing, which is the same lesson from the other side.** I
+removed the list copy in `instances_of` for the structural generators on the reasoning that a
+193-element bucket enumerated 193 times must be the cost. Measured: **5.58s → 5.68s**, i.e. noise. It
+is reverted, and it had already been written up in a docstring as a measured win before it was
+measured. *Measure before optimising* — including before writing down that you did.
+
+⭐ The semi-naive rule is one sentence: **a rule's matches depend on exactly the relations in its
+antecedent**, so if none of them grew, it can produce nothing new. It pays where the layer is uneven,
+and the read's is — `cand` is the expensive rule and reads nothing derived, so it runs once instead of
+once per pass. ⚠ It is the **coarse** form, by relation rather than by fact; true semi-naive would
+hand each rule only what appeared, and cannot reuse `match`'s `fresh` because that is a `Situation` of
+entries and these are not entries.
+
+⚠ **The cached genericity is an index over what it re-implements**, so the walked definition is kept
+as `Graph._has_var_slow` and a check holds the two to each other over every node three loaded machines
+build. `state` paid for that lesson once already.
 
 ## What the second commit found, and it is the more useful half
 
@@ -128,10 +163,10 @@ corpus that used it would have been right to trust it.
 
 ### The debt, in one place
 
-* ⚠ **The rule-level read is 14s on a five-moment fixture**, so the gate takes ~2 minutes. It is
-  §20's *deliberately slow* path and always was — but the naive fixpoint re-runs whole layers, and
-  semi-naive evaluation (feed each pass only the previous pass's new facts) is the obvious fix and is
-  not done. **Do not put `settle_structure` in the tick loop until it is.**
+* ✅ **The read's speed is no longer the blocker** — 0.42s on the five-moment fixture, gate 2.9s. What
+  remains is the **coarse-to-true** refinement of semi-naive (by fact rather than by relation), and
+  nobody has needed it. `settle_structure` is still not called by the tick loop, and whether it should
+  be is now a design question rather than a performance one.
 * ⚠⚠ **Containment is now compositional rather than structural for `_stored` members.** `_anchored`
   cannot reach a sibling *whatever* is bound (§11: one parent, several successors); `_stored` cannot
   reach one *given how you got here*. The fork check holds it, and it is a **measurement now, not a
@@ -155,14 +190,18 @@ corpus that used it would have been right to trust it.
 
 ## Where I would pick up
 
-1. **Semi-naive evaluation for `settle_structure`.** It is the one thing standing between the merged
-   read and being usable anywhere but the gate, and the shape is already in the engine — `match`'s
-   `fresh` delta does exactly this for the ordinary loop.
-2. **Spans as loci**, then `where` and the prefix form — unchanged from the last handoff, and now the
-   largest representational gap since the skeleton question is closed.
-3. **Examples from the agent's own trail**, newly unblocked: `rests_on` is a member now, so
-   anti-unification can read the agent's own derivations instead of corpus facts.
-4. **Get a foreign corpus to author a GOAL.** Still the biggest unknown on the list.
+1. ⭐ **Spans as loci.** Now the **only** representational gap left in the skeleton, and the one that
+   keeps §13's shapes — *taking turns*, the design document's own worked example — from ever having
+   run. `Entry.locus` is typed as a moment; until it is not, §11 describes a construct the engine does
+   not build. ⚠ It touches `deposit`, `resolve`, the gate and `entry_of`, so it is the session-opening
+   kind of task, not the session-closing kind.
+2. **Examples from the agent's own trail**, newly unblocked: `rests_on` is a member now, so
+   anti-unification can read the agent's own derivations instead of corpus facts. Smaller than spans
+   and it closes an item open since `generalise`.
+3. **Get a foreign corpus to author a GOAL.** Still the biggest unknown on the list, and unchanged by
+   any of this — backward reading has never been exercised from outside this repo.
+4. `where` as a keyword and §12's `?t = entry(...)` prefix form — cosmetic now that `entry_of` exists,
+   and worth doing only alongside spans.
 
 ⭐ **The habit held.** Item 1 looked like it needed `unless` and a new consequent construct; it needed
 neither. Both walls were **refusals nobody had argued for**, and the answer to each was a sentence
