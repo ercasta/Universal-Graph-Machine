@@ -4056,6 +4056,25 @@ def the_matchers_are_one() -> None:
           "what anchored it",
           reached_entries and not (reached_entries & sibling))
 
+    # ⭐ **`has_var` is decided at mint, and an index is a re-implementation of
+    # what it indexes.** It was 91% of the rule-level read -- asked of every
+    # instance in a bucket on every enumeration, re-walking the whole structure
+    # each time -- and deciding it once took the gate from 14.4s to 0.42s. A
+    # node's relation and members are fixed when it is built, so its genericity
+    # is too; the risk is not that the claim is false but that the bookkeeping
+    # drifts, so the walked definition is kept and both are asked of every node
+    # three loaded machines built.
+    drift = 0
+    nodes = 0
+    for mm in (m7, m5, m2):
+        for n in range(mm.g.count()):
+            nodes += 1
+            if mm.g.has_var(n) != mm.g._has_var_slow(n):
+                drift += 1
+    check("§3", "⭐ the cached genericity agrees with the walked definition on "
+          f"every node three machines built ({nodes})",
+          nodes > 0 and drift == 0)
+
     loose = [n for n in m5.g.instances_of(kb5.term("anywhere"))
              if not m5.g.has_var(n)]
     check("§4", "⚠⚠⚠ ...and an UNANCHORED skeleton member finds nothing rather "

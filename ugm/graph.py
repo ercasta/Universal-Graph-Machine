@@ -27,6 +27,16 @@ class Graph:
         self._members: Dict[NodeId, Tuple[NodeId, ...]] = {}
         self._name: Dict[NodeId, str] = {}
         self._is_var: Dict[NodeId, bool] = {}
+        # ⭐⭐⭐ Whether a node is generic, decided at MINT rather than on every
+        # ask. It cannot change: a node's relation and members are fixed when it
+        # is built, so *contains a variable somewhere* is fixed with them.
+        #
+        # Profiled, and it was not a small share: `has_var` was **91% of the
+        # rule-level read** -- 7.6M calls recursing the whole structure each
+        # time, because the structural generators ask it of every instance in a
+        # bucket on every enumeration. Computing it here is O(arity) once
+        # instead of O(size) per question.
+        self._has_var: Dict[NodeId, bool] = {}
         self._next = 0
         # One index, over what was asserted rather than over what was derived
         # (§12): relation instances keyed by (rel, members) so the same
@@ -50,6 +60,10 @@ class Graph:
         """A variable, for the generic moments of a rule (§4)."""
         n = self._mint(None, (), name)
         self._is_var[n] = True
+        # ⚠ Both, and this is the one place they can disagree: `_mint` decides
+        # genericity from the relation and members, which a bare variable has
+        # none of, so it would record False. A variable IS the generic thing.
+        self._has_var[n] = True
         return n
 
     def rel(self, relation: NodeId, *members: NodeId) -> NodeId:
@@ -91,6 +105,11 @@ class Graph:
         self._rel[n] = relation
         self._members[n] = members
         self._is_var[n] = False
+        # Every constituent is already minted, so its answer is already here.
+        self._has_var[n] = (
+            (relation is not None and self._has_var.get(relation, False))
+            or any(self._has_var.get(mm, False) for mm in members)
+        )
         if name is not None:
             self._name[n] = name
         if relation is not None:
@@ -112,13 +131,25 @@ class Graph:
         return self._is_var.get(n, False)
 
     def has_var(self, n: NodeId) -> bool:
-        """Whether a structure is generic -- contains a variable anywhere (§4)."""
+        """Whether a structure is generic -- contains a variable anywhere (§4).
+
+        Decided at mint (see `_has_var`); this is the lookup. The recursive
+        definition it replaces is kept as `_has_var_slow`, and `ugm.selftest`
+        holds the two to each other over every node the suite builds -- an index
+        is a re-implementation of what it indexes, which is the lesson `state`
+        paid for once already.
+        """
+        return self._has_var[n]
+
+    def _has_var_slow(self, n: NodeId) -> bool:
+        """The definition, walked. Not used by the engine; kept so the cached
+        answer has something to be wrong against."""
         if self.is_var(n):
             return True
         r = self._rel[n]
-        if r is not None and self.has_var(r):
+        if r is not None and self._has_var_slow(r):
             return True
-        return any(self.has_var(m) for m in self._members[n])
+        return any(self._has_var_slow(m) for m in self._members[n])
 
     def instances_of(self, relation: NodeId) -> List[NodeId]:
         """Every instance of a relation, in mint order. Insertion-ordered, so a

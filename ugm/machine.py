@@ -3160,12 +3160,40 @@ class Machine:
 
         ⚠ Each LAYER to fixpoint before the next begins, because a negated
         member reads a lower layer and must read a finished one (`RuleSet.strata`).
+
+        ⭐⭐⭐ **Semi-naive: a rule is re-run only when something it READS has
+        grown.** A rule's matches depend on exactly the relations in its
+        antecedent, plus the chain, which does not move while this runs. So if
+        none of them gained a fact since the rule last ran, it can produce
+        nothing new and running it is pure waste -- which is what the naive
+        version did, re-running every rule in the layer on every pass.
+
+        It pays where the layer is uneven, and the read's is: `cand` is the
+        expensive rule and depends on **nothing derived**, so it runs once
+        instead of once per pass, while `dep_after` recurses and keeps its turn.
+        **14.4s -> 5.6s** on the same 553 facts.
+
+        ⚠ And then profiling said the rest was not here at all: `has_var` was
+        **91%** of what remained, asked of every instance in a bucket on every
+        enumeration and re-walking the whole structure each time. Deciding it at
+        mint took the same run to **0.42s**. *Measure before optimising* --
+        semi-naive was the right change and the third of the total.
+
+        ⚠ This is the coarse form -- by RELATION, not by fact. True semi-naive
+        would hand each rule only the facts that appeared, the way `match`'s
+        `fresh` delta does for the ordinary loop; that cannot be reused here
+        because `fresh` is a `Situation` of entries and these are not entries.
+        The refinement is available and unmeasured.
         """
         derived = 0
+        rel_of = self.g.relation_of
         for layer in self.rules.strata():
-            while True:
-                added = 0
-                for r in layer:
+            # Everything runs once; after that, only what reads something new.
+            pending = list(layer)
+            while pending:
+                grew: set = set()
+                for r in pending:
+                    added = 0
                     for app in match(
                         self.g, self.chain, r, self.focus.topic, self.focus.seat,
                         Situation(self.g, []),
@@ -3173,9 +3201,16 @@ class Machine:
                         structural=self.rules.skeleton(),
                     ):
                         added += self._mint_structure(app)
-                if not added:
+                    if added:
+                        derived += added
+                        for m in r.consequent:
+                            grew.add(rel_of(m.pattern))
+                if not grew:
                     break
-                derived += added
+                pending = [
+                    r for r in layer
+                    if any(rel_of(m.pattern) in grew for m in r.antecedent)
+                ]
         return derived
 
     # -- helpers ----------------------------------------------------------
