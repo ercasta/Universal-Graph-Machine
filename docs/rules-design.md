@@ -4718,6 +4718,40 @@ New with §20, and the first two are the reason it is a section rather than a pa
 * **Consistency within a moment** (§8). Two entries with opposite signs in one locus is permitted and
   undetected. That is the right default, since consistency is a question rather than an invariant, but
   the design does not say who asks it or when.
+* ⚠⚠⚠ **A HALF-FINISHED CHANGE IS INDISTINGUISHABLE FROM A FINISHED ONE, AND AN AGENT WILL ACT ON IT**
+  (§8, §17, §19). Predicted by a foreign corpus and constructed here. A transfer takes gold from one
+  purse and puts it in another; with the amounts computed by a **tool**, that is necessarily two
+  applications, because an answer arrives through the write on a later tick. Between them the state is
+  **internally consistent and false**:
+
+  ```
+  total(10, 5)   total(7, 5)   total(7, 8)        -- 15, then 12, then 15
+  ```
+
+  Nothing contradicts anything. `purse(hero, 7)` and `purse(smith, 5)` are both perfectly good claims.
+  There is simply a moment at which the world holds twelve gold and never did.
+
+  **And it is actionable, which is what makes it serious rather than untidy.** An ordinary economy rule
+  — *refuse service when the party is short* — reads the total, concludes `below(12, 15)`, and the
+  agent **emits `refuse_service(hero)`**. Measured. The act leaves the agent, and §19 is emphatic that
+  an act cannot be forgone once emitted. The final purses are conserved; the **decision** is not.
+
+  > **The design has a name for two entries that disagree, and no name for a state that is halfway
+  > through a change.**
+
+  What exists today is narrower than it looks. **A consequent is atomic** — one application deposits
+  all of its entries into one moment, so a transfer written in a single rule cannot be observed
+  half-done, and that was measured too. But arithmetic is a tool (§22's magnitude item), and a tool's
+  answer arrives on a later tick. So:
+
+  > **Atomicity is available exactly when you do not need a tool, and you need a tool for arithmetic.**
+
+  A corpus can guard it — every observer requiring `−transferring(?a, ?b)` — and that is precisely the
+  shape §19 refuses elsewhere: *a convention every corpus has to remember is exactly the kind this
+  design keeps finding it has lost*. Whether the right answer is a mechanism (a moment that declares
+  itself unsettled, so the norm veto and ordinary observers can key on it), or the honest admission
+  that multi-step change needs a frame, is open. What is **not** open is that the current position —
+  §8's *consistency is a question somebody must ask* — is not sufficient once the agent can act.
 * **When a revision is warranted** (§10). The two indices make *I now think otherwise about `M7`*
   sayable, and say nothing about when an agent should write one. Left alone, a system that revises the
   past freely can rewrite its way out of any surprise, which is §18's mechanism defeated by §10's

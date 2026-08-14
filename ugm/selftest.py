@@ -3486,6 +3486,82 @@ def matching_is_incremental() -> None:
           c.holds(kbc.term("z(a)")) == PLUS)
 
 
+def a_half_finished_change_is_observable_and_actionable() -> None:
+    """A transfer, mid-flight, looks exactly like a finished state. (§8, §19)
+
+    Predicted by a foreign corpus and constructed here. Gold leaves one purse
+    and enters another; with the amounts computed by a **tool** that is two
+    applications, because an answer arrives through the write on a later tick.
+    In between, the state is internally consistent and **false** -- nothing
+    contradicts anything, there is simply a moment holding twelve gold where
+    fifteen exists.
+
+    ⚠⚠⚠ **And an ordinary rule acts on it.** *Refuse service when the party is
+    short* reads the total and the agent EMITS. §19 is emphatic that an act
+    cannot be forgone once emitted, so the damage is a decision rather than an
+    inconsistency, and the purses are conserved throughout.
+
+    These checks pin the CURRENT behaviour so that fixing it is visible. They
+    assert the hole, which is unusual and deliberate: §22 records it as open,
+    and a hole nothing asserts is one a later change can close or widen without
+    anyone noticing.
+    """
+    from .text import Loader
+
+    def calc(mm, frame, e):
+        op, a, b = mm.g.members(e.proposition)
+        x, y = int(mm.g.show(a)), int(mm.g.show(b))
+        return mm.g.atom(str(x - y if mm.g.show(op) == "sub" else x + y))
+
+    BODY = chr(10).join([
+        "rule <debit>  = implies( { +pays(?a, ?b), +purse(?a, ?x) },"
+        " { +calc(sub, ?x, 3) } )",
+        "rule <take>   = causes(  { +pays(?a, ?b), +purse(?a, ?x),",
+        "                           +answered(<arith>, calc(sub, ?x, 3), ?r) },",
+        "                         { ? purse(?a, ?x), +purse(?a, ?r),"
+        " +owed(?b, 3), -pays(?a, ?b) } )",
+        "rule <credit> = implies( { +owed(?b, 3), +purse(?b, ?y) },"
+        " { +calc(add, ?y, 3) } )",
+        "rule <give>   = causes(  { +owed(?b, 3), +purse(?b, ?y),",
+        "                           +answered(<arith>, calc(add, ?y, 3), ?r) },",
+        "                         { ? purse(?b, ?y), +purse(?b, ?r), -owed(?b, 3) } )",
+        "fact +purse(hero, 10)", "fact +purse(smith, 5)",
+        "fact +pays(hero, smith)", ""])
+
+    m = Machine(); kb = Loader(m)
+    kb.answerer("arith", "calc", calc)
+    kb.load("rule <watch> = implies( { +purse(hero, ?x), +purse(smith, ?y) },"
+            " { +total(?x, ?y) } )" + chr(10) + "fact standing(<watch>)"
+            + chr(10) + BODY)
+    m.run(limit=300)
+    tot = [m.g.show(e.proposition) for e in m._state()
+           if e.sign == PLUS and m.g.show(e.proposition).startswith("total(")]
+    sums = sorted(sum(int(x) for x in t[6:-1].split(", ")) for t in tot)
+    check("§8", "⚠⚠⚠ a transfer mid-flight is OBSERVABLE: an observer sees a "
+          "total that never existed, and nothing contradicts anything",
+          12 in sums and 15 in sums)
+
+    # ...and the atomic version, so the check says what is available rather than
+    # only what is missing. One application deposits every consequent into one
+    # moment, so a transfer needing no tool cannot be caught half-done.
+    m2 = Machine(); kb2 = Loader(m2)
+    kb2.load(chr(10).join([
+        "rule <watch> = implies( { +purse(hero, ?x), +purse(smith, ?y) },"
+        " { +total(?x, ?y) } )",
+        "fact standing(<watch>)",
+        "rule <pay> = causes( { +pays(?a, ?b), +purse(?a, 10), +purse(?b, 5) },",
+        "                     { ? purse(?a, 10), +purse(?a, 7),"
+        " ? purse(?b, 5), +purse(?b, 8) } )",
+        "fact +purse(hero, 10)", "fact +purse(smith, 5)",
+        "fact +pays(hero, smith)", ""]))
+    m2.run(limit=200)
+    tot2 = [m2.g.show(e.proposition) for e in m2._state()
+            if e.sign == PLUS and m2.g.show(e.proposition).startswith("total(")]
+    sums2 = {sum(int(x) for x in t[6:-1].split(", ")) for t in tot2}
+    check("§12", "...while a consequent IS atomic -- a transfer written in one "
+          "rule is never caught half-done", sums2 == {15})
+
+
 def a_reserved_name_no_longer_changes_meaning_silently() -> None:
     """One node with two meanings. (§5, Appendix C)
 
@@ -6148,6 +6224,7 @@ def main() -> int:
     a_scope_can_span_documents()
     matching_is_incremental()
     a_rule_can_author_a_rule()
+    a_half_finished_change_is_observable_and_actionable()
     a_reserved_name_no_longer_changes_meaning_silently()
     a_relation_can_be_named_by_a_variable()
     a_verb_is_defined_once_and_a_world_is_declared()
