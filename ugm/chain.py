@@ -153,6 +153,7 @@ class Chain:
         self.root = Moment(g.instance(self.MOMENT), None, None)
         g.rel(self.IS_MOMENT, self.root.node)
         self.moments: List[Moment] = [self.root]
+        self._moment_by_node: Dict[NodeId, Moment] = {self.root.node: self.root}
         # Entries by the proposition they are about: (seat, position, entry).
         # Deposit-side, so it indexes what was asserted and never what was
         # derived -- the condition §12 puts on any index in this design.
@@ -171,6 +172,11 @@ class Chain:
         self.g.rel(self.IS_MOMENT, m.node)
         self.g.rel(self.PRED, m.node, predecessor.node)
         self.moments.append(m)
+        # ...and by node, because a rule can now name a moment (§12's `at`) and
+        # something has to get from the name back to the thing. Maintained here,
+        # where moments are made, rather than scanned for -- §7's rule that what
+        # is read off a state is maintained where the state is.
+        self._moment_by_node[m.node] = m
         return m
 
     def deposit(
@@ -281,6 +287,9 @@ class Chain:
 
     def entry_by_node(self, node: NodeId) -> Optional[Entry]:
         return self._by_node.get(node)
+
+    def moment_by_node(self, node: NodeId) -> Optional[Moment]:
+        return self._moment_by_node.get(node)
 
     def claims_about(self, proposition: NodeId) -> List[Entry]:
         """Every entry ever deposited about this proposition, in order. The

@@ -308,9 +308,17 @@ So turn order, initiative, *who acted before whom* — all now writable, on your
 worth building. What is still missing is *it used to be X and now it is Y* about **one** fact, and you
 said you never wanted it; if that changes, say so, because it is a different and much larger job.
 
-⚠ There is **no `succ`/`before` yet**, so a rule can bind two moments and cannot yet ask which came
-first. Binding them is what makes the question askable at all; ordering them is the next piece, and it
-is small. Tell us if you need it before we get to it.
+✅ **And ordering landed too** — ask, then read:
+
+```
+rule <ask>   = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq }, { +order(?mp, ?mq) } )
+rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, +precedes(?mp, ?mq) },
+                       { +acted_after(?q, ?p) } )
+```
+
+`order(?m, ?n)` is a request; `precedes(?m, ?n)` comes back when it holds, and nothing comes back when
+the two are unrelated. It is ancestry rather than a depth comparison, so it stays correct once
+anything forks. Between `at` and this, your initiative and round-order scaffold should go.
 
 ⚠ Please distinguish the two when you write your list. They look identical when you hit them and they
 cost completely different amounts.

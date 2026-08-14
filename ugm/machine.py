@@ -448,6 +448,9 @@ class Machine:
         # exactly that to decompose on surprise.
         # Where a rule's member says its entry must sit (§12's locus).
         self.AT = self.g.atom("at")
+        # ...and asking how two of them are ordered (§10, §22).
+        self.ORDER = self.g.atom("order")
+        self.PRECEDES = self.g.atom("precedes")
         self.COMPOSE = self.g.atom("compose")
         self.COMPOSED = self.g.atom("composed")
         self.WIDENED = self.g.atom("widened")
@@ -508,6 +511,7 @@ class Machine:
             "defeated": self.DEFEATED, "adopt": self.ADOPT,
             "compose": self.COMPOSE, "composed": self.COMPOSED,
             "at": self.AT,
+            "order": self.ORDER, "precedes": self.PRECEDES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
             "bounded": self.BOUNDED,
@@ -719,6 +723,9 @@ class Machine:
             # NOT `standing`, by the same test: deny it and the agent is exactly
             # what it was before composition had a trigger, which is sound.
             ("composer", "compose", self._compose, False),
+            # NOT `standing`, by the same test: nothing in the apparatus asks
+            # it, so a corpus that retires it loses only what it chose to ask.
+            ("ordering", "order", self._order, False),
             ("remember", "recall", self._remember, True),
             ("re-ask", "again", self._again, False),
         ):
@@ -2277,6 +2284,43 @@ class Machine:
         # own structure.
         # ⚠ The node the graph described, never a fresh one. See `RuleSet.rule`.
         self.rules.rule(connective, ant, con, self.g.show(node), node)
+
+    def _order(self, frame: Frame, e: Entry) -> None:
+        """How two moments are related.
+
+            order(<m>, <n>)     ⟹     precedes(<m>, <n>)     ...when it does
+
+        §12's `at` let a rule BIND two moments and left it unable to ask which
+        came first. This is the other half, and §22 argued its shape before it
+        was built: not a skeleton member, which would cost a new member kind and
+        new surface; not deposited `succ` entries, which would make **structure
+        deniable** and cost O(n) facts nobody asked for; an **answerer**, which
+        is §19's established seam -- demand-driven, and it reads structure so it
+        does not reinstate §6's circle.
+
+        ⚠⚠⚠ **Ancestry, never depth**, which is §10's warning and the one thing
+        here that is easy to get wrong. Supposing forks by construction, so two
+        moments can share a depth with neither on the other's walk -- and a
+        depth test would let a claim made inside one supposition answer a
+        question asked inside its sibling. `Moment.at_or_after` is the real
+        test and already existed for the read.
+
+        ⚠ Unrelated moments get **no answer**, rather than a false one. Two
+        siblings in different hypotheses are genuinely not ordered, and saying
+        so by silence is what `None` means at this door (§17).
+        """
+        members = self.g.members(e.proposition)
+        if len(members) != 2:
+            return None
+        a = self.chain.moment_by_node(members[0])
+        b = self.chain.moment_by_node(members[1])
+        if a is None or b is None or a is b:
+            return None  # not moments, or the same one -- nothing to order
+        if not b.at_or_after(a):
+            return None  # unrelated, or the other way round; silence is honest
+        self.gate.write(frame, self.g.rel(self.PRECEDES, a.node, b.node),
+                        PLUS, licence=e.node, source=self.KB, mention=True)
+        return None
 
     def _compose(self, frame: Frame, e: Entry) -> None:
         """Collapse two rules into one, because a corpus asked.

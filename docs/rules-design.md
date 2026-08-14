@@ -1708,6 +1708,24 @@ one and is written without either keyword, using the short form above.
 > read is for, and it reopens the bootstrap question. The corpus that asked for this needed only the
 > first half and never once wanted the second.
 >
+> ⭐ **And two bound moments can be ordered**, by a request rather than a skeleton member (§22 argued
+> the shape; §19 is the seam):
+>
+> ```
+> { +acts(?p) at ?mp, +acts(?q) at ?mq }  ⟹  { +order(?mp, ?mq) }
+> { ... +precedes(?mp, ?mq) }             ⟹  { +acted_after(?q, ?p) }
+> ```
+>
+> It is **ancestry, never depth** — §10's warning, and the reason `Moment.at_or_after` already existed.
+> Unrelated moments get no answer rather than a false one.
+>
+> ⭐⭐⭐ **And a rule can only ever bind moments on its own walk.** A rule matches the state resolved at
+> its own locus, so every entry it binds has a locus at-or-before that locus, and two such moments are
+> both on one path. Measured on a chain forking 31 times: 145 orderings requested, **every pair
+> related**. Containment was already guaranteeing the thing that makes ordering well defined — which is
+> why the depth mistake is unreachable today, and why the ancestry test is kept anyway for the day an
+> arrival's fork puts two branches within reach.
+>
 > ⚠ **Still absent**: `where` and the skeleton's *structural* members (`?n = succ(?m)`), named entries,
 > and spans as loci — so §13's shapes remain unwritable and §15's *an arrival should be a moment* has
 > no route. §22 records what is left.
