@@ -82,18 +82,39 @@ occasion the machinery deposits — `quiet`, `left`, `stopped` — reach for `im
 
 ## 4. What works, and is worth building on
 
-**One fact per ability, one generic rule.** The highest-leverage pattern available, and the only place
-where knowledge can be facts rather than rules:
+**One rule per ability.** This is the pattern to build on, and it is a rule rather than a fact for a
+reason worth understanding before you commit a design to it:
+
+```
+rule <fireball> = implies( { +did(fireball(?t)) }, { +burned(?t) } )      -- parameterised ✅
+```
+
+⚠ **The `achieves` idiom is ground-only, and this is the correction to make before you lean on it.**
+The catalogue-as-data shape does work:
 
 ```
 rule <resolve> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )
-fact achieves(fireball, burned(goblin))
+fact achieves(fireball_goblin, burned(goblin))        -- one fact per (spell, TARGET) pair
 ```
 
-The bare-variable consequent `{+?y}` is legal because `?y` is bound by the antecedent. One rule
-consumes an unlimited catalogue of abilities. ⚠ Note what it cannot do: the fact carries a **whole
-proposition**, never a relation plus arguments — `?p(?x)` will not parse, so you cannot assemble an
-effect from parts.
+but it does not parameterise. `fact achieves(fireball(?t), burned(?t))` is refused outright — a fact
+may not contain a variable. Written as a **named** fact, where variables are allowed, it parses and
+then **never fires**: `?a` binds to the stored pattern `fireball(?t)`, and matching that against a
+ground `did(fireball(goblin))` is `match`, which is floor and which no rule may call (§5).
+
+| | `burned(goblin)` |
+|---|---|
+| `fact achieves(fireball(?t), burned(?t))` | refused at load |
+| the same as a **named** fact | parses, `None` — never fires |
+| `fact achieves(fireball_goblin, burned(goblin))` | `+` — but one fact per pair |
+| `rule <fireball> = implies( { +did(fireball(?t)) }, { +burned(?t) } )` | `+` ✅ |
+
+> **Ability catalogues are rules, not data.** A fact can carry a whole ground proposition as an
+> argument; it cannot carry a pattern that anything will apply.
+
+This is the same fact as the shape census, seen from the authoring side: 12.6% of rules in this
+repository are ground, **0%** of the external corpora are, and the ground family *is* this idiom. Real
+corpora parameterise, so real corpora are rules.
 
 **Damage takes both members.** The wrapper says which way; the `?` stops the chain answering the old
 value:
@@ -121,7 +142,39 @@ is floor. Do not try to put your rulebook in a fact.)
 
 ---
 
-## 5. Walls — things the document describes that the engine does not have
+## 5. Why the unsayable things are unsayable
+
+"Unsayable" covers four quite different situations, and confusing them will waste your time in both
+directions — arguing with a wall that is really a to-do, or designing around a to-do as if it were a
+wall. Probed at `bdb6687`:
+
+| you cannot say | why, exactly | kind |
+|---|---|---|
+| *the goblin acts after the hero* | matching resolves the state at **one locus** and a member carries no locus of its own. Nothing forbids it | **unbuilt** |
+| *while poisoned* — a span as a locus | an entry's locus is typed as a moment; no span is ever built as one | **unbuilt** |
+| shapes (§13) | needs both of the above | **unbuilt** |
+| `unless(<R>, +cond)` | specified in §12, implemented nowhere | **unbuilt** |
+| *apply the effect named by this spell* — `?p(?x)` | the substrate **builds it fine**; `unify` compares the relation slot by identity and `ground` will not substitute one. Implementable, and it costs §3's only index | **a scored trade, not a wall** |
+| *my rulebook, as facts* | §8 scopes a statement's variables to it — measured, `?x` in two named facts are **different nodes**, so a rule assembled from them concludes about something nothing binds | **deliberate, and load-bearing** |
+| *it falls by 3* | a value that is constrained but not bound has no representation at all | **a real gap** (§22) |
+| `−` matching *nothing was said* | open-world semantics: silence inherits, it does not deny | **deliberate, and correct** |
+
+**Four of the eight are simply not built.** That is the headline, and it is better news than the list
+looks: they are absent because of implementation order, not because anything in the design resists
+them. `rules.py` says so in its own first paragraph — *slice one carries the one-locus case only*.
+
+Two are deliberate and would be wrong to change. One is a genuine gap the design records and has not
+solved. And exactly one is a **decision nobody has made** rather than a limit anybody argued for: a
+variable in relation position is constructible today and simply not unified, and allowing it would buy
+the parameterised effect catalogue at the cost of the one index the substrate provides — the same
+trade the design already accepts for a bare-variable consequent, which is excluded from the index and
+otherwise legal.
+
+> **Ask which of the four you are hitting before you design around it.** If it is *unbuilt*, say so
+> loudly and it may get built — this note exists because probing turned four documented conventions
+> into to-do items in an afternoon.
+
+## 6. Walls — things the document describes that the engine does not have
 
 Recorded in §22 and Appendix C as of this session. You will reach for all of these in an RPG.
 
@@ -139,7 +192,7 @@ skeleton); it is unbuilt, and your demo is the best argument for or against buil
 
 ---
 
-## 6. Smaller traps, each measured
+## 7. Smaller traps, each measured
 
 * **Two rules that say the same thing are two rules.** Restating is not revising; deny the one you
   meant.
@@ -160,7 +213,7 @@ skeleton); it is unbuilt, and your demo is the best argument for or against buil
 
 ---
 
-## 7. What we would like back
+## 8. What we would like back
 
 Two things, and the second is worth more.
 
