@@ -295,9 +295,22 @@ session. You will reach for all of them in an RPG.
 | `unless(<R>, +condition)` | described in §12, implemented nowhere |
 
 **No rule can relate two moments.** That is the single largest constraint on an RPG corpus, and it is
-not a bug you can route around with cleverness — it is one missing member kind. A narrower substitute
-is proposed in §22 (succession as an **answerer**, so `pred` becomes askable without the whole
-skeleton); it is unbuilt, and your demo is the best argument for or against building it.
+not a bug you can route around with cleverness — it is one missing member kind.
+
+⭐ **It has been probed and sized, and it splits in two. Tell us which half you needed.**
+
+| | |
+|---|---|
+| **sequencing** — two *different* facts at different moments, *the goblin acts after the hero* | **about half a day.** A member gains a locus slot and the match binds it: prototyped, worked first try, suite stayed green. The entry has carried its locus all along and nothing looked at it |
+| **a fact's own history** — the *same* proposition at two moments, *the door was open and now is closed* | **not sized, materially harder.** A matcher sees the **resolved** state — one entry per proposition — so the superseded entry is simply not there. Reaching it means matching over the raw chain, which is what §6's stratum-0 read is for, and reopens the bootstrap question |
+
+So if what you keep wanting is turn order, initiative, *who acted before whom*, or *this happened
+after that* — that is the cheap half and saying so will probably buy it. If what you keep wanting is
+*it used to be X and now it is Y* about **one** fact, that is the expensive half, and knowing that is
+worth as much as knowing the other.
+
+⚠ Please distinguish the two when you write your list. They look identical when you hit them and they
+cost completely different amounts.
 
 ---
 
