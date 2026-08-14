@@ -2,7 +2,8 @@
 
 Branch `restart`. **520 checks, 0 failing**; every instrument green — `ugm.dungeon` 17/0,
 `ugm.arbitration` and `ugm.state` 0 disagreements, `ugm.agreement` 28/0 with 7/7 exercised,
-`ugm.backward` 7/0/0 blind, `ugm.shapes` 10 probes 0 changed, `ugm.workload` 25/0.
+`ugm.backward` 7/0/0 blind, `ugm.shapes` 10 probes 0 changed, `ugm.workload` 25/0, `ugm.bundle`
+**17 rules 17 exercised, 8 answerers 0 anomalies** — every one of these unchanged from `seminaive`.
 
 One item: the handoff's item 1, **spans as loci** — and with it §13's *taking turns*, this design
 document's own worked example of a shape, **which had never once run.**
