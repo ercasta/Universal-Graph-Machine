@@ -211,19 +211,25 @@ rule <pay> = causes(
 Measured: a standing observer sees `total(10, 5)` then `total(7, 8)` and **never the 12 in between**.
 Use a computator wherever the arithmetic is pure; keep a tool for anything that talks to the world.
 
-⚠ **And when a change genuinely takes more than one tick, the intermediate is real — say so.** If your
-transfer waits on a die roll, a player, or anything outside, the money really has left one purse and
-not reached the other, and an observer that sees it is seeing a fact. **Only your corpus knows the two
-ticks are one event**, so only your corpus can mark it:
+⭐ **And when a change genuinely takes more than one tick, do not assert a value you do not yet have.**
+If your transfer waits on a die roll, a player, or anything outside, then part-way through you *do not
+know* what the purses hold — so say `?` and assert the numbers only on settlement:
 
 ```
-rule <start> = causes( { +pays(?a, ?b, ?n) }, { +transferring(?a, ?b, ?n), … } )
-rule <total> = implies( { +purse(hero, ?x), +purse(smith, ?y), -transferring(?a, ?b, ?n) },
-                       { +settled_total(?x, ?y) } )
+rule <start>    = causes( { +pays(?a, ?b, ?n), +purse(?a, ?x), +purse(?b, ?y) },
+                          { ? purse(?a, ?x), ? purse(?b, ?y), +pending(...) } )
+rule <complete> = causes( { +pending(...), +confirmed(?a, ?b),
+                            minus(?x, ?n) as ?x2, plus(?y, ?n) as ?y2 },
+                          { +purse(?a, ?x2), +purse(?b, ?y2), -pending(...) } )
 ```
 
-Nothing enforces this and nothing can — the machinery cannot tell that two applications are one
-event. It is the same kind of obligation as §1's *write your negatives*.
+Measured: mid-transfer the purses read `?`, an observer **cannot form a total at all**, and on
+confirmation it is `total(7, 8)`, conserved. No marker fact anyone has to remember to consult — a
+reader cannot get the value without the sign, because the sign is a member of the entry (§9).
+
+⚠ The tempting alternative — a `+transferring(...)` flag that observers check — is worse, and for the
+reason §16 rejected grades: **it is a separate read, so it can be obtained without the facts it
+qualifies.** An observer that does not think to ask sees a settled state. Prefer `?`.
 
 ⚠ **That last member is load-bearing.** Without retracting the trigger the rule debits **forever** —
 the first version of this fixture took the purse down in threes until the budget stopped it. Same

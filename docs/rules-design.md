@@ -4834,25 +4834,38 @@ New with §20, and the first two are the reason it is a section rather than a pa
   §19 refuses — was misapplied. §19 refuses a discipline when **the machinery could have known and
   did not**. Here it genuinely cannot.
 
-  ⭐⭐⭐ **What is missing is the same problem §9 already solved one scope down.** A *value* in flux has
-  vocabulary: `?`, which reports ignorance when read. A *relationship* in flux has none — each
-  proposition is individually settled and reads `+`, and nothing says the pair is mid-change:
+  ⭐⭐⭐ **And nothing is missing — the convention was simply written wrong.** This item said, twice,
+  that the design lacked *a vocabulary for transitional states*, and proposed a moment that declares
+  itself unsettled. That was §2's own warning happening live: **reaching for a new engine feature to
+  rescue a convention is how islands are made.**
 
-  | in flux | what a read gives |
-  |---|---|
-  | one proposition — *pouring raises the level* | `?` — ignorance, reported |
-  | several jointly — *the gold is in transit* | `+`, `+` — two confident numbers |
+  §9's `?` is the vocabulary. *It invalidates without replacing: it stops the walk and reports
+  ignorance.* A value part-way through a change the corpus has not finished making is **not known**,
+  and saying so is what `?` is for. What produced the phantom state was a corpus asserting a number it
+  had no warrant for yet:
 
-  And that identifies what is wrong with `transferring(?a, ?b, ?n)` as the answer: **it has the defect
-  §16 rejected the grade for.** *A tag is a separate read… so it can be obtained without the fact*, and
-  an observer that does not think to ask reads a mid-transfer state as settled. Both are authorial
-  obligations — forgetting `?` gives a stale value just as silently — but the asymmetry is at **read**
-  time, and that is the half that matters, because an author writes once and readers read forever.
+  ```
+  rule <start>    = causes( { +pays(?a, ?b, ?n), +purse(?a, ?x), +purse(?b, ?y) },
+                            { ? purse(?a, ?x), ? purse(?b, ?y), +pending(...) } )
+  rule <complete> = causes( { +pending(...), +confirmed(?a, ?b), … },
+                            { +purse(?a, ?x2), +purse(?b, ?y2), -pending(...) } )
+  ```
 
-  ⭐ Which says what a fix would have to look like, by §16's own reasoning: not another fact beside the
-  ones in flux, but something **on the node the read already returns**. A *moment* that declared itself
-  unsettled would be reached by the same walk that reaches its entries, with no second read to forget.
-  Unbuilt, unscored, and the first candidate worth scoring.
+  Measured: while in transit the purses read `?`, **an observer cannot form a total at all**, and the
+  only one on the record is from before the transfer began; on confirmation, `total(7, 8)`, conserved.
+  No new construct, no marker fact to forget, and the guarantee is structural for the reason §9 gives —
+  a reader cannot obtain the value without the sign, because the sign is a member.
+
+  > **A change you have not finished making leaves the facts it touches UNKNOWN, and that is a
+  > statement the design has always been able to make.** *In transit* is open-class domain content; the
+  > ignorance it implies is not.
+
+  ⚠ Recorded because the route to it is the finding, not the answer. This item was wrong three times:
+  first that atomicity was broken (only the *artifact* half was), then that a real intermediate needed
+  hiding (it is true and should be visible), then that saying so needed new vocabulary. Each correction
+  came from asking which of substrate and convention was at fault, and the answer was the convention
+  every time — which is what §2 says the default answer must be.
+
 * **When a revision is warranted** (§10). The two indices make *I now think otherwise about `M7`*
   sayable, and say nothing about when an agent should write one. Left alone, a system that revises the
   past freely can rewrite its way out of any surprise, which is §18's mechanism defeated by §10's
