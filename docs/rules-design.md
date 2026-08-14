@@ -4329,7 +4329,7 @@ compiled into itself. A convention with no rule-level definition is a convention
 the floor, whatever the document says — and one that cannot be stopped mid-way has escaped even if its
 answers agree.
 
-Three companion counters, cheap and blunt:
+Four companion counters, cheap and blunt:
 
 * **the number of phases in the interpreter's step.** Every phase is a convention the engine knows by
   name, and — per §4 — every phase is compiled control flow. Target: zero. **It is zero.**
@@ -4337,6 +4337,50 @@ Three companion counters, cheap and blunt:
   whose members are all structural (§6).
 * **the census.** Appendix C, and the count of reserved names with an interpreter branch behind them
   is the measure of progress.
+* **the judgement census**, below — and it is the one with no natural advocate, because every entry on
+  it is something that works.
+
+### The judgement census, and why it is not about purity
+
+Every counter above asks *how much machinery is there*. This one asks a different question, and it is
+the one that predicts where the next defect will be:
+
+> **Which judgements does the machinery make that no rule can argue with — and if one were wrong, how
+> would the agent find out?**
+
+The second half is the test. Most of what is not rules embodies **no judgement at all**: whether
+unification succeeds, what a chain's predecessor is, what an entry was built from. There is one right
+answer, so there is nothing to argue with, and being code costs nothing. §6 proves three such places
+must exist — reading, selecting and proposing each bottom out in a function — and a fourth of the same
+kind is free.
+
+A **judgement** is different. *What a situation is about* has no forced answer; it is exactly the kind
+of claim §19 says experience should supply, and it lives in one method. That is not a tidiness
+complaint, and the cost is specific:
+
+> **A seam is where the agent stops being able to be wrong about something.** If it is a rule it can
+> be defeated, denied, dated, credited, blamed and overridden. If it is a seam, it is simply how
+> things are — and the agent cannot notice it was mistaken, cannot be told, and cannot improve.
+
+**And they accumulate silently, because the suite cannot see them either.** This is the state gate's
+finding generalised: *nothing that asserts what the agent concluded can see what it was thinking about
+while it concluded it.* A judgement that only degrades **quality** is invisible to every check that
+asserts **correctness** — a wrong key set makes a worse choice and never a wrong conclusion, so no
+fixture fails and only a purpose-built instrument ever sees it. So a seam blocks twice: the agent
+cannot learn it, and nothing reports it.
+
+⚠ **§6 states that recall is opaque and must remain the only opaque thing. That is already false, and
+nothing was counting.** The census as it stands:
+
+| judgement | argued? | if it were wrong |
+|---|---|---|
+| **recall** — which rules come to mind | ✅ §6's third regress; opaque by construction, and §19's carve-out keeps it off the safety path | a worse plan or a later surprise — recoverable, which is why learning lives here |
+| **`_in_play`** — what a situation is about | ❌ named in §19 and never argued | worse choices forever, invisible to every check |
+| **the connective of a composed rule** — `implies` + `causes` silently yields `causes` | ❌ decided in one line, and no check names the behaviour | conclusions land in the wrong moment; shows up as inertia, subtly |
+
+The discipline that follows is one line, and §20's `adopt` already obeys it: **the corpus decides, the
+function executes.** What decides that a rule is worth adopting, or that two rules are worth composing,
+is a claim; what happens afterwards is not a judgement and may be code.
 
 ### The gate must be run against a moving target
 
