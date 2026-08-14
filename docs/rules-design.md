@@ -981,6 +981,21 @@ the predecessor relation, which is finite and acyclic, and forking preserves bot
 claims, it would be reading entries and the circle would return. So the read's own working state is
 undated, unattributed and unexplained.
 
+> ⭐⭐⭐ **And this price is what charges itself.** The sentence above is a *constraint on the
+> consequent*; the definition three paragraphs up is a *test on the antecedent*. They are the same
+> line: a rule whose antecedent is entirely structural is applied without a read, and therefore
+> concludes without one. So the engine needs no rule subtype, no marker on the surface and no second
+> interpreter — one predicate, read off the antecedent, decides both halves. `stratum0.py` — a second
+> engine with its own rule type, item type and solver, matching the very same nodes — is deleted, and
+> §20's gate now runs the read as ordinary rules.
+>
+> ⚠ Two things follow that were not obvious. **Negation needs no notation**: a structural member has
+> no entry, so a sign on one can only mean *not derived*. And **the layers must be derived**, not
+> assigned — structure has no sign, so a fact concluded against a half-built negation cannot be taken
+> back the way a superseded entry can. The layers are the strongly connected components of the
+> dependency graph, which makes recursion (`dep_after` is transitive) ordinary and negation *inside* a
+> recursion a refusal.
+
 The consequence is worth writing down rather than discovering:
 
 > **You cannot ask *why did you read it that way* through the same mechanism you ask *why do you
@@ -1764,9 +1779,19 @@ one and is written without either keyword, using the short form above.
 > can. `ugm.arbitration` reported 20 disagreements the hour it became possible, and both paths now
 > share one declared order. §10's rule, one level up.
 >
-> ⚠ **Still absent**: `where` as a keyword, §12's `?t = entry(...)` prefix form,
-> and spans as loci — so §13's shapes remain unwritable and §15's *an arrival should be a moment* has
-> no route. §22 records what is left.
+> ⚠ **Still absent**: `where` as a keyword, §12's `?t = entry(...)` **prefix** form, and spans as loci
+> — so §13's shapes remain unwritable and §15's *an arrival should be a moment* has no route. §22
+> records what is left.
+>
+> ⭐ **What is no longer absent**, and it closed §22's largest open question rather than a small one:
+> the rest of the skeleton is now members too — `anc`, `in_delta`, `delta_next`, `rests_on`, and
+> `entry_of(?e, ?locus, ?prop, ?sign)`, which is §12's prefix form arriving as a member instead of as
+> notation. That is what let the read be written as ordinary rules and `stratum0.py` be deleted.
+>
+> ⚠⚠⚠ **And `pred` was wrong the whole time.** It was mapped to the reflexive-transitive walk under
+> the name of the immediate predecessor — registered for corpora and written by no rule, here or in
+> the foreign corpus, so nothing could see it. `anc` carries that walk now. A name a corpus may write
+> whose meaning is not what the name says is worse than an absent one.
 
 The two kinds do not merge, because a skeleton member is **not a claim**. `?n = succ(?m)` has no sign,
 no locus and no licence; nobody asserted it, and it cannot be denied, dated or attributed. §3 says why:
@@ -4706,11 +4731,22 @@ New with §20, and the first two are the reason it is a section rather than a pa
   entry about to be deposited, which is §5's wall from a fifth side.
 * **Explaining a read** (§6). Stratum 0 produces structure rather than entries, so the resolution that
   fed a conclusion is undated and unattributed. R5 covers the conclusion and not the read.
-* ⭐ **Whether an ordinary rule may read the skeleton** (§12, §6, §20). This is the same gap seen from
-  the other side, and §20 makes it expensive rather than academic. An entry's support is structural,
-  so the agent's own trail — the best source of examples it has — is readable by the machinery and not
-  by the agent's rules. Promoting it to entries reinstates §6's circle; leaving it means every example
-  must be a corpus fact. Neither is obviously right and the question is not small.
+* ⭐ **Whether an ordinary rule may read the skeleton** (§12, §6, §20) — **settled, and the third
+  option was the one nobody had listed.** The question was posed as a choice between promoting the
+  skeleton to entries (which reinstates §6's circle) and leaving it unreadable (which makes every
+  example a corpus fact). Neither is needed: **an ordinary rule reads the skeleton and concludes into
+  it**, decided by §6's own test — *every antecedent member is structural* — which is computable from
+  the antecedent the loader already builds. Nothing is promoted, so the circle does not return; the
+  rule is an ordinary rule, so there is no second interpreter.
+
+  `rests_on` is therefore a member an ordinary rule may write, and the agent's own trail is readable
+  by the agent's rules. `stratum0.py` is deleted, and §20's gate now measures the native read against
+  **rules in the surface a corpus writes**.
+
+  ⚠ What it costs, stated: containment for a *stored* skeleton member is compositional rather than
+  structural. An upward walk cannot reach a sibling branch whatever is bound (§11); a stored relation
+  cannot reach one *given what bound it*. The forking-chain check is what holds that, so it is a
+  measurement rather than a construction.
 * **Match, callable from a rule** (§5) — **settled.** It is a request, not a sixth floor item, and it
   must answer with instantiated results rather than a binding. Pattern against pattern turned out to
   be a *different* operation — unification — and it too is a service. Anti-unification is the third

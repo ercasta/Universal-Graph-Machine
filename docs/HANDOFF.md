@@ -1,4 +1,119 @@
-# Handoff — 2026-08-14
+# Handoff — 2026-08-14 (later)
+
+Branch `restart`. **502 checks, 0 failing**; every instrument green, `ugm.dungeon` 17/0,
+`ugm.bundle` 17/17 and 8 answerers with 0 anomalies.
+
+One commit, `merged`, and it is the handoff's item 1: **the matchers are one, and `stratum0.py` is
+deleted** — 306 lines out, the read now written as ordinary rules in the surface a corpus writes.
+
+## The session in one page
+
+The task was *resume from the handoff*, whose item 1 said feasibility was established. **It was
+established for the antecedent and silent about the consequent, which is where the wall actually is.**
+
+> §6: *Stratum 0 must produce structure, not entries. If the walk deposited its intermediate results
+> as claims, it would be reading entries and the circle would return.*
+
+An ordinary rule concludes an **entry**, deposited through the gate into a state that the read
+produces. So porting `cand`/`beaten`/`best` to ordinary rules as they stood would have reinstated §6's
+bootstrap circle. The way through was not a new construct but **§6's own sentence made operational**:
+
+> §6 defines stratum 0 as *a property of a rule* — every antecedent member is structural — decided *by
+> inspecting an antecedent rather than by a designer assigning layers.*
+
+That test is computable, so it is computed, and it decides **both halves at once**: a rule that reads
+only structure is applied without a read, and therefore concludes into the skeleton rather than the
+chain. No rule subtype, no marker on the surface, no second interpreter. §5's *one interpreter* and
+§6's *one more row, not one more branch* are now true of the code and not only of the intent.
+
+| what | how |
+|---|---|
+| the skeleton as members | `anc`, `in_delta`, `delta_next`, `rests_on`, `entry_of`, `asking` |
+| where a conclusion lands | `RuleSet.is_stratum0` — §6's test, over a fixpoint from below |
+| the layers | `RuleSet.strata` — SCCs of the dependency graph, **derived, not assigned** |
+| negation | a `-` on a structural member. **No notation was added** |
+| the read | 7 ordinary rules in `ugm.agreement`, 28/28 agreeing, 7/7 killable |
+
+**Four things worth keeping.**
+
+1. ⭐⭐⭐ **Negation needed no syntax, and `unless` was never the blocker.** I assumed item 1 was
+   blocked on `unless` (§22 lists it absent). It is not: `unless` is defeasibility *over rules*; the
+   read needs a **negated member**, which is a different thing. And on a structural member there is no
+   entry for a sign to be a claim about — so `-beaten(...)` can only mean *not derived*, and
+   `text.py` already parsed it. `unless` remains absent and remains a separate item.
+2. ⭐⭐⭐ **The anchoring discipline divides where I first drew it wrong.** `_stored` refuses an
+   unbound pattern because the chain's relations are facts about the **whole history**. But a relation
+   a stratum-0 rule *derived* exists only because something asked, so requiring an anchor there
+   refuses the read its own conclusions — and did: `cand` derived 193 while `beaten` and `best`
+   derived **nothing at all**. Two functions, `_stored` and `_bounded`, and the line between them is
+   *is this a fact about the history, or a consequence of the question?*
+3. ⚠⚠⚠ **The fixpoint counted novelty after the thing had been created.** `substitute` builds the
+   grounded node with `g.rel`, which interns — so the fact was minted *there*, and the novelty test
+   made afterwards always found it present. Every fact derived correctly and the loop believed it had
+   derived nothing: one pass per layer, no fixpoint, and a read answering from a third of its
+   candidates. **It failed as a wrong answer rather than as a crash**, and only the agreement gate
+   caught it.
+4. ⚠⚠⚠ **Two of my own checks could not fail, both recorded traps.** The stratum-0 conclusion check
+   drove `settle_structure`, which calls `_mint_structure` directly and never reaches the branch in
+   `_conclude` it was written to test — the kill-probe broke **zero** checks. And *nothing new on the
+   second run* is satisfied trivially by a novelty test that never fires, so it could not see the very
+   bug above; what discriminates is a transitive closure **five deep**, which needs the layer re-run.
+
+### A live defect found on the way, in a name nobody had written
+
+⚠⚠⚠ **`pred` was the reflexive-transitive walk under the name of the immediate one.** It was
+registered for corpora (`machine.py`'s name table) and written by no rule in this repo or the foreign
+one, so nothing could see that `pred(?m, ?n)` yielded every ancestor *and* `?m` itself. `anc` is that
+walk and now carries the name; `pred` is the stored fact the chain actually deposits. **A name a
+corpus may write whose meaning is not what the name says is worse than an absent one**, because a
+corpus that used it would have been right to trust it.
+
+### What this closes, beyond item 1
+
+* ⭐ **§22's *whether an ordinary rule may read the skeleton*** — *"neither is obviously right and the
+  question is not small"*. It is answered: **yes, and without promoting anything to entries**, because
+  the reading rule concludes structure too. That also unblocks **examples from the agent's own trail**
+  (`rests_on` is now a member an ordinary rule may write), which has been open since `generalise`.
+* **§6's *one interpreter*** and **§5's wall**, both previously false of the code.
+
+### The debt, in one place
+
+* ⚠ **The rule-level read is 14s on a five-moment fixture**, so the gate takes ~2 minutes. It is
+  §20's *deliberately slow* path and always was — but the naive fixpoint re-runs whole layers, and
+  semi-naive evaluation (feed each pass only the previous pass's new facts) is the obvious fix and is
+  not done. **Do not put `settle_structure` in the tick loop until it is.**
+* ⚠⚠ **Containment is now compositional rather than structural for `_stored` members.** `_anchored`
+  cannot reach a sibling *whatever* is bound (§11: one parent, several successors); `_stored` cannot
+  reach one *given how you got here*. The fork check holds it, and it is a **measurement now, not a
+  construction**. ⚠ The argument rests on the seed: `Machine.ask_read` is the only caller, and a
+  machinery seeding a seat the frame cannot see would derive about it with nothing structural
+  objecting.
+* **`ugm.agreement`'s read is a corpus, so it is not the bundle's.** Nothing ships the read as rules;
+  the gate loads them. Whether the bundle should carry them is undecided and is the same question the
+  collapse table has been sitting in since `ungraded`.
+* **Still absent, unchanged**: `unless`, `where` as a keyword, §12's `?t = entry(...)` **prefix** form
+  (the *member* form now exists as `entry_of`), and **spans as loci** — so §13's shapes remain
+  unwritable.
+* **The dungeon's two open items**, still untouched: the *did it keep deriving after its verdict*
+  instrument, and **no foreign corpus has authored a goal**, so backward reading is still unexercised
+  from outside.
+
+## Where I would pick up
+
+1. **Semi-naive evaluation for `settle_structure`.** It is the one thing standing between the merged
+   read and being usable anywhere but the gate, and the shape is already in the engine — `match`'s
+   `fresh` delta does exactly this for the ordinary loop.
+2. **Spans as loci**, then `where` and the prefix form — unchanged from the last handoff, and now the
+   largest representational gap since the skeleton question is closed.
+3. **Examples from the agent's own trail**, newly unblocked: `rests_on` is a member now, so
+   anti-unification can read the agent's own derivations instead of corpus facts.
+4. **Get a foreign corpus to author a GOAL.** Still the biggest unknown on the list.
+
+⭐ **The habit held.** Item 1 looked like it needed `unless` and a new consequent construct; it needed
+neither. Both walls were **refusals nobody had argued for**, and the answer to each was a sentence
+already in §6.
+
+# Superseded: 2026-08-14
 
 Branch `restart`, pushed. **491 checks, 0 failing**; every instrument green, including a **foreign
 corpus** (`ugm.dungeon`, 17/0) that another session wrote and that now exercises everything below.
