@@ -4815,16 +4815,27 @@ New with §20, and the first two are the reason it is a section rather than a pa
   says how the binding was built. A computed member accordingly consumes no entry and contributes
   nothing to the trail: five members, three on it.
 
-  ⚠ What remains: this closes the case where the whole change fits one application. A change that
-  genuinely needs several — because it waits on the world, or on a tool that is *not* pure — is still
-  observable half-done, and the guard below is still the only answer for it.
+  ⭐⭐⭐ **And what remains is not the same problem, which is the correction this item most needed.**
+  The defect was never *an observer saw an intermediate*; it was *an observer saw an intermediate that
+  corresponded to nothing*. The world never held twelve gold — the split was an artifact of arithmetic
+  arriving through the write. That artifact is now gone.
 
-  A corpus can guard that — every observer requiring `−transferring(?a, ?b)` — and that is precisely the
-  shape §19 refuses elsewhere: *a convention every corpus has to remember is exactly the kind this
-  design keeps finding it has lost*. Whether the right answer is a mechanism (a moment that declares
-  itself unsettled, so the norm veto and ordinary observers can key on it), or the honest admission
-  that multi-step change needs a frame, is open. What is **not** open is that the current position —
-  §8's *consistency is a question somebody must ask* — is not sufficient once the agent can act.
+  A change that genuinely waits — on the world, or on a tool that is not pure — **really does** have an
+  intermediate state, and that state is **true**. The gold has left one purse and not reached the
+  other. An agent that could not see it would be missing a fact rather than protected from one, and
+  the same test case makes the point: refusing service to a party whose money is genuinely in transit
+  is arguably right, where refusing during a two-tick arithmetic artifact was not.
+
+  > **Only the corpus knows that two ticks are one event.** The machinery cannot know it, so it
+  > cannot enforce it, and `+transferring(?a, ?b, ?n)` is not a workaround for a missing mechanism —
+  > it is a judgement in the one place that can make it, which is where §4 puts judgements.
+
+  So the earlier complaint here — that this is *a convention every corpus has to remember*, the shape
+  §19 refuses — was misapplied. §19 refuses a discipline when **the machinery could have known and
+  did not**. Here it genuinely cannot. What the design actually lacks is narrower and worth stating
+  properly: **a vocabulary for transitional states.** Nothing distinguishes a state that has settled
+  from one a corpus considers in flight, so an author who forgets to say so gets no help — and that is
+  the same shape as §9's *write your negatives*, not the same shape as a missing mechanism.
 * **When a revision is warranted** (§10). The two indices make *I now think otherwise about `M7`*
   sayable, and say nothing about when an agent should write one. Left alone, a system that revises the
   past freely can rewrite its way out of any surprise, which is §18's mechanism defeated by §10's

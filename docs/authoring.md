@@ -211,6 +211,20 @@ rule <pay> = causes(
 Measured: a standing observer sees `total(10, 5)` then `total(7, 8)` and **never the 12 in between**.
 Use a computator wherever the arithmetic is pure; keep a tool for anything that talks to the world.
 
+⚠ **And when a change genuinely takes more than one tick, the intermediate is real — say so.** If your
+transfer waits on a die roll, a player, or anything outside, the money really has left one purse and
+not reached the other, and an observer that sees it is seeing a fact. **Only your corpus knows the two
+ticks are one event**, so only your corpus can mark it:
+
+```
+rule <start> = causes( { +pays(?a, ?b, ?n) }, { +transferring(?a, ?b, ?n), … } )
+rule <total> = implies( { +purse(hero, ?x), +purse(smith, ?y), -transferring(?a, ?b, ?n) },
+                       { +settled_total(?x, ?y) } )
+```
+
+Nothing enforces this and nothing can — the machinery cannot tell that two applications are one
+event. It is the same kind of obligation as §1's *write your negatives*.
+
 ⚠ **That last member is load-bearing.** Without retracting the trigger the rule debits **forever** —
 the first version of this fixture took the purse down in threes until the budget stopped it. Same
 criterion as §3's turn loop, arriving in a corpus instead of the machinery.
