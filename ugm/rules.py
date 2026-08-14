@@ -791,6 +791,64 @@ def substitute(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> Nod
     return g.rel(new_rel, *new)
 
 
+class _Generic:
+    """The third answer `already_there` needs: *still open*, told apart from
+    *ground and absent* so the caller never has to build one to find out."""
+
+    def __repr__(self) -> str:
+        return "GENERIC"
+
+
+GENERIC = _Generic()
+
+
+def already_there(
+    g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]
+) -> Optional[NodeId]:
+    """The node `substitute` WOULD produce, if it already exists. Never mints.
+
+    ⚠⚠⚠ **`substitute` interns, so asking with it changes the answer.** For an
+    ordinary conclusion that is harmless -- a proposition nobody has claimed
+    anything about is inert, and quiescence goes on to ask the CHAIN about it.
+    For a stratum-0 conclusion the node's existence *is* the fact, so
+    quiescence asking *would this change anything* by building the thing made
+    the answer no, permanently, for whoever asked next.
+
+    That surfaced as `ugm.arbitration` reporting the fast path choosing a move
+    the slow path then found nothing to do -- **two paths over one state, where
+    the first one's question consumed the second one's answer.** A predicate
+    with a side effect, and this is the predicate without one.
+
+    Three answers, and they have to be three: `GENERIC` when the consequent is
+    still open (it mints nothing and changes nothing), `None` when it is ground
+    and not yet derived (it would change something), and the node when it is
+    already there. Collapsing the first two sends the caller back to
+    `substitute` to tell them apart, which is the mint this exists to avoid.
+    """
+    if g.is_var(pattern):
+        got = bindings.get(pattern)
+        return GENERIC if got is None or g.is_var(got) else got
+    members = g.members(pattern)
+    if not members:
+        return pattern
+    rel = g.relation_of(pattern)
+    if rel is not None and g.is_var(rel):
+        rel = bindings.get(rel)
+        if rel is None or g.is_var(rel):
+            return GENERIC
+    new = []
+    for m in members:
+        got = already_there(g, m, bindings)
+        if got is GENERIC:
+            return GENERIC
+        if got is None:
+            # A subterm that is ground and not interned: the whole cannot be
+            # interned either, so this is new without looking further.
+            return None
+        new.append(got)
+    return g.find_rel(rel, *new)
+
+
 # -- match ------------------------------------------------------------------
 
 

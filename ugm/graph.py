@@ -62,6 +62,16 @@ class Graph:
         self._interned[key] = n
         return n
 
+    def find_rel(self, relation: NodeId, *members: NodeId) -> Optional[NodeId]:
+        """The interned instance if it exists, without creating one.
+
+        ⚠ `rel` cannot answer this: asking would build the thing asked about.
+        That is harmless for a proposition and not harmless for the skeleton,
+        where existing IS the fact -- so §6's quiescence needs a question it can
+        put without answering it. See `rules.already_there`.
+        """
+        return self._interned.get((relation, tuple(members)))
+
     def instance(self, relation: NodeId, *members: NodeId) -> NodeId:
         """A relation instance that is *not* interned: a distinct node every time.
 

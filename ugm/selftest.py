@@ -3945,6 +3945,84 @@ def the_matchers_are_one() -> None:
           "show and a broken novelty test satisfies trivially",
           steps == {mo.node for mo in walk_up[:-1]})
 
+    # ⭐⭐⭐ **A fact's own history, on the ORDINARY loop, ending in a claim.**
+    # §22 recorded this as *not sized, materially harder* -- a matcher sees the
+    # RESOLVED state, one entry per proposition, so a superseded entry is simply
+    # not there, and reaching it means matching the raw chain and reopening §6's
+    # bootstrap. It does not reopen it: the rule that reads the chain concludes
+    # STRUCTURE, and a second, ordinary rule reads that structure beside an entry
+    # and concludes a claim. Two rules, no promotion, no second matcher.
+    #
+    # Three defects sat between the capability and a corpus being able to use
+    # it, and none of them had a check until this one:
+    #   * `asking` was seeded only by hand, so a corpus's chain rules were dead;
+    #   * quiescence asked `resolve` about a conclusion that never enters the
+    #     chain, so a stratum-0 rule applied for ever -- 60 ticks, measured;
+    #   * a structural fact enters no delta, so the incremental matcher never
+    #     re-triggered the rule that reads it.
+    m7 = Machine()
+    kb7 = load(m7, chr(10).join([
+        "rule <flip> = implies(",
+        "  { asking(?s), anc(?s, ?d1), in_delta(?d1, ?e1),",
+        "    entry_of(?e1, ?l1, ?p, plus),",
+        "    anc(?s, ?d2), in_delta(?d2, ?e2),",
+        "    entry_of(?e2, ?l2, ?p, minus), sanc(?l2, ?l1) },",
+        "  { flipped(?p) } )",
+        "rule <note> = implies( { flipped(?p), +watching(x) },",
+        "                      { +changed(?p) } )",
+        "fact +watching(x)", ""]))
+    door = m7.g.rel(m7.g.atom("open"), m7.g.atom("door"))
+    d1 = m7.chain.succeed(m7.chain.root, None)
+    m7.gate.write(m7.gate.frame(d1), door, "+")
+    d2 = m7.chain.succeed(d1, None)
+    m7.gate.write(m7.gate.frame(d2), door, "-")
+    m7.focus = m7.gate.frame(d2)
+    steps = m7.run(limit=60)
+    changed = [e for e in m7._state()
+               if m7.g.relation_of(e.proposition) == kb7.term("changed")]
+    check("§6", "⭐⭐⭐ a fact's OWN HISTORY is matchable -- *it was on, then it was "
+          "not* reads the raw chain, concludes structure, and an ordinary rule "
+          "turns it into a claim",
+          len(changed) == 1
+          and m7.g.show(changed[0].proposition) == "changed(open(door))")
+
+    # ⚠⚠⚠ ...and it STOPS. Quiescence asks `resolve` about what a rule would
+    # write; a stratum-0 conclusion never enters the chain, so `resolve` answers
+    # None for ever and the verdict is *yes, this changes something* on every
+    # tick. Worse, the verdict is cached and retired only when a proposition it
+    # READ changes -- and a stratum-0 rule reads none, so the True was permanent.
+    # Measured before fixing: 60 ticks of `applied`, identical bindings.
+    check("§6", "⚠⚠⚠ ...and the loop goes QUIET on it -- a stratum-0 rule is asked "
+          "about the graph, not the state, and its verdict is never cached",
+          steps[-1].state == "quiescent" and len(steps) < 10)
+
+    # ⚠⚠⚠ **And asking must not answer.** For a stratum-0 rule the conclusion's
+    # EXISTENCE is the fact, so a quiescence check written with `substitute` --
+    # which interns -- makes the conclusion exist, and whoever asks next is told
+    # there is nothing to do. Caught by `ugm.arbitration`, which runs the fast
+    # and slow paths over one state and reported the fast path choosing a move
+    # the slow path found nothing for: one path's question consumed the other's
+    # answer. Asserted here directly, because a gate that compares two paths can
+    # only see it when the two disagree, and a pure predicate is the property.
+    m8 = Machine()
+    kb8 = load(m8, chr(10).join([
+        "rule <up> = implies( { asking(?s), anc(?s, ?a) }, { above(?s, ?a) } )",
+        ""]))
+    m8.chain.succeed(m8.chain.root, None)
+    m8.ask_read(m8.chain.moments[-1])
+    from .rules import match as _match, Situation as _Sit
+    up8 = [r for r in m8.rules.rules if r.name == "up"][0]
+    apps = _match(m8.g, m8.chain, up8, m8.focus.topic, m8.focus.seat, _Sit(m8.g, []),
+                  computes=m8.rules.computes, structural=m8.rules.skeleton())
+    before_n = m8.g.count()
+    first = [m8._would_change(a) for a in apps]
+    again = [m8._would_change(a) for a in apps]
+    check("§6", "⚠⚠⚠ ...and ASKING does not answer: the stratum-0 quiescence "
+          "verdict mints nothing, so the same question put twice gets the same "
+          "answer and two paths over one state agree",
+          first == again and any(first) and m8.g.count() == before_n)
+
+
     # ⭐⭐⭐ Containment, with the anchoring discipline doing the work. `in_delta`
     # is bounded by whatever anchored it, so a read seeded at one branch never
     # names an entry on its sibling -- measured on a fork rather than argued.

@@ -1801,11 +1801,14 @@ the antecedent that match settles by unifying structure, rather than by walking 
 Distinctness belongs in the skeleton for the same reason. `?a ≠ ?b` is a condition on the binding, not
 a dated claim that two individuals differ.
 
-⚠ **And the skeleton has a consequence nobody designed for.** An entry's *support* — what it was
-derived from — is skeleton by exactly this test: it is how the entry was made, not a claim about the
-world. So it is readable by stratum 0 and not by ordinary rules, and §20 runs into that wall from the
-learning side, where the agent's own trail would be the best source of examples it has. §22 records
-it as open, and it is not a small question.
+⭐ **And the skeleton had a consequence nobody designed for — since closed.** An entry's *support* —
+what it was derived from — is skeleton by exactly this test: it is how the entry was made, not a claim
+about the world. That made it readable by stratum 0 and not by ordinary rules, and §20 ran into the
+wall from the learning side, where the agent's own trail is the best source of examples it has.
+
+The resolution is §6's test rather than a promotion: **an ordinary rule reads the skeleton and
+concludes into it**, so `rests_on` is a member like any other and nothing becomes an entry. The trail
+is readable by the agent's own rules. See §6's *the price, stated* and §22.
 
 **An antecedent is a sequence, and the positions are load-bearing.** §18's tiebreak reads the entries
 an application consumed, and `consumed` is filled by member *position* — so authored order is what the
@@ -4275,11 +4278,16 @@ never matched.
 a *bare variable* as their least general generalisation — a rule that fires on everything. Returning
 nothing is a real answer, and the check is that nothing is adopted.
 
-⚠ **The richest source of examples is the one the agent cannot read.** Every derived entry records
-what it consumed, and that trail is on the graph — but it is §12's **skeleton**, a plain relation
-instance nobody asserted, so ordinary rules do not match it and only stratum 0 can read it (§6). The
-agent's own experience is therefore available to the machinery and not to the agent. Whether an
-ordinary rule should see the skeleton is a real design question and not a small one (§22).
+⭐ **The richest source of examples was the one the agent could not read — and now it can.** Every
+derived entry records what it consumed, and that trail is on the graph as §12's **skeleton**: a plain
+relation instance nobody asserted. That used to put it beyond ordinary rules and inside stratum 0's
+reach only, so the agent's own experience was available to the machinery and not to the agent.
+
+§6's test closes it without promoting anything: `rests_on(?e, ?c)` is a member an ordinary rule may
+write, and a rule reading only structure concludes structure, so no entry is created and the
+bootstrap circle does not return. **What is still not done is the learning side** — anti-unification
+still reads corpus facts, and pointing it at the trail is now an ordinary piece of work rather than a
+representation question (§22).
 
 ### What a learned rule may conclude — and the vocabulary that looked missing is not
 
@@ -4755,18 +4763,29 @@ New with §20, and the first two are the reason it is a section rather than a pa
 * **`unless` is described and not implemented** (§12). Precedence exists; the other half of
   defeasibility does not. Composition can therefore inherit only the defeats, and §12's *unless at
   altitude* is unwritable in any corpus this engine loads.
-* **The skeleton is half built** (§11, §12, §13, §15). ✅ A member may now say **where its entry
-  sits** — `+acts(goblin) at ?m` — so a rule relates two moments, which is what a foreign corpus was
-  spending 24% of itself simulating with a round counter. What remains absent: `where` and the
-  skeleton's *structural* members (`?n = succ(?m)`), named entries, and spans as loci — an entry's
-  locus is a moment and never a span, so a span is not a locus in fact however clearly §11 says it is
-  one.
+* **The skeleton is built, except for spans** (§11, §12, §13, §15). ✅ A member may say **where its
+  entry sits** — `+acts(goblin) at ?m` — so a rule relates two moments, which is what a foreign corpus
+  was spending 24% of itself simulating with a round counter. ✅ And the skeleton's *structural*
+  members are all there: `asking`, `anc`, `sanc`, `pred`, `in_delta`, `entry_of`, `delta_next`,
+  `rests_on`. What remains absent: `where` as a keyword, the `?t = entry(...)` **prefix** notation
+  (the member form is `entry_of`), and **spans as loci** — an entry's locus is a moment and never a
+  span, so a span is not a locus in fact however clearly §11 says it is one.
 
-  ⚠ **And the built half is bounded by the read, not by the notation.** A matcher sees the resolved
-  state, one entry per proposition, so two *different* facts at different moments relate and **a
-  single fact's own history does not**. Reaching that means matching over the raw chain — §6's
-  stratum-0 territory — and reopens the bootstrap. Measured as the discriminating case: *it was on,
-  then it was not* finds nothing.
+  ⭐⭐⭐ **And the bound the read placed on it is gone.** This item recorded that a matcher sees the
+  resolved state — one entry per proposition — so two *different* facts at different moments relate
+  and **a single fact's own history does not**, because reaching it means matching the raw chain and
+  reopening the bootstrap. It does not reopen it, for the reason §6's *the price, stated* now gives:
+  **a rule whose antecedent is entirely structural concludes structure**, so a rule may read the raw
+  chain precisely because it cannot assert anything about what it finds. *It was on, then it was not*
+  takes two rules — one to see it, one to say it — and the second is an ordinary rule reading the
+  first's conclusion beside an entry.
+
+  ⚠ Three engine defects sat between the capability and a corpus reaching it, and each is the kind
+  that has no outcome to be wrong: `asking` was seeded only by the gate, so a corpus's chain rules
+  were **dead**; quiescence asked `resolve` about a conclusion that never enters the chain, so such a
+  rule **never stopped**; and a structural fact enters no delta, so incremental matching **never
+  re-triggered** the rule reading it. A capability nothing could reach is indistinguishable from an
+  absent one.
 
   What that costs, listed rather than implied: **§13's shapes cannot be written at all** — *taking
   turns*, the document's worked example, has never run; **§11 is a design for a construct the engine
@@ -4786,27 +4805,31 @@ New with §20, and the first two are the reason it is a section rather than a pa
   rots in a way a branch does not*), and no gate covers a convention that has no rules to delete.
   Whether the surface should grow `where` is open; that it currently promises it is not.
 
-  ⭐ **And there is a narrower substitute, which is probably the right first move.** Measured, a rule
-  can already **bind** a moment — occasions hand them over, so `{+quiet(?m)} ⟹ {+sawmoment(?m)}`
-  works — and cannot **relate** two: `succ`, `pred` and `before` are all absent from the graph. So the
-  gap for the ordinary cases is not the whole skeleton, it is **succession, readable**. Three ways to
-  supply it, and the design already prefers the third: a skeleton member costs a new member kind and
-  new surface; deposited `+succ(m7, m8)` entries make **structure deniable**, which §12 refuses, and
-  cost O(n) entries nobody asked for; an **answerer** — `pred` as a request answered by a function
-  over the chain — costs neither, is demand-driven, and is §19's established seam, where six already
-  live. It does not reinstate §6's circle, because the function reads structure rather than entries.
+  ⚠⚠⚠ **This section scored three ways to supply succession and picked the wrong one, and the
+  scoring is left standing because the mistake in it is instructive.** The three were: a *skeleton
+  member*, rejected as costing "a new member kind and new surface"; deposited `+succ(m7, m8)`
+  *entries*, rejected because structure would become deniable (§12) at O(n) entries nobody asked for;
+  and an **answerer** — `pred` as a request answered by a function — preferred as costing neither,
+  demand-driven, and sitting in §19's established seam.
 
-  ⭐⭐ **The same move closes `rests_on` above**, which is stated as a dilemma with two bad horns —
+  **What was built is the first**, and the cost it was rejected for did not exist. A skeleton member
+  needed **no new member kind** — `match` already dispatched on the relation — and **no new surface**
+  at all: `sanc(?mq, ?mp)` is an ordinary member with an ordinary relation, and negation on one
+  reuses the sign the parser already read. The `order`/`precedes` answerer this section argued for was
+  in fact built, and **deleted the same afternoon**.
+
+  ⭐⭐ **And the same move closes `rests_on` above**, which was stated as a dilemma with two bad horns —
   promote the trail to entries and the circle returns, leave it and every example must be a corpus
-  fact. An answerer is the third option neither horn considered, and one mechanism would settle both.
+  fact. The third option was neither an answerer nor a promotion: the reading rule **concludes into
+  the skeleton too**, by §6's own test, so nothing is promoted and nothing is asked for.
 
-  ⚠ It is a **substitute and not an equivalent**, and the difference decides which cases it covers. A
-  skeleton member is matched *inside one match*, so a multi-locus rule fires in one application; an
-  answerer is a request, an answer, then a rule — several ticks, with deposits between them and other
-  rules free to interleave. Irrelevant for expanding a single change-term (§16); probably decisive for
-  recognising a shape over a long stretch (§13). So this narrows the item rather than retiring it.
-  ⚠ And a deposited answer *about structure* is deniable, which is mildly incoherent: denying
-  `pred(m7, m8)` does not change the chain, only what rules believe about it.
+  ⚠ The one real objection here survives and is worth keeping, because it is why the answerer was
+  wrong. An answerer is a request, an answer, then a rule — several ticks, with deposits between them
+  and other rules free to interleave — where a skeleton member is matched **inside one match**, so a
+  multi-locus rule fires in one application. That is irrelevant for expanding a single change-term
+  (§16) and decisive for recognising a shape over a long stretch (§13). The option that composes was
+  the one scored lowest. ⚠ And a deposited answer *about structure* would have been deniable, which is
+  mildly incoherent: denying `pred(m7, m8)` does not change the chain, only what rules believe.
 * **How much of the bundle is actually rule-expressible** (§4). The gate is run for the read, the
   state and the move. It is not run for everything, and until it is, *these are conventions* is a
   claim about intent for the remainder.

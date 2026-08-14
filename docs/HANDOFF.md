@@ -1,10 +1,60 @@
 # Handoff — 2026-08-14 (later)
 
-Branch `restart`. **502 checks, 0 failing**; every instrument green, `ugm.dungeon` 17/0,
-`ugm.bundle` 17/17 and 8 answerers with 0 anomalies.
+Branch `restart`. **505 checks, 0 failing**; every instrument green, `ugm.dungeon` 17/0,
+`ugm.bundle` 17/17 and 8 answerers with 0 anomalies, `ugm.arbitration` 0 disagreements.
 
-One commit, `merged`, and it is the handoff's item 1: **the matchers are one, and `stratum0.py` is
-deleted** — 306 lines out, the read now written as ordinary rules in the surface a corpus writes.
+Two commits. `merged` is the handoff's item 1 — **the matchers are one, and `stratum0.py` is
+deleted**, 306 lines out, the read written as ordinary rules in the surface a corpus writes. `reached`
+is what it took to make that capability **reachable by a corpus**, which turned out to be three
+separate defects and a fourth that was a genuine soundness bug.
+
+## What the second commit found, and it is the more useful half
+
+The merge worked and **no corpus could use it.** Writing the obvious next thing — *the door was open
+and now is closed*, which §22 recorded as *not sized, materially harder* — turned up three engine
+defects between the capability and an author, none of which any outcome check could see:
+
+| defect | how it showed |
+|---|---|
+| `asking` was seeded **only by the gate** | every structural member is anchored, so a corpus's chain rules matched **nothing**, silently |
+| quiescence asked `resolve` about a conclusion that never enters the chain | the rule **never stopped** — 60 ticks of `applied`, identical bindings |
+| a structural fact enters **no delta** | incremental matching **never re-triggered** the rule that reads it, so it fired once, before the fact existed |
+
+⭐⭐⭐ **And the fourth was the interning trap, for the fourth time in two commits — this one a
+soundness bug rather than bookkeeping.** `substitute` interns, so a quiescence verdict computed with
+it **makes the conclusion exist**, and whoever asks next is told there is nothing to do. For an
+ordinary conclusion that is harmless; for a stratum-0 one the node's existence *is* the fact.
+
+> **Asking whether a stratum-0 rule would change anything made it not change anything.**
+
+`ugm.arbitration` caught it — the fast path chose a move the slow path then found nothing for, because
+**one path's question consumed the other's answer**. `rules.already_there` is the same walk with no
+minting in it, and it needs **three** answers, not two: *generic*, *ground and absent*, *already
+there*. Collapsing the first two sends the caller back to `substitute` to tell them apart, which is
+the mint it exists to avoid.
+
+⭐ **The interning trap's four faces, all in this arc**, because the pattern is worth naming: the
+fixpoint's novelty test **never fired** (right facts, no fixpoint); quiescence's existence check
+**always fired** (the rule never started); the delta invalidation **recorded nothing** (quiescence had
+already interned it); and the verdict **was not pure** (two paths disagreed). Same cause, four
+opposite symptoms.
+
+**What a corpus can now write**, verified end to end and in `docs/authoring.md`:
+
+```
+rule <flip> = implies(
+  { asking(?s), anc(?s, ?d1), in_delta(?d1, ?e1), entry_of(?e1, ?l1, ?p, plus),
+    anc(?s, ?d2), in_delta(?d2, ?e2), entry_of(?e2, ?l2, ?p, minus),
+    sanc(?l2, ?l1) },
+  { flipped(?p) } )
+
+rule <note> = implies( { flipped(?p), +watching(x) }, { +changed(?p) } )
+```
+
+⭐⭐⭐ **A rule may read the raw chain precisely because it cannot assert anything about what it
+finds.** `<flip>` mentions only skeleton, so §6's test makes its conclusion structure — undated,
+unattributed, not deniable. `<note>` mentions an entry, so it is ordinary and concludes a claim. One
+to see it, one to say it, and the bootstrap stays closed.
 
 ## The session in one page
 
@@ -93,7 +143,12 @@ corpus that used it would have been right to trust it.
   collapse table has been sitting in since `ungraded`.
 * **Still absent, unchanged**: `unless`, `where` as a keyword, §12's `?t = entry(...)` **prefix** form
   (the *member* form now exists as `entry_of`), and **spans as loci** — so §13's shapes remain
-  unwritable.
+  unwritable. ⚠ **The span is now the only representational gap left in the skeleton**, which is a
+  smaller and sharper statement than this list has been able to make before.
+* ⚠⚠ **Structural invalidation is blunt, by relation and unconditional.** A derived skeleton fact
+  drops the cursor of every rule mentioning that relation, so those rules are matched in full again.
+  It over-invalidates — the alternative under-invalidates and loses the conclusion permanently — and
+  it is recorded rather than measured. Nobody has priced it on a corpus that leans on the skeleton.
 * **The dungeon's two open items**, still untouched: the *did it keep deriving after its verdict*
   instrument, and **no foreign corpus has authored a goal**, so backward reading is still unexercised
   from outside.

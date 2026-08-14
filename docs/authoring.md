@@ -326,24 +326,69 @@ session. You will reach for all of them in an RPG.
 
 | you want to write | status |
 |---|---|
-| *the goblin acts after the hero* — `where ?n = succ(?m)` | **no skeleton in the surface**, and the engine carries the one-locus case only |
+| *the goblin acts after the hero* — relating two moments | ✅ **BUILT.** `at ?m` binds a locus; `sanc`/`anc` relate them |
+| *the door was open and now is closed* — one fact's own history | ✅ **BUILT.** Two rules over the raw chain; see below |
 | *while poisoned*, *throughout the battle* — a span as a locus | **an entry's locus is a moment**; no span is ever built as one |
-| §13's shapes — *taking turns*, recursive definitions over spans | follows from the two above: **cannot be written at all** |
+| §13's shapes — *taking turns*, recursive definitions over spans | follows from the span row: **cannot be written at all** |
 | `unless(<R>, +condition)` | described in §12, implemented nowhere |
 
-**No rule can relate two moments.** That is the single largest constraint on an RPG corpus, and it is
-not a bug you can route around with cleverness — it is one missing member kind.
+⚠ **The remaining constraint is the SPAN, not the moment.** Both halves of *relating two moments* now
+work — the earlier note here said no rule could relate two at all, and that a fact's own history was
+materially harder. Neither is true any more, and what is left is that a locus is always a moment and
+never a stretch of them.
 
 ⭐ **It has been probed and sized, and it splits in two. Tell us which half you needed.**
 
 | | |
 |---|---|
 | **sequencing** — two *different* facts at different moments, *the goblin acts after the hero* | ✅ **BUILT.** Write `+acts(goblin) at ?m` and the locus binds. Your clock scaffold should collapse |
-| **a fact's own history** — the *same* proposition at two moments, *the door was open and now is closed* | **not sized, materially harder.** A matcher sees the **resolved** state — one entry per proposition — so the superseded entry is simply not there. Reaching it means matching over the raw chain, which is what §6's stratum-0 read is for, and reopens the bootstrap question |
+| **a fact's own history** — the *same* proposition at two moments, *the door was open and now is closed* | ✅ **BUILT.** It did not reopen the bootstrap. See below |
 
 So turn order, initiative, *who acted before whom* — all now writable, on your evidence that it was
-worth building. What is still missing is *it used to be X and now it is Y* about **one** fact, and you
-said you never wanted it; if that changes, say so, because it is a different and much larger job.
+worth building.
+
+✅ **And *it used to be X and now it is Y* about ONE fact is now writable too.** It was recorded as
+materially harder because a matcher sees the **resolved** state — one entry per proposition — so the
+superseded entry is not there, and reaching it means matching the **raw chain**, which looked like it
+reopened the bootstrap. It does not, and the reason is worth knowing because it shapes how you write
+it: **a rule whose antecedent is entirely structural concludes structure rather than a claim.** So the
+chain-reading rule cannot assert anything, and that is exactly why it is allowed to read the chain.
+
+It takes **two rules** — one to see it, one to say it:
+
+```
+rule <flip> = implies(
+  { asking(?s), anc(?s, ?d1), in_delta(?d1, ?e1), entry_of(?e1, ?l1, ?p, plus),
+    anc(?s, ?d2), in_delta(?d2, ?e2), entry_of(?e2, ?l2, ?p, minus),
+    sanc(?l2, ?l1) },
+  { flipped(?p) } )
+
+rule <note> = implies( { flipped(?p), +watching(x) }, { +changed(?p) } )
+```
+
+`<flip>` mentions only skeleton, so it concludes into the skeleton: `flipped(open(door))` is a plain
+node, undated, unattributed, and **not deniable**. `<note>` mentions an entry (`+watching(x)`), so it
+is an ordinary rule and concludes an ordinary claim. That is the whole bridge.
+
+**The skeleton members you now have:**
+
+| | |
+|---|---|
+| `asking(?s)` | the seat the agent is standing at — **what anchors everything else** |
+| `anc(?s, ?a)` / `sanc(?s, ?a)` | ancestry, reflexive and strict |
+| `pred(?s, ?p)` | the immediate predecessor. ⚠ This used to silently mean `anc` |
+| `in_delta(?m, ?e)` | the entries deposited at a moment |
+| `entry_of(?e, ?locus, ?prop, ?sign)` | an entry's three members |
+| `delta_next(?e, ?f)` | deposit order within one moment |
+| `rests_on(?e, ?c)` | what an entry was derived from — **the agent's own trail** |
+
+⚠⚠⚠ **Every one of them must be anchored, and the authored order is what anchors it.** Start from
+`asking(?s)` and walk outward; a member whose turn comes before anything binds it finds **nothing**,
+silently. That is the single trap in this whole area, and it is why `<flip>` above reads in the order
+it does.
+
+⚠ A `-` on a skeleton member means **not derived** — negation as failure — not *an entry denies it*.
+There are no entries here for a sign to be about.
 
 ✅ **And ordering landed too — as an ordinary member, not a request:**
 

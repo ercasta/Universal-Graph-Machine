@@ -24,6 +24,8 @@ from .gate import Frame, Gate
 from .graph import Graph, NodeId
 from .rules import (
     _defeaters,
+    already_there,
+    GENERIC,
     CAUSES,
     IMPLIES,
     Application,
@@ -624,6 +626,10 @@ class Machine:
         self._vetoed: set = set()
         self._reified: set = set()
         self._exercised: set = set()
+        # Structural relations that have grown since the matcher last looked.
+        # See `_mint_structure`: structure sits in no delta, so this is the only
+        # thing that can tell the incremental path a skeleton fact appeared.
+        self._structure_touched: set = set()
         # §19. `None` is the deliberate-reasoning setting -- recall with the
         # budget removed -- and it is the default, because narrowing is a claim
         # about what an agent has learned and a fresh agent has learned nothing.
@@ -2634,6 +2640,23 @@ class Machine:
     # -- the loop ---------------------------------------------------------
 
     def tick(self) -> Step:
+        # ⭐ **The register's own seat is askable**, so a rule that reads the raw
+        # chain has an anchor without anything handing it one. Skeleton, so it is
+        # minted rather than deposited, and interned, so this is a dict lookup
+        # after the first tick at a seat.
+        #
+        # ⚠ Without it a corpus's chain-reading rules are DEAD: every structural
+        # member is anchored, and `anc(?s, ?d)` with nothing binding `?s` finds
+        # nothing. `ask_read` seeded it by hand for the gate, and a corpus has no
+        # such hand -- so the capability existed and no corpus could reach it.
+        # That is §21's defect in its usual shape, caught one commit after the
+        # thing it is about.
+        #
+        # ⚠ Anchored at the SEAT rather than at every moment, which is the
+        # containment story as well as the cheap one: what the agent may read the
+        # chain about is where the agent is standing.
+        self.g.rel(self.chain.ASKING, self.focus.seat.node)
+
         # Not a phase. Delivery happened when the world spoke; this only asks how
         # much of it happened since the last step, so that *nothing applied* and
         # *nothing arrived and nothing applied* stay different silences (§19).
@@ -3097,6 +3120,23 @@ class Machine:
             self.g.rel(self.g.relation_of(grounded), *self.g.members(grounded))
             if self.g.count() != before:
                 added += 1
+            # ⚠⚠⚠ **A structural fact enters no delta, so nothing re-triggers a
+            # rule that reads it.** Incremental matching is driven by the seat's
+            # delta -- a `Situation` of ENTRIES -- and structure is not an entry,
+            # by §6's whole design. So a rule mentioning a structural relation
+            # was matched in full exactly once, on its first pass, and anything
+            # derived after that stayed invisible to it for ever. Measured: the
+            # stratum-0 half concluded correctly and the ordinary rule reading
+            # its conclusion never fired at all.
+            #
+            # ⚠⚠⚠ Recorded UNCONDITIONALLY, not on novelty, and that is the
+            # interning trap for the third time in one commit. Quiescence has
+            # already run `substitute` on this conclusion to decide whether it
+            # would change anything -- which INTERNS it -- so by the time the
+            # mint happens the novelty is gone and a novelty-gated record
+            # captures nothing. Over-invalidating by relation costs one extra
+            # full match; under-invalidating loses the conclusion permanently.
+            self._structure_touched.add(self.g.relation_of(grounded))
         return added
 
     def ask_read(self, *seats) -> None:
@@ -3371,6 +3411,18 @@ class Machine:
         here = len(self.focus.seat.delta)
         delta = self.focus.seat.delta[cache["pos"]:]
         cache["pos"] = here
+
+        # 0. Structure derived since the last look. It sits in no delta, so the
+        # incremental path cannot see it: a rule reading a structural relation
+        # that has grown must be matched in FULL again, which is what dropping
+        # its cursor asks for.
+        if self._structure_touched:
+            grown = self._structure_touched
+            self._structure_touched = set()
+            for r in self.rules.rules:
+                if any(self.g.relation_of(mm.pattern) in grown
+                       for mm in r.antecedent):
+                    cache["rule_pos"].pop(r.node, None)
 
         # 1. Retire what a later claim unsettled.
         if delta:
@@ -3814,6 +3866,20 @@ class Machine:
         is not: `resolve` is non-monotone, so quiescence has to keep being able
         to change its mind.
         """
+        # ⚠⚠⚠ **A stratum-0 verdict is never cached, and finding out why took a
+        # runaway.** The cache retires a verdict when a proposition it READ
+        # changes (`quiet_by_prop`); a stratum-0 rule reads no proposition, so
+        # `touched` is empty and a `True` cached on the first tick is never
+        # retired by anything. The same application then applies for ever --
+        # measured at 60 ticks of `applied`, identical bindings, on a rule that
+        # had already drawn its conclusion.
+        #
+        # ⭐ It costs nothing to skip the cache here: the verdict is a
+        # substitution and a count, where the ordinary one is a resolve per
+        # conclusion plus the prohibitions consulted about it.
+        if self.rules.is_stratum0(app.rule):
+            return self._decide_change(app, [])
+
         cache = self._verdicts
         key = None
         if cache is not None:
@@ -3839,6 +3905,35 @@ class Machine:
         return answer
 
     def _decide_change(self, app: Application, touched: List[NodeId]) -> bool:
+        # ⚠⚠⚠ **A stratum-0 rule is asked about the GRAPH, not the state.** Its
+        # conclusion is structure, so it never enters the chain, so `resolve`
+        # below answers `None` for it forever and quiescence says *yes, this
+        # changes something* on every tick. Measured before fixing: a corpus rule
+        # reading the raw chain ran 40 ticks of `applied` and never once went
+        # quiet. The rule was right, the conclusion was right, and the loop could
+        # not tell it had already drawn it.
+        #
+        # ⭐ Monotone, which is why this is sound to cache with no index: a
+        # skeleton fact cannot be denied, so once minting it adds nothing, that
+        # stays true. `resolve` is non-monotone and needs `quiet_by_prop`; this
+        # does not.
+        # ⚠⚠⚠ And it asks WITHOUT BUILDING, which is the interning trap's fourth
+        # appearance and the only one that was a semantic defect rather than
+        # bookkeeping. `substitute` interns, so a verdict computed with it makes
+        # the conclusion exist -- and the next caller is told there is nothing to
+        # do. `ugm.arbitration` runs the fast path and the slow one over the same
+        # state, and reported the fast path choosing a move the slow path found
+        # nothing for: **one path's question consumed the other's answer.**
+        # `already_there` is the same walk with no minting in it.
+        if self.rules.is_stratum0(app.rule):
+            for m in app.rule.consequent:
+                got = already_there(self.g, m.pattern, app.bindings)
+                if got is GENERIC:
+                    continue  # mints nothing, so changes nothing
+                if got is None:
+                    return True  # ground and not yet derived
+            return False
+
         for m in app.rule.consequent:
             grounded = substitute(self.g, m.pattern, app.bindings)
             if self.g.has_var(grounded) and not self._is_mention(app):
