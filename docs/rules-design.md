@@ -4796,7 +4796,30 @@ New with §20, and the first two are the reason it is a section rather than a pa
 
   > **Atomicity is available exactly when you do not need a tool, and you need a tool for arithmetic.**
 
-  A corpus can guard it — every observer requiring `−transferring(?a, ?b)` — and that is precisely the
+  ✅ **ANSWERED, by making the computation part of the application.** A **computator** is a function
+  given *values* and returning a value — never the machine, the frame or the entry — so it cannot
+  reach the graph, the register or the world. **Purity is structural rather than declared**, which is
+  cheaper and stronger than the 45 lines of transitive static analysis the deleted engine used to
+  prove the same property. It is written as an antecedent member and binds with `as`:
+
+  ```
+  rule <pay> = causes(
+      { +pays(?a, ?b, ?n), +purse(?a, ?x), +purse(?b, ?y),
+        minus(?x, ?n) as ?x2, plus(?y, ?n) as ?y2 },
+      { ? purse(?a, ?x), +purse(?a, ?x2), ? purse(?b, ?y), +purse(?b, ?y2), … } )
+  ```
+
+  Measured against the observer that caught the hole: `total(10, 5)` then `total(7, 8)`, **and nothing
+  in between**. Where it belongs is §12's **skeleton** — *conditions on the binding that claim
+  nothing*, which already houses distinctness — because arithmetic asserts nothing about the world; it
+  says how the binding was built. A computed member accordingly consumes no entry and contributes
+  nothing to the trail: five members, three on it.
+
+  ⚠ What remains: this closes the case where the whole change fits one application. A change that
+  genuinely needs several — because it waits on the world, or on a tool that is *not* pure — is still
+  observable half-done, and the guard below is still the only answer for it.
+
+  A corpus can guard that — every observer requiring `−transferring(?a, ?b)` — and that is precisely the
   shape §19 refuses elsewhere: *a convention every corpus has to remember is exactly the kind this
   design keeps finding it has lost*. Whether the right answer is a mechanism (a moment that declares
   itself unsettled, so the norm veto and ordinary observers can key on it), or the honest admission

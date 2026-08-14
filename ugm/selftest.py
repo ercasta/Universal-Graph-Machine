@@ -3544,6 +3544,85 @@ def a_rule_can_relate_two_moments() -> None:
           all(x.locus is None for x in plain.antecedent))
 
 
+def a_computation_happens_inside_the_application() -> None:
+    """Arithmetic in the antecedent, and the transfer becomes atomic. (§12, §22)
+
+    A **computator** is a function given VALUES and returning a value. It is not
+    handed the machine, the frame or the entry, so it cannot reach the graph,
+    the register or the world -- **purity is structural rather than declared**.
+    The deleted engine proved the same property with 45 lines of transitive
+    static analysis; not handing the function anything is cheaper and stronger.
+
+    ⭐⭐⭐ **And it closes the atomicity hole.** A tool answers through the write,
+    so its answer lands a tick later and a transfer is caught half-done --
+    measured this session, an observer saw twelve gold where fifteen existed and
+    an agent EMITTED on it. Computed during the match, the result reaches the
+    same consequent in the same moment, and there is no in-between to see.
+
+    Where it belongs is §12's **skeleton**: *conditions on the binding that
+    claim nothing*, which already houses distinctness. A computator asserts
+    nothing about the world; it says how the binding was built.
+    """
+    from .text import Loader
+
+    m = Machine(); kb = Loader(m)
+    kb.computator("minus", lambda a, b: int(a) - int(b))
+    kb.computator("plus", lambda a, b: int(a) + int(b))
+    kb.load(chr(10).join([
+        "rule <watch> = implies( { +purse(hero, ?x), +purse(smith, ?y) },",
+        "                       { +total(?x, ?y) } )",
+        "fact standing(<watch>)",
+        "rule <pay> = causes(",
+        "    { +pays(?a, ?b, ?n), +purse(?a, ?x), +purse(?b, ?y),",
+        "      minus(?x, ?n) as ?x2, plus(?y, ?n) as ?y2 },",
+        "    { ? purse(?a, ?x), +purse(?a, ?x2),",
+        "      ? purse(?b, ?y), +purse(?b, ?y2), -pays(?a, ?b, ?n) } )",
+        "fact +purse(hero, 10)", "fact +purse(smith, 5)",
+        "fact +pays(hero, smith, 3)", ""]))
+    m.run(limit=300)
+    sums = sorted({sum(int(v) for v in m.g.show(e.proposition)[6:-1].split(", "))
+                   for e in m._state() if e.sign == PLUS
+                   and m.g.show(e.proposition).startswith("total(")})
+    check("§22", "⭐⭐⭐ the transfer is ATOMIC: the same standing observer that "
+          "saw twelve gold where fifteen existed never sees it again",
+          sums == [15])
+    check("§12", "...and the arithmetic happened -- 10 and 5 became 7 and 8, "
+          "in one application",
+          m.holds(kb.term("purse(hero, 7)")) == PLUS
+          and m.holds(kb.term("purse(smith, 8)")) == PLUS)
+
+    # ⚠ A computator consumes no ENTRY, so it contributes nothing to the trail.
+    # That is the honest record rather than a gap: nothing was matched. The
+    # antecedent has five members and three of them are entries.
+    deposited = [e for e in m._state() if e.sign == PLUS
+                 and m.g.show(e.proposition) == "purse(hero, 7)"]
+    check("§12", "...and a computed member consumes no entry, because it "
+          "matched none: five members, three on the trail",
+          bool(deposited) and len(deposited[0].consumed) == 3)
+
+    # The arguments must be ground when it runs, so a computator member only
+    # computes once earlier members have bound them -- here `n(?x)` is DERIVED,
+    # so the rule matches from a delta rather than on the opening pass.
+    #
+    # ⚠ The engine also skips pivoting on a computator, and that is an
+    # OPTIMISATION rather than a correctness fix -- measured both ways, the
+    # results are identical because every pivot is tried and the pass whose
+    # pivot is the changed entry finds the applications regardless. The first
+    # version of this comment claimed it was load-bearing; a kill-probe removing
+    # the guard broke nothing, which is how the claim was caught. Third time
+    # today a check's stated reason was wrong while its verdict was right.
+    m2 = Machine(); kb2 = Loader(m2)
+    kb2.computator("double", lambda a: int(a) * 2)
+    kb2.load(chr(10).join([
+        "rule <mk> = implies( { +seed(?s) }, { +n(?s) } )",
+        "rule <d> = implies( { +n(?x), double(?x) as ?y }, { +twice(?x, ?y) } )",
+        "fact +seed(4)", ""]))
+    m2.run(limit=60)
+    check("§4", "...and it matches from a DELTA too, once earlier members have "
+          "bound what it computes from",
+          m2.holds(kb2.term("twice(4, 8)")) == PLUS)
+
+
 def a_member_can_name_what_it_matched() -> None:
     """`+on(?x, ?y) as ?t` -- reference, not description. (§8, §12)
 
@@ -6424,6 +6503,7 @@ def main() -> int:
     matching_is_incremental()
     a_rule_can_author_a_rule()
     a_rule_can_relate_two_moments()
+    a_computation_happens_inside_the_application()
     a_member_can_name_what_it_matched()
     two_moments_can_be_ordered()
     a_half_finished_change_is_observable_and_actionable()

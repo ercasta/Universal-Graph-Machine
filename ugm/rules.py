@@ -142,6 +142,10 @@ class RuleSet:
         self.OVERRIDES: Optional[NodeId] = None
         self.SUPERSEDES: Optional[NodeId] = None
         self.claims: Optional[Callable[[NodeId], object]] = None
+        # Relations that are COMPUTED rather than matched (§12's skeleton).
+        # Set by the Machine, which owns the registry; a bare RuleSet has none,
+        # which is what a rule set with no host functions should say.
+        self.computes: Dict[NodeId, Callable] = {}
         self.by_node: Dict[NodeId, "Rule"] = {}
         # ...and defeat about a CASE. `overrides` is per tick: a rule overridden
         # by another that matched anywhere this step does not apply at all, which
@@ -831,6 +835,7 @@ def match(
     seat: Moment,
     state: Optional["Situation"] = None,
     fresh: Optional["Situation"] = None,
+    computes: Optional[Dict[NodeId, Callable]] = None,
 ) -> List[Application]:
     """Unify a generic moment against an anchored one, over the current state.
 
@@ -877,6 +882,7 @@ def match(
     """
     if state is None:
         state = Situation(g, current_state(chain, locus, seat))
+    computes = computes or {}
     results: List[Application] = []
     seen: set = set()
     width = len(rule.antecedent)
@@ -894,10 +900,52 @@ def match(
                     if k in seen:
                         return
                     seen.add(k)
-                results.append(Application(rule, bindings, tuple(slots)))
+                # ⚠ A computator consumes no ENTRY, so its slot stays empty and
+                # is dropped here. §12 says `consumed` is filled by member
+                # position, and that is about ORDER rather than arity -- nothing
+                # indexes it positionally (checked), every reader iterates, and
+                # the relative order of the entries that do exist is unchanged.
+                # A member that matched nothing contributing nothing to the
+                # trail is the honest record, not a gap in it.
+                results.append(Application(
+                    rule, bindings, tuple(e for e in slots if e is not None)))
                 return
             i = order[j]
             want = rule.antecedent[i]
+            fn = computes.get(g.relation_of(want.pattern))
+            if fn is not None:
+                # ⭐ **A computator: evaluated, not matched.** §12's skeleton is
+                # *conditions on the binding that claim nothing* -- distinctness
+                # is already one -- and arithmetic is exactly that. Evaluating
+                # it HERE is what makes an application atomic: the result is
+                # available to the same consequent, in one moment, so a transfer
+                # cannot be caught half-done (§22).
+                #
+                # ⚠ The arguments must be ground by now. A member whose
+                # arguments are still open computes nothing and matches nothing,
+                # rather than guessing -- and the pivot never lands on one (see
+                # `run`), so authored order is what decides.
+                args = [walk(g, a, bindings) for a in g.members(want.pattern)]
+                if any(g.is_var(a) for a in args):
+                    return
+                try:
+                    got = fn(*[g.show(a) for a in args])
+                except Exception:
+                    return  # a computator that raises answers nothing
+                if got is None:
+                    return
+                # ⚠⚠⚠ `got` is a NODE, resolved by whoever registered the
+                # function in the corpus's own table. Building one here with
+                # `g.atom` mints a fresh node, so the result would be a TWIN of
+                # the value the corpus writes -- the rule fires, the fact lands,
+                # and asking about it answers nothing. Committed while writing
+                # this feature, minutes after documenting the trap.
+                b = bindings
+                if want.binds is not None:
+                    b = unify(g, want.binds, got, bindings)
+                if b is not None:
+                    step(j + 1, b)
+                return
             source = fresh if i == pivot else state
             for e in source.candidates(g, want, bindings):
                 b = unify(g, want.pattern, e.proposition, bindings)
@@ -918,6 +966,15 @@ def match(
         run(None)
     else:
         for pivot in range(len(rule.antecedent)):
+            # ⚠ Never pivot on a computator -- and this is an OPTIMISATION,
+            # not a correctness fix, which is worth saying because the first
+            # comment here claimed the opposite. A computator walked first has
+            # nothing bound to compute from, so that pass finds nothing; but
+            # every pivot is tried, and the pass whose pivot is the changed
+            # ENTRY finds the applications anyway. Measured both ways: identical
+            # results, one wasted walk. Skipping it saves the walk.
+            if g.relation_of(rule.antecedent[pivot].pattern) in computes:
+                continue
             run(pivot)
     return results
 

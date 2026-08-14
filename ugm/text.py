@@ -487,6 +487,24 @@ class Loader:
             self._scoped(node, self.scope_name)
         return node
 
+    def computator(self, name: str, fn):
+        """Register a computator in THIS corpus's scope (see `Machine`).
+
+        Values in, a value out, and no access to anything -- so a corpus rule
+        may use it inside an antecedent and the whole application stays atomic.
+
+        ⚠⚠⚠ **The result is resolved in THIS corpus's table**, which is the whole
+        reason the marshalling lives here rather than in the matcher. A value
+        turned into a node with `g.atom` is a fresh node, so `8` computed would
+        be a twin of the `8` the corpus writes: the rule fires, the fact lands,
+        and every question about it answers nothing. `Loader.answerer`'s
+        argument, one door along.
+        """
+        def resolved(*values):
+            got = fn(*values)
+            return None if got is None else self.atom(str(got))
+        return self.m.computator(self.atom(name), resolved)
+
     def answerer(self, name: str, request: str, fn):
         """Register a tool **in this corpus's scope**, which is the only scope in
         which its request has a meaning.

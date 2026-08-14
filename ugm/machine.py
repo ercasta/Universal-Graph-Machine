@@ -455,6 +455,7 @@ class Machine:
         # its bindings as `names(...)` and broke `ugm.backward` -- one node with
         # two meanings, committed by the author of the note warning about it.
         self.NAMES = self.g.atom("names")
+        self.COMPUTES = self.g.atom("computes")
         self.ORDER = self.g.atom("order")
         self.PRECEDES = self.g.atom("precedes")
         self.COMPOSE = self.g.atom("compose")
@@ -518,7 +519,7 @@ class Machine:
             "compose": self.COMPOSE, "composed": self.COMPOSED,
             "at": self.AT,
             "order": self.ORDER, "precedes": self.PRECEDES,
-            "names": self.NAMES,
+            "names": self.NAMES, "computes": self.COMPUTES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
             "bounded": self.BOUNDED,
@@ -1950,6 +1951,37 @@ class Machine:
 
     # -- tools ------------------------------------------------------------
 
+    def computator(self, name, fn) -> NodeId:
+        """Register a function that is COMPUTED during a match (§12, §22).
+
+            { +purse(?a, ?x), +cost(?i, ?c), minus(?x, ?c) as ?new }
+
+        ⭐⭐⭐ **Purity is structural here, not declared.** An answerer is given
+        `(machine, frame, entry)` and can do anything; a computator is given
+        **values** and returns a value, so it cannot reach the graph, the
+        register or the world -- there is nothing to reach them with. The
+        deleted engine proved purity with 45 lines of transitive static
+        analysis; not handing the function anything is cheaper and stronger.
+
+        ⭐ And it is what makes an application ATOMIC. A tool answers through
+        the write, so its answer lands a tick later and a transfer can be caught
+        half-done -- measured, an agent emitted an act on a total that never
+        existed (§22). Computed during the match, the result reaches the same
+        consequent, in one moment.
+
+        ⚠ It is registered in the CORPUS's scope, for `Loader.answerer`'s reason:
+        a relation is a name, and a name minted beside the corpus's table is a
+        relation nobody can write.
+        """
+        rel = self.g.atom(name) if isinstance(name, str) else name
+        self.rules.computes[rel] = fn
+        # ...and it is on the record, so *which of these exist* is a query
+        # rather than a fact about the source (§17).
+        self.gate.write(self.focus, self.g.rel(self.COMPUTES, rel), PLUS,
+                        licence=self.g.rel(self.REIFIED, rel), source=self.KB,
+                        mention=True)
+        return rel
+
     def answerer(self, name: str, request: str, fn) -> "Answerer":
         """Register something that answers a request. §21's debt, as data.
 
@@ -3340,7 +3372,8 @@ class Machine:
             cache["rule_pos"][r.node] = here
             if start is None:
                 found = match(
-                    self.g, self.chain, r, self.focus.topic, self.focus.seat, state
+                    self.g, self.chain, r, self.focus.topic, self.focus.seat, state,
+                    computes=self.rules.computes,
                 )
             elif start < here:
                 if start not in deltas:
@@ -3350,7 +3383,7 @@ class Machine:
                     ])
                 found = match(
                     self.g, self.chain, r, self.focus.topic, self.focus.seat, state,
-                    fresh=deltas[start],
+                    fresh=deltas[start], computes=self.rules.computes,
                 )
             else:
                 continue

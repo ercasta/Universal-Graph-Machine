@@ -194,6 +194,23 @@ rule <apply-it> = implies( { +answered(<calc>, minus(?b, ?n, ?c), ?r) },
 
 Measured: the purse goes 20 → 17, and the old value reads `?`.
 
+⭐ **Better: a computator, which keeps the whole change in one application.** A tool answers through
+the write, so its answer lands a tick later and a transfer can be caught half-done. A **computator** is
+a function given values and returning a value — it never sees the graph — so it runs *during the
+match*:
+
+```
+kb.computator("minus", lambda a, b: int(a) - int(b))
+
+rule <pay> = causes(
+    { +pays(?a, ?b, ?n), +purse(?a, ?x), +purse(?b, ?y),
+      minus(?x, ?n) as ?x2, plus(?y, ?n) as ?y2 },
+    { ? purse(?a, ?x), +purse(?a, ?x2), ? purse(?b, ?y), +purse(?b, ?y2), -pays(?a, ?b, ?n) } )
+```
+
+Measured: a standing observer sees `total(10, 5)` then `total(7, 8)` and **never the 12 in between**.
+Use a computator wherever the arithmetic is pure; keep a tool for anything that talks to the world.
+
 ⚠ **That last member is load-bearing.** Without retracting the trigger the rule debits **forever** —
 the first version of this fixture took the purse down in threes until the budget stopped it. Same
 criterion as §3's turn loop, arriving in a corpus instead of the machinery.
