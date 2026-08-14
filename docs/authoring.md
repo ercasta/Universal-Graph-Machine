@@ -3,7 +3,7 @@
 `docs/rules-design.md` is the design. This is the shorter, meaner document: **what actually bites when
 you sit down and write a corpus**, ordered by how much time it costs before you find it.
 
-Every claim below was run against the engine at commit `95d7c90` or later, not recalled. Where a number is
+Every claim below was run against the engine at commit `f250528`, not recalled. Where a number is
 quoted from an earlier measurement rather than re-run here, it says so. Snippets are copy-pasteable.
 
 The design's own conventions apply to this file: a claim with no measurement behind it is an opinion,
@@ -242,7 +242,7 @@ is floor. Do not try to put your rulebook in a fact.)
 
 "Unsayable" covers four quite different situations, and confusing them will waste your time in both
 directions — arguing with a wall that is really a to-do, or designing around a to-do as if it were a
-wall. Probed at `bdb6687`:
+wall. Probed at `f250528`:
 
 | you cannot say | why, exactly | kind |
 |---|---|---|
@@ -255,25 +255,37 @@ wall. Probed at `bdb6687`:
 | ~~*it falls by 3*~~ | ✅ **also not a wall.** A known amount is a **tool** (arithmetic is a function); an unknown one is a **node**, per §13's move for plurality. What stays open is only *recovering a readable value after an unquantified change*, which is arguably honest ignorance | **was two questions, both answered** |
 | `−` matching *nothing was said* | open-world semantics: silence inherits, it does not deny | **deliberate, and correct** |
 
-**Four of the eight are simply not built.** That is the headline, and it is better news than the list
-looks: they are absent because of implementation order, not because anything in the design resists
-them. `rules.py` says so in its own first paragraph — *slice one carries the one-locus case only*.
+Counting the rows: **four are simply not built**, **two are deliberate** and would be wrong to change,
+and **two were never walls at all.**
 
-Two are deliberate and would be wrong to change. One is a genuine gap the design records and has not
-solved.
+The four unbuilt ones are absent through implementation order, not because anything in the design
+resists them — `rules.py` says so in its own first paragraph, *slice one carries the one-locus case
+only*. That is better news than the list looks.
 
-⭐ **And the eighth was not a wall at all — it was three refusals nobody had asked the reason for.**
-The first draft of this note listed `?p(?x)` as unsayable. Probing it found the substrate builds one
-happily, and that the parser, `unify` and `substitute` each declined it independently, none of them
-on an argument. It took about an hour to allow, and it is now the pattern §4 recommends you build on.
+⭐ **The last two are the reason this section exists.** The first draft of this note listed both
+`?p(?x)` and *falls by 3* as unsayable, straight off the design's open-questions list. Probed, neither
+was a limit anybody had argued:
 
-> **Ask which of the four you are hitting before you design around it.** If it is *unbuilt*, say so
-> loudly and it may get built. This note went from "here is a wall" to "here is the recommended
-> pattern" in one afternoon, purely because someone asked **why** rather than accepting the list.
+* `?p(?x)` was **three independent refusals** — the parser would not read it, `unify` compared the
+  relation slot by identity, `substitute` would not rebuild one — and the substrate had been able to
+  construct the node all along. About an hour to allow. It is now the pattern §4 recommends you build
+  on.
+* *falls by 3* was **two questions filed as one**. A known amount is arithmetic, arithmetic is a
+  function, and a function is a tool — no representation needed. An unknown amount wants a **node**
+  rather than a value slot, which is §13's move for plurality sitting one section away from the item
+  that said it was missing.
 
-## 6. Walls — things the document describes that the engine does not have
+Neither took a day. Both had been on the open list for a long time.
 
-Recorded in §22 and Appendix C as of this session. You will reach for all of these in an RPG.
+> **Ask which of these four kinds you are hitting before you design around it** — and if the answer is
+> not obvious, that is itself the signal. Two of the eight rows above changed status in a single
+> afternoon, purely because someone asked **why** instead of accepting the list. If you hit something
+> and it smells like a wall, say so loudly rather than routing around it.
+
+## 6. The four unbuilt ones, in detail
+
+These are the *unbuilt* rows of §5, with what each blocks. Recorded in §22 and Appendix C as of this
+session. You will reach for all of them in an RPG.
 
 | you want to write | status |
 |---|---|
