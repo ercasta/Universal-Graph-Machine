@@ -82,8 +82,57 @@ occasion the machinery deposits — `quiet`, `left`, `stopped` — reach for `im
 
 ## 4. What works, and is worth building on
 
-**One rule per ability.** This is the pattern to build on, and it is a rule rather than a fact for a
-reason worth understanding before you commit a design to it:
+### ⭐ Define the verb once; declare the world in facts
+
+This is the pattern to build an RPG on, and it is the reason the engine grew a feature this week. A
+class can be named by a variable — `+?kind(?item)` — so *the smith sells weapons* is a **fact**, and
+applying that class to a particular sword is the rule's job:
+
+```
+rule <can-buy> = implies(
+    { +wants(?b, ?item), +sells(?s, ?kind), +?kind(?item),
+      +stocks(?s, ?item), +purse(?b, ?coin) },
+    { +offer(?b, ?s, ?item) } )
+
+rule <buy> = causes(
+    { +offer(?b, ?s, ?item), +purse(?b, ?coin) },
+    { +owns(?b, ?item), -stocks(?s, ?item), ? purse(?b, ?coin), +falls(purse(?b)) } )
+```
+
+...and then the world is **declared**, not coded:
+
+```
+fact sells(smith, weapon)      fact +weapon(sword)
+fact +stocks(smith, sword)     fact +purse(hero, 20)      fact +wants(hero, sword)
+```
+
+Three things measured about that, and the last two are what make it pay:
+
+| | |
+|---|---|
+| the trade goes through | `owns(hero, sword)` `+`, `stocks(smith, sword)` `−` |
+| **a whole new trade is facts** | armourer / armour / shield: **5 facts, 0 new rules** |
+| **a second verb reuses the declarations** | `<steal>` keys on the same `sells` and `?kind`, untouched |
+| **a class hierarchy is one ordinary rule** | `{+blade(?x)} ⟹ {+weapon(?x)}` and the smith sells daggers, though nothing ever said so |
+
+> **`sells(smith, weapon)` names a class, and `?kind(?item)` is what applies it.** Without a variable
+> in the relation slot, `sells` could only ever name a particular item and every merchant would need
+> its own rule.
+
+⚠ **The cost, so you place it deliberately.** A variable relation in a **consequent** is free at match
+time and cheaper overall, because one rule replaces N. In an **antecedent member** it loses §3's index
+— the pattern has no bucket, so it scans — measured at **14× the unifications** on a small world with
+200 unrelated facts. Above, `?kind(?item)` sits in an antecedent and is affordable because `sells` and
+`stocks` narrow it first. Do not lead with the unindexed member.
+
+⚠ **Arity slips are silent here.** The first version of that `<buy>` rule wrote `? purse(?b)` against
+a `purse(hero, 20)` fact — a different proposition — so it invalidated something nobody had asserted
+and the old amount went on reading `+`. Nothing complains.
+
+### One rule per ability
+
+If you are not using the class trick, an ability catalogue is a rule per ability, and it is a rule
+rather than a fact for a reason worth understanding before you commit a design to it:
 
 ```
 rule <fireball> = implies( { +did(fireball(?t)) }, { +burned(?t) } )      -- parameterised ✅
@@ -154,7 +203,7 @@ wall. Probed at `bdb6687`:
 | *while poisoned* — a span as a locus | an entry's locus is typed as a moment; no span is ever built as one | **unbuilt** |
 | shapes (§13) | needs both of the above | **unbuilt** |
 | `unless(<R>, +cond)` | specified in §12, implemented nowhere | **unbuilt** |
-| *apply the effect named by this spell* — `?p(?x)` | the substrate **builds it fine**; `unify` compares the relation slot by identity and `ground` will not substitute one. Implementable, and it costs §3's only index | **a scored trade, not a wall** |
+| ~~*apply the effect named by this spell* — `?p(?x)`~~ | ✅ **built, after this note first said it was a wall.** The substrate could always construct one; three separate things refused it and none was an argument — the parser would not read it, `unify` compared the relation slot by identity, `substitute` would not rebuild one | **was never a wall** |
 | *my rulebook, as facts* | §8 scopes a statement's variables to it — measured, `?x` in two named facts are **different nodes**, so a rule assembled from them concludes about something nothing binds | **deliberate, and load-bearing** |
 | *it falls by 3* | a value that is constrained but not bound has no representation at all | **a real gap** (§22) |
 | `−` matching *nothing was said* | open-world semantics: silence inherits, it does not deny | **deliberate, and correct** |
@@ -164,15 +213,16 @@ looks: they are absent because of implementation order, not because anything in 
 them. `rules.py` says so in its own first paragraph — *slice one carries the one-locus case only*.
 
 Two are deliberate and would be wrong to change. One is a genuine gap the design records and has not
-solved. And exactly one is a **decision nobody has made** rather than a limit anybody argued for: a
-variable in relation position is constructible today and simply not unified, and allowing it would buy
-the parameterised effect catalogue at the cost of the one index the substrate provides — the same
-trade the design already accepts for a bare-variable consequent, which is excluded from the index and
-otherwise legal.
+solved.
+
+⭐ **And the eighth was not a wall at all — it was three refusals nobody had asked the reason for.**
+The first draft of this note listed `?p(?x)` as unsayable. Probing it found the substrate builds one
+happily, and that the parser, `unify` and `substitute` each declined it independently, none of them
+on an argument. It took about an hour to allow, and it is now the pattern §4 recommends you build on.
 
 > **Ask which of the four you are hitting before you design around it.** If it is *unbuilt*, say so
-> loudly and it may get built — this note exists because probing turned four documented conventions
-> into to-do items in an afternoon.
+> loudly and it may get built. This note went from "here is a wall" to "here is the recommended
+> pattern" in one afternoon, purely because someone asked **why** rather than accepting the list.
 
 ## 6. Walls — things the document describes that the engine does not have
 

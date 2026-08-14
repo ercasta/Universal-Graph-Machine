@@ -118,8 +118,14 @@ PROBES = (
      "fact achieves(travel(work), at(work))", True),
     ("a bare-variable consequent",
      "rule <r> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )", True),
+    # ⭐ This probe read `False` until the day it did not. A variable in the
+    # RELATION slot was constructible in the substrate all along and simply
+    # never unified -- the surface refused it, `unify` compared the slot by
+    # identity, and nobody had asked which of those was the reason. Measured:
+    # in a CONSEQUENT it costs nothing and replaces N rules with one; in an
+    # ANTECEDENT member it loses §3's index and scans.
     ("construct a relation from a variable",
-     "rule <r> = implies( { +rel(?p, ?x) }, { +?p(?x) } )", False),
+     "rule <r> = implies( { +rel(?p, ?x) }, { +?p(?x) } )", True),
     ("§12's skeleton -- `where ?n = succ(?m)`",
      "rule <r> = implies( where ?n = succ(?m) given { +a(?m) } then { +b(?n) } )", False),
     ("§12's named entry / explicit locus",

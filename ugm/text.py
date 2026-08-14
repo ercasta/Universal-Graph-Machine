@@ -280,7 +280,20 @@ class Parser:
     def term(self) -> Term:
         t = self.next()
         if t.kind == "var":
-            return Term(t.text, (), True)
+            # ⭐ `?p(?t)` -- a variable in the RELATION slot. The substrate has
+            # always been able to build one; `unify` learned to bind it, so the
+            # surface stops being the thing that forbids it. This is what makes
+            # *apply the effect named by this ability* one rule instead of one
+            # fact per (ability, target) pair.
+            if not self.at("("):
+                return Term(t.text, (), True)
+            self.next()
+            args = [self.term()]
+            while self.at(","):
+                self.next()
+                args.append(self.term())
+            self.expect(")")
+            return Term(t.text, tuple(args), True)
         if t.kind == "rulename":
             return Term(t.text, (), False, True)
         if t.kind != "name":
@@ -532,7 +545,14 @@ class Loader:
         if t.is_rule:
             return self.rule_ref(t.head)
         if t.is_var:
-            return self.var(t.head, scope)
+            v = self.var(t.head, scope)
+            # A variable with arguments is a relation instance whose relation is
+            # that variable -- `?p(?t)`. Without this it would silently drop the
+            # arguments and bind the bare variable, which is the shape of every
+            # twin this repo has recorded.
+            if t.args:
+                return self.m.g.rel(v, *[self.build(a, scope) for a in t.args])
+            return v
         if not t.args:
             return self.atom(t.head)
         return self.m.g.rel(self.atom(t.head), *[self.build(a, scope) for a in t.args])

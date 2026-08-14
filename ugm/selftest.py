@@ -3486,6 +3486,159 @@ def matching_is_incremental() -> None:
           c.holds(kbc.term("z(a)")) == PLUS)
 
 
+def a_relation_can_be_named_by_a_variable() -> None:
+    """`?p(?t)` -- the effect named by data. (§3, §5, §12)
+
+    The substrate could always BUILD a relation instance whose relation slot is
+    a variable; it is an ordinary generic node. Three separate things refused
+    it and none of them was an argument: the surface would not parse it,
+    `unify` compared the relation slot by identity, and `substitute` would not
+    rebuild one. Nobody had asked which of those was the reason, so it read as
+    a wall.
+
+    ⭐ What it buys is *one rule instead of one fact per pair*. A catalogue
+    carried as facts is otherwise **ground only**: `achieves(fireball(?t),
+    burned(?t))` is refused (a fact may not hold a variable) and the named
+    version parses and never fires (applying a stored pattern is `match`, which
+    is floor). So an ability catalogue had to be a rule per ability.
+
+    ⚠ **The cost is §3's index, and it lands only on an ANTECEDENT member.** A
+    pattern whose relation is unknown has no bucket and takes the ANY bucket, so
+    it scans -- measured at 14x the unifications on a small world with 200
+    unrelated facts. In a CONSEQUENT it costs nothing at match time and is
+    cheaper overall, because one rule replaces N. The advice that follows is the
+    same shape §12 gives a bare-variable consequent: exact forwards, expensive
+    the other way round.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <resolve> = implies( { +did(?a, ?t), +effect(?a, ?p) }, { +?p(?t) } )",
+        "fact effect(fireball, burned)",
+        "fact effect(frostbolt, chilled)",
+        "fact +did(fireball, goblin)",
+        "fact +did(frostbolt, orc)", ""]))
+    m.run(limit=80)
+    check("§12", "⭐ a rule concludes the relation its antecedent bound, so one "
+          "rule serves a catalogue that would otherwise be a fact per pair",
+          m.holds(kb.term("burned(goblin)")) == PLUS
+          and m.holds(kb.term("chilled(orc)")) == PLUS)
+    # ⚠ ...and it does not smear across the catalogue. The kill-probe that
+    # matters: bind the relation but not the argument and every spell hits every
+    # target, which is the shape a wrong binding takes here.
+    # ⚠ The positives are restated here deliberately. Asked about the absences
+    # alone this passes when the whole mechanism is off and everything is None
+    # -- a check that cannot fail under the mutation it exists for, which is the
+    # default rather than the exception in this file.
+    check("§4", "...and it binds the pair, not the cross product",
+          m.holds(kb.term("burned(goblin)")) == PLUS
+          and m.holds(kb.term("chilled(orc)")) == PLUS
+          and m.holds(kb.term("burned(orc)")) is None
+          and m.holds(kb.term("chilled(goblin)")) is None)
+    # A consequent whose RELATION nothing bound is still refused, exactly as one
+    # whose argument nothing bound always was -- the gate's rule did not need to
+    # learn about this, which is the sign it was the right place for it.
+    m2 = Machine()
+    kb2 = load(m2, "rule <bad> = implies( { +go(?t) }, { +?p(?t) } )" + chr(10)
+               + "fact +go(x)" + chr(10))
+    m2.run(limit=40)
+    minted = [e for e in m2._state()
+              if e.sign == PLUS and m2.g.is_var(m2.g.relation_of(e.proposition) or 0)]
+    check("§17", "...while a consequent whose RELATION nothing bound mints "
+          "nothing, like any other unbound consequent", not minted)
+    # An ANTECEDENT member may name one too -- it just cannot be indexed.
+    m3 = Machine()
+    kb3 = load(m3, chr(10).join([
+        "rule <flee> = implies( { +?p(?t), +dangerous(?p) }, { +run(?t) } )",
+        "fact +dangerous(fire)",
+        "fact +fire(room)",
+        "fact +quiet_thing(room)", ""]))
+    m3.run(limit=60)
+    check("§3", "...and an antecedent member may name a relation by variable "
+          "too, at the price of the index -- it takes the ANY bucket and scans",
+          m3.holds(kb3.term("run(room)")) == PLUS)
+
+
+def a_verb_is_defined_once_and_a_world_is_declared() -> None:
+    """Define *buying*; then declare a world in facts. (§3, §12, §20)
+
+    The question this answers is whether an open-class vocabulary buys anything
+    an author can feel: can a generic interaction be written once, in no domain
+    vocabulary at all, and then a world be *declared* rather than coded?
+
+    ⭐ The hinge is `+?kind(?item)` -- a class named by a variable. *The smith
+    sells weapons* is `sells(smith, weapon)`, and applying that class to an item
+    is what a relation-slot variable makes possible. Without it, `sells` could
+    only ever name a particular item and every merchant would need a rule.
+
+    Three things are checked, and the second and third are the ones that would
+    make this pay in practice: a whole new trade is FACTS, a second verb reuses
+    the same declarations untouched, and a class hierarchy is one ordinary rule
+    -- the smith sells daggers without anything ever saying so.
+    """
+    from .text import load
+
+    VERB = chr(10).join([
+        "rule <can-buy> = implies(",
+        "    { +wants(?b, ?item), +sells(?s, ?kind), +?kind(?item),",
+        "      +stocks(?s, ?item), +purse(?b, ?coin) },",
+        "    { +offer(?b, ?s, ?item) } )",
+        "rule <buy> = causes(",
+        "    { +offer(?b, ?s, ?item), +purse(?b, ?coin) },",
+        "    { +owns(?b, ?item), -stocks(?s, ?item),",
+        "      ? purse(?b, ?coin), +falls(purse(?b)) } )", ""])
+
+    def world(extra):
+        mm = Machine(); kk = load(mm, VERB + extra); mm.run(limit=200)
+        return mm, kk
+
+    m, kb = world(chr(10).join([
+        "fact sells(smith, weapon)", "fact +weapon(sword)",
+        "fact +stocks(smith, sword)", "fact +purse(hero, 20)",
+        "fact +wants(hero, sword)", ""]))
+    check("§12", "⭐ a generic verb over a DECLARED world: the smith sells "
+          "weapons, a sword is a weapon, and the trade goes through",
+          m.holds(kb.term("owns(hero, sword)")) == PLUS
+          and m.holds(kb.term("stocks(smith, sword)")) == MINUS)
+    # ⚠ And the purse is INVALIDATED, not silently stale -- §16's pair. The
+    # first version of this fixture wrote `? purse(?b)` against a `purse(b, n)`
+    # fact, so it invalidated a proposition nobody had ever asserted and the
+    # old amount went on reading `+`. An arity slip is silent here.
+    check("§16", "...and what changed is unreadable rather than stale, because "
+          "the rule invalidated the proposition it actually named",
+          m.holds(kb.term("purse(hero, 20)")) == UNSURE)
+
+    m2, kb2 = world(chr(10).join([
+        "fact sells(armourer, armour)", "fact +armour(shield)",
+        "fact +stocks(armourer, shield)", "fact +purse(hero, 20)",
+        "fact +wants(hero, shield)", ""]))
+    check("§20", "...a whole new trade is FACTS -- new merchant, new class, new "
+          "stock, and not one new rule",
+          m2.holds(kb2.term("owns(hero, shield)")) == PLUS)
+
+    m3, kb3 = world(chr(10).join([
+        "rule <steal> = causes(",
+        "    { +covets(?b, ?item), +sells(?s, ?kind), +?kind(?item),",
+        "      +stocks(?s, ?item) },",
+        "    { +owns(?b, ?item), -stocks(?s, ?item), +angry(?s) } )",
+        "fact sells(smith, weapon)", "fact +weapon(sword)",
+        "fact +stocks(smith, sword)", "fact +covets(thief, sword)", ""]))
+    check("§2", "...and a SECOND verb reuses the same declarations untouched, "
+          "which is what open class is for",
+          m3.holds(kb3.term("owns(thief, sword)")) == PLUS
+          and m3.holds(kb3.term("angry(smith)")) == PLUS)
+
+    m4, kb4 = world(chr(10).join([
+        "rule <blades> = implies( { +blade(?x) }, { +weapon(?x) } )",
+        "fact sells(smith, weapon)", "fact +blade(dagger)",
+        "fact +stocks(smith, dagger)", "fact +purse(hero, 20)",
+        "fact +wants(hero, dagger)", ""]))
+    check("§13", "...and a class hierarchy is one ordinary rule: the smith "
+          "sells daggers, and nothing ever said he did",
+          m4.holds(kb4.term("owns(hero, dagger)")) == PLUS)
+
+
 def a_corpus_can_shorten_its_own_reasoning() -> None:
     """§4's larger optimisation, given a trigger. (§4, §19, §21)
 
@@ -5869,6 +6022,8 @@ def main() -> int:
     a_scope_can_span_documents()
     matching_is_incremental()
     a_rule_can_author_a_rule()
+    a_relation_can_be_named_by_a_variable()
+    a_verb_is_defined_once_and_a_world_is_declared()
     a_corpus_can_shorten_its_own_reasoning()
     an_example_becomes_a_rule()
     the_agent_harmonizes_itself()

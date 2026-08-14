@@ -364,8 +364,25 @@ def unify(
     if pattern == node:
         return bindings
     prel, nrel = g.relation_of(pattern), g.relation_of(node)
-    if prel is None or nrel is None or prel != nrel:
+    if prel is None or nrel is None:
         return None
+    if prel != nrel:
+        # ⭐ **A variable in the RELATION slot.** The substrate has always been
+        # able to build `?p(?x)` -- it is a node whose relation happens to be a
+        # variable -- and this is the line that decided it could never match.
+        # Binding it is what makes *apply the effect named by this ability* a
+        # rule rather than one fact per (ability, target) pair.
+        #
+        # ⚠ It costs §3's only index: a pattern whose relation is unknown has no
+        # bucket, so `Situation.candidates` falls back to the ANY bucket and
+        # scans. That is the same trade the design already takes for a
+        # bare-variable pattern, and it is why this is allowed rather than
+        # encouraged -- §12 says the same of a bare-variable consequent.
+        if not g.is_var(prel):
+            return None
+        bindings = unify(g, prel, nrel, bindings)
+        if bindings is None:
+            return None
     pm, nm = g.members(pattern), g.members(node)
     if len(pm) != len(nm):
         return None
@@ -530,11 +547,15 @@ def ground(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
         return p
     r = g.relation_of(p)
     assert r is not None
+    # ...and the relation slot substitutes like any other, or a rule could bind
+    # `?p` and then be unable to build `?p(?x)` back -- match and substitute
+    # travel together (§5), and half of it is worse than neither.
+    r2 = walk(g, r, bindings) if g.is_var(r) else r
     members = g.members(p)
     new = [ground(g, m, bindings) for m in members]
-    if p == pattern and all(a == b for a, b in zip(new, members)):
+    if p == pattern and r2 == r and all(a == b for a, b in zip(new, members)):
         return p
-    return g.rel(r, *new)
+    return g.rel(r2, *new)
 
 
 def substitute(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
@@ -562,10 +583,15 @@ def substitute(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> Nod
         return pattern
     rel = g.relation_of(pattern)
     assert rel is not None
+    # ...and the relation slot substitutes too, or a rule may bind `?p` in its
+    # antecedent and be unable to conclude `?p(?t)`. Anything still generic here
+    # is refused by the gate as before, which now correctly includes a
+    # consequent whose RELATION nothing bound.
+    new_rel = bindings.get(rel, rel) if g.is_var(rel) else rel
     new = [substitute(g, m, bindings) for m in members]
-    if all(a == b for a, b in zip(new, members)):
+    if new_rel == rel and all(a == b for a, b in zip(new, members)):
         return pattern
-    return g.rel(rel, *new)
+    return g.rel(new_rel, *new)
 
 
 # -- match ------------------------------------------------------------------
@@ -720,10 +746,14 @@ class Situation:
     def candidates(
         self, g: Graph, want: Member, bindings: Optional[Dict[NodeId, NodeId]] = None
     ) -> List[Entry]:
-        if g.is_var(want.pattern):
+        rel = None if g.is_var(want.pattern) else g.relation_of(want.pattern)
+        # ⚠ A pattern whose RELATION is a variable has no bucket either: nothing
+        # is known about what it names until it matches. It takes the same ANY
+        # bucket a bare variable does, which is the index cost of allowing one
+        # -- stated here rather than discovered on a workload.
+        if rel is None or g.is_var(rel):
             key: Tuple = (want.sign, self.ANY)
         else:
-            rel = g.relation_of(want.pattern)
             key = (want.sign, rel)
             if rel is not None and bindings:
                 key = self._narrowest(g, want, rel, bindings, key)

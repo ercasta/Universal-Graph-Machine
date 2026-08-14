@@ -282,6 +282,21 @@ each of its arguments — `(sign, relation, position, node)` — and walking the
 turns 2,006,004 unifications over 1,000 facts into **3,003**. Both filings are over what was
 asserted; neither is a cache; and the second is the difference between a join and a scan.
 
+**What has no bucket, and what that costs.** Two kinds of pattern cannot be filed: a **bare variable**,
+and one whose **relation** is a variable (§4). Neither says anything about what it names until it
+matches, so both take an *any* bucket and scan. That is the price of the two most general things the
+language can say, and it is worth stating as a number rather than a caveat — measured on a small world
+with 200 unrelated facts, an antecedent member whose relation is a variable costs **14× the
+unifications** of the equivalent concrete rules.
+
+> **A variable in the relation slot is exact forwards and expensive to look up.** In a **consequent**
+> it costs nothing at match time and is *cheaper* overall, because one rule replaces N — measured, 4×
+> fewer unifications at twelve effects by twelve targets. In an **antecedent** it should be narrowed
+> by a member that does have a bucket.
+
+That is the same shape §12 gives a bare-variable consequent — exact in one direction, vacuous or
+expensive in the other — and it is why both are permitted rather than encouraged.
+
 ⚠ **The argument index files atoms only, and the restriction is load-bearing rather than cautious.**
 Unification compares a ground *structure* member by member, so it accepts a structurally equal node
 that is not the same node. An identity-keyed bucket drops those, which is the twin trap of §20 in
@@ -318,8 +333,20 @@ rule *because* it is generic; a pattern is a pattern *because* something substit
 this and there is no rule layer to write conventions in.
 
 **What match means, stated once.** Two nodes match under a substitution σ when applying σ to the
-generic one yields the anchored one, position by position, relation included. That is *structural*
-unification and nothing more. It has no opinion about entries, loci, signs or chains — those enter
+generic one yields the anchored one, position by position, **relation included — and the relation is a
+position like any other.** That is *structural* unification and nothing more.
+
+⭐ **That last clause was a silent restriction until it was probed.** A relation instance whose
+relation slot holds a **variable** — `?p(?x)` — is an ordinary generic node, and the substrate has
+always been able to build one. It never matched, because three separate things declined it and none of
+them on an argument: the surface would not parse it, `unify` compared the relation slot by identity
+rather than unifying it, and `substitute` would not rebuild one. Nobody had asked which of the three
+was the reason, so it read as a property of the floor.
+
+It is not. Genericity is floor; *which slots may be generic* is a choice, and restricting it to
+argument positions was never argued. Allowing it is what makes a **class nameable by data** —
+`sells(smith, weapon)` as a fact, with `+?kind(?item)` applying it — so one rule serves a catalogue
+that otherwise needs a rule per member. §3 states the price. It has no opinion about entries, loci, signs or chains — those enter
 only because the **program** that reads a chain (§10) is written in terms of them, and that program is
 a convention.
 
