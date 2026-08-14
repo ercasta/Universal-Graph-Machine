@@ -3756,101 +3756,6 @@ def the_skeleton_is_an_ordinary_member() -> None:
           total > 0 and off == 0)
 
 
-def two_moments_can_be_ordered() -> None:
-    """...and now a rule can ask which came first. (§10, §19, §22)
-
-    `at` let a rule BIND two moments and left it unable to order them. §22
-    argued this half's shape before it was built: not a skeleton member, which
-    costs a new member kind and new surface; not deposited `succ` entries, which
-    make **structure deniable** and cost O(n) facts nobody asked for; an
-    **answerer** -- demand-driven, reading structure, so §6's circle stays shut.
-
-        order(<m>, <n>)   ⟹   precedes(<m>, <n>)   ...when it does
-
-    ⚠⚠⚠ **Ancestry, never depth.** Supposing forks by construction, so two
-    moments can share a depth with neither on the other's walk, and a depth test
-    would let a claim made inside one hypothesis order itself against its
-    sibling. The second check is the one that would catch that, and it is asked
-    of a fixture that genuinely forks -- 8 unrelated pairs among the moments it
-    makes.
-    """
-    from .text import load
-
-    m = Machine()
-    kb = load(m, chr(10).join([
-        "rule <a> = causes( { +start(x) }, { +acts(hero) } )",
-        "rule <b> = causes( { +acts(hero) }, { +acts(goblin) } )",
-        "rule <ask>   = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq },",
-        "                       { +order(?mp, ?mq) } )",
-        "rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq,",
-        "                          +precedes(?mp, ?mq) },",
-        "                       { +acted_after(?q, ?p) } )",
-        "fact +start(x)", ""]))
-    m.run(limit=200)
-    after = sorted(m.g.show(e.proposition) for e in m._state()
-                   if e.sign == PLUS
-                   and m.g.show(e.proposition).startswith("acted_after("))
-    check("§10", "⭐ *the goblin acted after the hero* -- two moments bound by "
-          "`at`, ordered by a request, and read by an ordinary rule",
-          after == ["acted_after(goblin, hero)"])
-
-    # ⭐⭐⭐ **A rule can only ever bind moments on its OWN walk**, and that is
-    # what makes ordering them well-defined rather than a lucky case. A rule
-    # matches against the state resolved at its own locus, so every entry it
-    # binds has a locus at-or-before that locus -- and two such moments are both
-    # on one walk, hence related. Containment already guaranteed it.
-    #
-    # ⚠⚠⚠ Two checks were written here before this one and NEITHER COULD FAIL.
-    # The first asked the root's state whether siblings got ordered and read
-    # containment's silence as a refusal -- 12 had been concluded and none was
-    # visible. The second asked whether every `precedes` was real ancestry, and
-    # a kill-probe swapping ancestry for a DEPTH comparison broke nothing,
-    # because the discriminating pair is unreachable. This is the invariant that
-    # actually holds, and unlike those two it can be broken: measured on a chain
-    # that forks 31 times, 145 requests, every pair related.
-    m2 = Machine()
-    load(m2, chr(10).join([
-        "rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
-        "rule <mark>  = implies( { +seen(?x) }, { +noted(?x) } )",
-        "rule <ask>   = implies( { +noted(?x) at ?mx, +noted(?y) at ?my },",
-        "                       { +order(?mx, ?my) } )",
-        "fact +likely(seen(a))", "fact +likely(seen(b))", ""]))
-    m2.run(limit=300)
-    forks = len({mo.predecessor.node for mo in m2.chain.moments if mo.predecessor
-                 for other in m2.chain.moments
-                 if other is not mo and other.predecessor is mo.predecessor})
-    asked = related = 0
-    for mo in m2.chain.moments:
-        for e in mo.delta:
-            if m2.g.relation_of(e.proposition) is not m2.ORDER:
-                continue
-            a, b = [m2.chain.moment_by_node(x)
-                    for x in m2.g.members(e.proposition)]
-            if a is None or b is None:
-                continue
-            asked += 1
-            if a is b or b.at_or_after(a) or a.at_or_after(b):
-                related += 1
-    check("§17", "⭐ every pair of moments a rule can bind is on ONE walk, even "
-          "on a chain that forks -- so ordering them is always well defined, "
-          "and containment is what guarantees it",
-          forks > 0 and asked > 0 and asked == related)
-    # ⚠ **And this check cannot be killed, which is recorded rather than
-    # hidden.** It asserts a structural consequence of containment, so nothing
-    # short of breaking the read itself can falsify it -- and breaking the read
-    # fails a hundred checks, not this one. §21 says a rule no fixture can kill
-    # is a rule the fixture is not testing; the honest status here is that this
-    # is a *statement of an invariant* rather than a test of a mechanism, and it
-    # earns its place by being the true one after two false ones.
-    #
-    # Ancestry is still what `_order` computes, and deliberately: the day a rule
-    # CAN reach two branches -- an arrival forks the chain (§17), so the shape
-    # exists -- a depth comparison would silently order them. Correct by
-    # construction beats correct by the fixture's luck, and a kill-probe
-    # swapping in depth breaks nothing today precisely because the case is out
-    # of reach.
-
-
 def a_half_finished_change_is_observable_and_actionable() -> None:
     """A transfer, mid-flight, looks exactly like a finished state. (§8, §19)
 
@@ -6593,7 +6498,6 @@ def main() -> int:
     a_computation_happens_inside_the_application()
     a_member_can_name_what_it_matched()
     the_skeleton_is_an_ordinary_member()
-    two_moments_can_be_ordered()
     a_half_finished_change_is_observable_and_actionable()
     a_reserved_name_no_longer_changes_meaning_silently()
     a_relation_can_be_named_by_a_variable()

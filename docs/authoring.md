@@ -345,17 +345,21 @@ So turn order, initiative, *who acted before whom* — all now writable, on your
 worth building. What is still missing is *it used to be X and now it is Y* about **one** fact, and you
 said you never wanted it; if that changes, say so, because it is a different and much larger job.
 
-✅ **And ordering landed too** — ask, then read:
+✅ **And ordering landed too — as an ordinary member, not a request:**
 
 ```
-rule <ask>   = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq }, { +order(?mp, ?mq) } )
-rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, +precedes(?mp, ?mq) },
+rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp) },
                        { +acted_after(?q, ?p) } )
 ```
 
-`order(?m, ?n)` is a request; `precedes(?m, ?n)` comes back when it holds, and nothing comes back when
-the two are unrelated. It is ancestry rather than a depth comparison, so it stays correct once
-anything forks. Between `at` and this, your initiative and round-order scaffold should go.
+`sanc(?later, ?earlier)` holds when the second moment is a strict ancestor of the first. It is
+**ancestry, not a depth comparison**, so it stays correct once anything forks.
+
+⚠ **The first argument must already be bound.** A structural member walks from an anchored moment
+*toward the root*, and that direction is single-valued — which is exactly why it can never reach into
+a sibling hypothesis. Written the other way round (`sanc(?anything, ?m)`) it loads fine and finds
+nothing; nothing is refused, there is simply nowhere to go. Between `at` and this, your initiative and
+round-order scaffold should go.
 
 ⭐ **And a member can name what it matched:** `+on(?x, ?y) as ?t`, then use `?t`. It binds the *same
 node*, so it is reference rather than a copy. ⚠ Two members hoping to co-refer — `+tagged(?t),

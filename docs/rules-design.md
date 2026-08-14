@@ -5182,6 +5182,9 @@ Seventeen, in one authored file, in an order that is itself a precedence claim a
 **Answerers — eight, each bound by a fact**
 
 `<fit>`, `<settle>`, `<verdict>`, `<root>`, `<supported>`, `<composer>`, `<remember>`, `<re-ask>`.
+⭐ A ninth was built and **retired the same day**: an `order` request answering `precedes`, made
+unnecessary when the skeleton became an ordinary member (§12). It was the cheap route to something the
+open class should reach itself, and *the fix is usually a deletion* held again.
 Their bodies are native, which is what an answerer *is*; their **bindings** are claims, so *which of
 these exist* is a query. Four carry `standing`, and a denial of those is refused on the record (§19).
 The other four are safe to retire by §19's test — their absence is the status quo ante.
