@@ -1484,6 +1484,11 @@ A **span** is a node with exactly two members: a start moment and an end moment.
 Spans are loci. Nothing else about the entry changes — which is the point: §8 said the locus is a
 moment *or a span*, and nothing in the read (§10) had to grow to accommodate the second.
 
+> ⚠ **DESCRIBED AND NOT IMPLEMENTED.** An entry's locus is a moment, and only a moment: no span is
+> ever built as one, and the surface has no way to write one. This section is a design for a
+> convention that does not exist in the engine, and §22 records it beside `unless`. Everything below
+> is argued rather than built, and the argument has not been checked by anything running.
+
 ### Membership is not stored
 
 The moments an **anchored** span contains are **not** listed, and the reason is structural: **the
@@ -1647,6 +1652,17 @@ given    entry(?m, on(?x, ?y), +),  entry(?n, acts(?a), +)     what is claimed, 
 
 The one-locus case, where every entry sits at the same moment and the skeleton is empty, is the common
 one and is written without either keyword, using the short form above.
+
+> ⚠ **THE SKELETON IS DESCRIBED AND NOT IMPLEMENTED, AND IT IS THE COMMON CASE THAT SHIPPED.** The
+> engine carries the one-locus case only. The surface has no `where`, no named entries, and no way to
+> write a member's locus at all — a rule member is a sign and a pattern, and its locus is whatever the
+> frame supplies. So the two-kinds-of-member distinction above, the named-entry notation, and every
+> multi-locus rule in this document are a design rather than a description. §22 records it.
+>
+> What follows from that is larger than the notation, because three other sections lean on it: §13's
+> shapes cannot be written, §11's spans have no locus to be, and §15's *an arrival should be a moment*
+> has no route. **One missing member kind accounts for most of what this document describes and the
+> engine does not do.**
 
 The two kinds do not merge, because a skeleton member is **not a claim**. `?n = succ(?m)` has no sign,
 no locus and no licence; nobody asserted it, and it cannot be denied, dated or attributed. §3 says why:
@@ -1829,6 +1845,12 @@ is the base case, and the step case consumes one turn and defers the rest:
 
 `acts` is an entry rather than anything special, because §15 already settles that an action is an
 ordinary fact holding over an interval.
+
+> ⚠ **NEITHER OF THOSE TWO RULES CAN BE WRITTEN IN ANY CORPUS THIS ENGINE LOADS.** They use §12's
+> skeleton, which is not in the surface, and they conclude at a span locus, which no entry can have.
+> *Taking turns* is this document's worked example of a shape and it has never run. The section is
+> kept because the argument for describing an extent rather than enumerating it is independent of
+> whether spans are built — but every code block in it is a proposal, and §22 records the gap.
 
 **The alternation is the argument swap** — `?a, ?b` in the head, `?b, ?a` in the recursive member.
 Remove it and the definition says *someone acts repeatedly*. That swap is a back-reference, and it is
@@ -4446,6 +4468,29 @@ New with §20, and the first two are the reason it is a section rather than a pa
 * **`unless` is described and not implemented** (§12). Precedence exists; the other half of
   defeasibility does not. Composition can therefore inherit only the defeats, and §12's *unless at
   altitude* is unwritable in any corpus this engine loads.
+* ⭐ **The skeleton is described and not implemented, and it is load-bearing for three sections**
+  (§11, §12, §13, §15). A rule member is a sign and a pattern; its locus is whatever the frame
+  supplies. There is no `where`, no named entry, no way to write a member's locus, and the engine
+  carries the one-locus case only. An entry's locus is a moment and never a span, so a span is not a
+  locus in fact however clearly §11 says it is one.
+
+  What that costs, listed rather than implied: **§13's shapes cannot be written at all** — *taking
+  turns*, the document's worked example, has never run; **§11 is a design for a construct the engine
+  does not build**; **§15's *an arrival should be a moment*** has no route, so a corpus still needs
+  one trust rule per sign; and **§16's expansion of a change-term** — *the level rises*, holdable
+  today as a wrapping proposition, cf. R6 — cannot be discharged into a comparison across two moments,
+  because relating two loci is exactly what a skeleton is for. That last one is R6's own example —
+  *pouring raises the level, by an unknown amount* — and it splits in a way worth recording: the
+  **direction** is holdable today as a wrapping proposition beside §9's `?`, on §16's pattern and with
+  no new mechanism, while the **expansion** into a comparison across two moments needs the skeleton
+  and the **magnitude** needs the constrained-not-bound value below. Three separate gaps behind one
+  English verb.
+
+  This was found by probing the surface rather than by reading it, and the way it hid is worth
+  recording: **the notation is used consistently throughout this document, so it reads as
+  implemented.** A convention that is never exercised looks exactly like one that works (§5's *data
+  rots in a way a branch does not*), and no gate covers a convention that has no rules to delete.
+  Whether the surface should grow `where` is open; that it currently promises it is not.
 * **How much of the bundle is actually rule-expressible** (§4). The gate is run for the read, the
   state and the move. It is not run for everything, and until it is, *these are conventions* is a
   claim about intent for the remainder.
@@ -4679,6 +4724,23 @@ progress, and it is expected to shrink.
 | the rule form | something must know that a rule's members are its two sides, or nothing can hand match a pattern |
 | the sign values | a member of the entry, and what the machinery computes with on every read |
 | the register | §4 item 3 — a pointer, not a vocabulary item |
+
+**Convention — described in this document and not implemented**
+
+The census counts reserved names, and a name that was never reserved because the convention was never
+built does not appear in it. That is a hole in the instrument, so these are listed here rather than
+left to be discovered by an author writing the notation this document uses throughout.
+
+| convention | section | status |
+|---|---|---|
+| the **skeleton** — `where`, named entries, a member's locus | §12 | no surface, and the engine carries the one-locus case only |
+| **spans as loci** | §11 | an entry's locus is a moment; no span is ever built as one |
+| **shapes** | §13 | follows from the two above — the worked definitions cannot be written |
+| **`unless`** | §12 | precedence exists; the other half of defeasibility does not |
+
+⚠ **Nothing in §21's gates can see any of these**, and that is the general lesson rather than an
+oversight: the bundle gate deletes each shipped rule and re-runs the suite, so it measures what
+exists. **A convention with no rules has none to delete, and reads as passing.**
 
 **Convention — shipped as rules in the bundle**
 
