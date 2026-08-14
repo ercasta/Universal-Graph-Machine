@@ -3639,6 +3639,90 @@ def a_verb_is_defined_once_and_a_world_is_declared() -> None:
           m4.holds(kb4.term("owns(hero, dagger)")) == PLUS)
 
 
+def an_amount_is_a_tool_and_an_unknown_amount_is_a_node() -> None:
+    """*It falls by 3*, and *it rises by an unknown amount*. (§13, §16, §17, §22)
+
+    §22 recorded these as one open item — *a value member that is constrained
+    rather than bound*. They are three questions with three answers, and only
+    the last is open.
+
+    ⭐ **A known magnitude is a tool.** Arithmetic is a function, and a request
+    answered by a function is what a tool IS. Nothing in the engine has to grow
+    a numeral system.
+
+    ⭐ **An unknown magnitude wants a NODE, not a slot.** Name the quantity, not
+    the value, and say what is known of it — which is §13's move for plurality
+    (*mint one node for the group; its size is a fact about that node*) applied
+    to a scalar. The point of the third check is that it is genuinely reasoned
+    with rather than merely recorded.
+    """
+    from .text import Loader
+
+    m = Machine(); kb = Loader(m)
+
+    def minus(machine, frame, entry):
+        who, a, b = machine.g.members(entry.proposition)
+        return machine.g.rel(kb.atom("purse"), who,
+                             kb.atom(str(int(machine.g.show(a))
+                                         - int(machine.g.show(b)))))
+
+    kb.answerer("calc", "minus", minus)
+    kb.load(chr(10).join([
+        "rule <spend> = implies( { +purse(?b, ?n), +buying(?b, ?i), +cost(?i, ?c) },",
+        "                        { +minus(?b, ?n, ?c) } )",
+        "rule <apply-it> = implies( { +answered(<calc>, minus(?b, ?n, ?c), ?r) },",
+        "                        { +?r, ? purse(?b, ?n), -buying(?b, sword) } )",
+        "fact +purse(hero, 20)", "fact +buying(hero, sword)",
+        "fact cost(sword, 3)", ""]))
+    m.run(limit=200)
+    check("§17", "⭐ a KNOWN magnitude needs no representation: arithmetic is a "
+          "function, so it is a tool, and the purse goes 20 to 17",
+          m.holds(kb.term("purse(hero, 17)")) == PLUS
+          and m.holds(kb.term("purse(hero, 20)")) == UNSURE)
+    # ⚠ The retraction of the trigger is load-bearing, not tidiness: without it
+    # the rule debits forever, which is §14's re-ask criterion arriving in a
+    # corpus. The first version of this fixture did exactly that.
+
+    m2 = Machine(); kb2 = Loader(m2)
+    kb2.load(chr(10).join([
+        "rule <pour> = causes( { +level(?g, ?v), +poured(?g) },",
+        "                      { ? level(?g, ?v), +greater(after(?g), ?v),",
+        "                        +rises(level(?g)) } )",
+        "fact +level(glass, 2)", "fact +poured(glass)", ""]))
+    m2.run(limit=80)
+    check("§13", "⭐ an UNKNOWN magnitude is a node, not a slot: name the "
+          "quantity and say what is known of it",
+          m2.holds(kb2.term("greater(after(glass), 2)")) == PLUS
+          and m2.holds(kb2.term("rises(level(glass))")) == PLUS
+          and m2.holds(kb2.term("level(glass, 2)")) == UNSURE)
+
+    m3 = Machine(); kb3 = Loader(m3)
+    kb3.load(chr(10).join([
+        "rule <pour> = causes( { +level(?g, ?v), +poured(?g) },",
+        "                      { ? level(?g, ?v), +greater(after(?g), ?v) } )",
+        "rule <spill> = implies( { +greater(after(?g), ?v), +brim(?g, ?v) },",
+        "                        { +overflows(?g) } )",
+        "fact +level(glass, 2)", "fact +poured(glass)", "fact +brim(glass, 2)", ""]))
+    m3.run(limit=80)
+    check("§16", "...and it is REASONED WITH, not merely recorded -- a rule "
+          "reads what is known of the unknown and concludes from it",
+          m3.holds(kb3.term("overflows(glass)")) == PLUS)
+
+    # ⚠ What stays open, as a check so it cannot be forgotten: the direct form.
+    # A consequent naming a value its antecedent never bound is an existential,
+    # and it is refused at LOAD with a message rather than silently dropped.
+    from .text import ParseError
+    m4 = Machine(); kb4 = Loader(m4)
+    try:
+        kb4.load("rule <p> = causes( { +level(?g, ?v) }, { +level(?g, ?w) } )" + chr(10))
+        refused = False
+    except ParseError:
+        refused = True
+    check("§12", "...while a value slot that is constrained rather than bound "
+          "stays refused, at load, because it is an existential",
+          refused)
+
+
 def a_corpus_can_shorten_its_own_reasoning() -> None:
     """§4's larger optimisation, given a trigger. (§4, §19, §21)
 
@@ -6024,6 +6108,7 @@ def main() -> int:
     a_rule_can_author_a_rule()
     a_relation_can_be_named_by_a_variable()
     a_verb_is_defined_once_and_a_world_is_declared()
+    an_amount_is_a_tool_and_an_unknown_amount_is_a_node()
     a_corpus_can_shorten_its_own_reasoning()
     an_example_becomes_a_rule()
     the_agent_harmonizes_itself()

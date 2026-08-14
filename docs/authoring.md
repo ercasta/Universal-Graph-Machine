@@ -3,7 +3,7 @@
 `docs/rules-design.md` is the design. This is the shorter, meaner document: **what actually bites when
 you sit down and write a corpus**, ordered by how much time it costs before you find it.
 
-Every claim below was run against the engine at commit `bdb6687`, not recalled. Where a number is
+Every claim below was run against the engine at commit `95d7c90` or later, not recalled. Where a number is
 quoted from an earlier measurement rather than re-run here, it says so. Snippets are copy-pasteable.
 
 The design's own conventions apply to this file: a claim with no measurement behind it is an opinion,
@@ -173,8 +173,55 @@ rule <hit> = causes( { +strike(?a, ?t) }, { ? hp(?t), +falls(hp(?t)) } )
 ```
 
 Measured: **without** the `?`, `hp(goblin, 10)` still reads `10` after the hit, because silence means
-*unchanged*. With it, the read reports ignorance. §16 has the argument; the magnitude — *by how much* —
-is a recorded open question (§22), so `falls` is sayable and *falls by 3* is not.
+*unchanged*. With it, the read reports ignorance.
+
+### ⭐ Damage numbers: a known amount is a tool, an unknown one is a node
+
+An earlier draft of this note said *falls by 3* was unsayable. It is not — that was another item taken
+from the open-questions list without being probed. Both halves work today.
+
+**A known amount is arithmetic, and arithmetic is a function, so it is a tool.** Nothing in the engine
+knows about numbers; you register one answerer and write two ordinary rules:
+
+```
+kb.answerer("calc", "minus", fn)          -- fn returns purse(who, n - c)
+
+rule <spend>    = implies( { +purse(?b, ?n), +buying(?b, ?i), +cost(?i, ?c) },
+                           { +minus(?b, ?n, ?c) } )
+rule <apply-it> = implies( { +answered(<calc>, minus(?b, ?n, ?c), ?r) },
+                           { +?r, ? purse(?b, ?n), -buying(?b, sword) } )
+```
+
+Measured: the purse goes 20 → 17, and the old value reads `?`.
+
+⚠ **That last member is load-bearing.** Without retracting the trigger the rule debits **forever** —
+the first version of this fixture took the purse down in threes until the budget stopped it. Same
+criterion as §3's turn loop, arriving in a corpus instead of the machinery.
+
+**An unknown amount does not want a number — it wants a node.** Don't name the value; name the
+**quantity**, and say what is known of it:
+
+```
+rule <pour> = causes( { +level(?g, ?v), +poured(?g) },
+                      { ? level(?g, ?v), +greater(after(?g), ?v), +rises(level(?g)) } )
+```
+
+...and it is genuinely reasoned with, not just recorded — a downstream rule reads it:
+
+```
+rule <spill> = implies( { +greater(after(?g), ?v), +brim(?g, ?v) }, { +overflows(?g) } )
+   -> overflows(glass) = +
+```
+
+This is §13's move for plurality — *mint one node for the group, and its size is a fact about that
+node* — applied to a scalar. ⚠ The direct form is still refused, at **load**, with a message: a
+consequent naming `level(?g, ?w)` where nothing binds `?w` is an existential, not a slot.
+
+⚠ **The real limit is repetition.** Once the level reads `?`, a second change has nothing to compare
+against, so the quantity has to be **chained** — `after1`, `after2`, `above(after2(?g), after1(?g))`
+— each step its own node. That works, and it is *ordinal* tracking: the agent can come to know the
+level is above the brim and can never again know that it is 5. For an RPG, prefer the **tool** wherever
+the number is known, and keep the node idiom for things that are genuinely vague.
 
 **Norms work and are cheap.** Checked at the write, never proposed, never arbitrated, and the refusal
 lands on the record:
@@ -205,7 +252,7 @@ wall. Probed at `bdb6687`:
 | `unless(<R>, +cond)` | specified in §12, implemented nowhere | **unbuilt** |
 | ~~*apply the effect named by this spell* — `?p(?x)`~~ | ✅ **built, after this note first said it was a wall.** The substrate could always construct one; three separate things refused it and none was an argument — the parser would not read it, `unify` compared the relation slot by identity, `substitute` would not rebuild one | **was never a wall** |
 | *my rulebook, as facts* | §8 scopes a statement's variables to it — measured, `?x` in two named facts are **different nodes**, so a rule assembled from them concludes about something nothing binds | **deliberate, and load-bearing** |
-| *it falls by 3* | a value that is constrained but not bound has no representation at all | **a real gap** (§22) |
+| ~~*it falls by 3*~~ | ✅ **also not a wall.** A known amount is a **tool** (arithmetic is a function); an unknown one is a **node**, per §13's move for plurality. What stays open is only *recovering a readable value after an unquantified change*, which is arguably honest ignorance | **was two questions, both answered** |
 | `−` matching *nothing was said* | open-world semantics: silence inherits, it does not deny | **deliberate, and correct** |
 
 **Four of the eight are simply not built.** That is the headline, and it is better news than the list

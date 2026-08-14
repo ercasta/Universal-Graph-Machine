@@ -4742,10 +4742,45 @@ New with §20, and the first two are the reason it is a section rather than a pa
 * **Distribution** (§13). *Each file was copied* against *the files together filled the disk* is a fact
   about the entry, but which entries need it, and what a read that does not ask for it should return,
   is not specified.
-* **Constrained-not-bound values.** *The level rises by an unknown amount* wants a value member that
-  is constrained rather than bound. Note the boundary §11 draws: **recognising** an ongoing pattern
-  does not need this — a span superseded by a longer span is ordinary versioning — only **predicting
-  that it continues** wants an unbound endpoint.
+* ~~**Constrained-not-bound values.**~~ **Mostly answered, and the item was asking for the wrong
+  thing.** It said *the level rises by an unknown amount* wants a value member that is constrained
+  rather than bound. Probed, that turns out to be three separate questions with three different
+  answers, and only the last is open.
+
+  **A known magnitude is a tool.** `20 − 3 = 17` needs no representation at all: arithmetic is a
+  function, and §17 says a request answered by a function is a tool. Measured — a `minus` answerer
+  and two ordinary rules take a purse from 20 to 17, with the old value invalidated. Nothing in the
+  engine changed. ⚠ And the fixture that first ran it debited forever, because nothing retracted the
+  trigger: §14's re-ask criterion, arriving in a corpus rather than in the machinery.
+
+  **An unknown magnitude does not want a value slot; it wants a node.** Do not name the value — name
+  the **quantity**, and say what is known of it:
+
+  ```
+  rule <pour> = causes( { +level(?g, ?v), +poured(?g) },
+                        { ? level(?g, ?v), +greater(after(?g), ?v), +rises(level(?g)) } )
+  ```
+
+  That is §13's own move for plurality — *mint one node for the group and do not enumerate it; what is
+  known about its size is an ordinary fact about that node* — applied to a scalar instead of a set.
+  Measured, and it **composes**: a downstream rule reading `greater(after(?g), ?v)` against a brim
+  concludes `overflows(?g)`, so the unknown quantity is genuinely reasoned with and not merely
+  recorded. The direct form — a consequent naming `level(?g, ?w)` with `?w` unbound — stays refused,
+  at load, with a message saying so, and that refusal is right: an entry whose proposition contains a
+  free variable is an existential, which is the same thing §5 says a `−` member cannot express.
+
+  ⚠ **What is actually open is narrower and is about repetition.** Once the level reads `?`, a second
+  change has nothing to compare against, so the quantity must be **chained** — `after1`, `after2`,
+  with `above(after2(?g), after1(?g))` — and each step needs its own node. Measured working, and it
+  is ordinal tracking rather than magnitude: the agent can come to know *the level is above the brim*
+  and can never again know *the level is 5*. Whether that is a gap or simply honest ignorance is the
+  real question, and this design's instinct is the second — **an unknown amount yields an unreadable
+  value, which is correct rather than missing.** What would refute that is a corpus needing to
+  recover a readable value after an unquantified change, and none has been produced.
+
+  Note the boundary §11 draws, which is unaffected: **recognising** an ongoing pattern does not need
+  any of this — a span superseded by a longer span is ordinary versioning — only **predicting that it
+  continues** wants an unbound endpoint.
 * **Span normalisation** (§11). Equality of span content must be normalised by chain order rather than
   member order; the normalisation is not specified.
 * **Resolving calendar terms** (§15). Calendar terms denote and the chain orders. What is unsettled is
