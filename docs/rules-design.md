@@ -1726,7 +1726,18 @@ one and is written without either keyword, using the short form above.
 > why the depth mistake is unreachable today, and why the ancestry test is kept anyway for the day an
 > arrival's fork puts two branches within reach.
 >
-> ⚠ **Still absent**: `where` and the skeleton's *structural* members (`?n = succ(?m)`), named entries,
+> ⭐ **And a member may name WHAT it matched** — `+on(?x, ?y) as ?t` — so a rule refers to a
+> proposition rather than describing it twice. `at` says where; `as` says what. Verified to be the
+> **same node**, so this is reference and not a copy, which §8's *a proposition has one identity
+> however often it is built* is what makes true.
+>
+> Without it a corpus reaches the same place by **reconstruction**: match `+?r(?x, ?y)` and rebuild
+> `?r(?x, ?y)`, which interning makes identical. That works and costs §3's index, since a variable
+> relation has no bucket. ⚠ What does *not* work is two members hoping to co-refer —
+> `+tagged(?t), +on(?x, ?y)` links nothing, and appears to work only while there is one candidate.
+>
+> ⚠ **Still absent**: `where` and the skeleton's *structural* members (`?n = succ(?m)`), §12's
+> `?t = entry(...)` prefix form,
 > and spans as loci — so §13's shapes remain unwritable and §15's *an arrival should be a moment* has
 > no route. §22 records what is left.
 

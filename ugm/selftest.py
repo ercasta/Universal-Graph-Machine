@@ -3544,6 +3544,52 @@ def a_rule_can_relate_two_moments() -> None:
           all(x.locus is None for x in plain.antecedent))
 
 
+def a_member_can_name_what_it_matched() -> None:
+    """`+on(?x, ?y) as ?t` -- reference, not description. (§8, §12)
+
+    `at ?m` says WHERE an entry sits; `as ?t` says WHAT it says, under a name.
+    Same one-line mechanism, and it answers a question that had two unsatisfying
+    answers before it.
+
+    A whole proposition could always be bound when it arrived as an **argument**
+    -- `+tagged(?p)` binds `?p` -- and §12's `?t = on(?x, ?y)` notation, which
+    binds the whole *and* its parts, is not in the surface. What a corpus did
+    instead was **reconstruct**: match `+?r(?x, ?y)` and rebuild `?r(?x, ?y)`,
+    which interning makes the same node, so it is genuine reference and not a
+    copy. That works and costs §3's index, because a variable relation has no
+    bucket (§4). This says the thing directly and keeps the index.
+
+    ⚠ And two members hoping to co-refer -- `+tagged(?t), +on(?x, ?y)` -- is
+    coincidence, not reference: nothing links them, and it appears to work only
+    while there is one candidate.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <r> = implies( { +on(?x, ?y) as ?t, +thing(?x) },",
+        "                   { +about(?t, ?x) } )",
+        "fact +on(a, b)", "fact +thing(a)", ""]))
+    m.run(limit=60)
+    got = [e for e in m._state() if e.sign == PLUS
+           and m.g.show(e.proposition).startswith("about(")]
+    check("§12", "⭐ a member names what it matched, so a rule refers to the "
+          "proposition instead of describing it again",
+          [m.g.show(e.proposition) for e in got] == ["about(on(a, b), a)"])
+    check("§8", "...and it is the SAME node, so this is reference and not a "
+          "copy -- propositions have one identity however often built",
+          bool(got) and m.g.member(got[0].proposition, 0) is kb.term("on(a, b)"))
+
+    # ⚠⚠⚠ Same argument as the locus, and the fifth time it has been made: a
+    # slot `reify` does not record is one `adopt` and `compose` drop, and the
+    # rule that comes back is a different rule.
+    r = [x for x in m.rules.rules if x.name == "r"][0]
+    built = m._read_rule(m.focus, r.node)
+    check("§20", "...and it survives the round trip through the graph",
+          built is not None
+          and [x.binds for x in built[1]] == [x.binds for x in r.antecedent])
+
+
 def two_moments_can_be_ordered() -> None:
     """...and now a rule can ask which came first. (§10, §19, §22)
 
@@ -6378,6 +6424,7 @@ def main() -> int:
     matching_is_incremental()
     a_rule_can_author_a_rule()
     a_rule_can_relate_two_moments()
+    a_member_can_name_what_it_matched()
     two_moments_can_be_ordered()
     a_half_finished_change_is_observable_and_actionable()
     a_reserved_name_no_longer_changes_meaning_silently()

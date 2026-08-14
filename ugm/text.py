@@ -147,6 +147,7 @@ class RuleMember(NamedTuple):
     sign: str
     term: Term
     at: Optional[Term] = None
+    binds: Optional[Term] = None
 
 
 class Statement(NamedTuple):
@@ -285,11 +286,18 @@ class Parser:
         # now refused with a message (above); reusing it would be the island §2
         # warns about, on the page. A bare name here is unambiguous because a
         # member is followed by `,` or `}`.
-        at = None
-        if self.at("at"):
-            self.next()
-            at = self.term()
-        return RuleMember(sign, term, at)
+        at = binds = None
+        # `at ?m` -- WHERE the entry sits. `as ?t` -- WHAT it says, named.
+        # Either order, because neither reads as the other and an author should
+        # not have to remember which came first.
+        while True:
+            if self.at("at"):
+                self.next(); at = self.term()
+            elif self.at("as"):
+                self.next(); binds = self.term()
+            else:
+                break
+        return RuleMember(sign, term, at, binds)
 
     def term(self) -> Term:
         t = self.next()
@@ -666,10 +674,12 @@ class Loader:
             raise ParseError(f"line {s.line}: <{s.name}> is already declared")
         scope: Dict[str, NodeId] = {}
         ant = [Member(m.sign, self.build(m.term, scope),
-                      self.build(m.at, scope) if m.at else None)
+                      self.build(m.at, scope) if m.at else None,
+                      self.build(m.binds, scope) if m.binds else None)
                for m in s.antecedent]
         con = [Member(m.sign, self.build(m.term, scope),
-                      self.build(m.at, scope) if m.at else None)
+                      self.build(m.at, scope) if m.at else None,
+                      self.build(m.binds, scope) if m.binds else None)
                for m in s.consequent]
         # A consequent that NAMES a rule drags that rule's own variables in with
         # it: `+resume(?h, <cb>)` is generic only because `<cb>`'s patterns are.
@@ -719,6 +729,8 @@ class Loader:
             # point of the slot.
             if m.locus is not None:
                 have |= _vars_in(g, m.locus)
+            if m.binds is not None:
+                have |= _vars_in(g, m.binds)
         return wanted <= have
 
     def _named_rule_vars(self, t: Term) -> set:

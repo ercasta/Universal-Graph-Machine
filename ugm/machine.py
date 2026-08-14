@@ -449,6 +449,12 @@ class Machine:
         # Where a rule's member says its entry must sit (§12's locus).
         self.AT = self.g.atom("at")
         # ...and asking how two of them are ordered (§10, §22).
+        # ...and the name a member gives what it matched (§12's `as`).
+        # ⚠ NOT `self.BINDS`, which is the PLAN-bindings relation twelve lines
+        # of this file already use. Reusing the attribute made every plan print
+        # its bindings as `names(...)` and broke `ugm.backward` -- one node with
+        # two meanings, committed by the author of the note warning about it.
+        self.NAMES = self.g.atom("names")
         self.ORDER = self.g.atom("order")
         self.PRECEDES = self.g.atom("precedes")
         self.COMPOSE = self.g.atom("compose")
@@ -512,6 +518,7 @@ class Machine:
             "compose": self.COMPOSE, "composed": self.COMPOSED,
             "at": self.AT,
             "order": self.ORDER, "precedes": self.PRECEDES,
+            "names": self.NAMES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
             "bounded": self.BOUNDED,
@@ -855,10 +862,12 @@ class Machine:
             w(self.g.rel(self.ANT, rule.node, m.pattern,
                          self.rules.SIGN[m.sign], self._numeral(i)))
             self._reify_locus(w, self.ANT, rule.node, i, m)
+            self._reify_binds(w, self.ANT, rule.node, i, m)
         for i, m in enumerate(rule.consequent):
             w(self.g.rel(self.CON, rule.node, m.pattern,
                          self.rules.SIGN[m.sign], self._numeral(i)))
             self._reify_locus(w, self.CON, rule.node, i, m)
+            self._reify_binds(w, self.CON, rule.node, i, m)
 
     def _reify_locus(self, w, side, node, i, m) -> None:
         """...and WHERE the member's entry must sit, when it says (§12).
@@ -878,6 +887,18 @@ class Machine:
         if m.locus is None:
             return
         w(self.g.rel(self.AT, side, node, self._numeral(i), m.locus))
+
+    def _reify_binds(self, w, side, node, i, m) -> None:
+        """...and the name the member gives what it matched (§12's `as`).
+
+        Same argument as `_reify_locus`, and it is the fifth time this argument
+        has had to be made: a slot the graph does not record is a slot `adopt`
+        and `compose` silently drop, and the rule that comes back is a different
+        rule. The twin-trap family.
+        """
+        if m.binds is None:
+            return
+        w(self.g.rel(self.NAMES, side, node, self._numeral(i), m.binds))
 
     def _numeral(self, i: int):
         """A node for a small whole number. `NUMERAL` stops at nine because
@@ -2429,6 +2450,16 @@ class Machine:
         connective = CAUSES if conn is self.rules.CAUSES else IMPLIES
         sign_of = {v: k for k, v in self.chain.SIGN.items()}
 
+        def slot(rel_kind, relation, i):
+            """A member's extra slot -- its locus, or the name it gives what it
+            matched -- read at the frame's position like everything else here."""
+            for q in self.g.instances_of(rel_kind):
+                mm = self.g.members(q)
+                if (len(mm) == 4 and mm[0] is relation and mm[1] is node
+                        and self.g.show(mm[2]) == str(i) and self._claims(q)):
+                    return mm[3]
+            return None
+
         def locus_at(relation, i):
             """...and the member's locus, if the graph says it has one (§12).
 
@@ -2451,7 +2482,8 @@ class Machine:
                 members = self.g.members(p)
                 i = self.g.show(members[3])
                 out.append((i, Member(sign_of.get(members[2], PLUS), members[1],
-                                      locus_at(relation, int(i)))))
+                                      locus_at(relation, int(i)),
+                                      slot(self.NAMES, relation, int(i)))))
             return [m for _, m in sorted(out, key=lambda pair: int(pair[0]))]
 
         con = side(self.CON)

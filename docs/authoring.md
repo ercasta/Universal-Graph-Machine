@@ -320,6 +320,10 @@ rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, +precedes(?mp, ?mq
 the two are unrelated. It is ancestry rather than a depth comparison, so it stays correct once
 anything forks. Between `at` and this, your initiative and round-order scaffold should go.
 
+⭐ **And a member can name what it matched:** `+on(?x, ?y) as ?t`, then use `?t`. It binds the *same
+node*, so it is reference rather than a copy. ⚠ Two members hoping to co-refer — `+tagged(?t),
++on(?x, ?y)` — do **not** link, and look like they work while there is only one candidate.
+
 ⚠ Please distinguish the two when you write your list. They look identical when you hit them and they
 cost completely different amounts.
 

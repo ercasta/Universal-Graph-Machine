@@ -41,6 +41,16 @@ class Member(NamedTuple):
     # was missing was a pattern for it, which is the third time this session a
     # wall turned out to be information nothing looked at.
     locus: Optional[NodeId] = None
+    # ⭐ ...and a name for WHAT matched. `at ?m` says where the entry sits; `as
+    # ?t` says what its proposition is, so a rule can refer to the very thing it
+    # matched rather than describing it again.
+    #
+    # Without it a corpus reaches the same place by reconstruction -- match
+    # `+?r(?x, ?y)` and rebuild `?r(?x, ?y)`, which interning makes the SAME
+    # node, so it is genuine reference rather than a copy. That works and costs
+    # §3's index, because a variable relation has no bucket. This keeps the
+    # index and says the thing directly.
+    binds: Optional[NodeId] = None
 
 
 class Rule:
@@ -894,6 +904,9 @@ def match(
                 if b is not None and want.locus is not None:
                     # The entry knows where it sits; bind the pattern to it.
                     b = unify(g, want.locus, e.locus.node, b)
+                if b is not None and want.binds is not None:
+                    # ...and what it says, as a whole, under a name.
+                    b = unify(g, want.binds, e.proposition, b)
                 if b is not None:
                     slots[i] = e
                     step(j + 1, b)
