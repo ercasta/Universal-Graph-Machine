@@ -446,6 +446,8 @@ class Machine:
         # Python dict, so *which rules is this a shortcut for* was a question
         # about the agent's own rule set that no rule could ask -- and §22 needs
         # exactly that to decompose on surprise.
+        # Where a rule's member says its entry must sit (§12's locus).
+        self.AT = self.g.atom("at")
         self.COMPOSE = self.g.atom("compose")
         self.COMPOSED = self.g.atom("composed")
         self.WIDENED = self.g.atom("widened")
@@ -505,6 +507,7 @@ class Machine:
             "close": self.CLOSE, "tolerance": self.TOLERANCE,
             "defeated": self.DEFEATED, "adopt": self.ADOPT,
             "compose": self.COMPOSE, "composed": self.COMPOSED,
+            "at": self.AT,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
             "bounded": self.BOUNDED,
@@ -844,9 +847,30 @@ class Machine:
         for i, m in enumerate(rule.antecedent):
             w(self.g.rel(self.ANT, rule.node, m.pattern,
                          self.rules.SIGN[m.sign], self._numeral(i)))
+            self._reify_locus(w, self.ANT, rule.node, i, m)
         for i, m in enumerate(rule.consequent):
             w(self.g.rel(self.CON, rule.node, m.pattern,
                          self.rules.SIGN[m.sign], self._numeral(i)))
+            self._reify_locus(w, self.CON, rule.node, i, m)
+
+    def _reify_locus(self, w, side, node, i, m) -> None:
+        """...and WHERE the member's entry must sit, when it says (§12).
+
+        ⚠⚠⚠ **Not optional, and the least visible part of the feature.**
+        `adopt` reads a rule back out of the graph and `compose` builds one from
+        two others; a locus that reify does not record is a locus those two
+        silently drop, and the rule that comes back is a DIFFERENT rule. That is
+        the twin-trap family, which has bitten four times, and a corpus that
+        retracts in 57% of its rules -- which a foreign one measured -- would hit
+        it immediately rather than eventually.
+
+        A separate relation rather than a sixth member of `ant`/`con`, because
+        most members have no locus and §5 refuses a shape whose arity varies
+        with how much happens to be known about it.
+        """
+        if m.locus is None:
+            return
+        w(self.g.rel(self.AT, side, node, self._numeral(i), m.locus))
 
     def _numeral(self, i: int):
         """A node for a small whole number. `NUMERAL` stops at nine because
@@ -2361,14 +2385,29 @@ class Machine:
         connective = CAUSES if conn is self.rules.CAUSES else IMPLIES
         sign_of = {v: k for k, v in self.chain.SIGN.items()}
 
+        def locus_at(relation, i):
+            """...and the member's locus, if the graph says it has one (§12).
+
+            Read the same way as everything else here -- through `_claims`, at
+            the frame's position -- so amending a rule's locus is denying a
+            fact, exactly as amending its members is.
+            """
+            for q in self.g.instances_of(self.AT):
+                mm = self.g.members(q)
+                if (len(mm) == 4 and mm[0] is relation and mm[1] is node
+                        and self.g.show(mm[2]) == str(i) and self._claims(q)):
+                    return mm[3]
+            return None
+
         def side(relation):
             out = []
             for p in self.g.instances_of(relation):
                 if self.g.member(p, 0) is not node or not self._claims(p):
                     continue
                 members = self.g.members(p)
-                out.append((self.g.show(members[3]),
-                            Member(sign_of.get(members[2], PLUS), members[1])))
+                i = self.g.show(members[3])
+                out.append((i, Member(sign_of.get(members[2], PLUS), members[1],
+                                      locus_at(relation, int(i)))))
             return [m for _, m in sorted(out, key=lambda pair: int(pair[0]))]
 
         con = side(self.CON)

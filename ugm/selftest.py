@@ -3486,6 +3486,64 @@ def matching_is_incremental() -> None:
           c.holds(kbc.term("z(a)")) == PLUS)
 
 
+def a_rule_can_relate_two_moments() -> None:
+    """*The goblin acts after the hero.* (§8, §12, §20)
+
+    §12 says a member IS an entry, and that the short form is an abbreviation
+    whose locus the frame supplies. That was true of the document and false of
+    the engine: `Member` was `(sign, pattern)`, so there was nowhere to put a
+    locus and no rule could relate two moments. A foreign corpus answered §8 of
+    `docs/authoring.md` by measuring what that cost it -- **24% of its rules
+    were clock scaffold**, a round counter re-implementing a moment ordinal,
+    plus a token threaded through six acting rules and an arithmetic operator
+    that existed only to count rounds.
+
+    ⭐ The matcher had the locus all along; every `Entry` carries one. What was
+    missing was a **pattern** for it -- the third time in this session a wall
+    turned out to be information nothing looked at.
+
+    ⚠ **What this does NOT buy**, and the foreign corpus was asked which half it
+    needed: a matcher sees the **resolved** state, one entry per proposition, so
+    two *different* facts at different moments are relatable and a single fact's
+    own history is not. They needed only the first and never once wanted the
+    second, which is why this is what got built.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <a> = causes( { +start(x) }, { +acts(hero) } )",
+        "rule <b> = causes( { +acts(hero) }, { +acts(goblin) } )",
+        "rule <order> = implies( { +acts(hero) at ?mh, +acts(goblin) at ?mg },",
+        "                       { +sequence(?mh, ?mg) } )",
+        "fact +start(x)", ""]))
+    m.run(limit=80)
+    seq = [e for e in m._state() if e.sign == PLUS
+           and m.g.show(e.proposition).startswith("sequence(")]
+    check("§12", "⭐ a rule relates two moments: a member says WHERE its entry "
+          "sits, and the locus binds", len(seq) == 1)
+    check("§8", "...and they are distinct moments, not one bound twice",
+          bool(seq) and m.g.member(seq[0].proposition, 0)
+          is not m.g.member(seq[0].proposition, 1))
+
+    # ⚠⚠⚠ The part that would rot in silence. `adopt` reads a rule back out of
+    # the graph and `compose` builds one from two others -- a locus `reify` does
+    # not record is one they drop, and the rule that comes back is a DIFFERENT
+    # rule. The twin-trap family, fifth time.
+    r = [x for x in m.rules.rules if x.name == "order"][0]
+    built = m._read_rule(m.focus, r.node)
+    check("§20", "...and it SURVIVES the round trip through the graph, so a "
+          "rule the agent adopts is the rule the graph described",
+          built is not None
+          and [x.locus for x in built[1]] == [x.locus for x in r.antecedent])
+
+    # ...and a member with no locus is unchanged, which is most of them.
+    plain = [x for x in m.rules.rules if x.name == "a"][0]
+    check("§12", "...while the short form is untouched: no locus, and the frame "
+          "supplies one as it always did",
+          all(x.locus is None for x in plain.antecedent))
+
+
 def a_half_finished_change_is_observable_and_actionable() -> None:
     """A transfer, mid-flight, looks exactly like a finished state. (§8, §19)
 
@@ -6224,6 +6282,7 @@ def main() -> int:
     a_scope_can_span_documents()
     matching_is_incremental()
     a_rule_can_author_a_rule()
+    a_rule_can_relate_two_moments()
     a_half_finished_change_is_observable_and_actionable()
     a_reserved_name_no_longer_changes_meaning_silently()
     a_relation_can_be_named_by_a_variable()

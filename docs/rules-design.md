@@ -1687,16 +1687,30 @@ given    entry(?m, on(?x, ?y), +),  entry(?n, acts(?a), +)     what is claimed, 
 The one-locus case, where every entry sits at the same moment and the skeleton is empty, is the common
 one and is written without either keyword, using the short form above.
 
-> ⚠ **THE SKELETON IS DESCRIBED AND NOT IMPLEMENTED, AND IT IS THE COMMON CASE THAT SHIPPED.** The
-> engine carries the one-locus case only. The surface has no `where`, no named entries, and no way to
-> write a member's locus at all — a rule member is a sign and a pattern, and its locus is whatever the
-> frame supplies. So the two-kinds-of-member distinction above, the named-entry notation, and every
-> multi-locus rule in this document are a design rather than a description. §22 records it.
+> ⭐ **A MEMBER MAY NOW SAY WHERE ITS ENTRY SITS**, which is the half of the skeleton that relates two
+> moments. It is written out rather than punctuated — `+acts(goblin) at ?m` — because `@` used to mean
+> a grade and reusing it would be §2's island on the page:
 >
-> What follows from that is larger than the notation, because three other sections lean on it: §13's
-> shapes cannot be written, §11's spans have no locus to be, and §15's *an arrival should be a moment*
-> has no route. **One missing member kind accounts for most of what this document describes and the
-> engine does not do.**
+> ```
+> rule <order> = implies( { +acts(hero) at ?mh, +acts(goblin) at ?mg },
+>                        { +sequence(?mh, ?mg) } )
+> ```
+>
+> The matcher had the locus all along — every entry carries one — and what was missing was a *pattern*
+> for it. Built because a foreign corpus measured what its absence cost: **24% of its rules were clock
+> scaffold**, a round counter re-implementing a moment ordinal, plus a token threaded through six
+> acting rules and an arithmetic operator that existed only to count rounds.
+>
+> ⚠ **What it does not buy, and the limit is exact.** A matcher sees the **resolved** state — one entry
+> per proposition — so two *different* facts at different moments are relatable and **a single fact's
+> own history is not**: *it was on, then it was not* still finds nothing, because the superseded entry
+> is not in the state. Reaching that means matching over the raw chain, which is what §6's stratum-0
+> read is for, and it reopens the bootstrap question. The corpus that asked for this needed only the
+> first half and never once wanted the second.
+>
+> ⚠ **Still absent**: `where` and the skeleton's *structural* members (`?n = succ(?m)`), named entries,
+> and spans as loci — so §13's shapes remain unwritable and §15's *an arrival should be a moment* has
+> no route. §22 records what is left.
 
 The two kinds do not merge, because a skeleton member is **not a claim**. `?n = succ(?m)` has no sign,
 no locus and no licence; nobody asserted it, and it cannot be denied, dated or attributed. §3 says why:
@@ -4649,11 +4663,18 @@ New with §20, and the first two are the reason it is a section rather than a pa
 * **`unless` is described and not implemented** (§12). Precedence exists; the other half of
   defeasibility does not. Composition can therefore inherit only the defeats, and §12's *unless at
   altitude* is unwritable in any corpus this engine loads.
-* ⭐ **The skeleton is described and not implemented, and it is load-bearing for three sections**
-  (§11, §12, §13, §15). A rule member is a sign and a pattern; its locus is whatever the frame
-  supplies. There is no `where`, no named entry, no way to write a member's locus, and the engine
-  carries the one-locus case only. An entry's locus is a moment and never a span, so a span is not a
-  locus in fact however clearly §11 says it is one.
+* **The skeleton is half built** (§11, §12, §13, §15). ✅ A member may now say **where its entry
+  sits** — `+acts(goblin) at ?m` — so a rule relates two moments, which is what a foreign corpus was
+  spending 24% of itself simulating with a round counter. What remains absent: `where` and the
+  skeleton's *structural* members (`?n = succ(?m)`), named entries, and spans as loci — an entry's
+  locus is a moment and never a span, so a span is not a locus in fact however clearly §11 says it is
+  one.
+
+  ⚠ **And the built half is bounded by the read, not by the notation.** A matcher sees the resolved
+  state, one entry per proposition, so two *different* facts at different moments relate and **a
+  single fact's own history does not**. Reaching that means matching over the raw chain — §6's
+  stratum-0 territory — and reopens the bootstrap. Measured as the discriminating case: *it was on,
+  then it was not* finds nothing.
 
   What that costs, listed rather than implied: **§13's shapes cannot be written at all** — *taking
   turns*, the document's worked example, has never run; **§11 is a design for a construct the engine

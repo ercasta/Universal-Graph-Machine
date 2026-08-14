@@ -301,13 +301,16 @@ not a bug you can route around with cleverness — it is one missing member kind
 
 | | |
 |---|---|
-| **sequencing** — two *different* facts at different moments, *the goblin acts after the hero* | **about half a day.** A member gains a locus slot and the match binds it: prototyped, worked first try, suite stayed green. The entry has carried its locus all along and nothing looked at it |
+| **sequencing** — two *different* facts at different moments, *the goblin acts after the hero* | ✅ **BUILT.** Write `+acts(goblin) at ?m` and the locus binds. Your clock scaffold should collapse |
 | **a fact's own history** — the *same* proposition at two moments, *the door was open and now is closed* | **not sized, materially harder.** A matcher sees the **resolved** state — one entry per proposition — so the superseded entry is simply not there. Reaching it means matching over the raw chain, which is what §6's stratum-0 read is for, and reopens the bootstrap question |
 
-So if what you keep wanting is turn order, initiative, *who acted before whom*, or *this happened
-after that* — that is the cheap half and saying so will probably buy it. If what you keep wanting is
-*it used to be X and now it is Y* about **one** fact, that is the expensive half, and knowing that is
-worth as much as knowing the other.
+So turn order, initiative, *who acted before whom* — all now writable, on your evidence that it was
+worth building. What is still missing is *it used to be X and now it is Y* about **one** fact, and you
+said you never wanted it; if that changes, say so, because it is a different and much larger job.
+
+⚠ There is **no `succ`/`before` yet**, so a rule can bind two moments and cannot yet ask which came
+first. Binding them is what makes the question askable at all; ordering them is the next piece, and it
+is small. Tell us if you need it before we get to it.
 
 ⚠ Please distinguish the two when you write your list. They look identical when you hit them and they
 cost completely different amounts.

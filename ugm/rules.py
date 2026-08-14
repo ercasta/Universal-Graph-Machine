@@ -27,6 +27,20 @@ class Member(NamedTuple):
 
     sign: str
     pattern: NodeId
+    # ⭐ WHERE the entry must sit, as a pattern to bind (§8, §12). Defaulted, so
+    # every construction site that does not care is untouched -- which is the
+    # whole reason a NamedTuple was the right shape for a member.
+    #
+    # §12 says a member IS an entry and the short form is an abbreviation whose
+    # locus the frame supplies. That was true of the document and false of the
+    # engine: there was nowhere to put a locus, so *the goblin acts after the
+    # hero* was unwritable and a foreign corpus spent 24% of itself
+    # re-implementing a moment ordinal as a round counter.
+    #
+    # ⚠ The matcher had the locus all along -- every `Entry` carries one. What
+    # was missing was a pattern for it, which is the third time this session a
+    # wall turned out to be information nothing looked at.
+    locus: Optional[NodeId] = None
 
 
 class Rule:
@@ -877,6 +891,9 @@ def match(
             source = fresh if i == pivot else state
             for e in source.candidates(g, want, bindings):
                 b = unify(g, want.pattern, e.proposition, bindings)
+                if b is not None and want.locus is not None:
+                    # The entry knows where it sits; bind the pattern to it.
+                    b = unify(g, want.locus, e.locus.node, b)
                 if b is not None:
                     slots[i] = e
                     step(j + 1, b)

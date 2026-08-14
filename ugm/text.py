@@ -146,6 +146,7 @@ class Term(NamedTuple):
 class RuleMember(NamedTuple):
     sign: str
     term: Term
+    at: Optional[Term] = None
 
 
 class Statement(NamedTuple):
@@ -276,7 +277,19 @@ class Parser:
                 f"proposition now -- write `+likely(p)` in the consequent and let "
                 f"a rule cross it, rather than annotating how strongly `p` is held."
             )
-        return RuleMember(sign, term)
+        # ⭐ `+acts(goblin) at ?m` -- WHERE the entry sits. §12 calls the short
+        # form an abbreviation for the entry, whose locus the frame supplies;
+        # this is how a rule says otherwise, and it relates two moments.
+        #
+        # ⚠ Written out rather than punctuated. `@` used to mean a grade and is
+        # now refused with a message (above); reusing it would be the island §2
+        # warns about, on the page. A bare name here is unambiguous because a
+        # member is followed by `,` or `}`.
+        at = None
+        if self.at("at"):
+            self.next()
+            at = self.term()
+        return RuleMember(sign, term, at)
 
     def term(self) -> Term:
         t = self.next()
@@ -652,8 +665,12 @@ class Loader:
         if s.name in self.rule_nodes:
             raise ParseError(f"line {s.line}: <{s.name}> is already declared")
         scope: Dict[str, NodeId] = {}
-        ant = [Member(m.sign, self.build(m.term, scope)) for m in s.antecedent]
-        con = [Member(m.sign, self.build(m.term, scope)) for m in s.consequent]
+        ant = [Member(m.sign, self.build(m.term, scope),
+                      self.build(m.at, scope) if m.at else None)
+               for m in s.antecedent]
+        con = [Member(m.sign, self.build(m.term, scope),
+                      self.build(m.at, scope) if m.at else None)
+               for m in s.consequent]
         # A consequent that NAMES a rule drags that rule's own variables in with
         # it: `+resume(?h, <cb>)` is generic only because `<cb>`'s patterns are.
         # Those are mentioned, not used, and no antecedent can or should bind
@@ -661,8 +678,11 @@ class Loader:
         unbound = [
             m
             for m, written in zip(con, s.consequent)
-            if self.m.g.has_var(m.pattern)
-            and not self._covered(m.pattern, ant, self._named_rule_vars(written.term))
+            if (self.m.g.has_var(m.pattern)
+                and not self._covered(m.pattern, ant,
+                                      self._named_rule_vars(written.term)))
+            or (m.locus is not None and self.m.g.has_var(m.locus)
+                and not self._covered(m.locus, ant))
         ]
         if unbound:
             raise ParseError(
@@ -693,6 +713,12 @@ class Loader:
         have = set()
         for m in ant:
             have |= _vars_in(g, m.pattern)
+            # ⚠ A locus variable IS bound by the antecedent -- `+p(?x) at ?m`
+            # binds `?m` from the entry that matched. Without this the check
+            # rejects every rule that relates two moments, which is the whole
+            # point of the slot.
+            if m.locus is not None:
+                have |= _vars_in(g, m.locus)
         return wanted <= have
 
     def _named_rule_vars(self, t: Term) -> set:
