@@ -127,6 +127,11 @@ class Chain:
         # dated or attributed. That is exactly §12's skeleton, and it is what
         # makes them matchable by a stratum-0 rule.
         self.PRED = g.atom("pred")
+        # Strict ancestry, as a name an ordinary rule may write (§12). Not
+        # materialised -- `structural_relations` walks it -- because the walk is
+        # bounded and upward, and a stored transitive closure would be a cache
+        # of something derived (§3).
+        self.SANC = g.atom("sanc")
         self.IN_DELTA = g.atom("in_delta")
         self.IS_MOMENT = g.atom("moment_of")
         # Position within a delta. A moment's entries are ordered -- two claims

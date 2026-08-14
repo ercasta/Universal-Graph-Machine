@@ -1736,8 +1736,35 @@ one and is written without either keyword, using the short form above.
 > relation has no bucket. ⚠ What does *not* work is two members hoping to co-refer —
 > `+tagged(?t), +on(?x, ?y)` links nothing, and appears to work only while there is one candidate.
 >
-> ⚠ **Still absent**: `where` and the skeleton's *structural* members (`?n = succ(?m)`), §12's
-> `?t = entry(...)` prefix form,
+> ⭐⭐⭐ **And the skeleton is an ordinary member.** `sanc(?mq, ?mp)` in an antecedent matches the
+> chain directly — no request, no answerer, and **no second matcher**:
+>
+> ```
+> rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp) },
+>                        { +acted_after(?q, ?p) } )
+> ```
+>
+> §12 said a skeleton member *has no sign, no locus and no licence; nobody asserted it* — which
+> explains why it has no **entry**, and the engine read as *therefore unmatchable*. It does not follow:
+> `pred(M3, M2)` is an ordinary relation instance. It simply was not in the resolved state, which is
+> what the matcher was given, while **stratum 0 matched the very same nodes with a second matcher** —
+> the branch §5's *one interpreter* forbids and §6 explicitly disclaims.
+>
+> ⭐⭐⭐ **Containment survives with nothing enforced.** A structural member walks from an ANCHORED
+> moment toward the root, and §11 makes that direction single-valued, so it cannot reach a sibling
+> branch — measured on a forking chain, 129 structural conclusions, none off its own walk. Nothing is
+> refused to achieve it: a downward pattern loads and finds nothing, exactly as a rule matching an
+> entry nobody wrote matches nothing. §4's *nothing is prohibited* holds, and §17's door stays open for
+> the deliberate case — *inspecting is matching*, with an explicit anchor.
+>
+> ⚠ **And it exposed an undeclared tie-break.** `arbitrate` picks the first application among those of
+> one rule, and nothing said which that was — the heap ordered by consumed entries then insertion, the
+> slow list was in match order, and the two agreed only because two applications of one rule could not
+> previously share their consumed entries. A structural member binds **without consuming**, so they
+> can. `ugm.arbitration` reported 20 disagreements the hour it became possible, and both paths now
+> share one declared order. §10's rule, one level up.
+>
+> ⚠ **Still absent**: `where` as a keyword, §12's `?t = entry(...)` prefix form,
 > and spans as loci — so §13's shapes remain unwritable and §15's *an arrival should be a moment* has
 > no route. §22 records what is left.
 

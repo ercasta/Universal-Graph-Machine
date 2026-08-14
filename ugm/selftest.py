@@ -3669,6 +3669,93 @@ def a_member_can_name_what_it_matched() -> None:
           and [x.binds for x in built[1]] == [x.binds for x in r.antecedent])
 
 
+def the_skeleton_is_an_ordinary_member() -> None:
+    """Structure, matched by an ordinary rule. (§5, §6, §11, §12)
+
+    §12 says a skeleton member *has no sign, no locus and no licence; nobody
+    asserted it*. That explains why it has no **entry** — and the engine read it
+    as *therefore unmatchable*, which does not follow. `pred(M3, M2)` is an
+    ordinary relation instance, a node like any other; it was simply not in the
+    resolved state, which is what the matcher looked at. Stratum 0 matched the
+    very same nodes, with a **second matcher** — the branch §5's *one
+    interpreter* forbids and §6 explicitly disclaims (*one more row, not one
+    more branch*).
+
+    ⭐⭐⭐ **And containment survives without anything being enforced.** A
+    structural member walks from an ANCHORED moment toward the root, and §11
+    guarantees that direction is single-valued — *a moment has one parent;
+    forking produces several successors, never several parents*. So it cannot
+    reach a sibling branch. Nothing is refused to make that true: a pattern that
+    would need to walk downward yields nothing, exactly as a rule matching an
+    entry nobody wrote matches nothing. §4's *nothing is prohibited* holds, and
+    §17's door is still open for the deliberate case — inspecting is matching,
+    with an explicit anchor.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <a> = causes( { +start(x) }, { +acts(hero) } )",
+        "rule <b> = causes( { +acts(hero) }, { +acts(goblin) } )",
+        "rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq,",
+        "                          sanc(?mq, ?mp) },",
+        "                       { +acted_after(?q, ?p) } )",
+        "fact +start(x)", ""]))
+    m.run(limit=120)
+    got = sorted({m.g.show(e.proposition) for e in m._state() if e.sign == PLUS
+                  and m.g.show(e.proposition).startswith("acted_after")})
+    check("§6", "⭐ an ordinary rule matches the SKELETON directly -- no request, "
+          "no answerer, and no second matcher",
+          got == ["acted_after(goblin, hero)"])
+
+    # ⚠ Nothing is prohibited. A downward pattern is loadable and finds nothing,
+    # which is the same answer a rule gets for an entry nobody wrote.
+    #
+    # ⚠⚠⚠ The chain must have grown PAST the anchored moment by the time this
+    # fires, or the check passes for the wrong reason. The first version anchored
+    # at the newest moment, where nothing descends from it yet, and a kill-probe
+    # permitting unanchored walks broke nothing. With `<s1>`/`<s2>` ahead of it
+    # the same probe yields 2 where the shipped engine yields 0.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "rule <a>  = causes( { +start(x) },   { +acts(hero) } )",
+        "rule <s1> = causes( { +acts(hero) }, { +step1(x) } )",
+        "rule <s2> = causes( { +step1(x) },   { +step2(x) } )",
+        "rule <down> = implies( { +acts(?p) at ?mp, +step2(x), sanc(?any, ?mp) },",
+        "                      { +reached(?any) } )",
+        "fact +start(x)", ""]))
+    m2.run(limit=200)
+    check("§4", "...and a DOWNWARD pattern is not refused -- it loads, and finds "
+          "nothing even where descendants exist, so *nothing is prohibited* survives",
+          not [e for e in m2._state() if e.sign == PLUS
+               and m2.g.show(e.proposition).startswith("reached")])
+
+    # ⭐⭐⭐ Containment, on a chain that forks: every moment a structural member
+    # reached is an ancestor of where its conclusion sits.
+    m3 = Machine()
+    load(m3, chr(10).join([
+        "rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
+        "rule <mark>  = implies( { +seen(?x) }, { +noted(?x) } )",
+        "rule <reach> = implies( { +noted(?x) at ?mx, sanc(?mx, ?up) },",
+        "                       { +sees(?x, ?up) } )",
+        "fact +likely(seen(a))", "fact +likely(seen(b))", ""]))
+    m3.run(limit=300)
+    total = off = 0
+    for mo in m3.chain.moments:
+        for e in mo.delta:
+            if not m3.g.show(e.proposition).startswith("sees("):
+                continue
+            up = m3.chain.moment_by_node(m3.g.member(e.proposition, 1))
+            if up is None:
+                continue
+            total += 1
+            if not e.locus.at_or_after(up):
+                off += 1
+    check("§17", "⭐⭐⭐ ...and containment holds STRUCTURALLY: on a forking chain, "
+          "every moment a structural member reached is on its own walk",
+          total > 0 and off == 0)
+
+
 def two_moments_can_be_ordered() -> None:
     """...and now a rule can ask which came first. (§10, §19, §22)
 
@@ -6505,6 +6592,7 @@ def main() -> int:
     a_rule_can_relate_two_moments()
     a_computation_happens_inside_the_application()
     a_member_can_name_what_it_matched()
+    the_skeleton_is_an_ordinary_member()
     two_moments_can_be_ordered()
     a_half_finished_change_is_observable_and_actionable()
     a_reserved_name_no_longer_changes_meaning_silently()

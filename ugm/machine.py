@@ -456,6 +456,9 @@ class Machine:
         # two meanings, committed by the author of the note warning about it.
         self.NAMES = self.g.atom("names")
         self.COMPUTES = self.g.atom("computes")
+        # The skeleton, as members an ordinary rule may write (§6, §12).
+        from .rules import structural_relations
+        self.rules.structural = structural_relations(self.chain)
         self.ORDER = self.g.atom("order")
         self.PRECEDES = self.g.atom("precedes")
         self.COMPOSE = self.g.atom("compose")
@@ -519,6 +522,7 @@ class Machine:
             "compose": self.COMPOSE, "composed": self.COMPOSED,
             "at": self.AT,
             "order": self.ORDER, "precedes": self.PRECEDES,
+            "pred": self.chain.PRED, "sanc": self.chain.SANC,
             "names": self.NAMES, "computes": self.COMPUTES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
@@ -3374,6 +3378,7 @@ class Machine:
                 found = match(
                     self.g, self.chain, r, self.focus.topic, self.focus.seat, state,
                     computes=self.rules.computes,
+                    structural=self.rules.structural,
                 )
             elif start < here:
                 if start not in deltas:
@@ -3384,6 +3389,7 @@ class Machine:
                 found = match(
                     self.g, self.chain, r, self.focus.topic, self.focus.seat, state,
                     fresh=deltas[start], computes=self.rules.computes,
+                    structural=self.rules.structural,
                 )
             else:
                 continue
@@ -3408,7 +3414,7 @@ class Machine:
                 cache["seq"] += 1
                 heapq.heappush(
                     cache["bucket"].setdefault(r.node, []),
-                    (tuple(-c.node for c in a.consumed), cache["seq"], k),
+                    (tuple(-c.node for c in a.consumed), _stamp(a), cache["seq"], k),
                 )
                 for w in self._wants(a):
                     cache["by_want"].setdefault(w, set()).add(k)
@@ -3492,7 +3498,43 @@ class Machine:
         out = self._applications(proposed, state, materialise=True)
         out = defeat(self.rules, out, self._matched_rules.values())
         out = [a for a in out if not self._passed_up(a)]
-        return [a for a in out if self._would_change(a)]
+        out = [a for a in out if self._would_change(a)]
+        # ⚠⚠⚠ **Sorted, because `arbitrate` picks the FIRST among applications of
+        # one rule and until now nothing said which that was.** The heap orders
+        # by consumed entries and then by insertion; this list was in match
+        # order; and the two agreed only because two applications of one rule
+        # could not previously share their consumed entries. A structural member
+        # binds without consuming (§12), so they can -- and `ugm.arbitration`
+        # reported the divergence the hour it became possible.
+        #
+        # §10's rule, one level up: *a deterministic computation whose result
+        # depends on an undeclared enumeration order has a tie-break nobody
+        # authored*. Node identity is the stamp everywhere else here, so it is
+        # the stamp here.
+        return sorted(out, key=_order_key)
+
+    @staticmethod
+    def _binding_stamp(app) -> tuple:
+        """A path-independent order for applications that CONSUMED THE SAME ENTRIES.
+
+        ⚠⚠⚠ Until structural members existed this could not arise: every
+        antecedent member was an entry, so two applications of one rule that
+        consumed the same entries were the same application. A structural member
+        binds without consuming (§12 -- it claims nothing, so there is nothing
+        to have read), so `sanc(?m, ?up)` yields one application per ancestor,
+        all with identical `consumed`.
+
+        The heap then fell through to insertion order, which the fast and slow
+        paths discover differently -- and `ugm.arbitration` reported 20
+        disagreements about the move, all of one rule, all `fast=reach
+        slow=reach`. That is §10's recorded trap exactly: *a deterministic
+        computation whose result depends on an undeclared enumeration order has
+        a tie-break nobody authored.*
+
+        Node identity is the stamp everywhere else here, so it is the stamp
+        here: sorted, so it cannot depend on which order the walk found them.
+        """
+        return tuple(sorted(v for v in app.bindings.values() if isinstance(v, int)))
 
     def _revive(self, cache: dict, k) -> None:
         """Put a candidate back in the running, and back on its rule's heap.
@@ -3510,7 +3552,7 @@ class Machine:
         cache["seq"] += 1
         heapq.heappush(
             cache["bucket"].setdefault(k[0], []),
-            (tuple(-c.node for c in app.consumed), cache["seq"], k),
+            (tuple(-c.node for c in app.consumed), _stamp(app), cache["seq"], k),
         )
 
     def _survives(self, app: Application) -> bool:
@@ -3603,7 +3645,10 @@ class Machine:
             try:
                 while heap:
                     item = heapq.heappop(heap)
-                    k = item[2]
+                    # ⚠ The LAST field, not a counted one. This read `item[2]`
+                    # and a field was inserted before it -- silently, since the
+                    # heap still popped, just the wrong element of the tuple.
+                    k = item[-1]
                     if k not in cache["apps"] or k not in cache["live"]:
                         continue
                     # ⚠⚠⚠ **Kept BEFORE the yield, not after.** The consumer
@@ -4569,6 +4614,16 @@ class Machine:
 
 
 # -- inducing a tree from several episodes ---------------------------------
+
+
+def _order_key(app) -> tuple:
+    """The one total order over an application, used by both paths (§21)."""
+    return (tuple(-c.node for c in app.consumed),
+            tuple(sorted(v for v in app.bindings.values() if isinstance(v, int))))
+
+
+def _stamp(app) -> tuple:
+    return _order_key(app)[1]
 
 
 def leaves(episode) -> List[Tuple[str, str, Tuple[str, ...]]]:

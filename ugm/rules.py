@@ -146,6 +146,18 @@ class RuleSet:
         # Set by the Machine, which owns the registry; a bare RuleSet has none,
         # which is what a rule set with no host functions should say.
         self.computes: Dict[NodeId, Callable] = {}
+        # ...and relations that are READ OFF THE CHAIN rather than matched --
+        # `pred`, `sanc`. §12 calls these the skeleton: *no sign, no locus, no
+        # licence; nobody asserted them*. They are structure, so they are not
+        # entries, so the state does not hold them -- which is why an ordinary
+        # rule could never see one and stratum 0 needed a second matcher.
+        #
+        # ⭐ Given an ANCHORED moment they generate upward, and upward on a tree
+        # is single-valued (§11), so a structural member cannot reach a sibling
+        # branch. **Containment stays structural rather than becoming enforced**:
+        # nothing is refused, a downward pattern simply finds nothing, exactly as
+        # a rule matching an entry nobody wrote finds nothing.
+        self.structural: Dict[NodeId, Callable] = {}
         self.by_node: Dict[NodeId, "Rule"] = {}
         # ...and defeat about a CASE. `overrides` is per tick: a rule overridden
         # by another that matched anywhere this step does not apply at all, which
@@ -836,6 +848,7 @@ def match(
     state: Optional["Situation"] = None,
     fresh: Optional["Situation"] = None,
     computes: Optional[Dict[NodeId, Callable]] = None,
+    structural: Optional[Dict[NodeId, Callable]] = None,
 ) -> List[Application]:
     """Unify a generic moment against an anchored one, over the current state.
 
@@ -883,6 +896,7 @@ def match(
     if state is None:
         state = Situation(g, current_state(chain, locus, seat))
     computes = computes or {}
+    structural = structural or {}
     results: List[Application] = []
     seen: set = set()
     width = len(rule.antecedent)
@@ -912,7 +926,15 @@ def match(
                 return
             i = order[j]
             want = rule.antecedent[i]
-            fn = computes.get(g.relation_of(want.pattern))
+            rel = g.relation_of(want.pattern)
+            walk_fn = structural.get(rel)
+            if walk_fn is not None:
+                # An evaluated member that reads the chain. It yields each way
+                # its arguments can be satisfied, anchored by what is bound.
+                for b in walk_fn(g, chain, want, bindings):
+                    step(j + 1, b)
+                return
+            fn = computes.get(rel)
             if fn is not None:
                 # ⭐ **A computator: evaluated, not matched.** §12's skeleton is
                 # *conditions on the binding that claim nothing* -- distinctness
@@ -973,10 +995,61 @@ def match(
             # every pivot is tried, and the pass whose pivot is the changed
             # ENTRY finds the applications anyway. Measured both ways: identical
             # results, one wasted walk. Skipping it saves the walk.
-            if g.relation_of(rule.antecedent[pivot].pattern) in computes:
+            r_ = g.relation_of(rule.antecedent[pivot].pattern)
+            if r_ in computes or r_ in structural:
                 continue
             run(pivot)
     return results
+
+
+def _anchored(g, chain, want, bindings, strict: bool):
+    """`pred(?m, ?n)` / `sanc(?m, ?n)` -- read off the chain, anchored upward.
+
+    ⭐⭐⭐ **This is where containment stays structural.** The first argument must
+    already be bound: from an anchored moment we walk toward the root, and §11
+    guarantees that walk is single-valued -- *a moment has one parent; forking
+    produces several successors, never several parents.* So a structural member
+    can only ever name moments on the frame's own walk, and a rule inside a
+    hypothesis cannot reach a sibling.
+
+    Nothing is refused to make that true. A pattern that would need to walk
+    DOWNWARD -- an unbound first argument -- simply yields nothing, in the same
+    way a rule matching an entry nobody wrote matches nothing. §4's *nothing is
+    prohibited* survives, and an author who genuinely wants another frame's
+    chain has §17's door: inspecting is matching, with an explicit anchor.
+    """
+    args = g.members(want.pattern)
+    if len(args) != 2:
+        return
+    here = walk(g, args[0], bindings)
+    if g.is_var(here):
+        return  # unanchored: this would be a downward walk, and yields nothing
+    start = chain.moment_by_node(here)
+    if start is None:
+        return
+    m = start.predecessor if strict else start
+    while m is not None:
+        b = unify(g, args[1], m.node, bindings)
+        if b is not None:
+            yield b
+        if strict and m is start.predecessor and g.is_var(args[1]) is False:
+            pass
+        m = m.predecessor
+
+
+def structural_relations(chain) -> Dict[NodeId, Callable]:
+    """The skeleton, as members an ordinary rule may write (§6, §12).
+
+    §6 says stratum 0 is *a property of a rule* -- every antecedent member is
+    structural -- decided *by inspecting an antecedent rather than by a designer
+    assigning layers*, and that it *runs under the same interpreter*. A separate
+    engine with its own rule and item types is the branch that sentence forbids.
+    This is the first step of removing it.
+    """
+    return {
+        chain.PRED: lambda g, c, w, b: _anchored(g, c, w, b, strict=False),
+        chain.SANC: lambda g, c, w, b: _anchored(g, c, w, b, strict=True),
+    }
 
 
 # -- arbitrate --------------------------------------------------------------
