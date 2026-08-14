@@ -582,6 +582,13 @@ authored, and it is authored by exactly the mechanism a learned rule uses.
 *n* steps become one, for any *n*, with the same conclusion. That is the difference between
 algorithmic and constant-factor stated as a number rather than as an argument.
 
+⚠ **And *with the same conclusion* is the load-bearing half of that sentence, not a flourish.** A
+chain of `implies` collapses soundly because every step is read in one moment. Composing across a
+**`causes`** does not: its consequent lands in a successor (§14), so the second rule's other premises
+are read a moment later than the first rule's own, and flattening them into one antecedent demands
+them all at once. Measured, that loses conclusions, so it is **refused** — §22 has the case and the
+exact condition.
+
 What composition costs is not structural but epistemic, and §22 states it: intermediate conclusions
 stop being deposited, so nothing can be surprised inside a shortcut, and guard conditions must be
 inherited or the shortcut fires where the reasoning would not.
@@ -4376,7 +4383,26 @@ nothing was counting.** The census as it stands:
 |---|---|---|
 | **recall** — which rules come to mind | ✅ §6's third regress; opaque by construction, and §19's carve-out keeps it off the safety path | a worse plan or a later surprise — recoverable, which is why learning lives here |
 | **`_in_play`** — what a situation is about | ❌ named in §19 and never argued | worse choices forever, invisible to every check |
-| **the connective of a composed rule** — `implies` + `causes` silently yields `causes` | ❌ decided in one line, and no check names the behaviour | conclusions land in the wrong moment; shows up as inertia, subtly |
+| ~~**the connective of a composed rule**~~ | ✅ **resolved, and by dissolving** — see below | — |
+
+⭐ **The third entry came off this census by turning out not to be a judgement at all**, and how that
+happened is the argument for keeping the census. *Which connective should a mixed composition get* had
+two defensible answers, which is the census's own signature for a judgement. Asking what the composite
+would **mean** found something else: composing across a `causes` **flattens two moments into one
+antecedent**, because a `causes` consequent lands in a successor, so the second rule's other premises
+are read one moment later than the first rule's own. Measured, on a world where the extra premise
+arrives only once the first rule has acted, the derivation reaches its conclusion and the composite
+does not.
+
+So the question was wrong. It is not *which connective* — it is that **some compositions must not
+happen**, and §4's claim that *n steps become one* has to mean **with the same conclusion**. The
+unsound shape is now refused, and the refusal is exact rather than cautious: only premises **beyond
+the seam** are relocated, so a second rule that is just the seam composes across a `causes` soundly.
+Once the unsound ones are gone the connective is **forced** — a chain that crossed a causal step has
+advanced a moment, so the result is `causes`, by §14's own persistence test.
+
+> **A judgement with two defensible answers is sometimes a question asked at the wrong level.** The
+> census cannot tell you that; it can only tell you where to look.
 
 The discipline that follows is one line, and §20's `adopt` already obeys it: **the corpus decides, the
 function executes.** What decides that a rule is worth adopting, or that two rules are worth composing,
@@ -4544,6 +4570,19 @@ New with §20, and the first two are the reason it is a section rather than a pa
   **When to compose, and when to decompose.** Unspecified — and now unspecified in the right place.
   And composing a recursive shape is unrolling, which is unbounded, so it takes expansion's
   budget-and-state discipline.
+
+  ⚠⚠⚠ **A fourth failure, found and closed: composing across a `causes` loses conclusions.** A
+  `causes` consequent lands in a successor (§14), so the second rule's other premises are read one
+  moment later than the first rule's own — and the composite asks for all of them together, which is
+  a stricter question. Measured on a world where the extra premise arrives only once the first rule
+  has acted: the derivation reaches its conclusion, the composite does not. Under-derivation is the
+  safer direction and is still a violation of *the same conclusion*; an over-derivation was looked
+  for and **not found**, which is not the same as impossible, and that gap is open.
+
+  It is refused rather than approximated, and exactly: only premises **beyond the seam** move, so a
+  second rule that is just the seam composes soundly. What this retires is stated in §21 — the
+  mixed-connective question was asked at the wrong level, and once the unsound compositions are gone
+  the connective is forced.
 
   ✅ **Two items that were here are closed.** Composition no longer refuses uncertain conclusions,
   because §16 deleted the thing that made composing them a cache. And it **has a trigger**:

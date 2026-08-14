@@ -272,6 +272,36 @@ class RuleSet:
         ordinary consequent pattern, and composing it is composing a pattern.
         The restriction was deleted rather than solved.
         """
+        # ⚠⚠⚠ **Composing across a `causes` FLATTENS TWO MOMENTS INTO ONE
+        # ANTECEDENT, and it loses conclusions.** §14: a `causes` consequent
+        # lands in a SUCCESSOR, so the second rule's other premises are read
+        # where the first rule's effect holds -- one moment later than the
+        # first rule's own premises. The composite asks for all of them
+        # together, which is a different and stricter question.
+        #
+        # Measured, on `causes({+p}, {+q})` then `implies({+q, +r}, {+s})`:
+        #
+        #   | r holds from the start        | derivation `s` | composite `s` |
+        #   | r appears only AFTER p        | **True**       | **False**     |
+        #
+        # The composite under-derives -- the safer direction, and still a
+        # violation of §4's claim that *n* steps become one **with the same
+        # conclusion**. An over-derivation was looked for and not found, which
+        # is not the same as it being impossible.
+        #
+        # ⭐ This is why the mixed-connective question was the wrong one. What
+        # looked like *which connective should a mixed composition get* is
+        # really *some compositions must not happen at all*; and once the
+        # unsound ones are refused, the connective is FORCED rather than chosen
+        # -- a chain that crosses a causal step has advanced a moment, so the
+        # result is `causes`, by §14's own persistence test.
+        #
+        # The condition is exact rather than cautious: only members BEYOND the
+        # seam are relocated, so a second rule whose antecedent is just the
+        # seam composes soundly across a `causes` and is allowed. Refusing is
+        # `None`, which this door already means as *I have nothing to say*.
+        if first.connective == CAUSES and len(second.antecedent) > 1:
+            return None
         fa = {}
         f_ant = [Member(m.sign, rename(self.g, m.pattern, fa)) for m in first.antecedent]
         f_con = [Member(m.sign, rename(self.g, m.pattern, fa)) for m in first.consequent]

@@ -8,20 +8,25 @@ an opaque blob. This runs it.
 
     python -m ugm.compose
 
-Two things are measured and one is checked:
+Two things are measured and three are checked:
 
 * how many selections a chain of length n costs, composed against uncomposed;
 * whether the composed rule concludes the same thing;
 * whether a rule that **defeats** a constituent still defeats the composition --
   §21's *a shortcut that has outlived its guards*, which here arrives at once
-  rather than after a context change.
+  rather than after a context change;
+* ⚠⚠⚠ whether composing **across a `causes`** is refused. It flattens two
+  moments into one antecedent, so the second rule's other premises are demanded
+  a moment early -- measured, the derivation reaches its conclusion and the
+  composite does not. *n steps become one* has to mean **with the same
+  conclusion**, so the unsound shape is declined rather than approximated.
 """
 
 from typing import List, Tuple
 
 from .chain import PLUS
 from .machine import Machine
-from .rules import IMPLIES, Member
+from .rules import CAUSES, IMPLIES, Member
 from .text import load
 
 
@@ -89,6 +94,51 @@ def _defeat_survives() -> bool:
     return m.holds(kb.term("r(thing)")) != PLUS
 
 
+def _causes_boundary() -> Tuple[bool, bool]:
+    """Is the unsound composition refused, and is the refusal exact? (§4, §14)
+
+    ⚠⚠⚠ A `causes` consequent lands in a SUCCESSOR, so the second rule's other
+    premises are read where the first rule's effect holds -- one moment after
+    the first rule's own premises. Flattening asks for all of them together,
+    which is a stricter question, and the discriminating world is one where the
+    extra premise only appears once the first rule has acted:
+
+        <a> = causes(  { +p(?x) },         { +q(?x) } )
+        <b> = implies( { +q(?x), +r(?x) }, { +s(?x) } )
+        <late> = implies( { +q(?x) }, { +r(?x) } )      -- r arrives WITH q
+
+    Measured before the guard existed: the derivation reaches `s` and the
+    composite does not. Under-derivation is the safer direction and is still a
+    violation of *n steps become one **with the same conclusion***; an
+    over-derivation was looked for and not found, which is not the same as
+    impossible.
+
+    ⭐ It also retires the question this was reached from. *Which connective
+    should a mixed composition get* was the wrong question -- the real one is
+    that some compositions must not happen. Once those are refused the
+    connective is FORCED: a chain crossing a causal step has advanced a moment,
+    so the result is `causes`.
+    """
+    src = chr(10).join([
+        "rule <a> = causes(  { +p(?x) },         { +q(?x) } )",
+        "rule <b> = implies( { +q(?x), +r(?x) }, { +s(?x) } )",
+        "rule <late> = implies( { +q(?x) }, { +r(?x) } )",
+        "fact +p(t)", ""])
+    m = Machine(); kb = load(m, src)
+    by = {r.name: r for r in m.rules.rules if r.name}
+    refused = m.rules.compose(by["a"], by["b"], name="ab") is None
+    # ...and the derivation itself does reach it, or the fixture proves nothing.
+    m.run(limit=60)
+    reached = m.holds(kb.term("s(t)")) == PLUS
+
+    m2 = Machine(); load(m2, chr(10).join([
+        "rule <a> = causes(  { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +s(?x) } )", ""]))
+    b2 = {r.name: r for r in m2.rules.rules if r.name}
+    ok = m2.rules.compose(b2["a"], b2["b"], name="ok")
+    return (refused and reached), (ok is not None and ok.connective == CAUSES)
+
+
 def run() -> int:
     print("composition -- steps removed, not made cheaper")
     print()
@@ -103,6 +153,20 @@ def run() -> int:
         checked += 1
         if not agree:
             failures.append(f"n={n}: {got_plain} vs {got_comp}")
+
+    print()
+    boundary, legal = _causes_boundary()
+    print("  ...and it must not compose ACROSS a `causes`, because the second")
+    print("  rule's other premises are read one moment later than the first's:")
+    print(f"    a world where the derivation reaches its conclusion and a")
+    print(f"    flattened rule could not:  refused = {'yes' if boundary else 'NO'}")
+    print(f"    a second rule that is only the seam, so nothing moves:"
+          f"  composed = {'yes' if legal else 'NO'}")
+    checked += 2
+    if not boundary:
+        failures.append("composed across a `causes` and lost a conclusion")
+    if not legal:
+        failures.append("refused a sound composition across a `causes`")
 
     print()
     survives = _defeat_survives()

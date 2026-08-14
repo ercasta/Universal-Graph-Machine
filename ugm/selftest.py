@@ -3570,6 +3570,45 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
           "nothing, which is also what refuses a generic request",
           len(m3.rules.rules) == n3)
 
+    # ⚠⚠⚠ **Composing across a `causes` flattens two moments into one
+    # antecedent and LOSES CONCLUSIONS.** §14: a `causes` consequent lands in a
+    # successor, so the second rule's other premises are read one moment later
+    # than the first rule's own. The composite asks for all of them together.
+    # The world below is the discriminator: `r` appears only after `p` has
+    # acted, so the derivation reaches `s` and the flattened rule cannot.
+    def reaches(compose: bool) -> bool:
+        mm = Machine()
+        kk = load(mm, chr(10).join([
+            "rule <a> = causes(  { +p(?x) },         { +q(?x) } )",
+            "rule <b> = implies( { +q(?x), +r(?x) }, { +s(?x) } )",
+            "rule <late> = implies( { +q(?x) }, { +r(?x) } )",
+            "fact +p(t)", ""]))
+        byy = {r.name: r for r in mm.rules.rules if r.name}
+        if compose:
+            c = mm.rules.compose(byy["a"], byy["b"], name="ab")
+            if c is None:
+                return None  # refused, which is the point
+            mm.rules.rules = [r for r in mm.rules.rules
+                              if r.node not in (byy["a"].node, byy["b"].node)]
+        mm.run(limit=60)
+        return mm.holds(kk.term("s(t)")) == PLUS
+    check("§4", "⚠⚠⚠ composing across a `causes` would lose a conclusion, so "
+          "it is REFUSED -- *n steps become one* has to mean with the SAME "
+          "conclusion", reaches(False) is True and reaches(True) is None)
+    # ...and exactly the unsound shape, not every mixed pair: only members
+    # BEYOND the seam are relocated, so a second rule that is just the seam
+    # composes across a `causes` soundly.
+    m5 = Machine()
+    kb5 = load(m5, chr(10).join([
+        "rule <a> = causes(  { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +s(?x) } )", ""]))
+    by5 = {r.name: r for r in m5.rules.rules if r.name}
+    still = m5.rules.compose(by5["a"], by5["b"], name="ok")
+    check("§14", "...and the refusal is exact, not cautious: a second rule "
+          "that is only the seam relocates nothing and still composes, as "
+          "`causes`, because the chain crossed a causal step",
+          still is not None and still.connective == CAUSES)
+
     # ⚠⚠⚠ **The twin trap INVERTED, and this fixture is what found it.** Not
     # two nodes for one name, but two ANSWERERS for one node: `_answer` calls
     # every answerer bound to a relation, so a corpus tool registered on
