@@ -4832,10 +4832,27 @@ New with §20, and the first two are the reason it is a section rather than a pa
 
   So the earlier complaint here — that this is *a convention every corpus has to remember*, the shape
   §19 refuses — was misapplied. §19 refuses a discipline when **the machinery could have known and
-  did not**. Here it genuinely cannot. What the design actually lacks is narrower and worth stating
-  properly: **a vocabulary for transitional states.** Nothing distinguishes a state that has settled
-  from one a corpus considers in flight, so an author who forgets to say so gets no help — and that is
-  the same shape as §9's *write your negatives*, not the same shape as a missing mechanism.
+  did not**. Here it genuinely cannot.
+
+  ⭐⭐⭐ **What is missing is the same problem §9 already solved one scope down.** A *value* in flux has
+  vocabulary: `?`, which reports ignorance when read. A *relationship* in flux has none — each
+  proposition is individually settled and reads `+`, and nothing says the pair is mid-change:
+
+  | in flux | what a read gives |
+  |---|---|
+  | one proposition — *pouring raises the level* | `?` — ignorance, reported |
+  | several jointly — *the gold is in transit* | `+`, `+` — two confident numbers |
+
+  And that identifies what is wrong with `transferring(?a, ?b, ?n)` as the answer: **it has the defect
+  §16 rejected the grade for.** *A tag is a separate read… so it can be obtained without the fact*, and
+  an observer that does not think to ask reads a mid-transfer state as settled. Both are authorial
+  obligations — forgetting `?` gives a stale value just as silently — but the asymmetry is at **read**
+  time, and that is the half that matters, because an author writes once and readers read forever.
+
+  ⭐ Which says what a fix would have to look like, by §16's own reasoning: not another fact beside the
+  ones in flux, but something **on the node the read already returns**. A *moment* that declared itself
+  unsettled would be reached by the same walk that reaches its entries, with no second read to forget.
+  Unbuilt, unscored, and the first candidate worth scoring.
 * **When a revision is warranted** (§10). The two indices make *I now think otherwise about `M7`*
   sayable, and say nothing about when an agent should write one. Left alone, a system that revises the
   past freely can rewrite its way out of any surprise, which is §18's mechanism defeated by §10's
