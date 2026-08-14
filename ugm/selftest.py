@@ -3486,6 +3486,48 @@ def matching_is_incremental() -> None:
           c.holds(kbc.term("z(a)")) == PLUS)
 
 
+def a_reserved_name_no_longer_changes_meaning_silently() -> None:
+    """One node with two meanings. (§5, Appendix C)
+
+    Reported by a foreign corpus, which lost a session to it. `reserved` binds
+    `plus`/`minus` to the SIGN atoms and every corpus's table is seeded from it,
+    so a domain author writing an arithmetic operator gets the sign:
+    `calc(minus, 5, 2)` lands as `calc(-, 5, 2)`, the tool declines a request it
+    should have answered, and the run stalls with nothing saying why.
+
+    ⚠ **A report and not a refusal, and that is forced.** `+expects(?p, plus)`
+    and `+says(user, ?p, plus)` are legitimate and there are twenty-odd of them,
+    so the loader genuinely cannot tell an operator from a sign. What it can do
+    is stop being silent -- §5's rule about places the machinery declines
+    without saying so, arriving where a name changes meaning under the author.
+
+    ⚠ Numerals are excluded on purpose. `cost(sword, 3)` SHOULD resolve to the
+    numeral the machinery uses -- that is sharing, not shadowing -- and the
+    first version flagged every integer in every corpus, which is how a
+    diagnostic gets ignored.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, "rule <sub> = implies( { +hp(?x,?h) }, { +calc(minus, ?h, 2) } )"
+                 + chr(10) + "fact +hp(gob, 5)" + chr(10))
+    check("§5", "a corpus naming a reserved node in an argument position is "
+          "TOLD -- it used to change meaning in silence",
+          "minus" in kb.shadowed)
+    # ...and the collision is real, not merely reported: what landed is the sign.
+    m.run(limit=40)
+    landed = [m.g.show(e.proposition) for e in m._state()
+              if m.g.show(e.proposition).startswith("calc(")]
+    check("§3", "...and the report is about something true: what landed names "
+          "the sign, not a fresh atom", landed and "calc(-," in landed[0])
+
+    m2 = Machine()
+    kb2 = load(m2, "rule <ok> = implies( { +hp(?x,?h) }, { +calc(sub, ?h, 2) } )"
+                   + chr(10) + "fact cost(sword, 3)" + chr(10))
+    check("§5", "...while a corpus that collides with nothing is not nagged, "
+          "and a NUMERAL is sharing rather than shadowing", not kb2.shadowed)
+
+
 def a_relation_can_be_named_by_a_variable() -> None:
     """`?p(?t)` -- the effect named by data. (§3, §5, §12)
 
@@ -6106,6 +6148,7 @@ def main() -> int:
     a_scope_can_span_documents()
     matching_is_incremental()
     a_rule_can_author_a_rule()
+    a_reserved_name_no_longer_changes_meaning_silently()
     a_relation_can_be_named_by_a_variable()
     a_verb_is_defined_once_and_a_world_is_declared()
     an_amount_is_a_tool_and_an_unknown_amount_is_a_node()

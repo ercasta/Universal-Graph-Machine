@@ -35,6 +35,7 @@ The notation is the design document's own, in ASCII: `-` for the minus sign it
 writes as an en dash, `->` for its arrow. §8's worked rules parse as printed.
 """
 
+import sys
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from .chain import MINUS, PLUS, UNSURE
@@ -350,6 +351,11 @@ class Loader:
         self.vars: Dict[str, NodeId] = {}
         self.rule_nodes: Dict[str, NodeId] = {}
         self.rules_by_name: Dict[str, object] = {}
+        # Names this corpus used in an ARGUMENT position that resolved to a
+        # reserved node -- see `_note_shadow`. Collected rather than refused,
+        # and surfaced by `load`, because the loader cannot tell an operator
+        # from a sign and silence is what cost a foreign corpus a session.
+        self.shadowed: set = set()
         self.channels: Dict[str, NodeId] = {}
         self.LOADED = self.m.LOADED   # the machine's node, never a fresh one
         # Every name the loader itself needs goes through the SAME table the
@@ -541,6 +547,35 @@ class Loader:
             scope[name] = self.m.g.var(name)
         return scope[name]
 
+    def _note_shadow(self, t: Term) -> None:
+        """A bare name in an ARGUMENT position that resolves to a reserved node.
+
+        ⚠⚠⚠ **One node with two meanings, which is the twin trap inverted.**
+        `reserved` binds `plus`/`minus` to the SIGN atoms and every corpus's
+        table is seeded from it, so a domain author writing an arithmetic
+        operator gets the sign: `calc(minus, 5, 2)` lands as `calc(-, 5, 2)`,
+        the tool declines a request it should have answered, and the run stalls
+        with nothing saying why. Reported from a foreign corpus, which lost a
+        debugging session to it.
+
+        It is a **report and not a refusal**, and that is forced rather than
+        timid: `+expects(?p, plus)` and `+says(user, ?p, plus)` are legitimate
+        and there are twenty-odd of them, so the loader cannot tell an operator
+        from a sign. What it can do is stop being silent -- which is §5's rule
+        about the places machinery declines without saying so, arriving at the
+        one place a name changes meaning under the author's feet.
+        """
+        if t.is_rule or t.is_var or t.args or t.head.isdigit():
+            return
+        # ⚠ Numerals are excluded deliberately, and the exclusion is the whole
+        # difference between a diagnostic and noise. `cost(sword, 3)` SHOULD
+        # resolve to the numeral the machinery uses -- that is sharing, not
+        # shadowing. What traps a domain author is a reserved name that reads
+        # like ordinary domain vocabulary, and the first version of this flagged
+        # every integer in every corpus, which is how a message gets ignored.
+        if self.atom(t.head) in set(self.m.reserved.values()):
+            self.shadowed.add(t.head)
+
     def build(self, t: Term, scope: Dict[str, NodeId]) -> NodeId:
         if t.is_rule:
             return self.rule_ref(t.head)
@@ -551,10 +586,14 @@ class Loader:
             # arguments and bind the bare variable, which is the shape of every
             # twin this repo has recorded.
             if t.args:
+                for a in t.args:
+                    self._note_shadow(a)
                 return self.m.g.rel(v, *[self.build(a, scope) for a in t.args])
             return v
         if not t.args:
             return self.atom(t.head)
+        for a in t.args:
+            self._note_shadow(a)
         return self.m.g.rel(self.atom(t.head), *[self.build(a, scope) for a in t.args])
 
     def term(self, src: str) -> NodeId:
@@ -738,6 +777,23 @@ def _vars_in(g, node: NodeId) -> set:
     return out
 
 
+def _report_shadowed(ldr: "Loader") -> None:
+    """Say when a corpus's name meant something the corpus did not choose.
+
+    Not an exception: `+expects(?p, plus)` is legitimate and there are twenty of
+    them. Not silence either -- that is the failure being repaired. The author
+    is looking at the load, so the load is where it is said.
+    """
+    # ...and not while the machine is still installing its own bundle, which
+    # uses `plus` and `minus` as signs on purpose.
+    if not ldr.shadowed or getattr(ldr.m, "_booting", False):
+        return
+    names = ", ".join(sorted(ldr.shadowed))
+    print(f"note: {names} name reserved nodes, so an argument written with one "
+          f"is that node and not a fresh atom of yours -- rename if you meant "
+          f"your own (see Appendix C)", file=sys.stderr)
+
+
 def load(machine: Machine, src: str, scope: Optional[str] = None,
          domain: Optional[str] = None) -> Loader:
     """Returns the loader, which is the corpus's name scope -- ask questions
@@ -759,6 +815,7 @@ def load(machine: Machine, src: str, scope: Optional[str] = None,
         ldr.load(src)
     finally:
         machine._authoring_source = None
+    _report_shadowed(ldr)
     # What the agent was told, in order (see `Machine.save`). Recorded here
     # rather than in `Loader`, so that a corpus loaded as part of a REPLAY is
     # not journalled a second time.

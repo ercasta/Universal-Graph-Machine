@@ -322,6 +322,12 @@ cost completely different amounts.
   19 of 30 arbitrations were settled by the order rules were typed in. If you care which of two
   applicable rules goes first, say so with `prefer` or a precedence — do not rely on file order, and do
   not be surprised by it either.
+* ⭐ **A reserved name in an argument position is now reported at load.** `reserved` binds `plus` and
+  `minus` to the **sign atoms**, so a corpus writing an arithmetic operator got the sign —
+  `calc(minus, 5, 2)` landed as `calc(-, 5, 2)` and the tool declined a request it should have
+  answered. It is a *report*, not a refusal: `+expects(?p, plus)` is legitimate and the loader cannot
+  tell an operator from a sign. Numerals are excluded, because `cost(sword, 3)` sharing the numeral
+  the machinery uses is correct.
 * **A corpus tool may not share a request relation with the apparatus.** `_answer` calls *every*
   answerer bound to a relation, so a tool registered on `compose`, `fit`, `check`, `verdict`, `root`,
   `support`, `recall` or `again` would silently share a request the agent acts on. Refused at
