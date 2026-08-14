@@ -2403,6 +2403,62 @@ the set is small and known, rather than making a million reads cross a guard in 
 that matters. Under (D) that check is expressible as an ordinary rule, because the wrapper is a term —
 under (B) it was not expressible at all.
 
+### The same construction, a second use: change
+
+*Saying what changed, and which way.*
+
+The wrapping proposition was derived above for uncertainty. It is not specific to it, and the second
+use is R6's own example: **pouring raises the level, by an unknown amount.**
+
+§9 gets half of it. `?` invalidates without replacing — it stops the walk and reports ignorance —
+which is exactly what *by an unknown amount* needs, and it is why `?` had to be a distinct sign.
+What `?` cannot say is **which way**. *It changed* and *it went up* are different claims, and the
+second is the one a planner needs.
+
+Direction is not a fourth sign. A sign is a member and a closed class, and *rises*, *falls*, *doubles*,
+*drains* are open-class domain content — §4's floor may not mention reality. It is a **wrapping
+proposition**, on the construction this section already derived:
+
+```
+rule <pour> = causes( { +pour(?w, ?g) },
+                      { ? level(?g), +rises(level(?g)) } )
+```
+
+**Both members, and that is §9's pairing arriving a third time.** The wrapper alone leaks: §9 says no
+entry means *inherit*, so without the `?` the chain still answers the old level and the agent reports
+a stale value as current belief. The `?` invalidates; the term says which way. Negation keeps a sign
+**and** a term for the same reason — *the member is what the machinery computes with, the term is what
+survives nesting.*
+
+**And what the term MEANS is a corpus's definition, mentioning a before and an after:**
+
+```
+rule <rise-means> = implies( { +rises(?q), +before(?q, ?v0), +after(?q, ?v1) },
+                             { +greater(?v1, ?v0) } )
+```
+
+⭐ **The definition needs no locus, and that is what makes it work today.** Before and after are
+**values** — members of a proposition — not moments. So nothing has to relate two loci, the skeleton
+never comes into it, and this runs on the engine as it stands. Measured: the term is held, the level
+is invalidated, and the definition derives `greater(cm7, cm2)`.
+
+| | (A) a fourth sign, `↑` | (B) a fact about the entry, `rises(<e>)` | (C) a wrapping proposition, defined in the KB |
+|---|---|---|---|
+| not leaking | ❌ a closed class that must grow with every domain verb; and the floor would mention reality | ⚠ one hop from the proposition, so a rule wanting *the level is higher* reasons about an entry instead | ✅ the direction is part of what was claimed, at the locus it was claimed about |
+| not lossy | ⚠ direction only; *what it means* is nowhere | ⚠ same | ✅ the definition is in the corpus, so *what does rises mean here* is a query |
+| readable | ❌ no rule can name a sign | ✅ ordinary matching | ✅ ordinary matching, and it nests — `likely(rises(level(g)))` is well-formed |
+| composable | ❌ every consumer must handle a growing sign set | ⚠ two corpora attach different facts to one entry | ✅ two corpora may define `rises` differently, and they can disagree in the ordinary way |
+
+**What this does not settle**, and it splits cleanly into two halves this design tracks separately.
+The **magnitude** — *by an unknown amount* — is §22's constrained-not-bound value, and the wrapper
+**defers** it rather than solving it: holding `rises(level(g))` never requires minting a value that is
+constrained but not bound, and the question arises only when something asks, which is the demand
+criterion below. The **moments reading**, where before and after are meant as loci rather than values,
+is a different matter and needs §12's skeleton or the narrower substitute §22 records.
+
+> **Three separate gaps sit behind one English verb, and holding the verb as a term is what tells them
+> apart.** Direction is expressible now; the expansion across two moments is not; the amount is not.
+
 ### Superseded, not invalidated
 
 If a stored strength is a cache, is a stored derived *fact* not also a cache? No — and the difference
@@ -4491,6 +4547,28 @@ New with §20, and the first two are the reason it is a section rather than a pa
   implemented.** A convention that is never exercised looks exactly like one that works (§5's *data
   rots in a way a branch does not*), and no gate covers a convention that has no rules to delete.
   Whether the surface should grow `where` is open; that it currently promises it is not.
+
+  ⭐ **And there is a narrower substitute, which is probably the right first move.** Measured, a rule
+  can already **bind** a moment — occasions hand them over, so `{+quiet(?m)} ⟹ {+sawmoment(?m)}`
+  works — and cannot **relate** two: `succ`, `pred` and `before` are all absent from the graph. So the
+  gap for the ordinary cases is not the whole skeleton, it is **succession, readable**. Three ways to
+  supply it, and the design already prefers the third: a skeleton member costs a new member kind and
+  new surface; deposited `+succ(m7, m8)` entries make **structure deniable**, which §12 refuses, and
+  cost O(n) entries nobody asked for; an **answerer** — `pred` as a request answered by a function
+  over the chain — costs neither, is demand-driven, and is §19's established seam, where six already
+  live. It does not reinstate §6's circle, because the function reads structure rather than entries.
+
+  ⭐⭐ **The same move closes `rests_on` above**, which is stated as a dilemma with two bad horns —
+  promote the trail to entries and the circle returns, leave it and every example must be a corpus
+  fact. An answerer is the third option neither horn considered, and one mechanism would settle both.
+
+  ⚠ It is a **substitute and not an equivalent**, and the difference decides which cases it covers. A
+  skeleton member is matched *inside one match*, so a multi-locus rule fires in one application; an
+  answerer is a request, an answer, then a rule — several ticks, with deposits between them and other
+  rules free to interleave. Irrelevant for expanding a single change-term (§16); probably decisive for
+  recognising a shape over a long stretch (§13). So this narrows the item rather than retiring it.
+  ⚠ And a deposited answer *about structure* is deniable, which is mildly incoherent: denying
+  `pred(m7, m8)` does not change the chain, only what rules believe about it.
 * **How much of the bundle is actually rule-expressible** (§4). The gate is run for the read, the
   state and the move. It is not run for everything, and until it is, *these are conventions* is a
   claim about intent for the remainder.
