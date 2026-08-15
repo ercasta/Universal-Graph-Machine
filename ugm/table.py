@@ -539,10 +539,22 @@ def main() -> int:
     # anywhere disagrees.
     lone = Table(SCENARIO)
     why = lone.wire.agents[1].hear_or_refuse(Utterance("dm", "p1", "a b"))
-    gate("⭐⭐⭐ an utterance that does not ROUND-TRIP is refused: `Loader.term` "
-         "parses one term and ignores the rest, so trailing text is dropped "
-         f"with no exception and a truncated hearing would read as success -- {why}",
-         why is not None and "heard as a" in why
+    # ⭐⭐⭐ **And the engine now refuses it at the source, so this check changed
+    # what it is watching.** It asserted the round-trip guard's own message
+    # (`heard as a`), because `Loader.term` silently returned `a` for `a b` and
+    # this guard was the only thing between a mishearing and a clean delivery.
+    # `docs/quest-feedback.md` §5 reported that, and `term` now raises instead:
+    # what one agent says is what another believes, or the wire is a lie.
+    #
+    # ⚠ So the assertion is *refused, and nothing was believed* rather than
+    # *refused by this particular layer* -- otherwise the check fails the moment
+    # the defect it was written against is fixed, which is the wrong way round.
+    # The guard stays: it is now defence in depth rather than the only line, and
+    # it still catches anything that parses cleanly into the wrong node.
+    gate("⭐⭐⭐ an utterance that does not ROUND-TRIP is refused, and nothing is "
+         "believed -- the wire re-renders what was understood, and the parser "
+         f"now refuses the truncation at source as well -- {why}",
+         why is not None
          and not any(s.startswith("arrived(dm")
                      for s in lone.wire.agents[1].beliefs()))
 

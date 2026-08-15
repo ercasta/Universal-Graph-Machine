@@ -71,78 +71,33 @@ that wants to ask for help must therefore ask about something it named itself.
 that is a real constraint on cooperative corpora rather than a stylistic choice.
 """
 
+import pathlib
 import sys
 from typing import List
 
 from .table import Local, Processes, Spec, Table, Utterance
 
-# -- the three corpora --------------------------------------------------------
+# -- the three corpora -------------------------------------------------------
 
-DM = """
-# The DM holds the world and narrates. It never reasons about anyone's goal --
-# it routes requests and reports outcomes, which is the whole of its job here.
-fact +holds(p2, key1)
-fact -holds(p1, key1)
+# ⭐ **In files, beside `dungeon.ugm`, and not in this one.** They were string
+# literals here, which put a corpus in `ugm/*.py` next to the engine -- and the
+# cost is not only that a reader cannot tell which is which. **Nothing that
+# checks a corpus can read a Python string**: `python -m ugm.atlas` maps a file,
+# the load-time note about names nothing writes fires on a file, and this corpus
+# was invisible to both while `dungeon.ugm` was not. Same team, same repository,
+# two conventions.
+RULES = pathlib.Path(__file__).resolve().parent / "rules"
 
-# Somebody wants a thing: tell whoever has it.
-#
-# ⚠⚠⚠ **In two rules, because a request has to be SPENT.** Written as one --
-# `{ +says(?who, want(?who, ?k), plus), +holds(?keeper, ?k) }` straight to the
-# telling -- the arrival never stops being true, so when the key changed hands
-# the rule matched again with the new keeper and the DM told p1 it had been
-# asked for the key it had just been given. Harmless only because p1 has no rule
-# for `asked`. `docs/authoring.md` §0, in a third corpus: the arrival is the
-# record and stays, `wants` is the belief, and routing spends the belief.
-rule <heard-want> = implies( { +says(?who, want(?who, ?k), plus) },
-                             { +wants(?who, ?k) } )
 
-rule <route> = implies( { +wants(?who, ?k), -holds(?who, ?k), +holds(?keeper, ?k) },
-                        { +doing(tell(?keeper, asked(?who, ?k))) } )
+def corpus(name: str) -> str:
+    with open(RULES / f"quest-{name}.ugm", "r", encoding="utf-8") as fh:
+        return fh.read()
 
-# Somebody handed it over: narrate the new state to the receiver, and record it.
-rule <deliver> = causes( { +says(?keeper, gives(?keeper, ?who, ?k), plus) },
-                         { -holds(?keeper, ?k), +holds(?who, ?k),
-                           +doing(tell(?who, have(?who, ?k))) } )
-"""
 
-# ⚠ `have(p1, key1)` is GROUND in `<unlock>`, and it has to be: see the module
-# docstring. Written `have(?w, ?k)` the rule still works forward, but the thing
-# `blocked` reports is generic and p1 cannot say what it is stuck on.
-P1 = """
-fact +goal(open(door1))
-fact +opens(key1, door1)
-
-rule <unlock> = causes( { +opens(key1, door1), +have(p1, key1) },
-                        { +open(door1) } )
-
-# ⭐ The ask. `blocked` is the occasion -- the agent has exhausted what it can do
-# alone, and this is the one moment where another mind is worth anything.
-rule <ask-for-it> = implies( { +blocked(have(p1, ?k)) },
-                             { +doing(tell(dm, want(p1, ?k))) } )
-
-rule <trust-dm> = implies( { +says(dm, ?p, plus) }, { +?p } )
-"""
-
-P2 = """
-fact +holds(p2, key1)
-
-# p2 has no goal of its own and gives the key up when asked. That it is a
-# pushover is a property of THIS corpus -- refusing is one authored rule away,
-# and nothing in the machinery has an opinion.
-rule <hand-over> = causes( { +says(dm, asked(?who, ?k), plus), +holds(p2, ?k) },
-                           { -holds(p2, ?k), +doing(tell(dm, gives(p2, ?who, ?k))) } )
-
-rule <trust-dm> = implies( { +says(dm, ?p, plus) }, { +?p } )
-"""
-
-# The control: nobody holds the key, so the ask goes out and is never answered.
-DM_ALONE = """
-fact -holds(p1, key1)
-rule <heard-want> = implies( { +says(?who, want(?who, ?k), plus) },
-                             { +wants(?who, ?k) } )
-rule <route> = implies( { +wants(?who, ?k), -holds(?who, ?k), +holds(?keeper, ?k) },
-                        { +doing(tell(?keeper, asked(?who, ?k))) } )
-"""
+DM = corpus("dm")
+P1 = corpus("p1")
+P2 = corpus("p2")
+DM_ALONE = corpus("dm-alone")
 
 QUEST = (Spec("dm", DM), Spec("p1", P1), Spec("p2", P2))
 LONELY = (Spec("dm", DM_ALONE), Spec("p1", P1))

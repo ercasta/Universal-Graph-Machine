@@ -64,6 +64,7 @@ def reachable(m: Machine, rules) -> Tuple[Set[str], List]:
     """
     have = grounded_by_facts(m) | set(m.reserved)
     live: Set[int] = set()
+    anything = False
     changed = True
     while changed:
         changed = False
@@ -75,11 +76,42 @@ def reachable(m: Machine, rules) -> Tuple[Set[str], List]:
             if need <= have:
                 live.add(i)
                 for x in r.consequent:
+                    # ⚠⚠⚠ **A bare-variable consequent concludes ANYTHING, and
+                    # every corpus that believes what it is told has one.** The
+                    # quest's `{ +says(dm, ?p, plus) } ⟹ { +?p }` is the trust
+                    # rule -- the thing that makes an utterance a belief -- and
+                    # once it is live nothing downstream of it is unreachable.
+                    # Read literally it also writes no relation NAME, so this
+                    # walk saw a corpus whose every fact arrives by trust as a
+                    # corpus where nothing is written: it reported `nothing
+                    # writes have`, `<unlock> can never apply` and `says is
+                    # joined to nothing`, all three wrong and all three the same
+                    # cause. The bare variable, distorting a measurement for the
+                    # fifth time in this repository.
+                    if m.g.is_var(x.pattern):
+                        anything = True
+                        continue
                     got = _rel(m, x.pattern)
                     if got is not None and got not in have:
                         have.add(got)
                 changed = True
+    if anything:
+        # Nothing can be shown unreachable, and saying so is the answer. The
+        # alternative -- reporting the dead rules anyway -- is a list that is
+        # wrong exactly where a corpus is most ordinary.
+        return have, []
     return have, [r for i, r in enumerate(rules) if i not in live]
+
+
+def concludes_anything(m: Machine, rules) -> List[str]:
+    """Rules whose consequent is a bare variable, so they can conclude anything.
+
+    Reported rather than silently worked around: it is why the checks above go
+    quiet, and an author is owed the reason. `<denial>` and `<assert-act>` are
+    the bundle's own, deliberately; a corpus's trust rule is the common case.
+    """
+    return [r.name or str(r.node) for r in rules
+            if any(m.g.is_var(x.pattern) for x in r.consequent)]
 
 
 def chains(m: Machine, rules) -> Dict[str, List[Tuple[str, List[str]]]]:
@@ -262,10 +294,12 @@ def survey(m: Machine, rules, label: str = "", show_mermaid: bool = False) -> Li
                   f"   [{name}]")
     print()
 
-    missing = sorted(m.unwebbed())
+    wild = concludes_anything(m, rules)
+    missing = [] if wild else sorted(m.unwebbed(rules))
     if missing:
         problems.append(f"nothing writes {', '.join(missing)}")
-    print(f"  names read and never written : {missing if missing else 'none'}")
+    print(f"  names read and never written : {missing if missing else 'none'}"
+          f"{'   (undecidable -- see below)' if wild else ''}")
 
     if dead:
         for r in dead:
@@ -294,11 +328,23 @@ def survey(m: Machine, rules, label: str = "", show_mermaid: bool = False) -> Li
         # concludes `-?p` -- a bare variable, with no relation to draw a link to
         # -- so `not` looks joined to nothing while it is in fact joined to
         # everything the agent can deny.
-        print(f"  joined to nothing else       : {alone}")
+        print(f"  joined to nothing else       : {alone}"
+              f"{'   (undecidable -- see below)' if wild else ''}")
+        # ⚠ A rule concluding a bare variable draws no edge, because there is no
+        # relation on its consequent to draw one to -- so the term it reads looks
+        # isolated while it is in fact joined to everything the agent can be told.
         problems += [f"{n} is in the corpus and joined to nothing else"
-                     for n in alone if n != "not"]
+                     for n in alone if n != "not" and not wild]
     span = bridges(nodes, adj)
     print(f"  terms holding it together    : {span if span else 'none'}")
+    if wild:
+        # ⚠ ASCII only in what is PRINTED -- this goes to a console whose
+        # encoding is the platform's, and a mark it cannot encode turns the
+        # whole report into a traceback. Second time today.
+        print(f"  concludes ANYTHING           : {wild} -- a rule whose "
+              f"consequent is a bare variable can conclude any proposition, so "
+              f"nothing here can be shown unreachable. Every corpus that "
+              f"believes what it is told has one.")
 
     # ⚠ Printed apart from the problems above, and not counted as one: a latent
     # conflict is a QUESTION for an author -- the two antecedents may never hold
