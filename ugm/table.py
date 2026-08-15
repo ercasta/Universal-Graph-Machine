@@ -538,13 +538,27 @@ def main() -> int:
     # hearer believes `a(b)`, the wire reports a clean delivery, and nothing
     # anywhere disagrees.
     lone = Table(SCENARIO)
-    why = lone.wire.agents[1].hear_or_refuse(Utterance("dm", "p1", "a(b)(c)"))
-    gate("⭐⭐⭐ an utterance that does not ROUND-TRIP is refused: `a(b)(c)` "
-         "parses to `a(b)` and raises nothing, so a truncated hearing would "
-         f"otherwise read as success -- {why}",
-         why is not None and "heard as a(b)" in why
+    why = lone.wire.agents[1].hear_or_refuse(Utterance("dm", "p1", "a b"))
+    gate("⭐⭐⭐ an utterance that does not ROUND-TRIP is refused: `Loader.term` "
+         "parses one term and ignores the rest, so trailing text is dropped "
+         f"with no exception and a truncated hearing would read as success -- {why}",
+         why is not None and "heard as a" in why
          and not any(s.startswith("arrived(dm")
                      for s in lone.wire.agents[1].beliefs()))
+
+    # ⭐ And the case this guard was FIRST written against is now a fix rather
+    # than a trap: `a(b)(c)` -- a node whose relation is itself a structure --
+    # used to parse to `a(b)` and be heard as something nobody said. The parser
+    # learned chained application, so it now crosses intact.
+    comp = Table(SCENARIO)
+    ok_why = comp.wire.agents[1].hear_or_refuse(Utterance("dm", "p1", "a(b)(c)"))
+    gate("⭐⭐ a COMPOSITE RELATION survives the wire: `a(b)(c)` is heard as "
+         "itself, and is a different node from `a(b(c))` at the far end -- "
+         "which is what stops *a composed with b* and *a applied to b of c* "
+         "being one thing between two agents",
+         ok_why is None
+         and comp.wire.agents[1].kb.term("a(b)(c)")
+             != comp.wire.agents[1].kb.term("a(b(c))"))
 
     # -- the same transcript across OS processes ---------------------------
     print("\n  the same table, one OS process per agent:")

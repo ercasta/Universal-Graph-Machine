@@ -135,12 +135,27 @@ def tokenise(src: str) -> List[Tok]:
 
 class Term(NamedTuple):
     """A relation instance, an atom, a variable or a rule reference, still
-    unresolved against a graph."""
+    unresolved against a graph.
+
+    ⭐ `fn` is the relation slot when it holds a whole TERM rather than a name --
+    `a(b)(c)`, the node whose relation is `a(b)`. The substrate has always built
+    one (a node's relation is a node like any other, and `show` renders it by
+    recursing), `unify` learned to compare one when `?p(?t)` landed, and this is
+    the last component that could not read it.
+
+    ⚠ Set only for a CHAINED application, so every term that parsed before this
+    existed still parses to the identical shape. `a(b)` is `Term("a", (b,))` as
+    it always was, not `Term("", (b,), fn=Term("a"))` -- which matters because
+    `_fact` reads `term.head == "forbidden"` to spot a norm, and rewriting the
+    common case would have moved that head one level down and retired every norm
+    in the suite silently.
+    """
 
     head: str
     args: Tuple["Term", ...]
     is_var: bool
     is_rule: bool = False
+    fn: Optional["Term"] = None
 
 
 class RuleMember(NamedTuple):
@@ -300,6 +315,25 @@ class Parser:
         return RuleMember(sign, term, at, binds)
 
     def term(self) -> Term:
+        """A primary, then any number of further argument groups applied to it.
+
+        `a(b)(c)` is *a composed with b, applied to c* -- a different node from
+        `a(b(c))`, and the difference is which node the top one's RELATION edge
+        points at: an atom, or a structure. Both were buildable and renderable;
+        only this loop was missing.
+        """
+        t = self.primary()
+        while self.at("("):
+            self.next()
+            args = [self.term()]
+            while self.at(","):
+                self.next()
+                args.append(self.term())
+            self.expect(")")
+            t = Term("", tuple(args), False, False, fn=t)
+        return t
+
+    def primary(self) -> Term:
         t = self.next()
         if t.kind == "var":
             # ⭐ `?p(?t)` -- a variable in the RELATION slot. The substrate has
@@ -616,6 +650,13 @@ class Loader:
             self.shadowed.add(t.head)
 
     def build(self, t: Term, scope: Dict[str, NodeId]) -> NodeId:
+        if t.fn is not None:
+            # The relation slot holds a term. `g.rel` interns on
+            # (relation, members) as always, so `a(b)(c)` is one node however
+            # often it is written, and a different one from `a(b(c))`.
+            return self.m.g.rel(
+                self.build(t.fn, scope), *[self.build(a, scope) for a in t.args]
+            )
         if t.is_rule:
             return self.rule_ref(t.head)
         if t.is_var:
@@ -756,6 +797,8 @@ class Loader:
         out: set = set()
         if t.is_rule:
             out |= _vars_in(self.m.g, self.rule_ref(t.head))
+        if t.fn is not None:
+            out |= self._named_rule_vars(t.fn)
         for a in t.args:
             out |= self._named_rule_vars(a)
         return out
@@ -821,7 +864,9 @@ class Loader:
 
 
 def _mentions_a_rule(t: Term) -> bool:
-    return t.is_rule or any(_mentions_a_rule(a) for a in t.args)
+    return (t.is_rule
+            or (t.fn is not None and _mentions_a_rule(t.fn))
+            or any(_mentions_a_rule(a) for a in t.args))
 
 
 def _vars_in(g, node: NodeId) -> set:
