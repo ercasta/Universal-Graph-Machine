@@ -11,6 +11,37 @@ and it is marked as one.
 
 ---
 
+## 0. An occasion is consumed. A fact is not.
+
+⭐⭐⭐ **Put above §1 at the request of the corpus that found it three times**
+(`docs/dungeon-feedback.md` §3), and their reason for the ordering is the right one: *§1 costs you a
+rule that never fires, which is inert; this costs you a run that never ends.*
+
+If a rule models something **happening**, something in its antecedent must stop being true *because*
+it happened. Nothing does that for you.
+
+| written without | what happened |
+|---|---|
+| `-hits` in the damage rule | 5−2=3, 3−2=1, 1−2=0 — a goblin beaten to death by **one swing** |
+| `-attack` in the damage rule | the hit rule re-concluded `+hits` the moment damage denied it; they alternate for ever |
+| a `may(x, r)` token | `turn` is a standing fact, so acting re-fired as fast as the mechanics resolved |
+
+The third is the general form and takes longest to see. `turn(hero, 1)` is **true** for as long as it
+is the hero's turn — a perfectly good fact — and that is exactly why acting on it re-fires. What is
+missing is not a denial but a **right that acting spends**:
+
+```
+rule <swing> = causes( { +turn(?x, ?r), +may(?x, ?r), ... },
+                       { -may(?x, ?r), +attack(?x, ?d, ?r) } )
+```
+
+⚠⚠⚠ **Quiescence cannot catch any of the three**, because each pass genuinely concludes something
+new. Nor can any check about the outcome: the fight is decided correctly and then goes on for ever.
+See §7 of that document for a run that reached **round 417 across 8,072 entries** with every outcome
+check green.
+
+---
+
 ## 1. `−` means *denied*, never *absent*
 
 This is the one that will cost you the most, because it fails **silently** — the rule simply never
@@ -73,6 +104,16 @@ deposits every member with its sign, so *what would cancel this rule* is a query
 
 > **Precedence orders rules. It does not carve out cases.** Put the case in the antecedent — that
 > *is* `unless`.
+
+⚠⚠ **And the collateral damage is survivable or permanent depending on the WINNER, which is the
+refinement `docs/dungeon-feedback.md` §5 asked for.** The table above shows `b` as permanent
+collateral damage, and that is right only when the winning rule's situation persists: `a` stays
+poisoned, so the poison rule matches every tick and regeneration is defeated every tick, for ever.
+Where the winner is **transient** it is a one-tick deferral instead — one goblin fleeing defeats the
+other's attack for a step, then the goblin is gone and *arbitration is scheduling* does the rest.
+
+> **`overrides` is survivable when the winning rule's situation is transient, and permanent damage
+> when it is not.** The two look identical when you write them, and only one of them is a bug.
 
 ⚠⚠⚠ **Unless your negatives are not enumerable, and then precedence really is the only answer.**
 `docs/dungeon-feedback.md` §4 found the case: *the hero attacks by default when the player has
