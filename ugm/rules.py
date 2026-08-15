@@ -1295,6 +1295,22 @@ def _anchored(g, chain, want, bindings, strict: bool):
         m = m.predecessor
 
 
+def _ground(g, n, bindings) -> bool:
+    """Is this argument fully known, once bindings are followed?
+
+    `walk` resolves a variable to its value but does not substitute inside a
+    structure, so neither `is_var` nor `has_var` answers this on its own: the
+    first is blind to `loaded(?p)`, the second is blind to `?p` being bound.
+    """
+    n = walk(g, n, bindings)
+    if g.is_var(n):
+        return False
+    rel = g.relation_of(n)
+    if rel is not None and not _ground(g, rel, bindings):
+        return False
+    return all(_ground(g, m, bindings) for m in g.members(n))
+
+
 def _stored(g, chain, want, bindings):
     """A skeleton relation that is IN the graph -- `pred`, `in_delta`,
     `delta_next`, `rests_on`, and whatever a stratum-0 rule concludes --
@@ -1323,7 +1339,19 @@ def _stored(g, chain, want, bindings):
     """
     rel = g.relation_of(want.pattern)
     args = g.members(want.pattern)
-    if not any(not g.is_var(walk(g, a, bindings)) for a in args):
+    # ⚠⚠⚠ **GROUND, not merely not-a-variable.** This asked `is_var`, which is
+    # False for any relation instance -- so `licensed_by(?e, loaded(?p))` counted
+    # `loaded(?p)` as an anchor although nothing in it was known, and the walk
+    # enumerated every instance in the history. That is exactly the leak the
+    # paragraph above says this line prevents, available to any corpus writing a
+    # structured argument: `rests_on(?e, foo(?p))`, `in_delta(?m, bar(?x))`.
+    #
+    # `has_var` is not the test either, because it cannot see through bindings:
+    # `loaded(?p)` with `?p` already bound is ground in fact and generic in
+    # shape, and refusing it would break the anchored reads §12 relies on. So
+    # the question is asked of the binding, recursively. Measured:
+    # docs/observations.md §3.1, finding 2.
+    if not any(_ground(g, a, bindings) for a in args):
         return  # unbounded: this would enumerate the history, so it finds nothing
     for node in g.instances_of(rel):
         if g.has_var(node):
@@ -1547,6 +1575,7 @@ def structural_relations(chain) -> Dict[NodeId, Callable]:
         chain.IN_DELTA: _stored,
         chain.DELTA_NEXT: _stored,
         chain.RESTS_ON: _stored,
+        chain.LICENSED_BY: _stored,
         chain.ENTRY_OF: _members_of,
         chain.SPAN_OF: _span_of,
         chain.ASKING: _bounded,

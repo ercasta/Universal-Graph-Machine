@@ -532,6 +532,7 @@ class Machine:
             "in_delta": self.chain.IN_DELTA,
             "delta_next": self.chain.DELTA_NEXT,
             "rests_on": self.chain.RESTS_ON,
+            "licensed_by": self.chain.LICENSED_BY,
             "entry_of": self.chain.ENTRY_OF,
             # ...and a stretch of it. `span_of(?s, ?start, ?end)` mints when the
             # endpoints are bound and decomposes when the span is (§11).
@@ -3534,6 +3535,29 @@ class Machine:
         """
         return self._kept()["sit"].entries
 
+    def _retire(self, cache: dict, k) -> None:
+        """Drop a cached application and every index that points at it.
+
+        Two callers, and they retire for different reasons: a later entry made
+        what the application consumed no longer current, or a structural
+        relation it negates has grown. One removal either way -- the indexes do
+        not care why, and having two copies of this list is how one of them ends
+        up missing an index.
+        """
+        app = cache["apps"].pop(k, None)
+        if app is None:
+            return
+        cache["live"].discard(k)
+        cache["quiet"].pop(k, None)
+        cache["by_rule"].get(k[0], set()).discard(k)
+        # The heap keeps its entry: removing from the middle of one is what a
+        # lazy check at the top is for, and `apps` is the authority on whether a
+        # candidate still exists.
+        for w in self._wants(app):
+            cache["by_want"].get(w, set()).discard(k)
+        for c in app.consumed:
+            cache["by_prop"].get(c.proposition, set()).discard(k)
+
     def _applications(
         self, proposed: List[Rule], state: Situation, materialise: bool = False
     ) -> List[Application]:
@@ -3618,6 +3642,24 @@ class Machine:
                 if any(self.g.relation_of(mm.pattern) in grown
                        for mm in r.antecedent):
                     cache["rule_pos"].pop(r.node, None)
+                    # ⚠⚠⚠ **...and its cached applications with it, because a
+                    # full re-match can only ADD.** Dropping the cursor asks for
+                    # the rule to be matched again, and step 2's merge skips any
+                    # key already present -- so a re-match that NO LONGER yields
+                    # an application cannot remove it. That is invisible for a
+                    # positive member, whose application would merely be
+                    # rediscovered, and wrong for a NEGATED structural one:
+                    # negation as failure is evaluated at match time, so when the
+                    # relation it negates grows, the stale application survives
+                    # and applies.
+                    #
+                    # Step 1 retires an application when a later ENTRY unsettles
+                    # what it consumed. A structural fact has no entry and sits
+                    # in no delta, so that path never sees it -- which is why the
+                    # invalidation was present, correct, and unable to help.
+                    # Measured: docs/observations.md §3.1.
+                    for k in [k for k in cache["apps"] if k[0] == r.node]:
+                        self._retire(cache, k)
 
         # 1. Retire what a later claim unsettled.
         if delta:
@@ -3657,17 +3699,7 @@ class Machine:
                     for c in app.consumed
                 )
                 if not alive:
-                    del cache["apps"][k]
-                    cache["live"].discard(k)
-                    cache["quiet"].pop(k, None)
-                    cache["by_rule"].get(k[0], set()).discard(k)
-                    # The heap keeps its entry: removing from the middle of one
-                    # is what a lazy check at the top is for, and `apps` is the
-                    # authority on whether a candidate still exists.
-                    for w in self._wants(app):
-                        cache["by_want"].get(w, set()).discard(k)
-                    for c in app.consumed:
-                        cache["by_prop"].get(c.proposition, set()).discard(k)
+                    self._retire(cache, k)
 
         # 2. Full match for rules newly come to mind; delta match for the rest.
         #

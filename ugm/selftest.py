@@ -7211,6 +7211,86 @@ def reference_is_binding() -> None:
 
 
 
+def a_cached_application_can_be_retracted() -> None:
+    """§6, §12. Negation as failure on a structural member is evaluated **at
+    match time**, and the delta-match cache carries applications across ticks --
+    so a structural fact appearing later has to be able to take one back.
+
+    ⚠⚠⚠ It could not. `_applications` step 0 already dropped the cursor of a
+    rule whose structural relation had grown, forcing a full re-match, and that
+    was correct and useless: step 2's merge skips any key already present, so
+    **a re-match could only ever ADD**. The stale application survived and
+    applied. Step 1 retires on a later ENTRY; a structural fact has no entry and
+    sits in no delta, so that path never saw it.
+
+    The precondition `match` states -- *a negated member names a relation whose
+    derivation is finished before this rule is reached* -- holds among the strata
+    and not against the ordinary loop, because `in_delta`, `delta_next`,
+    `rests_on` and `licensed_by` are deposited on every write.
+
+    ⚠ Written after the fact, and it is a kill-probe rather than a description:
+    restore the add-only merge and this check fails while every other one passes.
+    """
+    from .rules import _stored
+    from .text import load
+
+    m = Machine()
+    BLOCK = m.g.atom("blocks")
+    m.rules.structural[BLOCK] = _stored
+    m.rules._skeleton = None
+    m.reserved["blocks"] = BLOCK
+    kb = load(m, chr(10).join([
+        "rule <act> = implies( { +person(?x), -blocks(?x) }, { +acted(?x) } )",
+        "fact +person(ann)",
+        "fact +person(bob)",
+        "",
+    ]))
+    m.tick()  # one of them acts; BOTH applications are now cached
+    waiting = [n for n in ("ann", "bob")
+               if m.chain.holds(kb.term(f"acted({n})"), m.focus.topic) is None]
+    check(
+        "§6", "both applications are cached before the structural fact appears",
+        len(waiting) == 1,
+    )
+    m.g.rel(BLOCK, kb.term(waiting[0]))
+    m._structure_touched.add(BLOCK)
+    m.run(limit=50)
+    check(
+        "§12",
+        "a structural fact appearing retracts the cached application it blocks",
+        m.chain.holds(kb.term(f"acted({waiting[0]})"), m.focus.topic) is None,
+    )
+
+
+def a_structural_member_needs_a_ground_anchor() -> None:
+    """§3, §12. `_stored` refuses an unanchored pattern because it would
+    enumerate the history. The test asked `is_var`, which is False for every
+    relation instance -- so `licensed_by(?e, loaded(?p))` counted `loaded(?p)`
+    as an anchor although nothing in it was known, and the walk read the whole
+    history. Any structured argument did it: `rests_on(?e, foo(?p))`.
+
+    ⚠ `has_var` is not the test either -- it cannot see through bindings, and
+    `loaded(?p)` with `?p` bound is ground in fact and generic in shape. So the
+    question is asked of the binding, recursively.
+    """
+    from .rules import _ground
+
+    m = Machine()
+    p = m.g.atom("p")
+    x = m.g.var("?x")
+    loaded_x = m.g.rel(m.LOADED, x)
+    check("§3", "a bare variable is not an anchor", not _ground(m.g, x, {}))
+    check("§3", "an atom is", _ground(m.g, p, {}))
+    check(
+        "§12", "a structure containing a free variable is not an anchor",
+        not _ground(m.g, loaded_x, {}) and not m.g.is_var(loaded_x),
+    )
+    check(
+        "§12", "...and the same structure IS one once the variable is bound",
+        _ground(m.g, loaded_x, {x: p}),
+    )
+
+
 def quiescence_is_an_occasion() -> None:
     """§5 named two places the machinery declines. The third is the loop running
     out of work, and it was the one that declined in silence.
@@ -7354,6 +7434,8 @@ def main() -> int:
     the_index_agrees_with_the_walk()
     a_cause_moves_the_register()
     reference_is_binding()
+    a_cached_application_can_be_retracted()
+    a_structural_member_needs_a_ground_anchor()
     quiescence_is_an_occasion()
     surface()
     the_surface_can_say_what_the_apparatus_is_made_of()

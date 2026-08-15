@@ -283,6 +283,16 @@ class Chain:
         # walk. §21's defect for the ninth time, and the fix is the one the other
         # eight got.
         self.RESTS_ON = g.atom("rests_on")
+        # ⭐ EXPERIMENT (docs/observations.md §2.8). What LICENSED an entry --
+        # `loaded(p)` for something the agent was told, `applied(<R>)` for
+        # something it worked out. Beside `rests_on` and for its reason: nobody
+        # asserted it, it cannot be denied, dated or attributed; it is *how the
+        # entry was made*, not a claim about the world.
+        #
+        # It was already recorded as `Entry.licence`, a Python field, which is
+        # finding 1 of the audit in Part 1: the discriminator between *told* and
+        # *inferred* sat on every entry and no rule could read it.
+        self.LICENSED_BY = g.atom("licensed_by")
         # Sign atoms live here rather than in the rule set, because an entry's
         # third member is a sign and the chain is what mints entries. Everything
         # else takes them from here: `atom` does not intern, so a second
@@ -346,6 +356,8 @@ class Chain:
             self.g.rel(self.DELTA_NEXT, node, seat.delta[-1].node)
         for c in consumed:
             self.g.rel(self.RESTS_ON, node, c)
+        if licence is not None:
+            self.g.rel(self.LICENSED_BY, node, licence)
         e = Entry(node, locus, proposition, sign, licence, source, consumed, mention)
         seat.delta.append(e)
         # ...and an index by the entry's own node. `entry_by_node` was a scan of
