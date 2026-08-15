@@ -74,6 +74,21 @@ deposits every member with its sign, so *what would cancel this rule* is a query
 > **Precedence orders rules. It does not carve out cases.** Put the case in the antecedent — that
 > *is* `unless`.
 
+⚠⚠⚠ **Unless your negatives are not enumerable, and then precedence really is the only answer.**
+`docs/dungeon-feedback.md` §4 found the case: *the hero attacks by default when the player has
+declared nothing this round.* You cannot write `-declares(hero, ?what)`, because absence is not
+denial and you do not know what might have been said. Measured:
+
+| | the rule fires |
+|---|---|
+| nothing was declared | **no** |
+| one specific denial | yes |
+
+So an **open-domain default** is expressed as `fact overrides(<hero-acts>, <hero-holds>)`, and the
+cost is exactly what they name: **the default becomes a precedence rather than a condition, so you
+cannot read the rule and learn when it applies.** That is negation as failure, it is genuinely
+absent, and it is the surviving half of `unless`.
+
 ---
 
 ## 3. The connective decides whether your turn loop terminates
@@ -300,7 +315,7 @@ wall. Probed at `f250528`:
 | *the goblin acts after the hero* | matching resolves the state at **one locus** and a member carries no locus of its own. Nothing forbids it | **unbuilt** |
 | *while poisoned* — a span as a locus | an entry's locus is typed as a moment; no span is ever built as one | **unbuilt** |
 | shapes (§13) | needs both of the above | **unbuilt** |
-| ~~`unless(<R>, +cond)`~~ | ✅ **built, and this note was wrong twice about it.** *if not* is a negated antecedent member (§2 above). What is absent is **amendment at a distance** — adding a guard to a rule you did not write — which is a different thing wearing this one's name | **was a name, not a gap** |
+| `unless(<R>, +cond)` — **half** | ⚠ *if not* over a nameable proposition ✅ is a negated member (§2). *If nothing was said* over an **open domain** ❌ needs negation as failure and is absent — your §4. **Amendment at a distance** is a third thing wearing the same name, refused by decision | **one of three is missing** |
 | ~~*apply the effect named by this spell* — `?p(?x)`~~ | ✅ **built, after this note first said it was a wall.** The substrate could always construct one; three separate things refused it and none was an argument — the parser would not read it, `unify` compared the relation slot by identity, `substitute` would not rebuild one | **was never a wall** |
 | *my rulebook, as facts* | §8 scopes a statement's variables to it — measured, `?x` in two named facts are **different nodes**, so a rule assembled from them concludes about something nothing binds | **deliberate, and load-bearing** |
 | ~~*it falls by 3*~~ | ✅ **also not a wall.** A known amount is a **tool** (arithmetic is a function); an unknown one is a **node**, per §13's move for plurality. What stays open is only *recovering a readable value after an unquantified change*, which is arguably honest ignorance | **was two questions, both answered** |
@@ -346,9 +361,12 @@ session. You will reach for all of them in an RPG.
 | §13's shapes — *taking turns*, recursive definitions over spans | ✅ **BUILT.** They run; see below |
 | ~~`unless(<R>, +condition)`~~ | ✅ **BUILT** — it is a negated antecedent member, written inside the rule (§2) |
 
-⭐⭐⭐ **There are no unbuilt rows left in this table.** Relating two moments, a fact's own history,
-spans as loci, the shapes that follow from them — and `unless`, which was never unbuilt at all: it is
-*if not*, and *if not* has been a negated member since there were members.
+⭐⭐ **Almost no unbuilt rows left.** Relating two moments, a fact's own history, spans as loci and
+the shapes that follow from them are all built — and most of `unless` was never unbuilt at all.
+
+⚠⚠⚠ **What survives, and your §4 is why:** **negation as failure over an open domain.** *If nothing
+was said* is not a negated member, because absence is not denial, and no corpus can enumerate what
+was never uttered. It remains a precedence workaround, at the cost you documented.
 
 ⚠ **What IS absent, correctly named:** **amendment at a distance** — adding a guard to a rule you did
 not write and cannot edit. That is refused by decision rather than missing by omission. An ordinary

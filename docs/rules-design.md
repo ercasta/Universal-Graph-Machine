@@ -5151,7 +5151,28 @@ New with §20, and the first two are the reason it is a section rather than a pa
   *different node* — measured, 757 against 729. That is the `excluded` wall, and it was never
   `unless`'s problem.
 
-  ⚠ So what is genuinely absent is **amendment at a distance** — adding a guard to a rule you did not
+  ⚠⚠⚠ **BUT THE ROW SPLITS, AND STRIKING ALL OF IT WAS WRONG.** *if not* over a proposition the
+  corpus can name is a negated member, as above. *If **nothing** was said* — a default over an **open
+  domain** — is not, and the difference is §9's: a negated member needs an entry that **denies**, and
+  absence is not denial. Measured, on the dungeon's own case (*the hero attacks when the player has
+  declared nothing this round*):
+
+  | | the rule fires |
+  |---|---|
+  | nothing was declared | **no** |
+  | one specific denial, `-declares(hero, cast)` | yes |
+
+  So **negation as failure over an open domain is genuinely absent**, and a corpus that needs it must
+  express the default as a *precedence between two rules* instead — at the cost that rule reports,
+  which is `docs/dungeon-feedback.md` §4: *you cannot read `<hero-holds>` and learn when it applies.*
+
+  ⚠⚠⚠ **And my census could not have found this.** It counted the negated members that corpus
+  **wrote**, and the one it could not write was not there to count — which is `docs/authoring.md`
+  §8's own warning arriving against the person who wrote it: *a missing convention is silent by
+  construction, and the only instrument for it is an author noticing.* An author had noticed, in
+  prose, in a file in this repository, and a census that reads code rather than complaints missed it.
+
+  ⚠ So what is also genuinely absent is **amendment at a distance** — adding a guard to a rule you did not
   write — and it is now **refused by decision rather than open by omission**. An ordinary rule may
   not reach into another rule's application; that is §5's wall. Amending a rule is harmonization's
   job: the agent authors a better rule through `adopt` (§20), where the amendment is itself a claim
@@ -5602,7 +5623,7 @@ left to be discovered by an author writing the notation this document uses throu
 | the **skeleton** — `where`, named entries, a member's locus | §12 | ✅ built as **members** (`entry_of`, `span_of`, `at`, `as`); `where` as a keyword and the `?t = entry(...)` prefix form remain cosmetic gaps |
 | **spans as loci** | §11 | ✅ built — `span_of` mints, `at ?s` deposits at one |
 | **shapes** | §13 | ✅ follows from the two above — `<TT-base>`/`<TT-step>` run, over the raw chain |
-| ~~**`unless`**~~ | §12 | ✅ **struck — a name, not a gap.** *if not* is a negated antecedent member, and always was. What is absent is **amendment at a distance**, now refused by decision (§5's wall; harmonization's job) |
+| **`unless`** — *half* | §12 | ⚠ **splits.** *if not* over a nameable proposition ✅ is a negated member and always was. *If nothing was said* — a default over an **open domain** — ❌ needs negation as failure and is absent; the dungeon hit it and worked around it with `overrides`. **Amendment at a distance** is separately refused by decision (§5's wall) |
 
 ⚠ **Nothing in §21's gates can see any of these**, and that is the general lesson rather than an
 oversight: the bundle gate deletes each shipped rule and re-runs the suite, so it measures what
