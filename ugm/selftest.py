@@ -805,6 +805,67 @@ def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
     )
 
 
+def a_verdict_names_what_it_settled() -> None:
+    """*What am I stuck on?* -- answerable out loud. (§14, §19)
+
+    `docs/quest-feedback.md` §1. Fitting `open(door1)` against
+    `{ +have(?w, ?k), +opens(?k, ?d) }` subgoals `opens(?k, door1)`; the world
+    satisfies it with `opens(key1, door1)`; the machinery **records
+    `binds(plan, ?k, key1)`** -- and then reported `blocked(have(?w, ?k))`.
+
+    ⭐⭐⭐ **The binding was never missing. It was known, written down, and not
+    read back**, which is this repository's *read and not obeyed* defect arriving
+    at the verdict. And the consequence is not cosmetic: §14 refuses to dispatch a
+    generic intent, so **an agent could not say what it was stuck on** unless the
+    rule's member happened to be ground. A foreign corpus shaped itself around
+    that, carrying `have(p1, key1)` ground for no other reason, and reported that
+    *ask for help* was a special case when it should have been the general one.
+
+    ⚠ Instantiated at the VERDICT rather than at the subgoal, because a verdict
+    is asked at quiescence -- the latest moment there is, and therefore the one
+    that knows the most. When `<expand>` writes the subgoals, nothing has checked
+    the siblings yet and the binding does not exist.
+    """
+    from .text import load
+
+    def blocked(src):
+        m = Machine()
+        load(m, src)
+        m.run(limit=300)
+        return sorted({m.g.show(e.proposition) for mo in m.chain.moments
+                       for e in mo.delta
+                       if m.g.show(e.proposition).startswith("blocked(")})
+
+    one = blocked(chr(10).join([
+        "rule <unlock> = implies( { +have(?w, ?k), +opens(?k, ?d) }, { +open(?d) } )",
+        "fact +opens(key1, door1)", "fact +goal(open(door1))", ""]))
+    check("§19", "⭐⭐⭐ a verdict names what the plan had already bound -- the "
+          "sibling premise was satisfied, so the key it was satisfied BY is in "
+          "the report", one == ["blocked(have(?w, key1))"])
+
+    ground = blocked(chr(10).join([
+        "rule <unlock> = implies( { +opens(?k, ?d), +me(?w), +have(?w, ?k) },",
+        "                        { +open(?d) } )",
+        "fact +opens(key1, door1)", "fact +me(p1)", "fact +goal(open(door1))", ""]))
+    check("§14", "...and with every variable bound it is GROUND, so the agent can "
+          "utter it -- which is what turns *ask someone for help* from a special "
+          "case into the general one", ground == ["blocked(have(p1, key1))"])
+
+    # ⚠⚠⚠ **One report per PLAN.** A rule fitted to two goals shares its variable
+    # nodes, so both plans carry the same `?k` bound differently and subgoal the
+    # same `have(?w, ?k)` node. The first version of this collected every
+    # relevant binding into one environment, let the last one win, and reported
+    # ONE key: the agent was stuck on two and said one. Arbitrary and silent.
+    two = blocked(chr(10).join([
+        "rule <unlock> = implies( { +have(?w, ?k), +opens(?k, ?d) }, { +open(?d) } )",
+        "fact +opens(key1, door1)", "fact +opens(key2, door2)",
+        "fact +goal(open(door1))", "fact +goal(open(door2))", ""]))
+    check("§19", "⚠⚠⚠ ...and two plans give two reports, because one rule fitted "
+          "twice shares its variables -- collapsing them lets the last binding "
+          "win and the agent says one of the things it is stuck on",
+          two == ["blocked(have(?w, key1))", "blocked(have(?w, key2))"])
+
+
 def the_tick_limit_is_on_the_record() -> None:
     """*Did I run out of time?* -- askable at last. (§13, §21)
 
@@ -1578,8 +1639,17 @@ def plan_bindings() -> None:
           any("?t, sink" in x for x in props(m, m.BINDS)))
 
     m2, kb2 = world(["fact +tap(sink)", "fact +under(kettle, drain)"])
-    check("§14", "bindings disagree, so the sibling is blocked, not achieved",
-          "blocked(under(kettle, ?t))" in props(m2, m2.BLOCKED))
+    # ⭐⭐⭐ **And it NAMES the tap the plan committed to.** This asserted
+    # `blocked(under(kettle, ?t))` and now asserts `blocked(under(kettle, sink))`
+    # -- the same finding with the reason in it: not *something about `under`
+    # failed* but *the plan chose `sink`, and the kettle is not under `sink`*.
+    # A foreign corpus reported the generic form as unutterable, since §14
+    # refuses to dispatch a generic intent, so an agent could not say what it
+    # was stuck on. The binding was known all along and written down as
+    # `binds(plan, ?t, sink)`; the verdict simply never read it back.
+    check("§14", "bindings disagree, so the sibling is blocked, not achieved -- "
+          "and the report names the binding that made it fail",
+          "blocked(under(kettle, sink))" in props(m2, m2.BLOCKED))
     check("§14", "and the false achievement does not appear",
           "achieved(under(kettle, ?t))" not in props(m2, m2.ACHIEVED))
 
@@ -7254,6 +7324,7 @@ def main() -> int:
     a_member_can_name_what_it_matched()
     the_skeleton_is_an_ordinary_member()
     a_guard_is_an_ordinary_member()
+    a_verdict_names_what_it_settled()
     the_tick_limit_is_on_the_record()
     silence_over_a_stretch_is_sayable()
     a_span_is_a_locus()

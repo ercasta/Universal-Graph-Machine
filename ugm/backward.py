@@ -160,7 +160,20 @@ def run() -> int:
         # §18's silent failure, made reachable: `tap(?t)` is satisfiable by
         # `sink`, `under(kettle, ?t)` only by `drain`. Checked independently both
         # report achieved and the plan is wrong with nothing saying so.
-        ("and siblings must agree, so the second is blocked", "blocked(under(kettle, ?t))", ""),
+        #
+        # ⭐⭐⭐ **And the report now NAMES the tap the plan committed to.** This
+        # check wanted `blocked(under(kettle, ?t))` and gets
+        # `blocked(under(kettle, sink))`, which is the same finding with the
+        # reason in it: not *something about `under` failed* but *the plan chose
+        # `sink`, and the kettle is not under `sink`*. A foreign corpus
+        # (`docs/quest-feedback.md` §1) reported the generic form as unutterable
+        # -- §14 refuses to dispatch a generic intent -- so an agent could not say
+        # what it was stuck on. The binding was always known and recorded as
+        # `binds(plan, ?t, sink)`; it was simply not read back when the verdict
+        # was written. Asserting the instantiated form makes this check stronger:
+        # it now fails if the reason disappears again.
+        ("and siblings must agree, so the second is blocked -- naming the tap "
+         "the plan chose", "blocked(under(kettle, sink))", ""),
         ("nothing fits it, and the verdict says so after the loop stopped", "blocked(on(?s))", ""),
     ]
     failures = 0

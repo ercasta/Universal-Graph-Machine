@@ -1352,15 +1352,84 @@ class Machine:
                 answered = True
                 break
         fits = answered
-        self.gate.write(
-            frame,
-            self.g.rel(self.PURSUED if fits else self.BLOCKED, wanted),
-            PLUS,
-            licence=self.g.rel(self.VERDICT, wanted),
-            source=self.KB,
-            consumed=(e,),
-            mention=True,
-        )
+        for settled in self._as_settled(wanted, state):
+            self.gate.write(
+                frame,
+                self.g.rel(self.PURSUED if fits else self.BLOCKED, settled),
+                PLUS,
+                licence=self.g.rel(self.VERDICT, wanted),
+                source=self.KB,
+                consumed=(e,),
+                mention=True,
+            )
+
+    def _as_settled(self, wanted: NodeId, state) -> NodeId:
+        """A goal, with whatever its own plan has since bound filled in.
+
+        ⭐⭐⭐ **A verdict was reported AS THE RULE WROTE IT, and by the time it is
+        reported that is no longer the most informed thing available.** A foreign
+        corpus found it (`docs/quest-feedback.md` §1): fitting `open(door1)`
+        against `{ +have(?w, ?k), +opens(?k, ?d) }` subgoals `opens(?k, door1)`,
+        the world satisfies it with `opens(key1, door1)`, **and the machinery
+        records `binds(plan, ?k, key1)`** -- and then said `blocked(have(?w, ?k))`
+        anyway. The binding was not missing. It was known, written down, and not
+        read back.
+
+        ⚠ **The consequence is exactly the one they named, and it is not
+        cosmetic**: a generic term cannot be uttered (§14 -- `_dispatch` refuses a
+        generic intent, because a description cannot be acted on), so an agent
+        could not say what it was stuck on unless the rule's member happened to
+        be ground already. They shaped a corpus around it, carrying
+        `have(p1, key1)` ground for that reason alone. *Ask for help* was a
+        special case when it should have been the general one.
+
+        ⚠ Instantiated HERE rather than at the subgoal, and the moment is the
+        argument: when `<expand>` writes the subgoals nothing has checked them
+        yet, so the sibling's binding does not exist. A verdict is asked at
+        quiescence, which is the latest moment there is -- so it is the one that
+        knows the most.
+
+        ⚠⚠⚠ **One answer PER PLAN, and the first version of this returned one
+        answer and was silently wrong.** A rule fitted to two goals shares its
+        variable nodes, so `plan(<unlock>, open(door1))` and
+        `plan(<unlock>, open(door2))` both carry a `?k` -- the *same node* --
+        bound to `key1` and `key2`, and they subgoal the *same* `have(?w, ?k)`
+        node. Collecting every relevant binding into one environment then let the
+        last one win: the agent was stuck on two keys and said one. Arbitrary and
+        silent, which is the worst pair this design knows.
+
+        ⚠ Only bindings from a plan this goal is actually a **subgoal of**. Every
+        `binds` fact in the state would drag in an unrelated plan's choices, which
+        is what `_check` already refuses one level down.
+
+        ⚠⚠ **And that last restriction is UNFALSIFIABLE, recorded rather than
+        left looking measured.** Removing it breaks nothing, and the reason is
+        structural: §8 scopes variables to a statement, so a plan binding a
+        variable that occurs in this goal must be built from the same rule -- and
+        this goal is that rule's member, so every such plan is already in the set.
+        The guard cannot currently be wrong. It is kept for `_check`'s reason,
+        and because a second way of building plans would make it load-bearing
+        immediately, but no check here can see it and none pretends to.
+        """
+        plans = {self.g.member(s.proposition, 0) for s in state
+                 if s.sign == PLUS
+                 and self.g.relation_of(s.proposition) is self.SUBGOAL
+                 and self.g.member(s.proposition, 1) == wanted}
+        if not plans:
+            return [wanted]
+        env: dict = {}
+        for s in state:
+            if (s.sign == PLUS
+                    and self.g.relation_of(s.proposition) is self.BINDS
+                    and self.g.member(s.proposition, 0) in plans):
+                env.setdefault(self.g.member(s.proposition, 0), {})[
+                    self.g.member(s.proposition, 1)] = self.g.member(s.proposition, 2)
+        out = []
+        for plan in sorted(plans):
+            got = substitute(self.g, wanted, env.get(plan, {}))
+            if got not in out:
+                out.append(got)
+        return out or [wanted]
 
     def _remember(self, frame: Frame, e: Entry) -> None:
         """Answer *what comes to mind about this?* (§19).
