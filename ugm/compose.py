@@ -61,6 +61,39 @@ def _run(n: int, compose: bool) -> Tuple[int, str]:
     return selections, m.holds(kb.term(f"s{n}(a)"))
 
 
+def _guard_inherited(where: str) -> bool:
+    """A guard on either constituent must bind the composition (§21).
+
+    The guard half of guard inheritance, which §21 recorded as missing because
+    `unless` was thought to be missing. It is not: a guard is a negated
+    antecedent member, and composition takes the union of the antecedents.
+
+    ⚠ Checked as BEHAVIOUR rather than as structure. A member carried into the
+    composite's antecedent and not obeyed is `adopt`'s own defect -- a thing
+    recorded and not acted on -- and it would read as success here.
+    """
+    m = Machine()
+    a = "{ +p(?x), -stop(?x) }" if where == "first" else "{ +p(?x) }"
+    b = "{ +q(?x) }" if where == "first" else "{ +q(?x), -stop(?x) }"
+    kb = load(m, chr(10).join([
+        f"rule <a> = implies( {a}, {{ +q(?x) }} )",
+        f"rule <b> = implies( {b}, {{ +r(?x) }} )",
+        "fact +p(guarded)", "fact +p(free)",
+        "fact +stop(guarded)",   # the guard holds, so the composite must decline
+        "fact -stop(free)",      # ...and is denied here, so it must apply
+        "",
+    ]))
+    A = next(r for r in m.rules.rules if r.name == "a")
+    B = next(r for r in m.rules.rules if r.name == "b")
+    composed = m.rules.compose(A, B)
+    if composed is None:
+        return False
+    m.rules.rules = [r for r in m.rules.rules if r not in (A, B)]
+    m.run(limit=40)
+    return (m.holds(kb.term("r(free)")) == PLUS
+            and m.holds(kb.term("r(guarded)")) != PLUS)
+
+
 def _defeat_survives() -> bool:
     """A rule that defeats a constituent must defeat the composition."""
     m = Machine()
@@ -177,8 +210,19 @@ def run() -> int:
         failures.append("a composed rule escaped a defeat that bound its parts")
 
     print()
-    print("  `unless` is not implemented in this engine, so only the precedence")
-    print("  half of guard inheritance is carried. §21 records the rest.")
+    # ⭐⭐⭐ This used to PRINT that `unless` is not implemented, so only the
+    # precedence half of guard inheritance is carried. That was false, and the
+    # error was a name: `unless` is *if not*, and *if not* is an ordinary
+    # negated antecedent member. Composition takes the union of the antecedents,
+    # so the guard half is inherited by CONSTRUCTION. An instrument printing a
+    # limitation it never tested is the same defect as a check that cannot fail.
+    for where in ("first", "second"):
+        got = _guard_inherited(where)
+        print(f"  a guard in the {where:6} constituent binds the composition: "
+              f"{'yes' if got else 'NO'}")
+        checked += 1
+        if not got:
+            failures.append(f"a composed rule escaped its {where} constituent's guard")
     print()
     for f in failures:
         print(f"  FAIL  {f}")

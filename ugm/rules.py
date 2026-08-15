@@ -454,12 +454,23 @@ class RuleSet:
         replaces would have been defeated -- §21's *a shortcut that has outlived
         its guards*, arriving immediately rather than after a context change.
 
-        Two things are NOT done, and saying so is the point of writing it down.
+        ⭐⭐⭐ **And guard inheritance is COMPLETE, which this docstring spent
+        several commits apologising for.** It said `unless` is not implemented
+        anywhere in this engine, so the half of guard inheritance §12 describes
+        cannot be carried. That was false, and the mistake was a NAME: `unless`
+        is *if not*, and *if not* is an ordinary negated antecedent member.
+        Composition takes the **union of the antecedents**, so a guard is
+        inherited by construction rather than by a mechanism -- verified from
+        either constituent, and verified as behaviour and not only as structure,
+        since a member carried and not obeyed is `adopt`'s own defect.
 
-        `unless` **is not implemented anywhere in this engine**, so the half of
-        guard inheritance that §12 describes cannot be carried. Only `overrides`
-        can, and it is. A composed rule is therefore as defeasible as its parts
-        only with respect to precedence.
+        ⚠ What is genuinely absent is **amendment at a distance** -- adding a
+        guard to a rule you did not write -- and calling that `unless` is what
+        made a one-member rule look like a missing language feature. It is now
+        refused by decision rather than open by omission: an ordinary rule may
+        not reach into another rule's application (§5's wall), and amending a
+        rule belongs to harmonization, where the agent authors a better rule
+        through `adopt` and the amendment is itself an arguable claim.
 
         ⭐ **The grade used to block this.** §21 argued that composing one would
         be a minimum computed once from constituents that are themselves

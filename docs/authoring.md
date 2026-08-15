@@ -55,10 +55,24 @@ rule <clean> = implies( { +wounded(?x), -bitten(?x) },         -- or derive the 
 apply — to anyone. **`supersedes` needs a shared consumed entry**, and these two rules consume
 `poisoned(a)` and `wounded(a)`, which have nothing in common, so nothing is defeated.
 
-Neither relation expresses *this creature is the exception*. `unless(<regen>, +poisoned(?x))` is the
-natural way to say it and is **described in §12 and implemented nowhere** (§22).
+Neither relation expresses *this creature is the exception*. ⭐ **A negated member does**, and it is
+row four of that table — it is what `unless` means, and it has always been in the surface:
 
-> **Precedence orders rules. It does not carve out cases.** Put the case in the antecedent.
+```
+rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
+```
+
+⚠ Write it **inside the rule**, not beside it. `fact unless(<regen>, poisoned(?x))` parses and does
+nothing at all: §8 scopes a rule's variables to its own statement, so that `?x` is a *different
+variable* from the rule's, and nothing reads the relation anyway. The guard has to be where the
+rule's variables are.
+
+⭐ And it stays **askable**, which is the only thing writing it separately would have bought: `reify`
+deposits every member with its sign, so *what would cancel this rule* is a query over
+`ant(<regen>, poisoned(?x), -, 1)`.
+
+> **Precedence orders rules. It does not carve out cases.** Put the case in the antecedent — that
+> *is* `unless`.
 
 ---
 
@@ -286,7 +300,7 @@ wall. Probed at `f250528`:
 | *the goblin acts after the hero* | matching resolves the state at **one locus** and a member carries no locus of its own. Nothing forbids it | **unbuilt** |
 | *while poisoned* — a span as a locus | an entry's locus is typed as a moment; no span is ever built as one | **unbuilt** |
 | shapes (§13) | needs both of the above | **unbuilt** |
-| `unless(<R>, +cond)` | specified in §12, implemented nowhere | **unbuilt** |
+| ~~`unless(<R>, +cond)`~~ | ✅ **built, and this note was wrong twice about it.** *if not* is a negated antecedent member (§2 above). What is absent is **amendment at a distance** — adding a guard to a rule you did not write — which is a different thing wearing this one's name | **was a name, not a gap** |
 | ~~*apply the effect named by this spell* — `?p(?x)`~~ | ✅ **built, after this note first said it was a wall.** The substrate could always construct one; three separate things refused it and none was an argument — the parser would not read it, `unify` compared the relation slot by identity, `substitute` would not rebuild one | **was never a wall** |
 | *my rulebook, as facts* | §8 scopes a statement's variables to it — measured, `?x` in two named facts are **different nodes**, so a rule assembled from them concludes about something nothing binds | **deliberate, and load-bearing** |
 | ~~*it falls by 3*~~ | ✅ **also not a wall.** A known amount is a **tool** (arithmetic is a function); an unknown one is a **node**, per §13's move for plurality. What stays open is only *recovering a readable value after an unquantified change*, which is arguably honest ignorance | **was two questions, both answered** |
@@ -330,11 +344,17 @@ session. You will reach for all of them in an RPG.
 | *the door was open and now is closed* — one fact's own history | ✅ **BUILT.** Two rules over the raw chain; see below |
 | *while poisoned*, *throughout the battle* — a span as a locus | ✅ **BUILT.** `span_of` mints a stretch; a consequent's `at ?s` deposits at one |
 | §13's shapes — *taking turns*, recursive definitions over spans | ✅ **BUILT.** They run; see below |
-| `unless(<R>, +condition)` | described in §12, implemented nowhere — **the only one left** |
+| ~~`unless(<R>, +condition)`~~ | ✅ **BUILT** — it is a negated antecedent member, written inside the rule (§2) |
 
-⭐ **`unless` is now the only unbuilt row.** Every other constraint this section recorded has gone:
-relating two moments, a fact's own history, and — as of this session — spans as loci and the shapes
-that follow from them.
+⭐⭐⭐ **There are no unbuilt rows left in this table.** Relating two moments, a fact's own history,
+spans as loci, the shapes that follow from them — and `unless`, which was never unbuilt at all: it is
+*if not*, and *if not* has been a negated member since there were members.
+
+⚠ **What IS absent, correctly named:** **amendment at a distance** — adding a guard to a rule you did
+not write and cannot edit. That is refused by decision rather than missing by omission. An ordinary
+rule may not reach into another rule's application (§5's wall), and amending a rule belongs to
+harmonization: the agent authors a better rule through `adopt`, so the amendment is itself a claim
+you can date, attribute and argue with.
 
 ⭐ **It has been probed and sized, and it splits in two. Tell us which half you needed.**
 

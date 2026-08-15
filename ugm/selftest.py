@@ -8,7 +8,8 @@ from typing import List, Tuple
 from .chain import MINUS, PLUS, UNSURE
 from .graph import Graph
 from .machine import Machine
-from .rules import CAUSES, IMPLIES, Member, RuleSet, unify
+from .rules import (CAUSES, IMPLIES, Member, RuleSet, match,
+                    structural_relations, unify)
 
 _results: List[Tuple[str, str, bool]] = []
 
@@ -802,6 +803,84 @@ def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
         "a bundled relation a corpus cannot name is refused, not tolerated",
         ok,
     )
+
+
+def a_guard_is_an_ordinary_member() -> None:
+    """`unless` is *if not*, and *if not* has been built all along. (§12, §21)
+
+    ⭐⭐⭐ **An open item that was a NAME rather than a gap.** §22 carried
+    *`unless` is described and not implemented* beside spans; `compose`'s
+    docstring apologised that *the half of guard inheritance §12 describes cannot
+    be carried*; Appendix C listed it; and `docs/authoring.md` called it the last
+    unbuilt row. All of it was one sentence away from being false:
+
+        rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
+
+    That is `unless(<regen>, +poisoned(?x))`, written where §8 says a rule's
+    variables live -- **inside its own statement**. Everything that made this look
+    hard came from writing the guard somewhere ELSE, where `?x` is a different
+    variable and the machinery would have to re-unite them.
+
+    ⚠ **What is genuinely absent is not `unless`, it is AMENDMENT AT A DISTANCE**
+    -- adding a guard to a rule you did not write. Naming that `unless` is what
+    turned a one-member rule into a missing language feature. And it is now
+    deliberately refused rather than open: an ordinary rule may not reach into
+    another rule's application, which is §5's wall, and amending a rule is
+    harmonization's job -- the agent authors a better rule through `adopt`, where
+    the amendment is itself a claim that can be argued with.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )",
+        "fact +wounded(hero)", "fact +wounded(ally)",
+        "fact +poisoned(hero)", "fact -poisoned(ally)", ""]))
+    m.run(limit=80)
+    at = lambda p: m.chain.holds(kb.term(p), m.focus.topic, m.focus.seat)
+    check("§12", "⭐⭐⭐ a negated member IS `unless`: the per-entity exception "
+          "that §14's precedence cannot express -- `overrides` is per rule and "
+          "per tick, `supersedes` needs a shared consumed entry, and this needs "
+          "neither",
+          at("heals(ally)") == PLUS and at("heals(hero)") is None)
+
+    # R3, *rules are subjects*: the one thing writing it as a separate FACT
+    # would buy. `reify` already deposits every member with its sign and
+    # position, so *what would cancel this rule* is an ordinary query.
+    said = {m.g.show(e.proposition) for mo in m.chain.moments for e in mo.delta}
+    check("R3", "...and it is ASKABLE, which is all a separate `unless` relation "
+          "would have bought: what would cancel a rule is a query over `ant` "
+          "with a minus sign",
+          "ant(<regen>, poisoned(?x), -, 1)" in said)
+
+    # ⚠⚠ Construction and behaviour are two properties and need two checks --
+    # `adopt`'s lesson about a grade that was recorded and not obeyed.
+    for where, ant_a, ant_b in (
+        ("the first", "{ +wounded(?x), -poisoned(?x) }", "{ +stable(?x) }"),
+        ("the second", "{ +wounded(?x) }", "{ +stable(?x), -poisoned(?x) }"),
+    ):
+        m2 = Machine()
+        kb2 = load(m2, chr(10).join([
+            f"rule <a> = implies( {ant_a}, {{ +stable(?x) }} )",
+            f"rule <b> = implies( {ant_b}, {{ +heals(?x) }} )",
+            "fact +wounded(hero)", "fact +wounded(ally)",
+            "fact +poisoned(hero)", "fact -poisoned(ally)", ""]))
+        ra = [r for r in m2.rules.rules if r.name == "a"][0]
+        rb = [r for r in m2.rules.rules if r.name == "b"][0]
+        composed = m2.rules.compose(ra, rb, "ab")
+        carried = any(x.sign == MINUS
+                      and m2.g.show(x.pattern).startswith("poisoned")
+                      for x in composed.antecedent)
+        apps = match(m2.g, m2.chain, composed, m2.focus.topic, m2.focus.seat,
+                     structural=structural_relations(m2.chain))
+        reaches = {m2.g.show(v) for a in apps for v in a.bindings.values()
+                   if m2.g.show(v) in ("hero", "ally")}
+        check("§21", f"⭐ guard inheritance is COMPLETE -- a guard in {where} "
+              "constituent is carried by CONSTRUCTION, because composition takes "
+              "the union of the antecedents and a guard is one of them",
+              carried)
+        check("§21", f"...and OBEYED: the composite declines the poisoned case, "
+              f"with the guard in {where} constituent", reaches == {"ally"})
 
 
 def a_span_is_a_locus() -> None:
@@ -7021,6 +7100,7 @@ def main() -> int:
     a_computation_happens_inside_the_application()
     a_member_can_name_what_it_matched()
     the_skeleton_is_an_ordinary_member()
+    a_guard_is_an_ordinary_member()
     a_span_is_a_locus()
     the_matchers_are_one()
     a_half_finished_change_is_observable_and_actionable()

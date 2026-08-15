@@ -3,10 +3,60 @@
 Branch `restart`. **520 checks, 0 failing**; every instrument green — `ugm.dungeon` 17/0,
 `ugm.arbitration` and `ugm.state` 0 disagreements, `ugm.agreement` 28/0 with 7/7 exercised,
 `ugm.backward` 7/0/0 blind, `ugm.shapes` 10 probes 0 changed, `ugm.workload` 25/0, `ugm.bundle`
-**17 rules 17 exercised, 8 answerers 0 anomalies** — every one of these unchanged from `seminaive`.
+**17 rules 17 exercised, 8 answerers 0 anomalies**, `ugm.compose` **9 checks** (was 7).
 
-One item: the handoff's item 1, **spans as loci** — and with it §13's *taking turns*, this design
-document's own worked example of a shape, **which had never once run.**
+Two items. The handoff's item 1, **spans as loci** — and with it §13's *taking turns*, this design
+document's own worked example of a shape, **which had never once run**. And then **`unless`, struck
+off §22 without a line of engine written**, because it was a name for something already built.
+
+## ⭐⭐⭐ `unless` was a NAME, not a gap — and the user's question is what found it
+
+The user asked, of a scoring table I had just produced: *I really don't understand why expressing
+"unless" is so complicated. It makes me think it's caused by something else that is wrong.* Then:
+**`unless` is "if not".**
+
+It is, and *if not* has been in the surface since there were members:
+
+```
+rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
+```
+
+| | |
+|---|---|
+| `heals(ally)` — not poisoned | **`+`** |
+| `heals(hero)` — poisoned | **`None`**, blocked |
+
+That is the **per-entity exception** `authoring.md` §2 says precedence cannot express — `overrides` is
+per rule and per tick, `supersedes` needs a shared consumed entry, and a guard needs neither. And R3,
+the one thing writing it as a separate *fact* would have bought, is already served: `reify` deposits
+every member with its sign, so *what would cancel this rule* is a query over
+`ant(<regen>, poisoned(?x), -, 1)`.
+
+⚠⚠⚠ **Everything that made it look hard came from writing the guard somewhere ELSE.** §8 scopes a
+rule's variables to its own statement, so `fact unless(<regen>, poisoned(?x))` parses, is read by
+nothing, and its `?x` is a *different node* — measured, **757 against 729**. That is the `excluded`
+wall, which has now blocked `adopt` and `generalise` too, and it was never `unless`'s problem.
+
+**What that struck, in four places:** §22's open item, Appendix C's table, `RuleSet.compose`'s
+docstring, and — worst — `docs/authoring.md`, where **this session's own earlier commit** had just
+rewritten the table to call `unless` "the only unbuilt row". I took that from the design doc instead
+of testing it, which is the exact habit this repo keeps catching.
+
+⭐ **And guard inheritance in composition turned out to be COMPLETE**, which `compose` had been
+apologising for in a docstring and `ugm.compose` had been *printing* as a finding without ever
+testing it. A guard is an ordinary antecedent member and composition takes the union of the
+antecedents, so it is inherited by **construction**. Verified from either constituent, and as
+behaviour rather than structure — a member carried and not obeyed is `adopt`'s own defect.
+`ugm.compose` is 9 checks where it was 7, and the apology is now two of them.
+
+> ⚠ **An instrument that PRINTS a limitation it never tested is the same defect as a check that
+> cannot fail** — and this one had been printing it since composition was built.
+
+⚠ **What is genuinely absent, correctly named: amendment at a distance** — adding a guard to a rule
+you did not write. **Decided, not deferred:** an ordinary rule may not reach into another rule's
+application, which is §5's wall, and amending a rule belongs to **harmonization** — the agent authors
+a better rule through `adopt`, so the amendment is itself a claim that can be dated, attributed and
+argued with, rather than a patch applied by something that was only supposed to be reasoning.
 
 ## The session in one page
 
@@ -105,9 +155,14 @@ readable by any rule from the end of the stretch onward.
 * **Span containment is unread** — a claim over M7..M12 does not answer about M9..M11. That is
   deliberate (an interval relation is an ordinary fact about endpoints), but no corpus has written
   `during` yet, so the claim that it is *expressible* rather than merely *permitted* is unexercised.
-* **Still absent**: `unless` — now the **only** unbuilt row in `docs/authoring.md`'s table — plus
-  `where` as a keyword and §12's `?t = entry(...)` prefix form, both cosmetic now that the member
-  forms exist.
+* **Still absent**: `where` as a keyword and §12's `?t = entry(...)` prefix form, both cosmetic now
+  that the member forms exist. ⭐ `unless` is **struck** — see the top of this handoff — so
+  `docs/authoring.md`'s unbuilt table now has **no rows left**.
+* ⚠⚠ **The `excluded` wall is the real open question**, and it has now blocked three features while
+  wearing three different names (`adopt`'s composer, `generalise`'s trail examples, `unless`'s
+  guard). §8 scopes a statement's variables to it, deliberately and load-bearingly. Nothing here
+  argues it should change — but it is worth naming once, because each time it is met it looks like a
+  new limitation of whatever feature met it.
 * Unchanged and untouched: the dungeon's *did it keep deriving after its verdict* instrument, and
   **no foreign corpus has authored a goal**, which remains the biggest unknown on the list.
 
@@ -120,7 +175,9 @@ readable by any rule from the end of the stretch onward.
    member, so anti-unification can read the agent's own derivations. Open since `generalise`.
 3. **Decide whether the tick loop settles structure.** A design question, and shapes are the first
    thing that makes an author trip over the answer.
-4. `unless` — the last unbuilt row, and the one a corpus author asks for by name.
+4. **Amendment through harmonization** — now the correctly-named version of what `unless` was
+   standing in for, and decided in principle: the agent authors a better rule through `adopt` rather
+   than patching one in place.
 
 ⭐ **The habit held again, and from the other side.** §11 had a costs section listing three things,
 and none of them was the problem; the problem was in three files §11 does not mention. **A section

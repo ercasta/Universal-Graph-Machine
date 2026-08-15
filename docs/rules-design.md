@@ -657,8 +657,10 @@ The third is the dual of the second, and it is what *learning from examples* is 
 
 **Defeat is inherited, and it is checkable.** Anything that overrides a constituent overrides the
 composition; without it, a shortcut escapes a defeat that bound its parts on the very first tick,
-rather than after some later context change. `unless` is a different matter: §12 describes it and no
-engine here implements it, so only the precedence half of guard inheritance exists.
+rather than after some later context change. ⭐ **And the guard half is inherited too**, which this
+paragraph used to disclaim: a guard is an ordinary negated antecedent member, composition takes the
+union of the antecedents, so it is carried by construction rather than by a mechanism. Verified from
+either constituent, and as behaviour rather than only as structure.
 
 ⚠ **And inheriting a defeat is now a claim the caller deposits**, not an append to a list, because
 §19 deleted the list. A composition built by something with no world to write in gets no inherited
@@ -1689,8 +1691,22 @@ subjects*):
 
 ```
 by(<R>, boss)          overrides(<R>, <R2>)          about(<R>, assembly)
-unless(<R>, +altitude(?w, high))
 ```
+
+> ⚠⚠⚠ **`unless(<R>, +altitude(?w, high))` used to be the fourth item in that list, and it does not
+> belong there.** The other three take **ground** arguments; a guard takes a **pattern**, and §8
+> scopes a rule's variables to its own statement — so written as a separate fact, that `?w` is a
+> different variable from the rule's, measured as a different node. The guard has to be written where
+> the rule's variables live, which is **inside the rule**, and there it is an ordinary negated member:
+>
+> ```
+> <R> = implies( { boiling(?w), -altitude(?w, high) }, { ... } )
+> ```
+>
+> That is *if not*, which is all `unless` ever meant, and it has been in the surface since there were
+> members. R3 is not weakened by moving it: `reify` deposits each member with its sign and position,
+> so *what would cancel `<R>`* is an ordinary query over `ant(<R>, altitude(?w, high), -, 1)`. **The
+> guard is a fact about the rule; it simply is not a fact written beside it.**
 
 And because the rule's content is data rather than a program, R4's questions (*rules are askable*) are
 ordinary queries: *which rules are about time* is a query over `about`; *which rules disturb position*
@@ -4787,7 +4803,8 @@ New with §20, and the first two are the reason it is a section rather than a pa
 * **Composition's three silent failures** (§4, §19, §20). *n* steps become one for any *n*, defeat is
   inherited, and the artifact is an ordinary node. What is unsettled:
 
-  **Guard inheritance.** A composed rule must carry the union of its constituents' `unless`
+  **Guard inheritance.** ✅ Done, and by construction. A composed rule carries the union of its
+  constituents' `unless`
   conditions, or it fires where the reasoning it replaces would have been blocked. Checkable at
   composition time and not specified. It is also the failure the analogy predicts: the pathological
   shortcut is not the fast one, it is **the one that has outlived its guard conditions**.
@@ -4861,9 +4878,33 @@ New with §20, and the first two are the reason it is a section rather than a pa
   be a *different* operation — unification — and it too is a service. Anti-unification is the third
   member of the family (§20). What is still open is **lifting a modality across a rule**, the one
   caller of the four with no service — and §16 argues it is not wanted, since supposing dominates it.
-* **`unless` is described and not implemented** (§12). Precedence exists; the other half of
-  defeasibility does not. Composition can therefore inherit only the defeats, and §12's *unless at
-  altitude* is unwritable in any corpus this engine loads.
+* ~~**`unless` is described and not implemented** (§12).~~ ⭐⭐⭐ **STRUCK — it was a name, not a
+  gap.** `unless` is *if not*, and *if not* is an ordinary **negated antecedent member**, which has
+  been in the surface since there were members. §12's *unless at altitude* is one line, and it does
+  the per-entity exception §14's precedence cannot: `overrides` is per rule and per tick,
+  `supersedes` needs a shared consumed entry, and a guard needs neither.
+
+  ```
+  rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
+  ```
+
+  And R3 — the one thing writing it as a separate *fact* would buy — is already served: `reify`
+  deposits every member with its sign and position, so *what would cancel this rule* is an ordinary
+  query over `ant(<regen>, poisoned(?x), -, 1)`. **Guard inheritance in composition is complete**
+  too, by construction rather than by mechanism, because composition takes the union of the
+  antecedents and a guard is one of them.
+
+  ⚠ **Everything that made this look hard came from writing the guard somewhere ELSE.** §8 scopes a
+  rule's variables to its own statement, so a guard written as a separate fact has a `?x` that is a
+  *different node* — measured, 757 against 729. That is the `excluded` wall, and it was never
+  `unless`'s problem.
+
+  ⚠ So what is genuinely absent is **amendment at a distance** — adding a guard to a rule you did not
+  write — and it is now **refused by decision rather than open by omission**. An ordinary rule may
+  not reach into another rule's application; that is §5's wall. Amending a rule is harmonization's
+  job: the agent authors a better rule through `adopt` (§20), where the amendment is itself a claim
+  that can be dated, attributed and argued with, rather than a patch applied by something that was
+  only supposed to be reasoning.
 * **The skeleton is built, except for spans** (§11, §12, §13, §15). ✅ A member may say **where its
   entry sits** — `+acts(goblin) at ?m` — so a rule relates two moments, which is what a foreign corpus
   was spending 24% of itself simulating with a round counter. ✅ And the skeleton's *structural*
@@ -5309,7 +5350,7 @@ left to be discovered by an author writing the notation this document uses throu
 | the **skeleton** — `where`, named entries, a member's locus | §12 | ✅ built as **members** (`entry_of`, `span_of`, `at`, `as`); `where` as a keyword and the `?t = entry(...)` prefix form remain cosmetic gaps |
 | **spans as loci** | §11 | ✅ built — `span_of` mints, `at ?s` deposits at one |
 | **shapes** | §13 | ✅ follows from the two above — `<TT-base>`/`<TT-step>` run, over the raw chain |
-| **`unless`** | §12 | precedence exists; the other half of defeasibility does not |
+| ~~**`unless`**~~ | §12 | ✅ **struck — a name, not a gap.** *if not* is a negated antecedent member, and always was. What is absent is **amendment at a distance**, now refused by decision (§5's wall; harmonization's job) |
 
 ⚠ **Nothing in §21's gates can see any of these**, and that is the general lesson rather than an
 oversight: the bundle gate deletes each shipped rule and re-runs the suite, so it measures what
