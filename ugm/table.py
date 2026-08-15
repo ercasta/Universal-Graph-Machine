@@ -115,6 +115,25 @@ class Agent:
         self.kb.load(spec.corpus)
         self._said = 0  # how much of `m.emitted` has already been shipped
 
+    def hear_or_refuse(self, u: Utterance) -> Optional[str]:
+        """Hear it, or say why it could not be heard.
+
+        ⚠⚠⚠ **An agent really will try to say the unsayable, and the wire must
+        not die of it.** `blocked(?g)` reports the rule's antecedent member *as
+        written*, so a blocked subgoal is generic far more often than not — and
+        an arrival may not contain a variable. Left to raise, one over-eager
+        rule in one corpus takes the whole table down.
+
+        Swallowed silently it would be worse, so the refusal is RETURNED and the
+        table records it: §5's *a silence is the defect*, at the one boundary
+        where the speaker cannot know whether it was understood.
+        """
+        try:
+            self.hear(u)
+            return None
+        except Exception as ex:  # the hearer's parser, refusing
+            return f"{u.speaker}->{u.hearer}: {u.text}  ({type(ex).__name__})"
+
     def hear(self, u: Utterance) -> None:
         """An arrival, on a channel named for the speaker.
 
@@ -175,6 +194,7 @@ class Local:
     def __init__(self, specs: Sequence[Spec]) -> None:
         self.agents = [Agent(s) for s in specs]
         self.by_name = {a.name: a for a in self.agents}
+        self.refused: List[str] = []
 
     def order(self) -> List[str]:
         return [a.name for a in self.agents]
@@ -182,7 +202,9 @@ class Local:
     def deliver(self, us: Sequence[Utterance]) -> None:
         for u in us:
             if u.hearer in self.by_name:
-                self.by_name[u.hearer].hear(u)
+                why = self.by_name[u.hearer].hear_or_refuse(u)
+                if why is not None:
+                    self.refused.append(why)
 
     def think(self) -> List[Utterance]:
         out: List[Utterance] = []
@@ -214,9 +236,8 @@ def _worker(spec: Spec, inbox, outbox) -> None:
             return
         kind, payload = msg
         if kind == "hear":
-            for u in payload:
-                agent.hear(u)
-            outbox.put(("heard", spec.name, None))
+            no = [w for w in (agent.hear_or_refuse(u) for u in payload) if w]
+            outbox.put(("heard", spec.name, no))
         elif kind == "think":
             outbox.put(("said", spec.name, agent.think()))
         elif kind == "beliefs":
@@ -243,6 +264,7 @@ class Processes:
         ctx = mp.get_context("spawn")  # the portable one; Windows has no fork
         self.names = [s.name for s in specs]
         self.procs, self.inboxes, self.outbox = {}, {}, ctx.Queue()
+        self.refused: List[str] = []
         for s in specs:
             box = ctx.Queue()
             p = ctx.Process(target=_worker, args=(s, box, self.outbox), daemon=True)
@@ -270,7 +292,9 @@ class Processes:
 
     def deliver(self, us: Sequence[Utterance]) -> None:
         per = {n: [u for u in us if u.hearer == n] for n in self.names}
-        self._round_trip("hear", per)
+        got = self._round_trip("hear", per)
+        for n in self.names:  # declared order here too
+            self.refused.extend(got.get(n) or ())
 
     def collect(self, got: Dict[str, object]) -> List[Utterance]:
         """Replies, in the DECLARED agent order rather than the order they
@@ -327,6 +351,12 @@ class Table:
 
     def beliefs(self) -> Dict[str, List[str]]:
         return self.wire.beliefs()
+
+    @property
+    def refused(self) -> List[str]:
+        """Utterances the hearer's parser would not read. Surfaced rather than
+        swallowed -- an agent that cannot be understood is a finding."""
+        return list(getattr(self.wire, "refused", ()))
 
     def close(self) -> None:
         self.wire.close()
