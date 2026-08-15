@@ -17,9 +17,9 @@ is the most useful thing in this reply — §4.
 |---|---|
 | §1 the census | used, and it has now paid a second time — from the *conflict* side |
 | §2 sequencing, 24% clock scaffold | `at ?m` shipped; **and a round is now expressible as a span**, so the scaffold can shrink again |
-| §3 an occasion is consumed | ⚠ **you asked us to promote it and we did not.** Now `docs/authoring.md` §0, above §1, with your ordering argument |
-| §4 the open-domain default | ⭐⭐⭐ **closed** — and not by the feature you asked for |
-| §5 overrides is survivable when transient | ⚠ **also not done until now.** Added to §2 |
+| §3 an occasion is consumed | **you asked us to promote it and we did not.** Now `docs/authoring.md` §0, above §1, with your ordering argument |
+| §4 the open-domain default | **closed** — and not by the feature you asked for |
+| §5 overrides is survivable when transient | **also not done until now.** Added to §2 |
 | §6 `plus`/`minus` silent | fixed; reported at load |
 | §7 kept deriving after the verdict | **still open.** No instrument. Your check remains the only one |
 | §8 `causes` costs 12× | **no answer yet.** A corpus still cannot say *do not predict this* |
@@ -33,14 +33,14 @@ You wanted *the hero attacks by default when the player has declared nothing thi
 round*, could not write `-declares(hero, ?what)`, used
 `overrides(<hero-acts>, <hero-holds>)`, and named the cost exactly:
 
-> the default is expressed as a precedence between two rules rather than as a
-> condition, so you cannot read `<hero-holds>` and learn when it applies.
+>the default is expressed as a precedence between two rules rather than as a
+>condition, so you cannot read `<hero-holds>` and learn when it applies.
 
 You filed it as a second argument for `unless`. It is not, and the diagnosis came
 from being asked a question we could not answer: **what does "nothing was
 declared" mean — checked how, when, by whom?**
 
-⭐⭐⭐ **It has no truth conditions until you say where you looked.** Made precise
+**It has no truth conditions until you say where you looked.** Made precise
 it is *nothing arrived on **this channel** over **this stretch***, which is
 bounded, dated and a claim about the chain the agent already keeps. And a `−` on
 a **structural** member has meant *not derived* — negation as failure — since the
@@ -75,13 +75,13 @@ ways in the suite.
 **Your default is now a condition the rule states** — which is the thing
 precedence was costing you.
 
-⚠⚠ **Two things that cost us time and will cost you the same.** A **round is a
+**Two things that cost us time and will cost you the same.** A **round is a
 stretch, so it must have duration**: mint the span even when nothing happened, or
 there is no stretch for nothing to have happened in. And **anchoring order is
 everything** — `in_delta(?m, ?e)` written before anything binds `?m` finds
 nothing, silently. We walked into that one while writing the fix for it.
 
-⚠ **The residue, stated exactly:** the channel must be a **ground atom**.
+**The residue, stated exactly:** the channel must be a **ground atom**.
 `listens(?c)` stops the rule being stratum 0, because a corpus relation cannot be
 structural, and its structural members then match nothing. **Silence about a
 named channel is sayable; silence about *any* channel is not.** If you need the
@@ -100,7 +100,7 @@ is a span**, and `round_span(?r, ?s)` above is that rule. A stretch of the chain
 is a first-class locus now, so the round ordinal may not need to be a number your
 corpus computes at all.
 
-⚠ We have **not** rewritten your corpus to prove it, and we should not — the
+We have **not** rewritten your corpus to prove it, and we should not — the
 measurement is yours to make and the number that matters is whether `add`
 disappears. If it does, the arithmetic tool loses its only round-counting
 customer.
@@ -111,13 +111,13 @@ customer.
 
 Your headline —
 
-> the two primitives cover **73.9%** of your corpora and **28.6%** of this one …
-> **12 of 21 rules (57%) retract in their own consequent**
+>the two primitives cover **73.9%** of your corpora and **28.6%** of this one …
+>**12 of 21 rules (57%) retract in their own consequent**
 
 — we recorded as *the bundle was derived from an agent that concludes; a world
 model changes.*
 
-⭐ **It has now reproduced from a completely different instrument.** `ugm.atlas`
+**It has now reproduced from a completely different instrument.** `ugm.atlas`
 reports pairs of rules that could conclude opposite signs of one thing with
 nothing on the record saying who wins:
 
@@ -148,7 +148,7 @@ deferral when the winner is transient** and permanent when it is not — is in �
 with your sentence: *the two look identical when you write them and only one of
 them is a bug.*
 
-⚠ We are recording that both sat unactioned for a session, because the pattern is
+We are recording that both sat unactioned for a session, because the pattern is
 the interesting part: **a report that names a defect gets fixed, and a report that
 asks for a paragraph does not.** Yours were the second kind and they were the
 cheaper kind.
@@ -168,7 +168,7 @@ own framing is the one we would keep: if there is no cheap way to say it, **that
 means `causes` is priced for agents and not for simulations** — and nobody here
 has argued otherwise.
 
-⭐ And your warning about your own **660×** is quoted back to you as the most
+And your warning about your own **660×** is quoted back to you as the most
 useful methodological line either document contains: *a measurement taken across
 a bug measures the bug.* We repeated the mistake twice this week in different
 clothes — once writing up an optimisation as a win before measuring it, once
@@ -184,7 +184,7 @@ closed it. A **computator** takes values in and returns a value out, never
 touching the graph, so the transfer is evaluated inside one application and
 cannot be caught half-done. Purity is structural rather than promised.
 
-⚠ **The half that is not closed, since you will hit it in a shop.** A transitional
+**The half that is not closed, since you will hit it in a shop.** A transitional
 state has no marker and deliberately gets none — the *real* half of a half-finished
 change is true and should be visible, and `?` already means *I do not know this
 yet*. But **nothing enforces it**: an author who asserts a number they cannot
@@ -193,7 +193,7 @@ it is an authoring discipline rather than a guarantee.
 
 **Zero goals authored** is the one that matters, and it has not moved:
 
-> Half the apparatus is still untested by any foreign corpus.
+>Half the apparatus is still untested by any foreign corpus.
 
 That remains exactly true. `fit`, `check`, `verdict`, `subgoal`, `blocked` and
 `<give-up>` have never been exercised by a corpus written outside this repository,
@@ -206,7 +206,7 @@ one `+goal(...)` in it would close the gap.
 
 ## What we would ask for next, in order
 
-1. ⭐ **Author a goal.** Anything. The apparatus behind it has never met a
+1. **Author a goal.** Anything. The apparatus behind it has never met a
    stranger.
 2. **Try `round_span`** and tell us whether the clock scaffold and the `add`
    operator actually disappear, or whether the round ordinal is load-bearing for

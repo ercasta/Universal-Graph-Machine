@@ -126,8 +126,8 @@ thing it could not reason about.
 times.** The machinery routinely computes something, uses it, and throws it away — so the agent acts
 on a judgement no rule can ask about. Every instance looks different and every fix is identical:
 
-> **Something the machinery knows and no rule can ask about is a defect, and the repair is always to
-> deposit the record.**
+>**Something the machinery knows and no rule can ask about is a defect, and the repair is always to
+>deposit the record.**
 
 This document records eleven instances. Which rule was applied became `exercised`; a defeat became
 `defeated`; which hypothesis reached a conclusion became `concluded`; what an entry rested on became
@@ -172,8 +172,8 @@ own; it does so **given the conventions in force**. `moment(delta, predecessor, 
 because there is a convention about what a delta is and a discipline about who writes one. Change the
 convention and the same three-member node scores differently.
 
-> **Leaklessness, losslessness, readability and composability are joint properties of the substrate
-> and the convention layered on it.**
+>**Leaklessness, losslessness, readability and composability are joint properties of the substrate
+>and the convention layered on it.**
 
 Two consequences run through the rest of the document.
 
@@ -192,7 +192,7 @@ A fifth criterion was considered and rejected as a criterion, because it is not 
 at all. It is a property of *two arcs of work meeting*, and it belongs here as a method rather than a
 column:
 
-> **Two conventions that have never met are two conventions that have not been tested.**
+>**Two conventions that have never met are two conventions that have not been tested.**
 
 This is not a maxim. It is the measured behaviour of this design's own construction. Four independent
 pieces — a defeat becoming a record, a rule authoring a rule, an example becoming a rule, and
@@ -244,8 +244,8 @@ position marker — so the closed class does not disappear, it relocates.
 This works. It is what RDF does. What it costs falls on the one thing that genuinely cannot be
 replaced:
 
-> **With ordered members, matching a pattern is linear in the pattern. With unordered edges, matching
-> is subgraph isomorphism.**
+>**With ordered members, matching a pattern is linear in the pattern. With unordered edges, matching
+>is subgraph isomorphism.**
 
 Ordering *fixes the correspondence* between the parts of a pattern and the parts of a target. Remove
 it and unification must search over which edge answers to which — the same problem, and NP-complete in
@@ -264,7 +264,7 @@ what they conclude and §20 makes for indexing norms by what they forbid.
 One condition governs every index in this design, and it is the condition that keeps an index from
 becoming a truth-maintenance system:
 
-> **Index what was asserted. Never index what was derived.**
+>**Index what was asserted. Never index what was derived.**
 
 An index over asserted structure is storage: it summarises writes, and a write is permanent. An index
 over derived values is a **cache of something defeasible**, and maintaining it correctly means
@@ -289,15 +289,15 @@ language can say, and it is worth stating as a number rather than a caveat — m
 with 200 unrelated facts, an antecedent member whose relation is a variable costs **14× the
 unifications** of the equivalent concrete rules.
 
-> **A variable in the relation slot is exact forwards and expensive to look up.** In a **consequent**
-> it costs nothing at match time and is *cheaper* overall, because one rule replaces N — measured, 4×
-> fewer unifications at twelve effects by twelve targets. In an **antecedent** it should be narrowed
-> by a member that does have a bucket.
+>**A variable in the relation slot is exact forwards and expensive to look up.** In a **consequent**
+>it costs nothing at match time and is *cheaper* overall, because one rule replaces N — measured, 4×
+>fewer unifications at twelve effects by twelve targets. In an **antecedent** it should be narrowed
+>by a member that does have a bucket.
 
 That is the same shape §12 gives a bare-variable consequent — exact in one direction, vacuous or
 expensive in the other — and it is why both are permitted rather than encouraged.
 
-⚠ **The argument index files atoms only, and the restriction is load-bearing rather than cautious.**
+**The argument index files atoms only, and the restriction is load-bearing rather than cautious.**
 Unification compares a ground *structure* member by member, so it accepts a structurally equal node
 that is not the same node. An identity-keyed bucket drops those, which is the twin trap of §20 in
 index form — measured, filing structured members loses four checks and costs 4% of the suite for a
@@ -325,8 +325,8 @@ exists. Applying a substitution to a generic node yields a node.
 
 This is the one item that provably cannot be a convention, and the reason is self-reference:
 
-> **You cannot define matching-with-variables using rules that themselves require
-> matching-with-variables.**
+>**You cannot define matching-with-variables using rules that themselves require
+>matching-with-variables.**
 
 Everything else that felt like floor in earlier drafts was floor by association with this. A rule is a
 rule *because* it is generic; a pattern is a pattern *because* something substitutes into it. Remove
@@ -336,7 +336,7 @@ this and there is no rule layer to write conventions in.
 generic one yields the anchored one, position by position, **relation included — and the relation is a
 position like any other.** That is *structural* unification and nothing more.
 
-⭐ **That last clause was a silent restriction until it was probed.** A relation instance whose
+**That last clause was a silent restriction until it was probed.** A relation instance whose
 relation slot holds a **variable** — `?p(?x)` — is an ordinary generic node, and the substrate has
 always been able to build one. It never matched, because three separate things declined it and none of
 them on an argument: the surface would not parse it, `unify` compared the relation slot by identity
@@ -389,7 +389,7 @@ voluntary provenance, and voluntary provenance is forgeable. §16 and §20 both 
 load-bearing for *correctness* rather than for explanation, and those arguments fail outright if a
 write can decline to be stamped.
 
-> **Nothing is prohibited; everything is stamped.**
+>**Nothing is prohibited; everything is stamped.**
 
 ### 5. One total step
 
@@ -442,8 +442,8 @@ happens through use and nobody decides it. In earlier drafts of this document it
 sitting, which is how moments, entries, signs, connectives and goals all ended up on the floor with no
 evidence behind them. So:
 
-> **A convention descends to the floor only by measured use: high frequency, on the path of an
-> irreducible primitive, and bleached of domain content.**
+>**A convention descends to the floor only by measured use: high frequency, on the path of an
+>irreducible primitive, and bleached of domain content.**
 
 All three are checkable, and the checking has twice overturned the expectation it was run to confirm.
 A census of what a corpus actually writes retired the **grade** — 4 of 3,740 rules authored a
@@ -452,9 +452,9 @@ second census retired the **precedence table**, whose deletion cost the suite 6.
 (§19). Neither was cut for being wrong. Both were cut for being *unused where it counted*, which is a
 measurement and not an argument.
 
-> **Closed is a rate, not a kind.** The reason to run the census rather than the argument is that a
-> closed set defended well is indistinguishable, from the inside, from a closed set nobody has
-> checked.
+>**Closed is a rate, not a kind.** The reason to run the census rather than the argument is that a
+>closed set defended well is indistinguishable, from the inside, from a closed set nobody has
+>checked.
 
 The reason for the bar being high is that grammaticalization is **irreversible in practice**. Once
 something is closed class it is no longer freely coinable, and every use of it must route through
@@ -466,8 +466,8 @@ decision.
 The closed class is what this section defends against. The open class is what the defence is *for*,
 and the point is easy to state and worth measuring rather than asserting:
 
-> **You never implement the meaning of `owning` or `selling`.** You coin the proposition, and the
-> meaning arrives later — as rules, written by someone else, without touching what is already there.
+>**You never implement the meaning of `owning` or `selling`.** You coin the proposition, and the
+>meaning arrives later — as rules, written by someone else, without touching what is already there.
 
 A conventional program cannot defer that. `sell()` needs a body before it does anything, that body is
 one meaning, chosen once, by one author; and a second reading of the same event is a change to the
@@ -489,7 +489,7 @@ exist. That is the *composable* criterion, and it is why a whole new trade is 5 
 | the seam where a world reaches it — `arrived`, `says`, `did`, `forbidden` | 12 |
 | **about any world** | **0** |
 
-⭐⭐⭐ **Not one reserved name is a domain word.** There is no engine name for a thing, a place, an
+**Not one reserved name is a domain word.** There is no engine name for a thing, a place, an
 amount of anything, or an act of any particular kind: `did` and `says` are about the *act*, never
 about what was done or said. So a corpus is not writing inside someone else's ontology — which is the
 strong form of the claim, and the thing that would quietly be false if the floor had grown a world
@@ -509,7 +509,7 @@ The bundle borrows everything because it is the one corpus that is *about the ag
 That is the result rather than an exception, and it is why the check is signed by what a corpus is
 about: a table where every row agrees is not evidence.
 
-⚠⚠⚠ **The price is the same property.** Because a proposition needs no implementation, **the engine
+**The price is the same property.** Because a proposition needs no implementation, **the engine
 cannot distinguish one awaiting its meaning from a mistake.** Both are well formed, both are inert,
 and nothing says which is which. That is not hypothetical — it is most of the traps this project has
 recorded:
@@ -533,7 +533,7 @@ it follows from the paragraph above. If a proposition means what follows from it
 ever draws a conclusion from, or nothing ever establishes, means nothing, and a corpus containing one
 is smaller than it looks.
 
-⚠⚠⚠ **Only one of the two directions is a signal, and this had to be measured to find out which** —
+**Only one of the two directions is a signal, and this had to be measured to find out which** —
 `harmony` having already shown that a detector no corpus can falsify reports thousands of false
 positives:
 
@@ -542,7 +542,7 @@ positives:
 | **written, never read** | **11–17 names** — the machinery's bookkeeping, and a corpus's own *outputs*, since nobody reads an answer | fires, but buried |
 | **read, never written** | **0, 0, 0, 0** | **1, and it is the bug** |
 
-⭐ The second needs only the one direction because **a typo always breaks a pairing, and a broken
+The second needs only the one direction because **a typo always breaks a pairing, and a broken
 pairing always leaves some reader with no writer** — so a misspelling is caught whether it lands in
 the rule or in the fact.
 
@@ -551,12 +551,12 @@ the rule or in the fact.
 a control** — because every real corpus reports zero, which is the same output a detector that had
 stopped working would give.
 
-⚠ **The known false positive, stated rather than discovered later:** a corpus that expects a world to
+**The known false positive, stated rather than discovered later:** a corpus that expects a world to
 supply an open-class fact at run time — from a channel rather than from its own text — reads a name
 it never writes and is right to. All four corpora here assert their world in the file; a corpus fed
 live would need to declare what its channel delivers.
 
-⚠ **And the property is not this design's invention.** Inferential meaning over an open vocabulary is
+**And the property is not this design's invention.** Inferential meaning over an open vocabulary is
 the logic-programming and knowledge-representation position — Prolog, Datalog, RDF, Cyc. What is
 being claimed here is only the discipline around it: the criteria scored before each decision, and
 *closed is a rate, not a kind*. The observation earns its place because it is measured, not because
@@ -592,7 +592,7 @@ Predicted before it was measured, and measured:
 | the design's worked examples | 8 | 7 | 0.250 | **[4, 4]** |
 | **two domains + the bundle** | 43 | 37 | **0.041** | **[1,2,2,3,3,4,5,10,13]** |
 
-⭐ The worked-examples file reporting **two** islands is the measure being right about something known
+The worked-examples file reporting **two** islands is the measure being right about something known
 independently — that file is a kettle and some rain, two unrelated examples. And the bridging terms
 (those whose removal splits the web) divide as the prediction says they should: each domain's own hubs
 — `disrupted`, `owed`, `amount`; `likely` — alongside the agent's **common** vocabulary, `says`,
@@ -613,11 +613,11 @@ shape of *"I ate, so tomorrow will rain."* Both terms are meaningful; the senten
 what is absent is any path between the eating island and the weather island. Measured: with the
 sentence asserted as a rule the web is one island of 8, without it [4, 4].
 
-> **The honest response is not *I did not understand*, but *I have nothing that connects eating and
-> rain*** — a report about the agent, never about the world. A healthy knowledge base that has simply
-> not learned some real connection says exactly the same thing, and should.
+>**The honest response is not *I did not understand*, but *I have nothing that connects eating and
+>rain*** — a report about the agent, never about the world. A healthy knowledge base that has simply
+>not learned some real connection says exactly the same thing, and should.
 
-⭐⭐⭐ **And that is why it is not a censor.** The natural reply — *what does eating have to do with
+**And that is why it is not a censor.** The natural reply — *what does eating have to do with
 rain?* — asks for the missing link; if the speaker supplies it, the agent has acquired a bridge
 between two islands, which is what §20's `adopt` is for. **Failing to understand and learning are the
 same event seen from two sides**, and a lone bridge is also exactly what a genuine discovery looks
@@ -629,7 +629,7 @@ Prior's `tonk` is the standing objection to inferential meaning: a connective wi
 rule *A ⊢ A tonk B* and the elimination rule *A tonk B ⊢ B* lets anything be derived from anything, so
 inferential role alone cannot confer meaning. Two things here are worth recording.
 
-⭐ **The surface already refuses tonk-introduction**, and for an unrelated reason:
+**The surface already refuses tonk-introduction**, and for an unrelated reason:
 
 ```
 rule <tonk-in> = implies( { +?a }, { +tonk(?a, ?b) } )
@@ -639,7 +639,7 @@ rule <tonk-in> = implies( { +?a }, { +tonk(?a, ?b) } )
 That rule exists so the gate never deposits a generic proposition (§13). *Conclude something
 arbitrary* turns out to be unsayable, which is a harmony constraint arriving through the side door.
 
-⚠⚠⚠ **But a bound variable smuggles it back in, and none of the structural checks sees it.** With
+**But a bound variable smuggles it back in, and none of the structural checks sees it.** With
 `{+holds(?a), +claim(?b)} ⟹ {+tonk(?a, ?b)}` and `{+tonk(?a, ?b)} ⟹ {+?b}`, the agent concludes
 `slippery(moon)` and `bankrupt(alice)` from nothing but someone having uttered them — and `ugm.atlas`
 reports **0 problems**, because every check above hunts for too *little* meaning and tonk has too
@@ -657,7 +657,7 @@ structural residue is narrow: **a rule whose consequent is a bare variable can c
 `<denial>` and `<assert-act>` both have one deliberately, so it is a short list to report rather than
 a defect.
 
-⚠ **A name collision worth fixing before someone trips on it.** `ugm.harmony` and §21's *harmony
+**A name collision worth fixing before someone trips on it.** `ugm.harmony` and §21's *harmony
 criteria* use the word in the arbitration sense — which rule wins. **Proof-theoretic harmony** —
 Prior's problem and Dummett's condition on introduction and elimination rules — is a different thing
 wearing the same name, and it is the one that governs whether a rule set confers meaning at all.
@@ -668,7 +668,7 @@ Almost none of it is new, and the pieces come from at least six places.
 
 * **The web itself is Quine's.** *Two Dogmas of Empiricism* (1951) has beliefs facing experience as a
   corporate body rather than singly, and *The Web of Belief* (Quine and Ullian, 1970) is the metaphor
-  by name. ⚠ One honest difference: Quine's structure is a **revisability gradient** — periphery and
+  by name. One honest difference: Quine's structure is a **revisability gradient** — periphery and
   core — where the structure measured here is **connectivity components**. Islands are not the same
   claim as a periphery, and this document should not borrow his authority for a different shape.
 * **Meaning as inferential role** is Wittgenstein's *meaning is use*, Sellars on material inference,
@@ -677,7 +677,7 @@ Almost none of it is new, and the pieces come from at least six places.
 * **tonk and its answer**: Prior, *The Runabout Inference-Ticket* (Analysis 21(2), 1960); Belnap,
   *Tonk, Plonk and Plink* (Analysis 22(6), 1962), which gives conservative extension and uniqueness;
   Dummett on harmony.
-* ⭐⭐⭐ **The computational version of both our checks already exists in one literature.**
+* **The computational version of both our checks already exists in one literature.**
   **Conservative extension** is the standard formal criterion for ontology **modularity** in
   description logics — deciding it is studied by Lutz, Walther and Wolter (IJCAI 2007; JSC 2010), and
   module extraction by Cuenca Grau, Horrocks, Kazakov and Sattler. So *islands* and *conservativeness*
@@ -687,7 +687,7 @@ Almost none of it is new, and the pieces come from at least six places.
   Loftus (1975). **Relevance theory** (Sperber and Wilson, 1986) is arguably the closest theoretical
   match to what the path test measures: an utterance is relevant when it yields cognitive effects in
   context, and this one yields none.
-* ⭐ **The repair has a name, and it is nearly ours.** Clark's *bridging* (1975) is the inference a
+* **The repair has a name, and it is nearly ours.** Clark's *bridging* (1975) is the inference a
   hearer must supply to connect new material to given material — and Clark's own description is that
   bridging *results in the addition of one or more propositions to memory*. That is `adopt`,
   described in 1975. The user's word for the structure and the field's word for the repair are the
@@ -709,7 +709,7 @@ standing rule is that no feature is novel until something falsifies the claim:
 3. And one measurement, which is about this artifact rather than about the world: **101 reserved names
    and not one of them about any world**, against a corpus that needed to borrow **one**.
 
-⚠ Points 2 and 3 are hypotheses, not results. Neither has been checked against the modularity
+Points 2 and 3 are hypotheses, not results. Neither has been checked against the modularity
 literature by anyone who works in it, and the right disposition is the one this document takes
 everywhere else: **it stays a hypothesis until someone who would know says otherwise.**
 
@@ -743,8 +743,8 @@ The reason moments, entries and signs feel like floor is that they sit on the ho
 so an implementation puts them in native code. That is an optimisation and not a status, and the
 difference is checkable rather than rhetorical:
 
-> **For every bundled convention, the rule-level definition must exist, and the compiled path must
-> agree with it on answers *and on behaviour*.**
+>**For every bundled convention, the rule-level definition must exist, and the compiled path must
+>agree with it on answers *and on behaviour*.**
 
 The second clause is not decoration, and an earlier wording that said *identical answers, only
 slower* was wrong in a way this design cannot afford. **A convention compiled into the host language
@@ -762,7 +762,7 @@ protected, and it names three states rather than two:
 | **convention, interpreted** | no | yes | yes |
 | **convention, compiled** | yes | no | **only at rule boundaries** |
 
-> **Nothing may exist only in the third state.**
+>**Nothing may exist only in the third state.**
 
 **And the gate must be run against a moving target, not a fixture.** §21 states the discipline: an
 optimisation of a read is a *re-implementation of its semantics*, so the slow definition stays and the
@@ -770,9 +770,9 @@ fast path is held to it **on every look, in every fixture** rather than on a tes
 runs three such gates — one for the read, one for the state, one for the move — and each of them
 caught something no fixture could. The state gate's sharpest finding is the general form:
 
-> **Nothing that asserts what the agent concluded can see what it was thinking about while it
-> concluded it.** A wrong key set makes a worse choice, never a wrong conclusion, and every fixture
-> asserts an outcome the loop reaches anyway.
+>**Nothing that asserts what the agent concluded can see what it was thinking about while it
+>concluded it.** A wrong key set makes a worse choice, never a wrong conclusion, and every fixture
+>asserts an outcome the loop reaches anyway.
 
 ### Compile rules, not control flow
 
@@ -782,7 +782,7 @@ host-language function and preemption is gone — nothing can surprise the agent
 point survives while nearly all the speed is captured, because the cost is in matching and not in the
 loop.
 
-> **Compile rules, not control flow.**
+>**Compile rules, not control flow.**
 
 This is §18's *procedures are data that bias selection, never control flow that owns the loop*, one
 level down. It also convicts an implementation from a second direction: interpreter **phases** are
@@ -800,7 +800,7 @@ Three of this design's largest speedups are Python that no rule can reach: the m
 its indices, the argument index of §3, and the ordering of the candidate walk. It would be easy to
 call each of them debt. They are not, and the distinction is the one this section has been drawing:
 
-> **An optimisation of a semantics is licensed by the floor gate. A cache of a claim is debt.**
+>**An optimisation of a semantics is licensed by the floor gate. A cache of a claim is debt.**
 
 The test is what happens when the two disagree. An optimisation has a slow definition it can be held
 to, every tick, and a gate that does the holding — so a divergence is a *bug*, findable and reported.
@@ -836,7 +836,7 @@ The two are easily conflated and behave oppositely:
 | defeasible | no | yes — `overrides` and `unless` apply |
 | where it lives | outside the graph | in the graph |
 
-> **Compilation makes a step cheaper. Composition makes the step unnecessary.**
+>**Compilation makes a step cheaper. Composition makes the step unnecessary.**
 
 The decisive difference is the second row from the bottom. **A composed rule violates nothing in Part
 I**: it is data, askable under R4 (*rules are askable*), attributable under R3 (*rules are subjects*),
@@ -861,7 +861,7 @@ authored, and it is authored by exactly the mechanism a learned rule uses.
 *n* steps become one, for any *n*, with the same conclusion. That is the difference between
 algorithmic and constant-factor stated as a number rather than as an argument.
 
-⚠ **And *with the same conclusion* is the load-bearing half of that sentence, not a flourish.** A
+**And *with the same conclusion* is the load-bearing half of that sentence, not a flourish.** A
 chain of `implies` collapses soundly because every step is read in one moment. Composing across a
 **`causes`** does not: its consequent lands in a successor (§14), so the second rule's other premises
 are read a moment later than the first rule's own, and flattening them into one antecedent demands
@@ -872,7 +872,7 @@ What composition costs is not structural but epistemic, and §22 states it: inte
 stop being deposited, so nothing can be surprised inside a shortcut, and guard conditions must be
 inherited or the shortcut fires where the reasoning would not.
 
-⭐ **One cost the earlier draft listed here no longer exists.** Composition used to refuse anything but
+**One cost the earlier draft listed here no longer exists.** Composition used to refuse anything but
 a `certain` conclusion, because composing a grade would have been a minimum computed once from
 defeasible constituents — a cache of a derived value, §16's own objection arriving one level up. With
 the grade deleted the objection goes with it, and **the restriction was deleted rather than solved**.
@@ -909,12 +909,12 @@ The third is the dual of the second, and it is what *learning from examples* is 
 
 **Defeat is inherited, and it is checkable.** Anything that overrides a constituent overrides the
 composition; without it, a shortcut escapes a defeat that bound its parts on the very first tick,
-rather than after some later context change. ⭐ **And the guard half is inherited too**, which this
+rather than after some later context change. **And the guard half is inherited too**, which this
 paragraph used to disclaim: a guard is an ordinary negated antecedent member, composition takes the
 union of the antecedents, so it is carried by construction rather than by a mechanism. Verified from
 either constituent, and as behaviour rather than only as structure.
 
-⚠ **And inheriting a defeat is now a claim the caller deposits**, not an append to a list, because
+**And inheriting a defeat is now a claim the caller deposits**, not an append to a list, because
 §19 deleted the list. A composition built by something with no world to write in gets no inherited
 precedence — which is the honest answer rather than a silent one.
 
@@ -934,20 +934,20 @@ what the apparatus is made of. Moving it out found that it could not: two relati
 depends on were unnameable by a corpus, so two bundled rules were unwritable by anyone but the engine,
 and nothing reported it.
 
-> **A bundle authored in Python is a claim about expressibility that has never been tested.**
+>**A bundle authored in Python is a claim about expressibility that has never been tested.**
 
 ---
 
 ## 5. The test
 
-> **A name is engine-level only if match and write cannot be defined without it. Everything else is a
-> convention, and the machinery that uses it must be expressible as rules.**
+>**A name is engine-level only if match and write cannot be defined without it. Everything else is a
+>convention, and the machinery that uses it must be expressible as rules.**
 
 Applied to the vocabulary an implementation actually reserves, the test convicts nearly all of it.
 Appendix C is the census. It has a falsifiable consequence, which is the point of stating it:
 
-> **The interpreter's step should have no phases.** Match, commit, write — and intake, supposition,
-> acting, deviation and goal expansion become rules that those apply.
+>**The interpreter's step should have no phases.** Match, commit, write — and intake, supposition,
+>acting, deviation and goal expansion become rules that those apply.
 
 An interpreter with one phase per convention has, in effect, compiled the bundle into itself. The
 count of phases is therefore a direct measure of how much of the bundle has escaped onto the floor,
@@ -998,8 +998,8 @@ The design of the request is the finding, and it is not the obvious one. The nat
 whether this pattern matches, and be given the binding*. That cannot work, and the reason is not an
 implementation detail:
 
-> **A binding is a map from variables to nodes, and a rule cannot hold one — let alone apply one,
-> because applying is substitution, and substitution is floor (§4 item 2).**
+>**A binding is a map from variables to nodes, and a rule cannot hold one — let alone apply one,
+>because applying is substitution, and substitution is floor (§4 item 2).**
 
 So the answer has to arrive **already instantiated**:
 
@@ -1012,7 +1012,7 @@ So the answer has to arrive **already instantiated**:
 
 which gives the general statement:
 
-> **Match and substitute travel together, because the caller cannot do the second half.**
+>**Match and substitute travel together, because the caller cannot do the second half.**
 
 That settles the fifth-primitive question against itself. A primitive a rule invokes would hand back a
 binding the rule cannot use, so it would not help; and the moment the answer is instantiated, the
@@ -1049,7 +1049,7 @@ entry* are neither of them *for no `?r`*.
 
 This is §13's and §19's discipline arriving at the last phase rather than a missing feature:
 
-> **Bounded expansion returns a result and a state. `blocked` is the state.**
+>**Bounded expansion returns a result and a state. `blocked` is the state.**
 
 A state is what a searcher reports about *itself* when it stops. §19 gives it a home — the aggregate
 becomes legitimate at `quiet`, the fact that says a search has finished — and until such a fact
@@ -1079,8 +1079,8 @@ cannot reason about rules at all — which R3 requires them to, and §20 require
 
 What tells them apart is inheritance rather than authorship:
 
-> **Mention propagates through bindings. A conclusion drawn from a mentioned entry is itself a
-> mention.**
+>**Mention propagates through bindings. A conclusion drawn from a mentioned entry is itself a
+>mention.**
 
 This is checkable rather than declared, because the entries match consumed are already recorded — R5
 needs them for the trail. It is the trail turning out to be load-bearing for something other than
@@ -1098,7 +1098,7 @@ rule with no work: no error, no trace, nothing to distinguish it from correct be
 §2 says the machinery has exactly two places where it can be asked why it returned part of a
 structure: `match` and `write`. That is one short.
 
-> **Quiescence is a third place the machinery can decline, and it declines silently.**
+>**Quiescence is a third place the machinery can decline, and it declines silently.**
 
 Match returning nothing and write refusing are both observable. *This application would change
 nothing* is indistinguishable from *there was nothing to apply*, which is §9's `−` against no-entry
@@ -1109,21 +1109,21 @@ and §19's two silences arriving in the one place the design had not looked. §1
 
 The older statement of this test survives unchanged, and is now a corollary rather than an axiom:
 
-> **If a new connective requires editing the engine, the connective set is not data.**
+>**If a new connective requires editing the engine, the connective set is not data.**
 
 The same holds one level up for everything in Part III. If a new *convention* — a new way of
 representing evidence, or plans, or time — requires editing the engine, then the bundle is not data
 either, and §4's floor gate is what detects it.
 
-⚠ **A `for` loop over four tuples is a branch wearing a row's clothes.** §18's deviation rules were
+**A `for` loop over four tuples is a branch wearing a row's clothes.** §18's deviation rules were
 generated in Python from a list, which passes the *rows not branches* test on a count and fails it on
 the point: nothing could reorder them, refuse one, or argue with the claim that a `?` disappoints an
 expectation exactly as much as the opposite sign does. Written out as four rules, that claim became
 arguable — and three of the four turned out to be unexercised, which a branch would have hidden
 forever.
 
-> **Data rots in a way a branch does not.** A dead branch is dead code. A rule that never applies
-> costs nothing, breaks nothing, and looks exactly like a rule that works.
+>**Data rots in a way a branch does not.** A dead branch is dead code. A rule that never applies
+>costs nothing, breaks nothing, and looks exactly like a rule that works.
 
 That is why §21's bundle gate deletes each shipped rule and re-runs the suite.
 
@@ -1173,9 +1173,9 @@ Every member is **structural** — membership, position, node identity, predeces
 out. That is the fixed point, and it gives a criterion decided by inspecting an antecedent rather than
 by a designer assigning layers:
 
-> **Stratum 0 — every antecedent member is structural. Applied without a read.**
-> **Stratum 1 and above — some antecedent member is an entry. Applied by the read stratum 0
-> implements.**
+>**Stratum 0 — every antecedent member is structural. Applied without a read.**
+>**Stratum 1 and above — some antecedent member is an entry. Applied by the read stratum 0
+>implements.**
 
 The check is a scan. An implementation can run it over its own bundle and report which rules claim
 stratum 0 and are not entitled to it.
@@ -1235,31 +1235,31 @@ the predecessor relation, which is finite and acyclic, and forking preserves bot
 claims, it would be reading entries and the circle would return. So the read's own working state is
 undated, unattributed and unexplained.
 
-> ⭐⭐⭐ **And this price is what charges itself.** The sentence above is a *constraint on the
-> consequent*; the definition three paragraphs up is a *test on the antecedent*. They are the same
-> line: a rule whose antecedent is entirely structural is applied without a read, and therefore
-> concludes without one. So the engine needs no rule subtype, no marker on the surface and no second
-> interpreter — one predicate, read off the antecedent, decides both halves. `stratum0.py` — a second
-> engine with its own rule type, item type and solver, matching the very same nodes — is deleted, and
-> §20's gate now runs the read as ordinary rules.
+>**And this price is what charges itself.** The sentence above is a *constraint on the
+>consequent*; the definition three paragraphs up is a *test on the antecedent*. They are the same
+>line: a rule whose antecedent is entirely structural is applied without a read, and therefore
+>concludes without one. So the engine needs no rule subtype, no marker on the surface and no second
+>interpreter — one predicate, read off the antecedent, decides both halves. `stratum0.py` — a second
+>engine with its own rule type, item type and solver, matching the very same nodes — is deleted, and
+>§20's gate now runs the read as ordinary rules.
 >
-> ⚠ Two things follow that were not obvious. **Negation needs no notation**: a structural member has
-> no entry, so a sign on one can only mean *not derived*. And **the layers must be derived**, not
-> assigned — structure has no sign, so a fact concluded against a half-built negation cannot be taken
-> back the way a superseded entry can. The layers are the strongly connected components of the
-> dependency graph, which makes recursion (`dep_after` is transitive) ordinary and negation *inside* a
-> recursion a refusal.
+>Two things follow that were not obvious. **Negation needs no notation**: a structural member has
+>no entry, so a sign on one can only mean *not derived*. And **the layers must be derived**, not
+>assigned — structure has no sign, so a fact concluded against a half-built negation cannot be taken
+>back the way a superseded entry can. The layers are the strongly connected components of the
+>dependency graph, which makes recursion (`dep_after` is transitive) ordinary and negation *inside* a
+>recursion a refusal.
 
 The consequence is worth writing down rather than discovering:
 
-> **You cannot ask *why did you read it that way* through the same mechanism you ask *why do you
-> believe that*.**
+>**You cannot ask *why did you read it that way* through the same mechanism you ask *why do you
+>believe that*.**
 
 R5 (*every conclusion carries its support*) covers conclusions, not the resolution that fed them.
 Promoting the read into stratum 1 to fix this reinstates the circle, so the gap is structural rather
 than an oversight.
 
-⚠ **And this price is charged somewhere unexpected**, which §20 discovers and does not resolve. An
+**And this price is charged somewhere unexpected**, which §20 discovers and does not resolve. An
 entry's support — *what this was derived from* — is structural for exactly the reason above: it is
 *how the entry was made*, not a claim about the world, so nobody asserted it and it cannot be denied,
 dated or attributed. That makes it stratum 0's business, which makes it unreadable by ordinary rules.
@@ -1278,7 +1278,7 @@ component may not be load-bearing for safety.**
 Stratum 0 rules are ordinary data. Creating one is a write, and a write needs only the register and
 the stamp, both floor. Therefore:
 
-> **The read is replaceable at run time.**
+>**The read is replaceable at run time.**
 
 That is the whole claim of this document's preamble — that an agent with a better internal
 representation of reality reasons better, and that the representation is something you can hand it —
@@ -1339,7 +1339,7 @@ is true, and it is true because *generic* is §4's floor item 2 showing through.
 
 The bundle's central operation is then one line:
 
-> **To match a moment is to unify a generic chain against an anchored one.**
+>**To match a moment is to unify a generic chain against an anchored one.**
 
 *Unify* is §4's item 2: find a substitution making the generic side identical to the anchored side.
 The chain part is what makes this a **program** rather than a primitive — §10 is that program, and it
@@ -1389,8 +1389,8 @@ A moment stores only what changed, so a moment does not contain its state. §10 
 answers it. That walk is the design's largest recurring cost, and the shape of the only legitimate
 repair is worth stating with the convention rather than with the optimisation:
 
-> **A state changes by one claim at a time, so the index over it changes by one claim at a time, and
-> so does whatever is read off it.**
+>**A state changes by one claim at a time, so the index over it changes by one claim at a time, and
+>so does whatever is read off it.**
 
 Keeping the resolved state and then rebuilding everything derived from it keeps the cost you were
 paying. Maintaining all three where the state is — the state, its index, and the keys read off it —
@@ -1399,10 +1399,10 @@ facts in less time than 1,600 took before. Doubling doubles.
 
 This is an optimisation of a semantics and not a cache of a claim (§4), so it is licensed — and the
 licence comes with a gate that holds the kept state to the slow walk on every look, in every fixture:
-7,288 looks, 0 disagreements. ⚠ One column of that gate is the one the suite cannot supply, for §4's
+7,288 looks, 0 disagreements. One column of that gate is the one the suite cannot supply, for §4's
 reason: a wrong key set makes a worse choice and never a wrong conclusion.
 
-⚠ **And one assumption underneath it was a claim about the fixtures rather than about the design.**
+**And one assumption underneath it was a claim about the fixtures rather than about the design.**
 *A goal is never denied* was the reason the goal-derived keys could accumulate monotonically, and
 `{+nearer(?x)} ⟹ {-goal(nearer(?x))}` is an ordinary rule. So they are **counted**, not unioned: two
 goals can put one relation in play, and one of them going away must not take the other's key with it.
@@ -1411,12 +1411,12 @@ goals can put one relation in play, and one of them going away must not take the
 
 | | (A) a mutable world state | (B) a set of currently-believed facts | (C) moment = delta + predecessor + licence |
 |---|---|---|---|
-| not leaking | ❌ overwriting loses the claim it replaced, so *it changed* and *I was wrong* are one operation | ⚠ a set says what is believed and nothing about when or why | ✅ every difference is licensed and dated |
+| not leaking | ❌ overwriting loses the claim it replaced, so *it changed* and *I was wrong* are one operation | a set says what is believed and nothing about when or why | ✅ every difference is licensed and dated |
 | not lossy | ❌ history is gone | ❌ the previous set is gone unless separately kept | ✅ nothing is overwritten |
 | readable | ✅ a lookup | ✅ a lookup | ❌ **a read is a walk** — the design's largest single cost, accepted in §10 |
-| composable | ❌ two writers contend for one cell | ⚠ union of sets is not merge of beliefs | ✅ forks are free; two successors of one moment need no coordination |
+| composable | ❌ two writers contend for one cell | union of sets is not merge of beliefs | ✅ forks are free; two successors of one moment need no coordination |
 
-The ❌ in the readable column is the price of the whole design and it is paid on every read. It buys
+The in the readable column is the price of the whole design and it is paid on every read. It buys
 supposition at no cost, immutable history, and a date on every claim.
 
 ---
@@ -1477,7 +1477,7 @@ the rule; the facts are what the agent reasons with.
 | the mint stamp | floor-level provenance on the node | the write operation, always | not as vocabulary — it is the guarantee, not the record |
 | `licensed_by`, `said_by` | ordinary propositions about the entry | the gate (§17), from the frame | yes, by ordinary matching |
 
-⚠ **A fact about an entry that no rule can read is the R7 defect of §1, and this design has shipped
+**A fact about an entry that no rule can read is the R7 defect of §1, and this design has shipped
 it repeatedly.** The licence naming which hypothesis produced a conclusion was a field for a long
 time, so `why()` could answer *which hypothesis produced this* and no rule could (§17). The support
 an entry rests on was a Python tuple, so nothing could ask what a conclusion depended on (§20). The
@@ -1520,13 +1520,13 @@ things depending on how many there are, which is the same shape carrying several
 semantics — unreadable and uncomposable. The same discipline keeps the connective in §12 binary, with
 timing as an adjunct fact.
 
-⭐ **An earlier draft of this document had four members**, because §16 argued at length that an
+**An earlier draft of this document had four members**, because §16 argued at length that an
 entry's strength should ride the node match already returns. That argument is sound and it answered
 the wrong question — it asked *where should a grade live* and never asked *what is a grade for*. The
 answer, measured three ways, was **nothing**: it was carried, composed, printed, and never obeyed
 (§16). So the fourth member is gone and this section's rule is back to what it always said.
 
-> **A slot that is written, read, and never decided on is not a representation. It is a comment.**
+>**A slot that is written, read, and never decided on is not a representation. It is a comment.**
 
 ### What the two levels buy
 
@@ -1544,7 +1544,7 @@ If truth were a value stored on the proposition node, these would be indistingui
 |---|---|---|
 | not leaking | ❌ minting a node to deny it asserts it | ✅ a proposition with no entry claims nothing |
 | not lossy | ❌ correction overwrites the record it corrects | ✅ correction is a new fact; the original survives |
-| readable | ⚠ one hop | ⚠ two hops, but *who claimed this, when, on what grounds* are ordinary queries |
+| readable | one hop | two hops, but *who claimed this, when, on what grounds* are ordinary queries |
 | composable | ❌ two sources disagreeing means one overwrites the other | ✅ two entries, two attributions, arbitration by rule |
 
 ### Variables are scoped to the statement that wrote them
@@ -1562,10 +1562,10 @@ It is also a wall, reached from four directions, and each time the same repair w
 | a rule's patterns written by a corpus (§20) | a `fact` may not contain a variable at all, and separate lines cannot share one | build it with a **tool**, and reach the parts by binding |
 | a rule composed from two others (§4) | both may say `?w` | standardise apart |
 
-> **Reference is binding.** Anything deposited as an entry can be bound by an antecedent, and that is
-> how a plan, a hypothesis, a rule or a norm is referred to. Names are for the exceptions — they buy
-> **authoring** (a second surface statement about the same thing) and a stable handle. They never
-> bought reference, and assuming they did was an error the design made explicitly and corrected.
+>**Reference is binding.** Anything deposited as an entry can be bound by an antecedent, and that is
+>how a plan, a hypothesis, a rule or a norm is referred to. Names are for the exceptions — they buy
+>**authoring** (a second surface statement about the same thing) and a stable handle. They never
+>bought reference, and assuming they did was an error the design made explicitly and corrected.
 
 ### The cost, stated
 
@@ -1589,7 +1589,7 @@ shape the substrate allows. This is correct: consistency is a **question you ask
 the substrate maintains — the alternative is checking every write against every other claim. But it
 means *is this moment consistent?* is a query somebody must run, and the design does not say who.
 
-⚠ **And there is no vocabulary for incompatibility.** You can deny a proposition; you cannot say that
+**And there is no vocabulary for incompatibility.** You can deny a proposition; you cannot say that
 two propositions cannot both hold. That is a real gap, noticed when an older engine's `refutes` had
 nothing to port to (§22).
 
@@ -1646,9 +1646,9 @@ So the sign stays, and a **term** is added beside it:
 | the `−` **sign** | a member of the entry | the ordinary case; matched, and never forgotten, because match cannot return an entry without it |
 | `not(p)` | a **proposition** | the nested case, where only a term can sit inside another term |
 
-> **The member is what the machinery computes with. The term is what survives nesting.**
+>**The member is what the machinery computes with. The term is what survives nesting.**
 
-⭐ That sentence is §16's, word for word, one level down — and §16 is where it stopped being a pairing
+That sentence is §16's, word for word, one level down — and §16 is where it stopped being a pairing
 and became the whole answer. Negation keeps both because the machinery genuinely computes with the
 sign on every read. Uncertainty keeps only the term, because nothing ever computed with the field.
 **The same argument reaches opposite conclusions about two things that looked alike**, and the
@@ -1661,10 +1661,10 @@ written against signs reads a term the machinery manufactured while re-wrapping.
 `not(not(p))` on meeting its own output. That is the cost this section warned wrappers carry, and
 declining the reverse direction is where it is not paid.
 
-> **A rule that translates both ways meets its own output.** This is the general form, and §19 hits
-> it again from the crossing side: a rule that crosses every hedged fact it sees crosses the hedged
-> facts it just produced. Self-applying rules need a corpus to stop them, and that they must is a
-> property of self-application rather than of any one rule.
+>**A rule that translates both ways meets its own output.** This is the general form, and §19 hits
+>it again from the crossing side: a rule that crosses every hedged fact it sees crosses the hedged
+>facts it just produced. Self-applying rules need a corpus to stop them, and that they must is a
+>property of self-application rather than of any one rule.
 
 `?` is untouched and stays a sign alone. It is a statement about *reading* — stop the walk, report
 ignorance — and wrapping it as a term would make it look like a claim about the world. What a `?`
@@ -1695,7 +1695,7 @@ the chain answers.** Reading is a walk, not a lookup.
 Because an entry has both a locus and a deposit moment (§8), the walk is ordered by **two keys, in
 this order**:
 
-> **Latest locus, then latest deposit.**
+>**Latest locus, then latest deposit.**
 
 An entry is a candidate if its locus is at or before the moment asked about — that is inheritance, and
 it is why the locus cannot simply be matched for equality: `on(a, b)` asserted at `M3` is what makes it
@@ -1728,9 +1728,9 @@ deposited by `causes`. **Which connective a rule used has nothing to do with ref
 reversal makes the walk one order throughout, and *a description resolves to the most recent* becomes
 a claim with a check behind it rather than an accident.
 
-> **A deterministic computation whose result depends on an undeclared enumeration order has a
-> tie-break nobody authored.** §19 states the same rule for rankings and for random draws; this is the
-> version that governs the read.
+>**A deterministic computation whose result depends on an undeclared enumeration order has a
+>tie-break nobody authored.** §19 states the same rule for rankings and for random draws; this is the
+>version that governs the read.
 
 ### At-or-before is ancestry, not depth
 
@@ -1755,10 +1755,10 @@ because this is precisely the program an implementation will write natively firs
 
 | | (A) locus only | (B) deposit only | (C) two keys, locus first |
 |---|---|---|---|
-| not leaking | ⚠ a revision and the claim it revises are indistinguishable, so one silently wins | ❌ a new belief about the distant past overrules a settled belief about the recent past | ✅ each key answers the question it is for |
+| not leaking | a revision and the claim it revises are indistinguishable, so one silently wins | ❌ a new belief about the distant past overrules a settled belief about the recent past | ✅ each key answers the question it is for |
 | not lossy | ✅ | ✅ | ✅ both the original and the revision remain readable |
-| readable | ✅ one walk | ✅ one walk | ⚠ one walk, two comparisons |
-| composable | ⚠ two authors revising the same locus collide | ❌ | ✅ later deposit settles it, and both survive |
+| readable | ✅ one walk | ✅ one walk | one walk, two comparisons |
+| composable | two authors revising the same locus collide | ❌ | ✅ later deposit settles it, and both survive |
 
 ---
 
@@ -1787,24 +1787,24 @@ A **span** is a node with exactly two members: a start moment and an end moment.
 Spans are loci. Nothing else about the entry changes — which is the point: §8 said the locus is a
 moment *or a span*, and nothing in the read (§10) had to grow to accommodate the second.
 
-> ⭐ **BUILT.** An entry's locus is a moment **or a span**, a corpus writes one with the member
-> `span_of(?s, ?start, ?end)`, and §13's worked example runs on it. Everything below has now been
-> checked by something running — including the two costs, which are checks rather than cautions.
+>**BUILT.** An entry's locus is a moment **or a span**, a corpus writes one with the member
+>`span_of(?s, ?start, ?end)`, and §13's worked example runs on it. Everything below has now been
+>checked by something running — including the two costs, which are checks rather than cautions.
 >
-> ⚠⚠⚠ **And the wall was not where this section put it.** The costs below — normalisation, the
-> quadratic population, the ancestry check — were an afternoon between them. What actually stood
-> between this page and a running example was **three lines that read a locus and ignored it**, none
-> of which appears anywhere in §11, because each was correct exactly while every locus was a moment:
+>**And the wall was not where this section put it.** The costs below — normalisation, the
+>quadratic population, the ancestry check — were an afternoon between them. What actually stood
+>between this page and a running example was **three lines that read a locus and ignored it**, none
+>of which appears anywhere in §11, because each was correct exactly while every locus was a moment:
 >
-> | where | what it did |
-> |---|---|
-> | the **write** | a consequent's `at ?m` was parsed, boundness-checked, reified — and the gate stamped the frame's topic anyway |
-> | **quiescence** | asked whether the conclusion already held at the frame's *topic*, so a second recognition of one proposition was *nothing to do* however different the stretch |
-> | the **resolved state's key** | one entry per proposition, which is an assumption about **loci** and not about propositions |
+>| where | what it did |
+>|---|---|
+>| the **write** | a consequent's `at ?m` was parsed, boundness-checked, reified — and the gate stamped the frame's topic anyway |
+>| **quiescence** | asked whether the conclusion already held at the frame's *topic*, so a second recognition of one proposition was *nothing to do* however different the stretch |
+>| the **resolved state's key** | one entry per proposition, which is an assumption about **loci** and not about propositions |
 >
-> The first two are the same defect twice, and fixing only the write bought nothing: the loop never
-> reached the write, because the verdict was computed about a different locus than the one the
-> conclusion would land at.
+>The first two are the same defect twice, and fixing only the write bought nothing: the loop never
+>reached the write, because the verdict was computed about a different locus than the one the
+>conclusion would land at.
 
 ### Membership is not stored
 
@@ -1818,9 +1818,9 @@ The table below therefore scores anchored spans, where the chain is available to
 | | (A) endpoints only | (B) enumerate the moments | (C) a description of the stretch |
 |---|---|---|---|
 | not leaking | ✅ contents derived from the chain, so they cannot disagree with it | ❌ two answers to *what is in this span* | ✅ |
-| not lossy | ✅ | ⚠ records the extent, not why those | ✅ |
-| readable | ✅ fixed 2-ary | ❌ an extent claim wearing positional clothes; arity varies with duration | ⚠ |
-| composable | ✅ interval relations compare two pairs of endpoints | ⚠ comparing spans means comparing lists | ❌ comparing descriptions is not expressible |
+| not lossy | ✅ | records the extent, not why those | ✅ |
+| readable | ✅ fixed 2-ary | ❌ an extent claim wearing positional clothes; arity varies with duration | |
+| composable | ✅ interval relations compare two pairs of endpoints | comparing spans means comparing lists | ❌ comparing descriptions is not expressible |
 
 ### Two things stay out of the span
 
@@ -1842,7 +1842,7 @@ the anchored/generic split of §7, one level up.
 A generic span has no chain, so nothing determines what lies between its endpoints. Endpoints alone
 say only *start before end*; enumerating an interior would invent a length nobody claimed. **For a
 generic span, option (C) is not a rejected alternative but the only one available** — the interior is
-given by a *description*, and §13 is what descriptions are made of. The ❌ in (C)'s composability
+given by a *description*, and §13 is what descriptions are made of. The in (C)'s composability
 column is the bill that comes with it, and §13 states what it costs.
 
 ### How a corpus writes one
@@ -1872,48 +1872,48 @@ A locus that is a span meets the read at four directions, and only one of them i
 | a **span** asking about a **moment**-located claim | *it rained at M9; did it rain throughout M7..M12?* | ❌ **no.** See below |
 | a **span** asking about another **span** | *it held over M7..M12; did it hold over M9..M11?* | ❌ not read — an interval relation is an ordinary fact about endpoints, so `during(?s2, ?s1)` is a corpus's to conclude |
 
-The ❌ in the middle row is the load-bearing one, and it is scored the way everything else here is:
+The in the middle row is the load-bearing one, and it is scored the way everything else here is:
 
 | | (A) a moment's claim inherits into a span | (B) it does not |
 |---|---|---|
 | not leaking | ❌ answers *did it hold throughout* from an entry that says only *it held then* — and the read returns one winner rather than scanning an interval, so **a denial in the middle of the stretch is invisible** | ✅ nothing is inherited that nobody claimed |
 | not lossy | ✅ | ✅ *it held at the start, so it held throughout* is a rule a corpus writes, and then it is dated, attributed and deniable |
-| readable | ⚠ *sometimes true* is the hardest kind of rule to state | ✅ one sentence: inheritance is within a kind of locus |
-| composable | ⚠ | ✅ |
+| readable | *sometimes true* is the hardest kind of rule to state | ✅ one sentence: inheritance is within a kind of locus |
+| composable | | ✅ |
 
 (A) is free and wrong only sometimes, which is the worst combination this design knows. §12's grade
 deletion made the same trade in the other direction: **the free ordinal becomes the arguable one.**
 
-⚠ **And the resolved state's key follows from it.** One entry per proposition is right exactly while
+**And the resolved state's key follows from it.** One entry per proposition is right exactly while
 every two loci are comparable — on a chain of moments one is always at or before the other, so the
 later governs. Two spans are not comparable, so a claim is superseded only by a claim it is
 comparable *with*, and the state is keyed by the proposition **and the span it is about**.
 
-> ⚠⚠ **And the first version of that paragraph claimed more than was measured.** It said §13's
-> recursion cannot see its own output without this. That is false of the shape as built: *taking
-> turns* recurses in the **structural** layer, which never consults the resolved state, so the
-> kill-probe breaks exactly one check — the one asserting it directly — and all ten recognitions still
-> land. What the key buys is **reading** two recognitions over different stretches, which is what
-> every rule downstream of a shape does. The claim was written before the probe and corrected by it.
+>**And the first version of that paragraph claimed more than was measured.** It said §13's
+>recursion cannot see its own output without this. That is false of the shape as built: *taking
+>turns* recurses in the **structural** layer, which never consults the resolved state, so the
+>kill-probe breaks exactly one check — the one asserting it directly — and all ten recognitions still
+>land. What the key buys is **reading** two recognitions over different stretches, which is what
+>every rule downstream of a shape does. The claim was written before the probe and corrected by it.
 
 ### Costs
 
 * Spans are **directional**, so equality of content must be normalised by chain order, not by member
-  order — otherwise two spans over the same stretch can fail to be equal. ✅ Settled by interning on
+  order — otherwise two spans over the same stretch can fail to be equal. Settled by interning on
   the ordered pair: `span(M7, M12)` is one node however many recognisers reach it, and the inverted
   pair is not a span at all.
 * Any two moments form a span, so the population is quadratic. Spans are therefore **minted by
-  recognisers, never enumerated**. ✅ `span_of` finds nothing when neither the span nor both
+  recognisers, never enumerated**. `span_of` finds nothing when neither the span nor both
   endpoints are bound, so there is no pattern that enumerates them.
 * Nothing prevents constructing a span whose start is not an ancestor of its end. Such a span is
   meaningless, so the ancestry check belongs at the **minting site**, where it is cheap and where the
-  mistake is still attributable. ✅ Twice, at its own site each time: the matcher's member *finds
+  mistake is still attributable. Twice, at its own site each time: the matcher's member *finds
   nothing*, which is the engine's uniform answer to a pattern nothing satisfies, and `Chain.span`
   *raises*, because a machinery reaching there with an inverted pair has made a mistake that is
   attributable. A **degenerate** span is refused with it — `span(M7, M7)` is a second name for a
   moment, and two ways to say one locus is exactly the ambiguity the read cannot afford.
 
-⚠ **What minting inside a matcher costs, since the interning trap has been this design's most
+**What minting inside a matcher costs, since the interning trap has been this design's most
 expensive recurring bug.** `span_of` creates a node while deciding whether a rule applies, which is
 the same shape as the quiescence verdict that was unsound for exactly that reason. The difference is
 what the node's existence *means*: a stratum-0 conclusion **is** the fact, so creating it answers the
@@ -1945,20 +1945,20 @@ subjects*):
 by(<R>, boss)          overrides(<R>, <R2>)          about(<R>, assembly)
 ```
 
-> ⚠⚠⚠ **`unless(<R>, +altitude(?w, high))` used to be the fourth item in that list, and it does not
-> belong there.** The other three take **ground** arguments; a guard takes a **pattern**, and §8
-> scopes a rule's variables to its own statement — so written as a separate fact, that `?w` is a
-> different variable from the rule's, measured as a different node. The guard has to be written where
-> the rule's variables live, which is **inside the rule**, and there it is an ordinary negated member:
+>**`unless(<R>, +altitude(?w, high))` used to be the fourth item in that list, and it does not
+>belong there.** The other three take **ground** arguments; a guard takes a **pattern**, and §8
+>scopes a rule's variables to its own statement — so written as a separate fact, that `?w` is a
+>different variable from the rule's, measured as a different node. The guard has to be written where
+>the rule's variables live, which is **inside the rule**, and there it is an ordinary negated member:
 >
-> ```
-> <R> = implies( { boiling(?w), -altitude(?w, high) }, { ... } )
-> ```
+>```
+><R> = implies( { boiling(?w), -altitude(?w, high) }, { ... } )
+>```
 >
-> That is *if not*, which is all `unless` ever meant, and it has been in the surface since there were
-> members. R3 is not weakened by moving it: `reify` deposits each member with its sign and position,
-> so *what would cancel `<R>`* is an ordinary query over `ant(<R>, altitude(?w, high), -, 1)`. **The
-> guard is a fact about the rule; it simply is not a fact written beside it.**
+>That is *if not*, which is all `unless` ever meant, and it has been in the surface since there were
+>members. R3 is not weakened by moving it: `reify` deposits each member with its sign and position,
+>so *what would cancel `<R>`* is an ordinary query over `ant(<R>, altitude(?w, high), -, 1)`. **The
+>guard is a fact about the rule; it simply is not a fact written beside it.**
 
 And because the rule's content is data rather than a program, R4's questions (*rules are askable*) are
 ordinary queries: *which rules are about time* is a query over `about`; *which rules disturb position*
@@ -1997,7 +1997,7 @@ bound:
       bound(<t>, 4min, 7min)                 how far apart; absent means unknown
 ```
 
-⚠ **One piece of notation was deleted rather than written out.** `@likely` on a consequent's entry was
+**One piece of notation was deleted rather than written out.** `@likely` on a consequent's entry was
 a grade, and §16 records why there is no such thing any more. What a rule says about the strength of
 its conclusion is now **in the conclusion** — `{+likely(rain(?d, afternoon))}` — where a rule can read
 it.
@@ -2051,96 +2051,96 @@ given    entry(?m, on(?x, ?y), +),  entry(?n, acts(?a), +)     what is claimed, 
 The one-locus case, where every entry sits at the same moment and the skeleton is empty, is the common
 one and is written without either keyword, using the short form above.
 
-> ⭐ **A MEMBER MAY NOW SAY WHERE ITS ENTRY SITS**, which is the half of the skeleton that relates two
-> moments. It is written out rather than punctuated — `+acts(goblin) at ?m` — because `@` used to mean
-> a grade and reusing it would be §2's island on the page:
+>**A MEMBER MAY NOW SAY WHERE ITS ENTRY SITS**, which is the half of the skeleton that relates two
+>moments. It is written out rather than punctuated — `+acts(goblin) at ?m` — because `@` used to mean
+>a grade and reusing it would be §2's island on the page:
 >
-> ```
-> rule <order> = implies( { +acts(hero) at ?mh, +acts(goblin) at ?mg },
->                        { +sequence(?mh, ?mg) } )
-> ```
+>```
+>rule <order> = implies( { +acts(hero) at ?mh, +acts(goblin) at ?mg },
+>                       { +sequence(?mh, ?mg) } )
+>```
 >
-> The matcher had the locus all along — every entry carries one — and what was missing was a *pattern*
-> for it. Built because a foreign corpus measured what its absence cost: **24% of its rules were clock
-> scaffold**, a round counter re-implementing a moment ordinal, plus a token threaded through six
-> acting rules and an arithmetic operator that existed only to count rounds.
+>The matcher had the locus all along — every entry carries one — and what was missing was a *pattern*
+>for it. Built because a foreign corpus measured what its absence cost: **24% of its rules were clock
+>scaffold**, a round counter re-implementing a moment ordinal, plus a token threaded through six
+>acting rules and an arithmetic operator that existed only to count rounds.
 >
-> ⚠ **What it does not buy, and the limit is exact.** A matcher sees the **resolved** state — one entry
-> per proposition — so two *different* facts at different moments are relatable and **a single fact's
-> own history is not**: *it was on, then it was not* still finds nothing, because the superseded entry
-> is not in the state. Reaching that means matching over the raw chain, which is what §6's stratum-0
-> read is for, and it reopens the bootstrap question. The corpus that asked for this needed only the
-> first half and never once wanted the second.
+>**What it does not buy, and the limit is exact.** A matcher sees the **resolved** state — one entry
+>per proposition — so two *different* facts at different moments are relatable and **a single fact's
+>own history is not**: *it was on, then it was not* still finds nothing, because the superseded entry
+>is not in the state. Reaching that means matching over the raw chain, which is what §6's stratum-0
+>read is for, and it reopens the bootstrap question. The corpus that asked for this needed only the
+>first half and never once wanted the second.
 >
-> ⭐ **And two bound moments can be ordered**, by a request rather than a skeleton member (§22 argued
-> the shape; §19 is the seam):
+>**And two bound moments can be ordered**, by a request rather than a skeleton member (§22 argued
+>the shape; §19 is the seam):
 >
-> ```
-> { +acts(?p) at ?mp, +acts(?q) at ?mq }  ⟹  { +order(?mp, ?mq) }
-> { ... +precedes(?mp, ?mq) }             ⟹  { +acted_after(?q, ?p) }
-> ```
+>```
+>{ +acts(?p) at ?mp, +acts(?q) at ?mq }  ⟹  { +order(?mp, ?mq) }
+>{ ... +precedes(?mp, ?mq) }             ⟹  { +acted_after(?q, ?p) }
+>```
 >
-> It is **ancestry, never depth** — §10's warning, and the reason `Moment.at_or_after` already existed.
-> Unrelated moments get no answer rather than a false one.
+>It is **ancestry, never depth** — §10's warning, and the reason `Moment.at_or_after` already existed.
+>Unrelated moments get no answer rather than a false one.
 >
-> ⭐⭐⭐ **And a rule can only ever bind moments on its own walk.** A rule matches the state resolved at
-> its own locus, so every entry it binds has a locus at-or-before that locus, and two such moments are
-> both on one path. Measured on a chain forking 31 times: 145 orderings requested, **every pair
-> related**. Containment was already guaranteeing the thing that makes ordering well defined — which is
-> why the depth mistake is unreachable today, and why the ancestry test is kept anyway for the day an
-> arrival's fork puts two branches within reach.
+>**And a rule can only ever bind moments on its own walk.** A rule matches the state resolved at
+>its own locus, so every entry it binds has a locus at-or-before that locus, and two such moments are
+>both on one path. Measured on a chain forking 31 times: 145 orderings requested, **every pair
+>related**. Containment was already guaranteeing the thing that makes ordering well defined — which is
+>why the depth mistake is unreachable today, and why the ancestry test is kept anyway for the day an
+>arrival's fork puts two branches within reach.
 >
-> ⭐ **And a member may name WHAT it matched** — `+on(?x, ?y) as ?t` — so a rule refers to a
-> proposition rather than describing it twice. `at` says where; `as` says what. Verified to be the
-> **same node**, so this is reference and not a copy, which §8's *a proposition has one identity
-> however often it is built* is what makes true.
+>**And a member may name WHAT it matched** — `+on(?x, ?y) as ?t` — so a rule refers to a
+>proposition rather than describing it twice. `at` says where; `as` says what. Verified to be the
+>**same node**, so this is reference and not a copy, which §8's *a proposition has one identity
+>however often it is built* is what makes true.
 >
-> Without it a corpus reaches the same place by **reconstruction**: match `+?r(?x, ?y)` and rebuild
-> `?r(?x, ?y)`, which interning makes identical. That works and costs §3's index, since a variable
-> relation has no bucket. ⚠ What does *not* work is two members hoping to co-refer —
-> `+tagged(?t), +on(?x, ?y)` links nothing, and appears to work only while there is one candidate.
+>Without it a corpus reaches the same place by **reconstruction**: match `+?r(?x, ?y)` and rebuild
+>`?r(?x, ?y)`, which interning makes identical. That works and costs §3's index, since a variable
+>relation has no bucket. What does *not* work is two members hoping to co-refer —
+>`+tagged(?t), +on(?x, ?y)` links nothing, and appears to work only while there is one candidate.
 >
-> ⭐⭐⭐ **And the skeleton is an ordinary member.** `sanc(?mq, ?mp)` in an antecedent matches the
-> chain directly — no request, no answerer, and **no second matcher**:
+>**And the skeleton is an ordinary member.** `sanc(?mq, ?mp)` in an antecedent matches the
+>chain directly — no request, no answerer, and **no second matcher**:
 >
-> ```
-> rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp) },
->                        { +acted_after(?q, ?p) } )
-> ```
+>```
+>rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp) },
+>                       { +acted_after(?q, ?p) } )
+>```
 >
-> §12 said a skeleton member *has no sign, no locus and no licence; nobody asserted it* — which
-> explains why it has no **entry**, and the engine read as *therefore unmatchable*. It does not follow:
-> `pred(M3, M2)` is an ordinary relation instance. It simply was not in the resolved state, which is
-> what the matcher was given, while **stratum 0 matched the very same nodes with a second matcher** —
-> the branch §5's *one interpreter* forbids and §6 explicitly disclaims.
+>§12 said a skeleton member *has no sign, no locus and no licence; nobody asserted it* — which
+>explains why it has no **entry**, and the engine read as *therefore unmatchable*. It does not follow:
+>`pred(M3, M2)` is an ordinary relation instance. It simply was not in the resolved state, which is
+>what the matcher was given, while **stratum 0 matched the very same nodes with a second matcher** —
+>the branch §5's *one interpreter* forbids and §6 explicitly disclaims.
 >
-> ⭐⭐⭐ **Containment survives with nothing enforced.** A structural member walks from an ANCHORED
-> moment toward the root, and §11 makes that direction single-valued, so it cannot reach a sibling
-> branch — measured on a forking chain, 129 structural conclusions, none off its own walk. Nothing is
-> refused to achieve it: a downward pattern loads and finds nothing, exactly as a rule matching an
-> entry nobody wrote matches nothing. §4's *nothing is prohibited* holds, and §17's door stays open for
-> the deliberate case — *inspecting is matching*, with an explicit anchor.
+>**Containment survives with nothing enforced.** A structural member walks from an ANCHORED
+>moment toward the root, and §11 makes that direction single-valued, so it cannot reach a sibling
+>branch — measured on a forking chain, 129 structural conclusions, none off its own walk. Nothing is
+>refused to achieve it: a downward pattern loads and finds nothing, exactly as a rule matching an
+>entry nobody wrote matches nothing. §4's *nothing is prohibited* holds, and §17's door stays open for
+>the deliberate case — *inspecting is matching*, with an explicit anchor.
 >
-> ⚠ **And it exposed an undeclared tie-break.** `arbitrate` picks the first application among those of
-> one rule, and nothing said which that was — the heap ordered by consumed entries then insertion, the
-> slow list was in match order, and the two agreed only because two applications of one rule could not
-> previously share their consumed entries. A structural member binds **without consuming**, so they
-> can. `ugm.arbitration` reported 20 disagreements the hour it became possible, and both paths now
-> share one declared order. §10's rule, one level up.
+>**And it exposed an undeclared tie-break.** `arbitrate` picks the first application among those of
+>one rule, and nothing said which that was — the heap ordered by consumed entries then insertion, the
+>slow list was in match order, and the two agreed only because two applications of one rule could not
+>previously share their consumed entries. A structural member binds **without consuming**, so they
+>can. `ugm.arbitration` reported 20 disagreements the hour it became possible, and both paths now
+>share one declared order. §10's rule, one level up.
 >
-> ⚠ **Still absent**: `where` as a keyword and §12's `?t = entry(...)` **prefix** form — both cosmetic
-> now that the member forms exist. Spans **are** loci (§11), so §13's shapes are writable and have
-> run; §15's *an arrival should be a moment* still has no route. §22 records what is left.
+>**Still absent**: `where` as a keyword and §12's `?t = entry(...)` **prefix** form — both cosmetic
+>now that the member forms exist. Spans **are** loci (§11), so §13's shapes are writable and have
+>run; §15's *an arrival should be a moment* still has no route. §22 records what is left.
 >
-> ⭐ **What is no longer absent**, and it closed §22's largest open question rather than a small one:
-> the rest of the skeleton is now members too — `anc`, `in_delta`, `delta_next`, `rests_on`, and
-> `entry_of(?e, ?locus, ?prop, ?sign)`, which is §12's prefix form arriving as a member instead of as
-> notation. That is what let the read be written as ordinary rules and `stratum0.py` be deleted.
+>**What is no longer absent**, and it closed §22's largest open question rather than a small one:
+>the rest of the skeleton is now members too — `anc`, `in_delta`, `delta_next`, `rests_on`, and
+>`entry_of(?e, ?locus, ?prop, ?sign)`, which is §12's prefix form arriving as a member instead of as
+>notation. That is what let the read be written as ordinary rules and `stratum0.py` be deleted.
 >
-> ⚠⚠⚠ **And `pred` was wrong the whole time.** It was mapped to the reflexive-transitive walk under
-> the name of the immediate predecessor — registered for corpora and written by no rule, here or in
-> the foreign corpus, so nothing could see it. `anc` carries that walk now. A name a corpus may write
-> whose meaning is not what the name says is worse than an absent one.
+>**And `pred` was wrong the whole time.** It was mapped to the reflexive-transitive walk under
+>the name of the immediate predecessor — registered for corpora and written by no rule, here or in
+>the foreign corpus, so nothing could see it. `anc` carries that walk now. A name a corpus may write
+>whose meaning is not what the name says is worse than an absent one.
 
 The two kinds do not merge, because a skeleton member is **not a claim**. `?n = succ(?m)` has no sign,
 no locus and no licence; nobody asserted it, and it cannot be denied, dated or attributed. §3 says why:
@@ -2150,7 +2150,7 @@ the antecedent that match settles by unifying structure, rather than by walking 
 Distinctness belongs in the skeleton for the same reason. `?a ≠ ?b` is a condition on the binding, not
 a dated claim that two individuals differ.
 
-⭐ **And the skeleton had a consequence nobody designed for — since closed.** An entry's *support* —
+**And the skeleton had a consequence nobody designed for — since closed.** An entry's *support* —
 what it was derived from — is skeleton by exactly this test: it is how the entry was made, not a claim
 about the world. That made it readable by stratum 0 and not by ordinary rules, and §20 ran into the
 wall from the learning side, where the agent's own trail is the best source of examples it has.
@@ -2166,7 +2166,7 @@ be reordered freely (§3's argument index does exactly that, pivoting on whichev
 and the **antecedent** may not. Narrowing removes only candidates unification would have rejected, so
 the matching applications and their order are identical, which is why nothing downstream had to change.
 
-⚠ That invariant can be broken with a whole suite still green — filling `consumed` in walk order
+That invariant can be broken with a whole suite still green — filling `consumed` in walk order
 rather than member order fails nothing, and the arbitration gate cannot see it either, because it
 compares two paths that would permute alike. It is asserted directly, by a fixture built so that the
 pivot-first walk actually runs.
@@ -2262,7 +2262,7 @@ rule(<R>)     conn(<R>, implies)
 ant(<R>, pattern, sign, i)      con(<R>, pattern, sign, i)
 ```
 
-⚠ **Both the position and the sign are members, and leaving either out makes a rule read back out of
+**Both the position and the sign are members, and leaving either out makes a rule read back out of
 the graph a different rule.** Position matters because an antecedent is a sequence (above) and because
 relation instances intern — a rule with two identical members would silently lose one. This only
 became visible when something read a rule back out and expected to get the same rule (§20), and it is
@@ -2275,8 +2275,8 @@ have failed. The fixture deposits out of order on purpose.
 | | (A) guard → program body | (B) one rule per direction | (C) `connective(moment, moment)` |
 |---|---|---|---|
 | not leaking | ❌ the backward read is hypothesis wearing entailment's clothes, with nowhere to record it | ❌ two statements drift; neither is the other's premise | ✅ one statement; each reading cites `<R>`, whose licence says what the citation is worth |
-| not lossy | ❌ what it makes true is recoverable only by running it | ⚠ the pair coheres only by convention | ✅ `<B>` **is** the postcondition; `?` preserves a gap instead of erasing it |
-| readable | ❌ runnable, not askable — fails R4 | ⚠ readable, doubled | ✅ every question about a rule is a query over its members and adjuncts |
+| not lossy | ❌ what it makes true is recoverable only by running it | the pair coheres only by convention | ✅ `<B>` **is** the postcondition; `?` preserves a gap instead of erasing it |
+| readable | ❌ runnable, not askable — fails R4 | readable, doubled | ✅ every question about a rule is a query over its members and adjuncts |
 | composable | ❌ two bodies cannot be joined | ❌ n directions means 2ⁿ statements | ✅ join on signed membership; no-entry survives composition as no-entry, so two partial rule sets merge without lying |
 
 (A) fails an additional test outright: `overrides(<R1>, <R2>)` has no subject when a rule is a program.
@@ -2304,7 +2304,7 @@ Two kinds of indefiniteness need this, and they are not one construct:
 
 They share one principle, which §11 already applies to spans and which this section generalises:
 
-> **Describe the extent. Never enumerate it.**
+>**Describe the extent. Never enumerate it.**
 
 ### A shape is a definition, not a term
 
@@ -2327,31 +2327,31 @@ is the base case, and the step case consumes one turn and defers the rest:
 `acts` is an entry rather than anything special, because §15 already settles that an action is an
 ordinary fact holding over an interval.
 
-> ⭐⭐⭐ **BOTH OF THOSE RULES NOW RUN**, over a five-moment alternation, recognising *taking turns*
-> over **every stretch it holds over** — ten of them, from `M0..M2` out to `M0..M5`, with the argument
-> swap correct in each. This document's worked example of a shape had never once executed.
+>**BOTH OF THOSE RULES NOW RUN**, over a five-moment alternation, recognising *taking turns*
+>over **every stretch it holds over** — ten of them, from `M0..M2` out to `M0..M5`, with the argument
+>swap correct in each. This document's worked example of a shape had never once executed.
 >
-> ⚠ **And it needs the RAW CHAIN rather than the resolved state, which §12 said in advance.** An
-> alternation repeats its actors by definition, so `acts(anna)` at M1 is superseded by `acts(anna)` at
-> M3 — and §12's limit is exact: *a single fact's own history is not relatable, because the superseded
-> entry is not in the state.* The step case needs precisely that earlier turn. §12 names the remedy in
-> the same breath — *reaching that means matching over the raw chain, which is what §6's stratum-0
-> read is for* — and since the matchers merged that is one interpreter rather than two.
+>**And it needs the RAW CHAIN rather than the resolved state, which §12 said in advance.** An
+>alternation repeats its actors by definition, so `acts(anna)` at M1 is superseded by `acts(anna)` at
+>M3 — and §12's limit is exact: *a single fact's own history is not relatable, because the superseded
+>entry is not in the state.* The step case needs precisely that earlier turn. §12 names the remedy in
+>the same breath — *reaching that means matching over the raw chain, which is what §6's stratum-0
+>read is for* — and since the matchers merged that is one interpreter rather than two.
 >
-> ⭐⭐⭐ **So a shape is three rules, and the split is §6's own.** The two recognisers mention only
-> structure (`asking`, `anc`, `pred`, `in_delta`, `entry_of`, `span_of`), so §6's test makes their
-> conclusion structure — a `turns(?s, ?a, ?b)` that is undated, unattributed and deniable by nothing,
-> which is what a walk's intermediate result has to be or the bootstrap circle returns. Then **one
-> ordinary rule says it**:
+>**So a shape is three rules, and the split is §6's own.** The two recognisers mention only
+>structure (`asking`, `anc`, `pred`, `in_delta`, `entry_of`, `span_of`), so §6's test makes their
+>conclusion structure — a `turns(?s, ?a, ?b)` that is undated, unattributed and deniable by nothing,
+>which is what a walk's intermediate result has to be or the bootstrap circle returns. Then **one
+>ordinary rule says it**:
 >
-> ```
-> rule <say> = implies( { turns(?s, ?a, ?b), +watching(x) },
->                      { +taking_turns(?a, ?b) at ?s } )
-> ```
+>```
+>rule <say> = implies( { turns(?s, ?a, ?b), +watching(x) },
+>                     { +taking_turns(?a, ?b) at ?s } )
+>```
 >
-> *One to see it, one to say it* — the same shape `reached` found for reading the chain, arriving
-> independently at the shape a recogniser needs. The claim it deposits is an ordinary entry at a span
-> locus: dated, attributed, deniable, and readable by any rule from the end of the stretch onward.
+>*One to see it, one to say it* — the same shape `reached` found for reading the chain, arriving
+>independently at the shape a recogniser needs. The claim it deposits is an ordinary entry at a span
+>locus: dated, attributed, deniable, and readable by any rule from the end of the stretch onward.
 
 **The alternation is the argument swap** — `?a, ?b` in the head, `?b, ?a` in the recursive member.
 Remove it and the definition says *someone acts repeatedly*. That swap is a back-reference, and it is
@@ -2369,7 +2369,7 @@ rule consuming a chain between two endpoints is a grammar production over the mo
 the difference lists; §11 built them. So the question is never *grammar or not* — it is whether the
 grammar is reserved or open-class, which is §5's test one level up.
 
-Reserved would buy exactly one thing: **decidable equivalence**, the ❌ in §11's (C) column. It does not
+Reserved would buy exactly one thing: **decidable equivalence**, the in §11's (C) column. It does not
 survive contact with what shapes are actually for:
 
 * *the same actor does not go twice running* — a back-reference;
@@ -2403,7 +2403,7 @@ Counting costs nothing structurally. Every entry carries a licence naming its ap
 assumptions unstatable in the graph, and a count of applications is an exact observation of the trail,
 where comparison is not composition.
 
-⭐ **Counting over the trail is also what §16 hands the evidence problem to**, and §20 is where it
+**Counting over the trail is also what §16 hands the evidence problem to**, and §20 is where it
 becomes a mechanism: how often a rule helped, and how often it harmed, are counts over exactly this
 walk. The trail keeps turning out to be the training data for whatever needs training, which is why
 R5 keeps being promoted from a nicety.
@@ -2421,9 +2421,9 @@ Fuse them and *the shape ended at five* becomes indistinguishable from *I stoppe
 §9's `−` against *no entry*, and §19's *nothing applies* against *nothing came to mind*, arriving a
 third time, so it takes the same answer:
 
-> **Bounded expansion returns a result and a state, never a result.**
+>**Bounded expansion returns a result and a state, never a result.**
 
-⚠ And the budget half is itself a claim, so it is a **fact**, not a constant: `{+bounded(?w)} ⟹
+And the budget half is itself a claim, so it is a **fact**, not a constant: `{+bounded(?w)} ⟹
 {+period(8)}` deepens a search when a subgoal drags, and `{+goal(doing(?p))} ⟹ {+tolerance(4)}` makes
 an agent harder to convince when the next step cannot be taken back (§19). *How hard am I trying* has
 a trail rather than a threshold somebody chose once.
@@ -2451,9 +2451,9 @@ is a fact about the **entry**, not a new construct.
 
 | | (A) materialise a witness sequence | (B) a reserved grammar with counters | (C) recursive definitions, bounds as facts |
 |---|---|---|---|
-| not leaking | ❌ states a length nobody claimed; a consumer reads three turns as *the* number | ⚠ a production's reading pair is fixed by the engine, so it has no premise and appears in no explanation | ✅ only the shape is asserted; every expansion step is licensed and dated as supposition |
-| not lossy | ❌ *how many?* answered by an artefact | ⚠ the parse is recoverable only by running the parser, unless the chart is deposited as entries — which is the trail again | ✅ the definition **is** the shape; ignorance of length is recorded by there being no length |
-| readable | ✅ trivially | ⚠ *which shapes bound repetition* needs a walk over production terms — a second query language | ✅ shapes are rules and bounds are facts, so R4's questions stay ordinary queries |
+| not leaking | ❌ states a length nobody claimed; a consumer reads three turns as *the* number | a production's reading pair is fixed by the engine, so it has no premise and appears in no explanation | ✅ only the shape is asserted; every expansion step is licensed and dated as supposition |
+| not lossy | ❌ *how many?* answered by an artefact | the parse is recoverable only by running the parser, unless the chart is deposited as entries — which is the trail again | ✅ the definition **is** the shape; ignorance of length is recorded by there being no length |
+| readable | ✅ trivially | *which shapes bound repetition* needs a walk over production terms — a second query language | ✅ shapes are rules and bounds are facts, so R4's questions stay ordinary queries |
 | composable | ❌ two witness sequences of different length are not the same claim | ❌ a second closed set, and a production cannot carry `unless` or `overrides` | ✅ definitions compose as rules; `repeats`, `by` and `unless` attach unchanged |
 
 ### Costs
@@ -2483,7 +2483,7 @@ about them, because per §5 it must not.
 
 ### The membership test
 
-> **A connective earns its place only if it licenses a different (forward, backward) reading pair.**
+>**A connective earns its place only if it licenses a different (forward, backward) reading pair.**
 
 If two candidates read the same way in both directions, they are one connective, and the difference
 between them belongs in a member. Applying the test eliminates the obvious candidates:
@@ -2493,7 +2493,7 @@ between them belongs in a member. Applying the test eliminates the obvious candi
   consequent *says*: a bare `B` means doing `A` achieves it; a wrapped one means `A` is a precondition
   and something else must still happen.
 
-⚠ The second row used to read *told apart by the grade*, and rewriting it is the clearest small
+The second row used to read *told apart by the grade*, and rewriting it is the clearest small
 demonstration of why the grade had to go. A distinction carried in an annotation is a distinction no
 rule can draw. Carried in the conclusion, `enables` is decomposed by a corpus that can also argue with
 the decomposition.
@@ -2502,9 +2502,9 @@ the decomposition.
 
 The distinction is not *logical versus worldly*. It is mechanical:
 
-> **Retract the antecedent. Does the consequent go with it?**
-> **Yes → `implies`.** The entry is *derived*. It lands in the **same** moment.
-> **No → `causes`.** The entry is *asserted*. It persists, and lands in a **later** moment.
+>**Retract the antecedent. Does the consequent go with it?**
+>**Yes → `implies`.** The entry is *derived*. It lands in the **same** moment.
+>**No → `causes`.** The entry is *asserted*. It persists, and lands in a **later** moment.
 
 Water you have stopped heating stays boiled. That is inertia, and it is why a zero-delay cause is
 still not an implication: the two cannot be merged by setting the delay to zero.
@@ -2515,7 +2515,7 @@ surface wording reads just as easily as causal, and clouds do not cause the afte
 causes both. Written as `causes`, the backward reader produces **a plan to make it rain by making it
 cloudy**. The two-connective split is precisely what makes that plan unwritable.
 
-⚠ **And the connective decides one thing nobody expected it to.** §19's criterion — *an occasion
+**And the connective decides one thing nobody expected it to.** §19's criterion — *an occasion
 warrants a re-ask only if re-asking cannot produce one* — is satisfied or violated by which connective
 an author reaches for, because `implies` does not move the seat and `causes` does. The same rule
 written the second way mints a fresh occasion, which warrants the next re-ask: measured, 143 askings
@@ -2589,7 +2589,7 @@ the delay is a slot.
 |---|---|---|
 | not leaking | ❌ an absent delay defaults to something nobody stated | ✅ absent means absent |
 | not lossy | ❌ one delay per rule, no provenance | ✅ several claims, each attributed |
-| readable | ⚠ | ✅ *which rules are slower than five minutes* is a query |
+| readable | | ✅ *which rules are slower than five minutes* is a query |
 | composable | ❌ the connective's arity varies | ✅ timing joins independently of the connective |
 
 Timing is read in both directions, which is the payoff. **Forward**, it says when to expect the
@@ -2618,7 +2618,7 @@ be a second ordering competing with succession.
 
 It is not one, and the rule is:
 
-> **Calendar terms denote. The chain orders.**
+>**Calendar terms denote. The chain orders.**
 
 *Afternoon* is a **name for a stretch of the chain**, resolved against the clock stamp §7 puts above
 succession. It is not an ordering relation and nothing may compare two calendar terms directly; to ask
@@ -2651,7 +2651,7 @@ about the world's response. It is what gives the rules something to apply to, an
 expectation of §18 something to be disappointed by. Without it the agent emits an intent into silence
 and nothing downstream ever happens.
 
-⭐ And it is a **rule**, `<assert-act>`, which is the first place in this design where a strategy
+And it is a **rule**, `<assert-act>`, which is the first place in this design where a strategy
 written as code became a claim: an agent that should *not* assume its acts succeed is now expressible
 by dropping one rule, and it still acts and still knows it acted.
 
@@ -2659,7 +2659,7 @@ by dropping one rule, and it still acts and still knows it acted.
 member names no particular act. This is §12's achievability arriving where it belongs — not as a mark
 on a rule's member, but as a condition at the one place effects leave the agent.
 
-⚠⚠⚠ **And that refusal has a consequence the design did not intend.** A rule node is generic by
+**And that refusal has a consequence the design did not intend.** A rule node is generic by
 construction, because it holds the variables of its own patterns. So `+doing(ask(<hot>))` — *ask the
 author about the rule that lost* — is refused for the same reason, and **every clarification request
 about a rule is decided on and never emitted.** This is the use/mention distinction of §5 arriving at
@@ -2686,7 +2686,7 @@ disappears on its own.
 Crossing the boundary is irreducible — a channel is anchored and a rule is generic. Crossing it **on
 the agent's schedule** is a claim, and a false one.
 
-> **An arrival is an external event, and an external event is not something the agent does.**
+>**An arrival is an external event, and an external event is not something the agent does.**
 
 So delivery is the boundary calling in, at the moment the world speaks, rather than a first line of
 the loop. What remains in the step is a *counter* — how much arrived since the last one — because §19
@@ -2744,11 +2744,11 @@ was good, and it went like this.
 
 Not on the proposition node — and not for reasons of cost:
 
-> A grade stored on a proposition node is **a cache of a derived value**. *Rain is likely* holds only
-> given the support that produced it, so when the support changes the tag must be invalidated. General
-> invalidation over a web of dependencies is a truth-maintenance system: a second machinery, with its
-> own consistency problem, running underneath the first. **An index over what was asserted is
-> storage; a cache of what was derived is a truth-maintenance system.**
+>A grade stored on a proposition node is **a cache of a derived value**. *Rain is likely* holds only
+>given the support that produced it, so when the support changes the tag must be invalidated. General
+>invalidation over a web of dependencies is a truth-maintenance system: a second machinery, with its
+>own consistency problem, running underneath the first. **An index over what was asserted is
+>storage; a cache of what was derived is a truth-maintenance system.**
 
 And not as a separate tag, because **a tag is a separate read**: reading a fact and reading its grade
 would be two operations, so the grade could be obtained without the fact or the fact without the
@@ -2767,17 +2767,17 @@ Measured three ways, and they agreed:
   sees and can still ignore. And it does not nest, because a grade has no place inside a term.
 * **Almost nothing used it.** Across a whole suite, **4 of 3,740 rules** authored a non-certain grade
   and **6 of 32,289 entries** carried one.
-* ⭐⭐⭐ **Nothing ever decided on it.** The function that compared two grades was called from exactly
+* **Nothing ever decided on it.** The function that compared two grades was called from exactly
   one place. Every other read carried the grade forward or printed it. The grade was **carried,
   composed and printed, and never obeyed** — and it could not be obeyed, precisely because it is not a
   term.
 
-> **A knob that is read and not obeyed is the same defect wearing the fix's clothes.**
+>**A knob that is read and not obeyed is the same defect wearing the fix's clothes.**
 
 So the fourth member is gone, the closed set of five ordinal names is gone, and the entry is back to
 §8's *three members and never a fourth*.
 
-⭐⭐⭐ **And the closed set going is the larger half.** Five names the engine knew became whatever
+**And the closed set going is the larger half.** Five names the engine knew became whatever
 modalities a corpus cares to write, with whatever ordering it authors. That is §4's *closed is a rate,
 not a kind*, one place further down than anyone had applied it.
 
@@ -2786,9 +2786,9 @@ not a kind*, one place further down than anyone had applied it.
 Modality is a **proposition** — `likely(p)`, a wrapping node, the same construction as `on(a, b)` with
 one arm rather than two. A hedged fact is then crossed by **entering** it:
 
-> **Unwrap on the way in. Re-wrap on the way out.** Inside the frame the assumption is an ordinary
-> fact and the ordinary rules apply to it by ordinary matching. What crosses back is `likely(q)`, a
-> claim about what was concluded under the supposition — never `q`.
+>**Unwrap on the way in. Re-wrap on the way out.** Inside the frame the assumption is an ordinary
+>fact and the ordinary rules apply to it by ordinary matching. What crosses back is `likely(q)`, a
+>claim about what was concluded under the supposition — never `q`.
 
 Three things this buys that a grade cannot, none of them arguments:
 
@@ -2803,20 +2803,20 @@ Three things this buys that a grade cannot, none of them arguments:
 records both, in order. That is a better answer to the same requirement, and it was already built
 before the grade was deleted.
 
-⚠ **What is lost, stated rather than buried.** Weakest link was **automatic and total**: every write,
+**What is lost, stated rather than buried.** Weakest link was **automatic and total**: every write,
 every rule, nothing authored. Now nothing is concluded from an uncertain premise unless a corpus
 **crossed**, and what comes back is nested. Collapsing the nest — `{+likely(possible(?x))} ⟹
 {+possible(?x)}` — is a corpus's table and its ordering is a corpus's claim.
 
-> **The ordinal stops being free and starts being arguable.** That is the trade, and it is the trade
-> this design makes everywhere else.
+>**The ordinal stops being free and starts being arguable.** That is the trade, and it is the trade
+>this design makes everywhere else.
 
-⭐ **And the deletion was worth something two sections away.** §4's composition refused anything but a
+**And the deletion was worth something two sections away.** §4's composition refused anything but a
 `certain` conclusion, because composing a grade would have been a minimum computed once from
 defeasible constituents. With grades gone the objection goes with them, and the restriction was
 deleted rather than solved.
 
-⭐ **It also made a corpus's recklessness visible.** An agent acting on a merely-possible
+**It also made a corpus's recklessness visible.** An agent acting on a merely-possible
 classification used to be indistinguishable from one acting on a certain one, because a rule matching
 `is_gothic(?c)` matched whatever grade the entry carried — nothing could read a grade, so nothing
 could decline. Now declining is one line, and *what this corpus is willing to act on* is a claim with
@@ -2852,7 +2852,7 @@ The standing objection to supposition is combinatorial explosion: twenty indepen
 would be a million moments. That objection does not survive the distinction between a frame per
 **subset** and a frame per **derivation**.
 
-> **Crossing `likely(p)` is one hypothesis, and more when something says so.**
+>**Crossing `likely(p)` is one hypothesis, and more when something says so.**
 
 `<cross>` above is an ordinary rule. Considering the other case is another ordinary rule. So **there
 is no branching factor in the machinery to set** — the number of branches is however many `suppose`
@@ -2863,8 +2863,8 @@ Why the default has to be one, stated as a cost rather than a preference: at one
 fact, what is spent is a frame per derivation, which is linear. At two branches, *n* independent
 uncertainties give 2ⁿ combinations and the objection returns intact.
 
-> **The first branch is free and every branch after it is exponential.** Which is exactly why the
-> second must be earned.
+>**The first branch is free and every branch after it is exponential.** Which is exactly why the
+>second must be earned.
 
 Two things this costs that were not obvious, and they are the same thing twice.
 
@@ -2883,10 +2883,10 @@ corpus stops it, and that it must is a property of self-applying rules rather th
 
 | | (A) an ordinal grade, on the proposition | (B) an ordinal grade, on the entry | (C) a guard node per uncertain fact | (D) modality as a term, crossed by supposing |
 |---|---|---|---|---|
-| not leaking | ❌ *likely* said of no occasion and every occasion at once; the author meant *likely given this support* | ✅ a conclusion drawn in a moment **is** in it | ⚠ the guard says uncertain-in-general, so it leaks like (A), more loudly | ✅ the wrapper is part of what was claimed |
-| not lossy | ❌ a number with no premise | ✅ the support survives | ⚠ says *that* it is uncertain, not on whose word | ✅ the nest records **which** premise was weak, which `min` discards |
-| readable | ⚠ readable and stale | ⚠ **readable by a program and not by a rule** — the defect that decided it | ⚠ two shapes for every consumer | ✅ an ordinary proposition; *which beliefs are merely likely* is an ordinary query |
-| composable | ❌ two tagged facts combine to *what?* | ⚠ composes by an arithmetic no rule authored | ❌ every consumer handles guarded and bare | ✅ composes by nesting, and the collapse table is a corpus's claim |
+| not leaking | ❌ *likely* said of no occasion and every occasion at once; the author meant *likely given this support* | ✅ a conclusion drawn in a moment **is** in it | the guard says uncertain-in-general, so it leaks like (A), more loudly | ✅ the wrapper is part of what was claimed |
+| not lossy | ❌ a number with no premise | ✅ the support survives | says *that* it is uncertain, not on whose word | ✅ the nest records **which** premise was weak, which `min` discards |
+| readable | readable and stale | **readable by a program and not by a rule** — the defect that decided it | two shapes for every consumer | ✅ an ordinary proposition; *which beliefs are merely likely* is an ordinary query |
+| composable | ❌ two tagged facts combine to *what?* | composes by an arithmetic no rule authored | ❌ every consumer handles guarded and bare | ✅ composes by nesting, and the collapse table is a corpus's claim |
 
 (B) is the interesting column, because it is the one that was chosen and then removed. It scores well
 on three criteria and fails on the one that turned out to matter, and the failure is not visible in a
@@ -2938,17 +2938,17 @@ rule <rise-means> = implies( { +rises(?q), +before(?q, ?v0), +after(?q, ?v1) },
                              { +greater(?v1, ?v0) } )
 ```
 
-⭐ **The definition needs no locus, and that is what makes it work today.** Before and after are
+**The definition needs no locus, and that is what makes it work today.** Before and after are
 **values** — members of a proposition — not moments. So nothing has to relate two loci, the skeleton
 never comes into it, and this runs on the engine as it stands. Measured: the term is held, the level
 is invalidated, and the definition derives `greater(cm7, cm2)`.
 
 | | (A) a fourth sign, `↑` | (B) a fact about the entry, `rises(<e>)` | (C) a wrapping proposition, defined in the KB |
 |---|---|---|---|
-| not leaking | ❌ a closed class that must grow with every domain verb; and the floor would mention reality | ⚠ one hop from the proposition, so a rule wanting *the level is higher* reasons about an entry instead | ✅ the direction is part of what was claimed, at the locus it was claimed about |
-| not lossy | ⚠ direction only; *what it means* is nowhere | ⚠ same | ✅ the definition is in the corpus, so *what does rises mean here* is a query |
+| not leaking | ❌ a closed class that must grow with every domain verb; and the floor would mention reality | one hop from the proposition, so a rule wanting *the level is higher* reasons about an entry instead | ✅ the direction is part of what was claimed, at the locus it was claimed about |
+| not lossy | direction only; *what it means* is nowhere | same | ✅ the definition is in the corpus, so *what does rises mean here* is a query |
 | readable | ❌ no rule can name a sign | ✅ ordinary matching | ✅ ordinary matching, and it nests — `likely(rises(level(g)))` is well-formed |
-| composable | ❌ every consumer must handle a growing sign set | ⚠ two corpora attach different facts to one entry | ✅ two corpora may define `rises` differently, and they can disagree in the ordinary way |
+| composable | ❌ every consumer must handle a growing sign set | two corpora attach different facts to one entry | ✅ two corpora may define `rises` differently, and they can disagree in the ordinary way |
 
 **What this does not settle**, and it splits cleanly into two halves this design tracks separately.
 The **magnitude** — *by an unknown amount* — is §22's constrained-not-bound value, and the wrapper
@@ -2957,18 +2957,18 @@ constrained but not bound, and the question arises only when something asks, whi
 criterion below. The **moments reading**, where before and after are meant as loci rather than values,
 is a different matter and needs §12's skeleton or the narrower substitute §22 records.
 
-> **Three separate gaps sit behind one English verb, and holding the verb as a term is what tells them
-> apart.** Direction is expressible now; the expansion across two moments is not; the amount is not.
+>**Three separate gaps sit behind one English verb, and holding the verb as a term is what tells them
+>apart.** Direction is expressible now; the expansion across two moments is not; the amount is not.
 
 ### Superseded, not invalidated
 
 If a stored strength is a cache, is a stored derived *fact* not also a cache? No — and the difference
 is the reason the whole design is dated.
 
-> **A dated derived fact needs no invalidation.** At `M7` the agent recognised that they were taking
-> turns. At `M12` something writes the opposite. The `M7` entry stays true **of `M7`**. Nothing is
-> retracted, nothing propagates, and *are they taking turns?* resolves through the chain to the most
-> recent entry.
+>**A dated derived fact needs no invalidation.** At `M7` the agent recognised that they were taking
+>turns. At `M12` something writes the opposite. The `M7` entry stays true **of `M7`**. Nothing is
+>retracted, nothing propagates, and *are they taking turns?* resolves through the chain to the most
+>recent entry.
 
 The demanding case is not the world changing but the agent changing its mind about a time that has
 already passed — *at `M12` I conclude they were not taking turns at `M7` after all*. That is a second
@@ -2985,8 +2985,8 @@ two indices, not of writes always landing at now.**
 
 One line covers modality and recognition together:
 
-> **Store it on the entry — dated, signed, attributed, superseded.
-> Never on the node — timeless, and therefore requiring invalidation.**
+>**Store it on the entry — dated, signed, attributed, superseded.
+>Never on the node — timeless, and therefore requiring invalidation.**
 
 ### Losing your reason is not acquiring a counter-reason
 
@@ -2994,9 +2994,9 @@ The dating above says nothing about what happens when the *support* of a conclus
 source discredited, a binding withdrawn, a premise denied. The machinery's temptation is to retract,
 and it must not.
 
-> **A discredited source does not make what it told you false; it leaves you without a reason, which
-> is a different state and the one you can act on.** An engine depositing `−p` here asserts something
-> nothing justified.
+>**A discredited source does not make what it told you false; it leaves you without a reason, which
+>is a different state and the one you can act on.** An engine depositing `−p` here asserts something
+>nothing justified.
 
 So what ships is an **occasion**, and the reaction is a corpus's:
 
@@ -3009,14 +3009,14 @@ unsupported(p)                 the answer, deposited only when nothing does
 There are at least four sensible reactions and the design picks none of them: `{+unsupported(?p)} ⟹`
 `{−?p}`, or `{+goal(?p)}`, or `{+doing(ask(?p))}`, or nothing at all.
 
-⚠ **Asked, never volunteered** — `blocked`'s reason exactly (§5). A proposition may rest on several
+**Asked, never volunteered** — `blocked`'s reason exactly (§5). A proposition may rest on several
 things, so one withdrawal says nothing until the rest are looked at. Legitimate at `quiet`, a lie
 before it.
 
-⚠ **Unsupported and false differ in both directions.** A denied *fact* is not unsupported: it was
+**Unsupported and false differ in both directions.** A denied *fact* is not unsupported: it was
 asserted, so it never had a reason to lose.
 
-⚠⚠⚠ **And this composes with binding revision only because a hole was closed.** Answering *is this
+**And this composes with binding revision only because a hole was closed.** Answering *is this
 subgoal already satisfied* built its environment by **reading** a plan's bindings and never consuming
 them — so a conclusion that relied on *which tap* did not rest on the entry that said which tap. R5
 says every entry has a licence; §12 says a conclusion is no stronger than what match consumed. Both
@@ -3038,7 +3038,7 @@ not. Everything spent so far:
 Everything added since — type, sign, licence, time, authority, span, commitment, modality — is a
 **member of a node**, and cost no dimension.
 
-> **You run out of dimensions only if you try to say something that is not about anything.**
+>**You run out of dimensions only if you try to say something that is not about anything.**
 
 If a candidate distinction can be phrased as *X stands in relation R to Y*, it is structure, and
 structure is nodes. Order is the one thing that genuinely cannot be, which is why the substrate
@@ -3085,7 +3085,7 @@ It buys nothing, and costs four things:
 | `+on(?x, ?y)` in the antecedent | walk the chain for entries naming that proposition; return those signed `+` |
 | `+boiling(?w)` in the consequent | mint the entry; stamp locus, licence and source from the frame and this application |
 
-> **The rule's members are what the author knows. The entry's members are what the application knows.**
+>**The rule's members are what the author knows. The entry's members are what the application knows.**
 
 Locus, licence and source do not exist until the rule runs. That is the whole split.
 
@@ -3094,7 +3094,7 @@ Locus, licence and source do not exist until the rule runs. That is the whole sp
 | not leaking | ❌ explanations show the rewrite, not the rule | ❌ an author supplying a deposit stamp can date a claim to when it was not held | ✅ every entry is stamped by the write that made it |
 | not lossy | ❌ two shapes; *why* must un-augment | ✅ | ✅ |
 | readable | ❌ three times the plumbing per rule | ❌ every rule is plumbing | ✅ the rule reads as written |
-| composable | ❌ resolution policy frozen at augmentation time | ⚠ | ✅ resolution can change without touching a rule |
+| composable | ❌ resolution policy frozen at augmentation time | | ✅ resolution can change without touching a rule |
 
 (A) additionally cannot be written at all, per the indexical above.
 
@@ -3106,7 +3106,7 @@ support trail load-bearing for what the agent learns and §16 for what it is wil
 
 The requirement that follows is narrower than it first appears:
 
-> **No write bypasses the stamp.**
+>**No write bypasses the stamp.**
 
 *Only the machinery may write entries* is one way to achieve that, and it is stronger than necessary.
 What must be impossible is an entry whose provenance is **absent or false**. What need not be
@@ -3143,9 +3143,9 @@ because a rule is generic and each of these needs something a generic rule canno
 | **enter** | the register, inward | entering a frame moves the register (§4 item 3) |
 | **adopt** | a rule, inward | §20 — a rule becoming live is not a question, it is an act |
 
-> **A door is not a question.** Doors are distinguished from the *answerers* of the next section
-> precisely by having no verdict to reach: what decides that a rule is worth adopting, or an intent
-> worth emitting, is a corpus concluding it. What happens then is not a judgement.
+>**A door is not a question.** Doors are distinguished from the *answerers* of the next section
+>precisely by having no verdict to reach: what decides that a rule is worth adopting, or an intent
+>worth emitting, is a corpus concluding it. What happens then is not a judgement.
 
 The **norm veto** is at the same place and is not a door: it refuses (§19). And dispatch is at the
 write rather than polled once a tick, because that is what keeps a supposed act inside the agent
@@ -3165,7 +3165,7 @@ is as contestable as ever, which is what §12's `by(<R>, boss)` and `overrides(<
 Fusing the two would make authority unforgeable by fiat, so that anyone reaching the right socket
 would thereby be the boss.
 
-⭐ **Splitting a phase shrinks it rather than relocating it**, and intake is the demonstration: the
+**Splitting a phase shrinks it rather than relocating it**, and intake is the demonstration: the
 boundary became the smallest unarguable record — `arrived(channel, proposition, sign)`, sourced to the
 channel — and *what a report means* became a rule. Provenance landed where this section says it
 should: the raw arrival unforgeable, the saying above it derived and arguable.
@@ -3199,7 +3199,7 @@ record, which this section calls **unforgeable**, has been turned into a hedge b
 nothing to do with, and the plain record is unreadable at the agent's own seat. That was true of the
 implementation until it was measured.
 
-> **A channel delivers to the agent, not to the agent's current hypothesis.**
+>**A channel delivers to the agent, not to the agent's current hypothesis.**
 
 Two things follow, and the second is the one worth stating as a rule.
 
@@ -3218,8 +3218,8 @@ afterwards is on the other branch, waiting at the seat the agent returns to.
 
 That gives the whole of what the gate does:
 
-> **Proposition and sign come from the rule. Locus, licence, source and deposit come from the frame
-> and the clock. A rule may not name the second four.**
+>**Proposition and sign come from the rule. Locus, licence, source and deposit come from the frame
+>and the clock. A rule may not name the second four.**
 
 | stamped | taken from |
 |---|---|
@@ -3233,7 +3233,7 @@ A frame is `frame(seat, topic)` — a node with two ordered members, structurall
 is the current frame. That is a pointer, not a vocabulary item, and it is the only privileged thing
 here.
 
-> **The machinery is written in the language it interprets. Only the register is privileged.**
+>**The machinery is written in the language it interprets. Only the register is privileged.**
 
 Two properties fall out rather than being enforced. **Hypothetical containment is structural** — a
 conclusion drawn inside a supposition cannot land outside it, because the locus was never the rule's to
@@ -3254,7 +3254,7 @@ about the past happens at all, and it is auditable precisely because the move is
 
 One requirement is load-bearing:
 
-> **Reading never moves the seat. Inspecting a frame is not entering it.**
+>**Reading never moves the seat. Inspecting a frame is not entering it.**
 
 Otherwise weighing two hypotheses would adopt both.
 
@@ -3272,7 +3272,7 @@ or abandoned.
 
 What does a conclusion look like on the way out? It does not come out.
 
-> **Conclusions stay at their locus. What crosses is a claim *about* the frame, made outside it.**
+>**Conclusions stay at their locus. What crosses is a claim *about* the frame, made outside it.**
 
 Copying a conclusion out and re-qualifying it is the alternative, and it fails on this design's own
 terms: it makes one fact exist in two shapes, which is the objection to augmentation above, and it
@@ -3302,7 +3302,7 @@ origins. The discriminating case is deliberately *not* that the rivals disagree:
 diagnoses apart is a prediction only one of them makes, so the comparison is a join over a shared
 conclusion and a distinguishing one.
 
-⚠ It records that the frame **reached** the conclusion, not that the conclusion is true, so it is
+It records that the frame **reached** the conclusion, not that the conclusion is true, so it is
 deposited `+` whatever the conclusion's own sign was. And it is bookkeeping, so a nested frame does
 not carry `likely(concluded(...))` out — a record of the machinery's own event is not a claim about
 the world for a wrapper to qualify.
@@ -3325,9 +3325,9 @@ is not the end of the run but the end of the supposition. Three things followed 
 keeps control between every step, the supposition's own reasoning appears in the caller's trace, and
 the depth budget stopped being a second, nested budget.
 
-> **A convention hidden in vocabulary is easy to see and cheap to move; a convention hidden in
-> control flow is invisible and expensive.** The name census counts names, and names were the easy
-> half.
+>**A convention hidden in vocabulary is easy to see and cheap to move; a convention hidden in
+>control flow is invisible and expensive.** The name census counts names, and names were the easy
+>half.
 
 ### Costs
 
@@ -3354,7 +3354,7 @@ Under §5's test every name here is a convention.
 
 ### Surprise is a match
 
-> **Surprise is a match.** It is an *expected* entry and an *observed* entry that disagree.
+>**Surprise is a match.** It is an *expected* entry and an *observed* entry that disagree.
 
 That is the entire mechanism, and it is the sharpest illustration of R7. If the agent's expectations
 live in interpreter variables, an expectation is unmatched not because the rule is weak but because
@@ -3390,7 +3390,7 @@ selectable — which is why they can be preempted and an interpreter's cannot.
 what the agent was doing — which is possible only because *continue what you were doing* was itself a
 selectable rule. That is exactly what a stack frame is not.
 
-⚠ **And noticing a deviation is four rules, not one comparison.** Two expected signs against the two
+**And noticing a deviation is four rules, not one comparison.** Two expected signs against the two
 ways an observation can contradict one: the opposite sign, and `?`. As a single comparison, the
 machinery was quietly asserting that §9's *invalidated, and I cannot say what replaced it*
 disappoints an expectation exactly as much as the opposite outcome does. That is a real claim, it may
@@ -3428,7 +3428,7 @@ Nothing in the design retracts the rule that produced it, so something must outr
 is authored, which is the point — a strategy defeated by a statement in the knowledge base rather than
 by an interpreter.
 
-⚠⚠ **And starvation is not only the surprise rule's problem.** A rule that would *settle* a conflict
+**And starvation is not only the surprise rule's problem.** A rule that would *settle* a conflict
 can be starved by the conflict it would settle: `hot`, `cold`, `hot`, `cold`, and the referee never
 gets a turn. That is the same shape from a third side (§20), and it takes the same answer — `standing`,
 the claim that a rule must always be considered.
@@ -3453,7 +3453,7 @@ their bindings cannot be lined up. So there are two intents and one relation can
 **Evidence is the comparison because it is the only honest one available**: the trail already records
 what each application matched, since R5 needs it, so nothing is measured that was not already kept.
 
-⚠ **Both are narrower than they look, and §20 is where that bites.** `overrides` is per tick *and* per
+**Both are narrower than they look, and §20 is where that bites.** `overrides` is per tick *and* per
 rule, so one instance of the losing situation suppresses the loser about **everything**. `supersedes`
 requires a shared consumed entry, and two rules reaching one conclusion from different premises share
 none. A conflict that is neither of those two shapes is not a case for a third relation — it is a case
@@ -3465,7 +3465,7 @@ Whatever else it is, `overrides(A, B)` is a **claim**. It is authored, it is abo
 must be as dated, deniable and arguable as anything else in the graph. That has one consequence which
 this design got wrong for a long time and which is worth stating as a rule:
 
-> **Precedence is read from the graph at the position the agent is standing. It is not kept anywhere.**
+>**Precedence is read from the graph at the position the agent is standing. It is not kept anywhere.**
 
 The alternative — a table, seeded once from the surface — fails in three ways, and only the third was
 predicted:
@@ -3485,7 +3485,7 @@ wrong. What went with it: a write hook, a re-scan on adoption, two seeder method
 method — and, one commit after it was written, the whole *maintenance* problem those hooks existed to
 solve.
 
-⭐ **And the only thing that broke was a fixture reaching into the table** rather than depositing a
+**And the only thing that broke was a fixture reaching into the table** rather than depositing a
 fact. That is the whole answer to *was it debt*: the table was the anomaly, and the check that touched
 it was the only thing that noticed.
 
@@ -3499,7 +3499,7 @@ A procedure is a committed order, and a committed order is precisely the thing t
 preempted midway: if *to find an answer, look for causes* is control flow, step three owns the agent
 until it returns.
 
-> **Procedures exist, but as data that biases selection — never as control flow that owns the loop.**
+>**Procedures exist, but as data that biases selection — never as control flow that owns the loop.**
 
 `committed(?proc, step_3)` is an entry in the current moment that raises the precedence of continuing.
 It does not remove the alternatives. So commitment is real — the agent does not dither — it stays
@@ -3525,13 +3525,13 @@ tried.**
 excluded(<plan>, ?v, x)     not that one
 ```
 
-⚠⚠⚠ **Both halves are needed, and either alone is worse than neither.** Measured on two viable taps:
+**Both halves are needed, and either alone is worse than neither.** Measured on two viable taps:
 
 | | result | |
 |---|---|---|
 | nothing reconsidered | the first tap | quiescent |
 | **exclude only** | the first tap | **inert** — the surviving binding pins the variable before the exclusion is consulted |
-| **deny the binding only** | the first tap, ×270 | ⚠⚠⚠ **runaway** — the same candidate chosen and denied forever |
+| **deny the binding only** | the first tap, ×270 | **runaway** — the same candidate chosen and denied forever |
 | **both** | the first tap → **the second** | quiescent, and the goal reached |
 
 The runaway is §19's re-ask criterion in a third place — *an occasion warrants a re-ask only if
@@ -3550,7 +3550,7 @@ of a frame**. A request to suppose is not a claim about the world, so there is n
 wrapper to qualify — and carrying one out produces `likely(suppose(...))`, which the rule that crosses
 guards then crosses, so the machinery supposes its own bookkeeping without end.
 
-⚠ **One request is deliberately exempt, and the exemption is the point.** `doing` is *not* treated as
+**One request is deliberately exempt, and the exemption is the point.** `doing` is *not* treated as
 bookkeeping, though every other request is. *What I would do under this hypothesis* is the one thing
 such a hypothesis is for; treated as bookkeeping, an agent that supposed a premise and found it would
 fire a missile came back knowing nothing at all. A wrapped intent is a claim, not an intent, and no
@@ -3565,7 +3565,7 @@ Measured: supposing a premise whose rule concludes `+doing(fire(missile))` **fir
 a leak in the chain — the conclusion stayed inside the frame and crossed out wrapped, exactly as §17
 promises. The **boundary** was ignoring the register.
 
-> **§17's *nothing leaves a frame* was a claim about the chain. Effects are not in the chain.**
+>**§17's *nothing leaves a frame* was a claim about the chain. Effects are not in the chain.**
 
 The repair is a condition and not a phase: the boundary asks whether any frame on the path to the root
 was entered by supposing, which the forest already records.
@@ -3574,8 +3574,8 @@ was entered by supposing, which the forest already records.
 *past* its actions — the second step follows from the first having worked — so an agent that merely
 refuses to act inside a hypothesis cannot plan at all: its plan dies at its first action.
 
-> **Acting comes out as a conclusion — a decision to act. What planning needs from that conclusion is
-> the action's assumed outcome, not its occurrence.**
+>**Acting comes out as a conclusion — a decision to act. What planning needs from that conclusion is
+>the action's assumed outcome, not its occurrence.**
 
 So the boundary deposits the same record under a different name. Really acting writes `emitted(x)`;
 deciding to act while supposing writes `taken(x)`. Both mean *this act is on the record*, and one row
@@ -3594,7 +3594,7 @@ One rule, one fact per action — operator semantics, as data. Whether the actio
 asserted is then a precedence claim, and pointing one at that pair is what exposed the `overrides` /
 `supersedes` split above.
 
-⭐ Note which half is defeasible. That an act *was decided on* is unarguable — the agent concluded it.
+Note which half is defeasible. That an act *was decided on* is unarguable — the agent concluded it.
 That it *succeeded* is `<assert-act>`, an ordinary rule.
 
 ### Strategies are defeasible
@@ -3609,7 +3609,7 @@ Because that is a rule, `overrides(<M>, <M2>)` and `unless(<M>, +domain(?f, soci
 overridden by a statement in the knowledge base, and that asymmetry — not interruptibility — is the
 larger cost of putting machinery outside the world the agent reasons about.
 
-⚠ **This depended on something the design assumed and did not provide:** a corpus could not *name* a
+**This depended on something the design assumed and did not provide:** a corpus could not *name* a
 bundled rule. Every place this document says *a corpus can override this* was untrue until the
 bundle's names were in the same table a corpus writes into.
 
@@ -3622,7 +3622,7 @@ point either receives a meta-answer or falls through to §4's total step, so no 
 Arbitration is the one that is easy to get wrong. A meta-rule that decides which rule to apply must
 itself be selected, and that regress happens *at run time*, not at design time. Therefore:
 
-> **The bottom-most arbitrator is a lookup that always returns and never searches.**
+>**The bottom-most arbitrator is a lookup that always returns and never searches.**
 
 Reflection may be arbitrarily deep; the final tiebreak may not be reflective. That is the
 stratification condition for *selection*, and it is the same shape as §6's stratum 0 for *reading* and
@@ -3633,9 +3633,9 @@ stratification condition for *selection*, and it is the same shape as §6's stra
 | | (A) strategy and continuation in the engine | (B) all rules, no floor | (C) rules + §4's floor + a total step |
 |---|---|---|---|
 | not leaking | ❌ engine decisions have no premise and appear in no explanation | ❌ regress; never grounds | ✅ every step cites its rule; the floor is five named things, none about reality |
-| not lossy | ❌ *why did you stop?* has no answer | ⚠ | ✅ deposits, commitments and abandonments are all entries |
+| not lossy | ❌ *why did you stop?* has no answer | | ✅ deposits, commitments and abandonments are all entries |
 | readable | ❌ strategy invisible to a query, undefeatable by data | ✅ | ✅ *which strategies are about explanation?* is a query |
-| composable | ❌ two authors cannot add a strategy | ⚠ meta-rules cannot be ordered | ✅ new strategy means new rules; ordering means precedence |
+| composable | ❌ two authors cannot add a strategy | meta-rules cannot be ordered | ✅ new strategy means new rules; ordering means precedence |
 
 **(C)'s price, named:** every step costs a selection, and a badly authored precedence produces
 dithering that reads as a bug in the rules rather than in the ordering. Both are measurable —
@@ -3688,7 +3688,7 @@ Two structural reasons, neither of which is an appeal to cognitive plausibility:
 Once recall may miss, **"no rule applies" is ambiguous**: either nothing applies, or nothing came to
 mind. That is §9's distinction between *absent* and *no entry*, one level up.
 
-> **Recall returns a set plus a state, never a set.**
+>**Recall returns a set plus a state, never a set.**
 
 The state is cheap to compute from the wrong thing (*did I find anything?*) and expensive from the
 right thing (*is this situation familiar?*). Unfamiliar-and-empty is a different event from
@@ -3715,10 +3715,10 @@ applications to **8** — one per goal. It is exact rather than heuristic: a rul
 goal is in the bucket, and one that could not was never a candidate. The only rules deliberately
 absent are those whose consequent is a bare variable, which §12 calls vacuous backwards.
 
-> **Index, then prefer, then learn.** An index makes the candidate set small and costs nothing in
-> completeness. Preference orders what is left, and may be wrong at the price of a worse move.
-> Experience improves the preference. Doing them in the other order builds a ranking over an
-> enumeration, which is the thing being complained about with a sort in front of it.
+>**Index, then prefer, then learn.** An index makes the candidate set small and costs nothing in
+>completeness. Preference orders what is left, and may be wrong at the price of a worse move.
+>Experience improves the preference. Doing them in the other order builds a ranking over an
+>enumeration, which is the thing being complained about with a sort in front of it.
 
 ### What recall is keyed by
 
@@ -3744,13 +3744,13 @@ narrowed recall could reach `quiet`, the agent would report *no rule fits* about
 and the trail would show a completed search that never ran. So quiescence under a budget escalates to
 the exhaustive pass first, and only its silence counts.
 
-> **Nothing came to mind is not nothing is left to do.** Only the second should escalate outward; the
-> first escalates inward, to recalling harder.
+>**Nothing came to mind is not nothing is left to do.** Only the second should escalate outward; the
+>first escalates inward, to recalling harder.
 
 The same move covers facts as well as rules: a search that never looked at what it had put out of mind
 has not finished either.
 
-⭐ **And putting a domain out of mind is the strongest single lever measured in this design** — one
+**And putting a domain out of mind is the strongest single lever measured in this design** — one
 corpus line claiming a domain `dormant` gave 14.5×, because it removes work rather than reordering it.
 That is the general rule stated below arriving as a number.
 
@@ -3769,8 +3769,8 @@ explanation a surprise produced. Recall learns from its own outputs that survive
 
 That has one failure mode which must be designed against rather than discovered:
 
-> **Training recall on its own accepted outputs narrows it monotonically.** A rule that never
-> surfaces is never applied, never reinforced, and becomes permanently invisible.
+>**Training recall on its own accepted outputs narrows it monotonically.** A rule that never
+>surfaces is never applied, never reinforced, and becomes permanently invisible.
 
 The exhaustive pass is therefore **not a fallback**. It is the only thing that injects candidates
 recall would never have produced, so it must fire on novelty or on a schedule — not only on impasse.
@@ -3818,7 +3818,7 @@ argument index is what addresses the other half.
 forward chain — cannot measure recall at any *n*, because only a handful of rules match per tick and
 an indexed non-match is nearly free. Scale is not the requirement; **selectivity** is.
 
-> **A benchmark that cannot fail is worse than none, because it reads as evidence.**
+>**A benchmark that cannot fail is worse than none, because it reads as evidence.**
 
 ### What recall is worth, and what has to exist before it is worth anything
 
@@ -3831,13 +3831,13 @@ An **ideal** table — authored, naming exactly the rules the goal's chain needs
 And on the same run it saved **nothing at all**, because the loop went to quiescence and did every
 domain anyway. That is the finding, and it is about the machine rather than about recall:
 
-> **Recall cannot save work in a machine that runs to quiescence.** Narrowing changes the *order* in
-> which everything is done, not how much is done. Only an agent that can **stop** collects the prize.
+>**Recall cannot save work in a machine that runs to quiescence.** Narrowing changes the *order* in
+>which everything is done, not how much is done. Only an agent that can **stop** collects the prize.
 
 That fixed the order of work — an agent that can stop, then recall worth narrowing, then experience
 worth learning — and the account of stopping follows.
 
-⚠ **And the headline needs a correction which is itself the finding.** The *8 instead of 734* was
+**And the headline needs a correction which is itself the finding.** The *8 instead of 734* was
 measured with a budget that also switched the apparatus off. Carve the apparatus back in — which
 stopping requires — and the table's steering disappears behind the apparatus's authored precedence,
 which decides the early ticks regardless of what recall proposed. Until that is addressed, this
@@ -3874,10 +3874,10 @@ Four decisions, each forced rather than chosen.
 **It is read before the tick's work, not after.** Arbitration is total, so by the time an application
 has been chosen the move is made.
 
-> **Being careful has to come before the move it is about.** This is an ordering trap that has now
-> decided four separate designs: where `enough` is read, where doubt is recorded, where passing-up is
-> deposited, and — in a fixture rather than in the engine — which of two rules keyed on one occasion
-> answers first.
+>**Being careful has to come before the move it is about.** This is an ordering trap that has now
+>decided four separate designs: where `enough` is read, where doubt is recorded, where passing-up is
+>deposited, and — in a fixture rather than in the engine — which of two rules keyed on one occasion
+>answers first.
 
 **It routes to leaving a frame first, so a frame is where it lands.** `enough` concluded inside a
 hypothesis ends the *branch*, not the run, because a frame is already the unit of work that can be
@@ -3909,8 +3909,8 @@ nor blocked nor pursued, and nothing anywhere recording that it had been open.**
 The obvious repair is a rule — *if I still have a question to ask, there is more worth doing* — and it
 is the wrong repair:
 
-> Recall may be incomplete about what to do. It may not be incomplete about what you must not do, or
-> about whether to go on, or about **a goal it is dropping**.
+>Recall may be incomplete about what to do. It may not be incomplete about what you must not do, or
+>about whether to go on, or about **a goal it is dropping**.
 
 A corpus may be wrong about what is worth doing next. It may not silently abandon what it was asked
 for. So it is a **veto**: consulted before the stop is made, never proposed, never arbitrated, and
@@ -3962,7 +3962,7 @@ and nothing polls. Worth noting what the agent asked about: not the goal it was 
 subgoal backward reading had worked out it was missing. Nothing arranged that, and no rule in the
 corpus named it.
 
-> **The loop may end. It may not end quietly on something it was asked for.**
+>**The loop may end. It may not end quietly on something it was asked for.**
 
 ### Arbitration is scheduling, not decision
 
@@ -3985,8 +3985,8 @@ emitted: ['fill(kettle)', 'smash(jug1)']
 * **Credit reinforces the mistake.** An outcome-based signal over an agent that cannot forgo will
   learn to prefer whatever was on the winning path, including what it should have declined.
 
-> **A choice that cannot be forgone is not a choice.** The design has a way to stop and no way to
-> *forgo* — and in an agent that acts, choosing is forgoing.
+>**A choice that cannot be forgone is not a choice.** The design has a way to stop and no way to
+>*forgo* — and in an agent that acts, choosing is forgoing.
 
 ### Taking one way of getting something passes up the others
 
@@ -4030,7 +4030,7 @@ a **consequence rather than as machinery**, and it needs three things to meet th
 something else: `enough` makes the agent try to stop, the veto refuses the stop and deposits `open`,
 and this reads it.
 
-⚠ **The apparatus is exempt on both sides.** Nearly every bundled rule consumes `goal(?w)`, so without
+**The apparatus is exempt on both sides.** Nearly every bundled rule consumes `goal(?w)`, so without
 the exemption, applying any rule would forgo backward reading entire — measured, by removing it.
 
 ### Choosing the better move
@@ -4050,7 +4050,7 @@ Where the preference is consulted was decided by two failures.
 **A preference must order, not exclude.** Used to filter recall, goal-relevance starved the most
 useful rule in a corpus — one that does not fit the goal at all.
 
-> **Relevance to a goal is one signal, and as a filter it is silent about everything it is not about.**
+>**Relevance to a goal is one signal, and as a filter it is silent about everything it is not about.**
 
 **The apparatus is not a competitor.** Let loose over every rule, preference outranked the rules that
 notice a surprise, and the agent went on pursuing a goal while a channel was telling it the world had
@@ -4081,8 +4081,8 @@ The strength is the table's own, and **cardinal**: a row scores how much this si
 this rule, and the scores of applicable rows are summed. Candidacy scores 1, the least anything can be
 worth, so whatever experience has actually learned outranks it and two mere candidates tie.
 
-> **Two rules are close when their scores differ by no more than the tolerance.** Confidence is a gap
-> wide enough to rely on.
+>**Two rules are close when their scores differ by no more than the tolerance.** Confidence is a gap
+>wide enough to rely on.
 
 **What counts as close is a knob, so it is a fact.** `tolerance(2)` says a gap of two or less is not a
 difference the agent will rely on; zero unless claimed, so the default is an exact tie and no
@@ -4106,10 +4106,10 @@ wrapping proposition, composed by nesting. `+prefer(<R>, k, 3)` about a merely `
 So doubt is deposited — `close(<R1>, <R2>)`, pairwise so the arity is fixed — and nothing more. What to
 do when unsure is a claim about how to reason, which makes it rules.
 
-⚠ **A tie among the apparatus is not doubt.** `standing` rules have an authored precedence which *is*
+**A tie among the apparatus is not doubt.** `standing` rules have an authored precedence which *is*
 the answer, and recording those ties buried the real cases in spurious pairs.
 
-⚠ **Arbitration is total, so the move is already made when the doubt is recorded.** Acting on doubt
+**Arbitration is total, so the move is already made when the doubt is recorded.** Acting on doubt
 *before* committing would require a step that can be deferred, and every mechanism this design has for
 deferring is the same unbuilt thing: nothing says when a line of reasoning is finished enough to act
 on.
@@ -4127,9 +4127,9 @@ hand-authored ceiling. Where each choice is actually decided, measured over one 
 | won by a domain rule | 4 — and preference already decided all four |
 | won by **authored order**, no reason at all | **19** |
 
-> **Experience has almost nothing to decide, because the apparatus wins most of the agent's choices —
-> and the apparatus is deliberately unrankable.** `standing` flattens every bundled rule to one rank,
-> so their mutual precedence is install order.
+>**Experience has almost nothing to decide, because the apparatus wins most of the agent's choices —
+>and the apparatus is deliberately unrankable.** `standing` flattens every bundled rule to one rank,
+>so their mutual precedence is install order.
 
 *The apparatus's order is authored on purpose* is true of the pairs anyone thought about — read before
 acting, notice before continuing — and **incidental for most of them**. Two thirds of every choice
@@ -4139,10 +4139,10 @@ The first repair proposed was to let preference order *within* the standing tier
 and **does not pay**: it changed the sequence of applications without changing the count of them, the
 ticks, or the writes. The reason generalises:
 
-> **The apparatus is a dependency chain, so permuting it cannot shorten it.** Narrowing changes the
-> order and not the amount — as true of arbitration as of recall. **Ordering pays only where some of
-> the work is avoidable**, which is why putting a domain out of mind gave 14.5× and reordering gave
-> nothing.
+>**The apparatus is a dependency chain, so permuting it cannot shorten it.** Narrowing changes the
+>order and not the amount — as true of arbitration as of recall. **Ordering pays only where some of
+>the work is avoidable**, which is why putting a domain out of mind gave 14.5× and reordering gave
+>nothing.
 
 ### Recall may not be incomplete about whether to go on
 
@@ -4159,7 +4159,7 @@ apparatus. **Inclusion is a different claim from ordering**, and only the first 
 cost is stated rather than hidden: a corpus that marks fifty rules `standing` has no budget left, and
 that is its own claim about what must always come to mind.
 
-⚠ **`goal` does not distinguish a root goal from a subgoal**, so the general stop rule is not writable.
+**`goal` does not distinguish a root goal from a subgoal**, so the general stop rule is not writable.
 `{ +goal(?w), +?w } ⟹ { +enough(?w) }` reads as *what I wanted holds, so I am done* and is unsound,
 because expansion writes `+goal(sub)` for every subgoal it derives — measured, the agent stops at tick
 51 of a run whose goal arrives at 57. A root goal is a `goal(?w)` with no `subgoal(?p, ?w)`, a negative
@@ -4186,11 +4186,11 @@ Measured against the smallest fixture that can tell a goal-serving rule from a u
 
 Three things follow, and the first is the one worth carrying.
 
-> ⭐ **The key is not a subset of what is asserted.** Nothing ever claims `nearer(a)`; what is claimed
-> is `goal(nearer(a))`. So a pass over every proposition and every relation in the state — strictly
-> *more* information than the shipped key — still misses the node the preference is keyed on, because
-> the key reaches **inside** a proposition for its argument. More is not nearer, and a sweep is not a
-> substitute for a judgement about what a situation is *about*.
+>**The key is not a subset of what is asserted.** Nothing ever claims `nearer(a)`; what is claimed
+>is `goal(nearer(a))`. So a pass over every proposition and every relation in the state — strictly
+>*more* information than the shipped key — still misses the node the preference is keyed on, because
+>the key reaches **inside** a proposition for its argument. More is not nearer, and a sweep is not a
+>substitute for a judgement about what a situation is *about*.
 
 **The two halves are not one idea, and the split is undeclared.** The goal half decides the case above
 and carries seven of the nine checks; the delta half decides two, both about the recall **budget**.
@@ -4251,21 +4251,21 @@ Backward reading expanded `juice(jug1)` into subgoals, one of which was `intact(
 the *other* branch broke was already a goal, and its loss is on the record. Nobody wrote that subgoal
 down; the machinery produced it, and that is what a task being split buys.
 
-⚠ **Blame needs a denial, not an absence, and that is not fastidiousness.** Most unachieved subgoals
+**Blame needs a denial, not an absence, and that is not fastidiousness.** Most unachieved subgoals
 in a real run are *generic*, produced by expansion and never meant to hold as stated. Counting those
 as failures would blame every rule for every search it ever ran — the same shape as the
 shortlist-that-ran-dry error: mistaking *not reached* for *shown false*.
 
 ### The carve-out
 
-> **Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**
+>**Recall may be incomplete about what to do. It may not be incomplete about what you must not do.**
 
 A prohibition that fails to come to mind is a forbidden act that nothing notices. The repair is not to
 make recall complete for norms — that reintroduces the exhaustive search this policy exists to avoid.
 It is to take prohibitions **off the recall path entirely**: check them at the write, indexed by the
 entries about to be written. That set is small and known, so the check is cheap and exhaustive.
 
-> **A prohibition is a gate on application, not a competitor in recall.**
+>**A prohibition is a gate on application, not a competitor in recall.**
 
 The shape it took is the argument. `forbidden(doing(harm(?x)))` names a class of acts — its argument
 is a **description**, exactly as a reified antecedent names a class of premises. It is never proposed,
@@ -4288,12 +4288,12 @@ Three consequences fall out rather than being arranged:
 * **a norm is still a belief** — resolved at the writer's own position, so it can be denied, dated, or
   held only under a hypothesis. What it cannot do is fail to be consulted.
 
-> **§19 keeps norms out of recall. It never said they were beyond argument.** A rule can retire a norm
-> on evidence, with the trail intact and the refusals it made beforehand still on the record. A norm
-> is unconditionally *consulted* and entirely *contestable*, and those turn out to be different
-> properties.
+>**§19 keeps norms out of recall. It never said they were beyond argument.** A rule can retire a norm
+>on evidence, with the trail intact and the refusals it made beforehand still on the record. A norm
+>is unconditionally *consulted* and entirely *contestable*, and those turn out to be different
+>properties.
 
-⚠ **Naming is not what separated them, and assuming it did was the error.** A rule could always retire
+**Naming is not what separated them, and assuming it did was the error.** A rule could always retire
 a norm without a name, because matching a generic antecedent against a stored **description** treats
 the description's variables as ordinary nodes: `?y` binds to the stored `?x`, and substitution rebuilds
 exactly the node that was written. Naming buys **authoring** — a second surface statement about the
@@ -4354,9 +4354,9 @@ invoke anything. What it can do is say that a rule's **turn** has come —
 — and leave the machinery to propose it. A rule claimed `dormant` is not proposed by ordinary recall;
 one claimed `due` is. The wall turns out to have been protecting something:
 
-> **A callback is directed recall, not invocation.** The woken rule still has to match, can still be
-> defeated, still competes in arbitration, and still yields to a surprise. None of that survives a
-> subroutine call.
+>**A callback is directed recall, not invocation.** The woken rule still has to match, can still be
+>defeated, still competes in arbitration, and still yields to a surprise. None of that survives a
+>subroutine call.
 
 Which is the answer to the obvious objection — that continuations are control flow, and §18 spends its
 length arguing nothing may own the loop. They are not, here. Adding continuations does not weaken
@@ -4371,7 +4371,7 @@ instead of the agent learning it, arriving at exactly the reserved seam.
 | not leaking | ❌ *what runs on return* is control flow, so nothing can override it | ✅ `resume` is a fact, defeasible and attributable like any claim |
 | not lossy | ❌ a call that returned leaves no record it was made | ✅ `left`, `resume`, `due` are all entries; *why did this rule apply?* answers |
 | readable | ❌ | ✅ *which rules is this hypothesis carrying?* is a query over `resume` |
-| composable | ⚠ a callback that calls owns the loop until it returns | ✅ the woken rule is one candidate among others, preemptable between ticks |
+| composable | a callback that calls owns the loop until it returns | ✅ the woken rule is one candidate among others, preemptable between ticks |
 
 Three costs, stated rather than discovered.
 
@@ -4412,7 +4412,7 @@ the agent a second time, because the boundary dedups on the entry rather than on
 
 **And *when* is not free choice**, which is the part worth arguing:
 
-> **An occasion warrants a re-ask only if re-asking cannot produce one.**
+>**An occasion warrants a re-ask only if re-asking cannot produce one.**
 
 Measured, and the author picks the trap or avoids it with one word — §14 has the case. This criterion
 has now been violated in three separate places, and it is stated and **not enforced** (§22).
@@ -4440,9 +4440,9 @@ than by a search, stratum 0's escape from §5's wall. What moves is only where t
 believe or not. An apparatus answerer writes its answer directly. Same door, same trail, different
 standing to speak, because **a tool is outside the agent and the apparatus is the agent**.
 
-⚠⚠⚠ **Deniable is not the same as forgettable, and only two of the six are both.** The criterion:
+**Deniable is not the same as forgettable, and only two of the six are both.** The criterion:
 
-> **A capability whose absence is the status quo ante is safe to retire.**
+>**A capability whose absence is the status quo ante is safe to retire.**
 
 Deny re-asking and each question is asked once; deny the root request and the general stop rule never
 fires. Both are what the agent did before those existed, and both were sound. The other four are this
@@ -4450,13 +4450,13 @@ section's carve-out arriving again — deny `fit` or `check` and backward readin
 and a goal nothing can reach is never reported blocked. So they carry `standing`, and the denial is
 **refused on the record** rather than obeyed.
 
-⚠⚠⚠ **And one of them was in the safe column first, until it was measured.** *Narrowing off means
+**And one of them was in the safe column first, until it was measured.** *Narrowing off means
 exhaustive recall, which is the default* is wrong about which thing the recall answerer does: it is
 not recall's narrowing, it is the **answer to the recall request**, and nothing asks `fit` about
 anything without it. The narrowing lives in the preference table and the budget, which are separately
 deniable and were what the criterion was actually about.
 
-> **A criterion is only as good as knowing what the thing does.**
+>**A criterion is only as good as knowing what the thing does.**
 
 ### Scoring and price
 
@@ -4464,7 +4464,7 @@ deniable and were what the criterion was actually about.
 |---|---|---|
 | not leaking | ❌ an incomplete step reports as authoritative; *nothing applies* asserts more than was checked | ✅ the two silences are distinguishable, and only one escalates |
 | not lossy | ❌ *did you consider R?* is unanswerable | ✅ recalled, matched and rejected are three separate records |
-| readable | ⚠ | ✅ *which rules does this situation bring to mind?* is a query, askable without applying anything |
+| readable | | ✅ *which rules does this situation bring to mind?* is a query, askable without applying anything |
 | composable | ❌ learning and authority contend for one slot | ✅ learned proposal, authored arbitration, no contest |
 
 The price is three records per decision instead of one, and an index that must be maintained as
@@ -4485,8 +4485,8 @@ had, collapsed or reordered.
 
 This section is about the other half, and it is Part III's own claim taken seriously:
 
-> **A rule is a node. So a rule can be the conclusion of a rule.** Nothing new is needed for the
-> agent to author one, and everything already true of rules is true of what it authors.
+>**A rule is a node. So a rule can be the conclusion of a rule.** Nothing new is needed for the
+>agent to author one, and everything already true of rules is true of what it authors.
 
 It is placed last in Part III because it needs all of it. Adopting a rule is a **door** at the write
 (§17). Learning one from examples is a **tool** (§17), for reasons three separate walls enforce.
@@ -4513,23 +4513,23 @@ computed on a real run):
 | defeats asked / true | 19,341 / **22** |
 | distinct pairs that ever fought | **4**, every one authored on purpose |
 
-⭐⭐⭐ **There is not one unplanned conflict in the repository.** A static detector shipped on that
+**There is not one unplanned conflict in the repository.** A static detector shipped on that
 evidence would report 3,545 false positives, one true positive already harmonized, and one test rule.
 **It could not be gated by anything.**
 
-> **A corpus with no pathology cannot measure a detector for it.**
+>**A corpus with no pathology cannot measure a detector for it.**
 
-⚠ **The 3,545 are a fact about the bundle, not noise.** A rule concluding `−?p` — a bare variable — is
+**The 3,545 are a fact about the bundle, not noise.** A rule concluding `−?p` — a bare variable — is
 in latent conflict with every positive rule in every corpus. No filter on the consequent removes that;
 the real discriminator is whether two antecedents can hold at once, which is a join and still only
 says *potential*. **Static pair analysis is the wrong shape to start from.**
 
-⚠ This is **not** evidence that harmonization does not matter. It is evidence that these corpora
+This is **not** evidence that harmonization does not matter. It is evidence that these corpora
 cannot measure it: one author, days, dozens of rules, where the pain being imitated is volume and many
 hands. The census ships so that the deferral stays revisitable — the day the last column is not zero
 is the day a detector can be gated.
 
-⚠⚠ **And the census under-counted 3.5× at first**, because it remembered which machines it had seen by
+**And the census under-counted 3.5× at first**, because it remembered which machines it had seen by
 object identity, and identities are reused the moment an object is collected. It reported **0**
 ungoverned where the answer is 1. The conclusion survived; the numbers it was argued from did not.
 
@@ -4546,11 +4546,11 @@ defeated(<loser>, <winner>)
 What ships is the **occasion** (§19). What to do about a rule that keeps losing — ask its author,
 raise a precedence, mark it dormant — is a corpus's.
 
-⚠ **Written outside the arbitration path**, because §21's arbitration gate re-runs that path against
+**Written outside the arbitration path**, because §21's arbitration gate re-runs that path against
 the same state and its whole legitimacy is that neither side writes. **An instrument that deposits has
 stopped observing.**
 
-⚠ **A defeat is not recorded when arbitration ignored it.** An `overrides` cycle defeats everybody, so
+**A defeat is not recorded when arbitration ignored it.** An `overrides` cycle defeats everybody, so
 the fallback that keeps arbitration total lets everybody through — and then nobody was defeated. And a
 rule that merely **lost** the tick is not defeated either: losing is being deferred, not rejected
 (§19), and recording it would report an ordered rule base as a fighting one.
@@ -4565,7 +4565,7 @@ which is why every amendment to a rule set was a file edit.
 adopt(<R>)
 ```
 
-⭐⭐⭐ **A door, not a question.** It belongs with entering a supposition and dispatching an intent
+**A door, not a question.** It belongs with entering a supposition and dispatching an intent
 (§17) rather than with §19's answerers: dispatch is where an intent leaves the agent, and this is
 where a rule enters it. What decides that a rule is worth having is a corpus concluding `adopt(?r)`;
 what happens then is not a judgement, and there is no verdict for a rule to reach.
@@ -4577,16 +4577,16 @@ everything: **supposing would change what the agent believes**, which is the one
 not do. It is the same argument that keeps a supposed act inside the agent (§18), and it is refused on
 the record, naming the supposition.
 
-⚠ And the refusal is written *inside* the frame, so asking the root whether it holds answers nothing
+And the refusal is written *inside* the frame, so asking the root whether it holds answers nothing
 however well it worked — containment caught the check before the check caught anything.
 
-⚠⚠⚠ **The adopted rule must be the node the graph describes.** Minting a fresh one makes the live rule
+**The adopted rule must be the node the graph describes.** Minting a fresh one makes the live rule
 a **twin** of the described one: everything a corpus had said about the described rule goes to a node
 that is not a rule, and everything the machinery says about the live one names a node no corpus can
 reach. This is the twin trap, and it was found only when a standing policy tried to order a learned
 rule and quietly did nothing.
 
-⚠ **And the author may say it in either order.** Written in the same consequent *before* the adoption,
+**And the author may say it in either order.** Written in the same consequent *before* the adoption,
 a precedence lands while the subject is not yet a rule and the write drops it — so adoption re-reads
 what the graph already says about the rule it is making live. §19's ordering trap again, and here the
 author has no way to see it: both orders read the same on the page.
@@ -4605,17 +4605,17 @@ So the corpus never names the new rule's insides. It reaches them by **binding**
 *reference is binding* arriving where it is load-bearing. Composing a rule is a function, and §17 says
 a request answered by a function is a **tool**.
 
-⭐ That means adoption and *learn from examples* share one seam, which was not planned and is the
+That means adoption and *learn from examples* share one seam, which was not planned and is the
 reason this section is one section.
 
-⚠⚠⚠ **And the tool must build in the corpus's name scope.** Minting a fresh atom for a relation the
+**And the tool must build in the corpus's name scope.** Minting a fresh atom for a relation the
 corpus already uses produces a rule about a **twin** of that relation — adopted, live, and matching
 nothing. The tool must answer the request the corpus can *write*, and it must build out of the names
 the corpus can *reach*.
 
-> **Anything that binds a name has to go through the table that resolves it.** This is the twin trap
-> in its general form, and it is the single most frequently repeated error in this design's
-> construction.
+>**Anything that binds a name has to go through the table that resolves it.** This is the twin trap
+>in its general form, and it is the single most frequently repeated error in this design's
+>construction.
 
 ### An example becomes a rule
 
@@ -4631,23 +4631,23 @@ fact +seen(gate)                            ⟹   +likely(known(gate))
 
 Two examples in, one rule out, and it fires on a third case.
 
-⭐⭐⭐ **One mapping across the premise and the conclusion, and that is the whole of it.** Generalised
+**One mapping across the premise and the conclusion, and that is the whole of it.** Generalised
 separately, the two halves share no variable, and the result is a rule concluding about something
 nothing binds. Generalised **together**, `door`/`window` becomes one variable on both sides and the
 result is exactly the rule a person would have written.
 
-> **One dictionary is the difference between learning and noise.**
+>**One dictionary is the difference between learning and noise.**
 
-⚠ **What agrees is kept**, which is what makes it the *least* general generalisation: `f(a, b)` and
+**What agrees is kept**, which is what makes it the *least* general generalisation: `f(a, b)` and
 `f(a, c)` give `f(a, ?g)`, never `f(?g0, ?g1)`. And one disagreement is one variable however often it
 appears — `f(a, a)` with `f(b, b)` is `f(?g, ?g)`, not `f(?g0, ?g1)`, or the rule fires on pairs that
 never matched.
 
-⚠ **The tool declines rather than generalising anything.** Two examples about different relations have
+**The tool declines rather than generalising anything.** Two examples about different relations have
 a *bare variable* as their least general generalisation — a rule that fires on everything. Returning
 nothing is a real answer, and the check is that nothing is adopted.
 
-⭐ **The richest source of examples was the one the agent could not read — and now it can.** Every
+**The richest source of examples was the one the agent could not read — and now it can.** Every
 derived entry records what it consumed, and that trail is on the graph as §12's **skeleton**: a plain
 relation instance nobody asserted. That used to put it beyond ordinary rules and inside stratum 0's
 reach only, so the agent's own experience was available to the machinery and not to the agent.
@@ -4670,27 +4670,27 @@ and the answer is *nothing*:
 | the learned rule concludes | precedence | the vault | the gate | ends |
 |---|---|---|---|---|
 | bare | `overrides` | `−open` | **never applies** | quiescent |
-| bare | `supersedes` | `−open` | `open` | ⚠ **runaway, 300 ticks** |
+| bare | `supersedes` | `−open` | `open` | **runaway, 300 ticks** |
 | **wrapped** | **none** | `−open` | `likely(open)` | **quiescent, 7 ticks** |
 
-⚠ **`overrides` is too broad.** It is per tick and per rule, so one sealed object suppresses the
+**`overrides` is too broad.** It is per tick and per rule, so one sealed object suppresses the
 learned rule about *every* object — the gate is hinged and not sealed, and the agent still will not
 conclude it is open. That is §18's own warning about the two relations, arriving from the acquisition
 side.
 
-⚠ **`supersedes` is too narrow.** It defeats applications sharing a consumed **entry**, and two rules
+**`supersedes` is too narrow.** It defeats applications sharing a consumed **entry**, and two rules
 reaching one conclusion from different premises share none: one consumes `sealed(vault)`, the other
 `hinged(vault)`. Nothing is defeated, and the two oscillate forever.
 
-⭐⭐⭐ **So the third precedence relation this looked like it needed does not exist and should not.** A
+**So the third precedence relation this looked like it needed does not exist and should not.** A
 learned rule concluding `likely(open(?x))` never contradicts `−open(?x)`, because **they are different
 propositions**. The agent holds a generalisation *and* a specific fact at once, which is what it
 should do. The conflict arises only if a corpus **crosses** the modality, and then the corpus is the
 one asserting it and can decline.
 
-> **A learned rule that concludes wrapped cannot fight what the agent was told.**
+>**A learned rule that concludes wrapped cannot fight what the agent was told.**
 
-⭐ **This is §16's deletion paying off somewhere nobody designed for.** *How strongly a rule may speak*
+**This is §16's deletion paying off somewhere nobody designed for.** *How strongly a rule may speak*
 had to be **in the conclusion** for any of this to be sayable. With a grade it was a field nothing
 could read, so a learned rule and an authored one wrote the same proposition and had to be arbitrated.
 Two sections earlier that arbitration was necessary; here it is unnecessary.
@@ -4710,7 +4710,7 @@ rule <trust-what-i-was-told> = implies( { +rule(?r), +adopt(?r) },
                                         { +overrides(<secret>, ?r) } )
 ```
 
-⭐⭐⭐ That line is what this section is for: **a precedence about a rule that did not exist when it was
+That line is what this section is for: **a precedence about a rule that did not exist when it was
 written**, applying to whatever the agent learns. Two examples become a live rule, a standing policy
 orders it under what the agent was told, the learned rule loses about the sealed vault, and the defeat
 is on the record.
@@ -4718,7 +4718,7 @@ is on the record.
 And the agent settles a conflict it did not author: it decides the precedence, the loser is defeated,
 and a run reaches quiescence in **2 applications** where the unsettled pair oscillates for 60 ticks.
 
-⚠⚠ **A conflict starves the rule that would settle it.** `hot`, `cold`, `hot`, `cold` — and the referee
+**A conflict starves the rule that would settle it.** `hot`, `cold`, `hot`, `cold` — and the referee
 never gets a turn. It needs `standing`, which is §19's carve-out arriving for the fifth time and from
 a new direction. It is also the loop-detection case below.
 
@@ -4734,15 +4734,15 @@ This works, and it **throws away every case the rule was right about** — measu
 was retired before it ever applied. `defeated` is deduped per pair, so *how often* a rule loses is not
 askable, and the corpus can only say *once is enough*, which this shows is wrong.
 
-> **Losing an argument is not being wrong.** A rule that is right about a thousand cases and loses
-> about one has one exception, not a defect.
+>**Losing an argument is not being wrong.** A rule that is right about a thousand cases and loses
+>about one has one exception, not a defect.
 
 Where the count belongs is §19's **credit walk**, which already carries one: `harmed` says a rule was
 on the support of something wanted being made false, and it is a count over the trail rather than a
 per-pair flag. That is the next thing to try, and it is a use of machinery that exists rather than a
 new relation. The general lesson is the one §16 and §18 both reached:
 
-> **Before adding a relation, check whether the one you want is a count over the trail.**
+>**Before adding a relation, check whether the one you want is a count over the trail.**
 
 ### Loop detection: designed, measured, and deliberately not built
 
@@ -4764,19 +4764,19 @@ Measured before building, and the measurement changed the design. Over a whole s
 | **62 healthy machines, 2,038 applications** | **0** | **0** |
 | the deliberate runaway | 272 | 0 |
 
-* ⭐ **Period 1 alone is a perfect discriminator here** — zero false positives. So the cheap filter is
+* **Period 1 alone is a perfect discriminator here** — zero false positives. So the cheap filter is
   not a filter; it is the whole test.
-* ⭐ **Do not build the second phase.** It was a fix for a false-positive problem that does not exist.
+* **Do not build the second phase.** It was a fix for a false-positive problem that does not exist.
   The deletion arrived before the code did.
-* ⚠ **The seat must be in the key.** Without it, the same rule applying inside a hypothesis and outside
+* **The seat must be in the key.** Without it, the same rule applying inside a hypothesis and outside
   it reads as a repetition. An application repeated in a different frame is not a repetition.
 
-⚠⚠ And the first measurement was contaminated twice, both times by the instrument: no seat in the key,
+And the first measurement was contaminated twice, both times by the instrument: no seat in the key,
 and a suite that now *contains* deliberate runaways, so it cannot measure a detector's false-positive
 rate without splitting them out. **A fixture that contains the pathology cannot measure the detector**
 — which is the census's own finding from the opposite side.
 
-⚠⚠⚠ **And it stays unbuilt for a stated reason.** The suite contains exactly one loop of one kind, so
+**And it stays unbuilt for a stated reason.** The suite contains exactly one loop of one kind, so
 *period 1 is enough* is a claim about a sample of one, and a longer-period detector shipped today
 would be **unfalsifiable**. A 2-cycle fixture comes first. What it would deposit is `circling(<seat>)`,
 deduped like the effort counters, and it would **not stop the loop**, for the open-goal veto's reason:
@@ -4787,9 +4787,9 @@ the machinery deposits the occasion and a corpus says what it means.
 | | (A) rules are authored, full stop | (B) a learned-rule sub-language with its own semantics | (C) a learned rule is an ordinary rule |
 |---|---|---|---|
 | not leaking | ✅ trivially — nothing is learned | ❌ two rule shapes, and the learned one's provenance and defeasibility must be reinvented | ✅ authored and learned rules are the same node kind; a corpus cannot tell them apart except by asking |
-| not lossy | ❌ *where did this rule come from* has no answer, because there is no rule to ask about | ⚠ the examples survive only if the sub-language keeps them | ✅ the licence names the tool, the examples and the adoption |
+| not lossy | ❌ *where did this rule come from* has no answer, because there is no rule to ask about | the examples survive only if the sub-language keeps them | ✅ the licence names the tool, the examples and the adoption |
 | readable | ✅ | ❌ *which rules are about time* now needs two queries | ✅ R4's questions are unchanged, and *which of my rules did I learn* is one more of them |
-| composable | ❌ two authors amend one file | ⚠ a learned rule cannot be ordered against an authored one without a translation | ✅ `overrides`, `unless`, `dormant` and composition all apply unchanged |
+| composable | ❌ two authors amend one file | a learned rule cannot be ordered against an authored one without a translation | ✅ `overrides`, `unless`, `dormant` and composition all apply unchanged |
 
 (C)'s cost is real and is stated below. What (B) would have bought — a place to put *this one is only
 learned* — turned out to be unnecessary, because §16 already provides it in the conclusion.
@@ -4809,7 +4809,7 @@ learned* — turned out to be unnecessary, because §16 already provides it in t
   a description. Every human-in-the-loop story for acquisition is blocked on it.
 * **Nothing retires a learned rule well.** Defeat is too blunt, and the credit walk is proposed and
   unbuilt.
-* ⚠ **And the composition test is the only thing that found any of this.** Four pieces, each green in
+* **And the composition test is the only thing that found any of this.** Four pieces, each green in
   isolation; the first fixture that made them meet broke in two places, and neither was visible from
   inside the piece that contained it. That is §2, and it is the strongest procedural claim this
   document makes.
@@ -4827,8 +4827,8 @@ learned* — turned out to be unnecessary, because §16 already provides it in t
 The one that keeps Part I honest. It has two clauses and the second is the one that will be
 forgotten:
 
-> **For every bundled convention, the rule-level definition exists; the compiled path produces
-> identical answers; and the compiled path is interruptible at the same points.**
+>**For every bundled convention, the rule-level definition exists; the compiled path produces
+>identical answers; and the compiled path is interruptible at the same points.**
 
 Run it first on §10's read, since that is the convention an implementation is most certain to have
 compiled into itself. A convention with no rule-level definition is a convention that has escaped onto
@@ -4851,8 +4851,8 @@ Four companion counters, cheap and blunt:
 Every counter above asks *how much machinery is there*. This one asks a different question, and it is
 the one that predicts where the next defect will be:
 
-> **Which judgements does the machinery make that no rule can argue with — and if one were wrong, how
-> would the agent find out?**
+>**Which judgements does the machinery make that no rule can argue with — and if one were wrong, how
+>would the agent find out?**
 
 The second half is the test. Most of what is not rules embodies **no judgement at all**: whether
 unification succeeds, what a chain's predecessor is, what an entry was built from. There is one right
@@ -4864,9 +4864,9 @@ A **judgement** is different. *What a situation is about* has no forced answer; 
 of claim §19 says experience should supply, and it lives in one method. That is not a tidiness
 complaint, and the cost is specific:
 
-> **A seam is where the agent stops being able to be wrong about something.** If it is a rule it can
-> be defeated, denied, dated, credited, blamed and overridden. If it is a seam, it is simply how
-> things are — and the agent cannot notice it was mistaken, cannot be told, and cannot improve.
+>**A seam is where the agent stops being able to be wrong about something.** If it is a rule it can
+>be defeated, denied, dated, credited, blamed and overridden. If it is a seam, it is simply how
+>things are — and the agent cannot notice it was mistaken, cannot be told, and cannot improve.
 
 **And they accumulate silently, because the suite cannot see them either.** This is the state gate's
 finding generalised: *nothing that asserts what the agent concluded can see what it was thinking about
@@ -4875,7 +4875,7 @@ asserts **correctness** — a wrong key set makes a worse choice and never a wro
 fixture fails and only a purpose-built instrument ever sees it. So a seam blocks twice: the agent
 cannot learn it, and nothing reports it.
 
-⚠ **§6 states that recall is opaque and must remain the only opaque thing. That is already false, and
+**§6 states that recall is opaque and must remain the only opaque thing. That is already false, and
 nothing was counting.** The census as it stands:
 
 | judgement | argued? | if it were wrong |
@@ -4884,7 +4884,7 @@ nothing was counting.** The census as it stands:
 | **`_in_play`** — what a situation is about | ❌ named in §19 and never argued | worse choices forever, invisible to every check |
 | ~~**the connective of a composed rule**~~ | ✅ **resolved, and by dissolving** — see below | — |
 
-⭐ **The third entry came off this census by turning out not to be a judgement at all**, and how that
+**The third entry came off this census by turning out not to be a judgement at all**, and how that
 happened is the argument for keeping the census. *Which connective should a mixed composition get* had
 two defensible answers, which is the census's own signature for a judgement. Asking what the composite
 would **mean** found something else: composing across a `causes` **flattens two moments into one
@@ -4900,8 +4900,8 @@ the seam** are relocated, so a second rule that is just the seam composes across
 Once the unsound ones are gone the connective is **forced** — a chain that crossed a causal step has
 advanced a moment, so the result is `causes`, by §14's own persistence test.
 
-> **A judgement with two defensible answers is sometimes a question asked at the wrong level.** The
-> census cannot tell you that; it can only tell you where to look.
+>**A judgement with two defensible answers is sometimes a question asked at the wrong level.** The
+>census cannot tell you that; it can only tell you where to look.
 
 The discipline that follows is one line, and §20's `adopt` already obeys it: **the corpus decides, the
 function executes.** What decides that a rule is worth adopting, or that two rules are worth composing,
@@ -4921,15 +4921,15 @@ the fast path is held to it. There are now three of these, one per thing the loo
 The second is the one that taught the general lesson, because one of its three columns cannot be
 checked any other way:
 
-> **Nothing that asserts what the agent concluded can see what it was thinking about while it
-> concluded it.** A wrong key set makes a worse choice, never a wrong conclusion, and every fixture
-> asserts an outcome the loop reaches anyway.
+>**Nothing that asserts what the agent concluded can see what it was thinking about while it
+>concluded it.** A wrong key set makes a worse choice, never a wrong conclusion, and every fixture
+>asserts an outcome the loop reaches anyway.
 
-⚠ **An instrument that deposits has stopped observing.** The move gate re-runs the arbitration path
+**An instrument that deposits has stopped observing.** The move gate re-runs the arbitration path
 against the same state, so anything that path writes must be written outside it — which is why §20's
 `defeated` is deposited by the tick rather than by the chooser.
 
-⚠ **A comparison instrument can only read a mutation the fixture does not already talk about.** A gate
+**A comparison instrument can only read a mutation the fixture does not already talk about.** A gate
 that reads the *shipped* method rather than capturing the definition at install will score the suite's
 own deliberate mutants as disagreements, and report them as findings.
 
@@ -4946,8 +4946,8 @@ refuse ambiguity, and a third rule stayed unkillable until the fixture put an **
 between two competing ones, since transitivity only matters when the entry in between does not
 compete.
 
-> **Every gate must delete each rule of the thing it checks, one at a time, and report any rule the
-> fixture cannot kill. A rule no fixture can kill is a rule the fixture is not testing.**
+>**Every gate must delete each rule of the thing it checks, one at a time, and report any rule the
+>fixture cannot kill. A rule no fixture can kill is a rule the fixture is not testing.**
 
 This is §13's *bounded expansion returns a result and a state* and §19's two silences, arriving now
 aimed at the checks themselves: **passing** and **unable to fail** are different outcomes, and only one
@@ -4972,7 +4972,7 @@ two questions, and they are two:
 | **load-bearing** | does anything depend on this? | remove it |
 | **contestable** | may a corpus turn it off? | deny it, as a corpus would |
 
-The second column is where §19's *deniable is not forgettable* was found. ⚠ And a removal that makes
+The second column is where §19's *deniable is not forgettable* was found. And a removal that makes
 the runner **raise** must print `raised` rather than a count, since the run stopped at the first check
 that could not survive the absence.
 
@@ -4980,10 +4980,10 @@ that could not survive the absence.
 
 Behavioural, not representational. Not *can the system reproduce this text*, but:
 
-> For every rule `R` and every moment `s`:
-> reading backwards from a goal proposes `R` at `s`
-> **if and only if**
-> reading `R` forwards at `s` yields a moment satisfying that goal.
+>For every rule `R` and every moment `s`:
+>reading backwards from a goal proposes `R` at `s`
+>**if and only if**
+>reading `R` forwards at `s` yields a moment satisfying that goal.
 
 Run it as a property over the whole rule set. A rule whose two readings disagree is a rule whose
 consequent is lying about what it does.
@@ -5055,7 +5055,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
 * **Composition's three silent failures** (§4, §19, §20). *n* steps become one for any *n*, defeat is
   inherited, and the artifact is an ordinary node. What is unsettled:
 
-  **Guard inheritance.** ✅ Done, and by construction. A composed rule carries the union of its
+  **Guard inheritance.** Done, and by construction. A composed rule carries the union of its
   constituents' `unless`
   conditions, or it fires where the reasoning it replaces would have been blocked. Checkable at
   composition time and not specified. It is also the failure the analogy predicts: the pathological
@@ -5071,7 +5071,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   And composing a recursive shape is unrolling, which is unbounded, so it takes expansion's
   budget-and-state discipline.
 
-  ⚠⚠⚠ **A fourth failure, found and closed: composing across a `causes` loses conclusions.** A
+  **A fourth failure, found and closed: composing across a `causes` loses conclusions.** A
   `causes` consequent lands in a successor (§14), so the second rule's other premises are read one
   moment later than the first rule's own — and the composite asks for all of them together, which is
   a stricter question. Measured on a world where the extra premise arrives only once the first rule
@@ -5084,20 +5084,20 @@ New with §20, and the first two are the reason it is a section rather than a pa
   mixed-connective question was asked at the wrong level, and once the unsound compositions are gone
   the connective is forced.
 
-  ✅ **Two items that were here are closed.** Composition no longer refuses uncertain conclusions,
+  **Two items that were here are closed.** Composition no longer refuses uncertain conclusions,
   because §16 deleted the thing that made composing them a cache. And it **has a trigger**:
   `compose(<a>, <b>)` is an ordinary request, answered by `<composer>` and refused inside a
   supposition for `adopt`'s reason — one rule set is shared by every frame, so a shortcut built while
   supposing would apply after the frame is discharged and to everything.
 
-  ⭐ The trigger is shaped by §21's judgement census rather than by convenience. *Which* rules are
+  The trigger is shaped by §21's judgement census rather than by convenience. *Which* rules are
   worth collapsing is a judgement, and a judgement the machinery makes alone is a seam — the agent
   could not notice it was composing the wrong things, because a bad shortcut makes worse work and
   never a wrong conclusion, so no fixture fails. So the answerer never proposes: **the corpus decides,
   the function executes**, and *compose what has run often and never surprised* stays a corpus's rule
   rather than becoming a constant in the loop.
 
-  ⭐ And `composed(<c>, <a>, <b>)` is deposited, which closes §1's defect for the twelfth time:
+  And `composed(<c>, <a>, <b>)` is deposited, which closes §1's defect for the twelfth time:
   `composed_from` was a Python dict, so *which rules is this a shortcut for* was unanswerable — and it
   is exactly what *decompose on surprise* needs, since the agent has to know which sub-steps to re-run.
 * **A seat move is not yet an entry** (§17). *Every seat move is a write*, and the re-seating that
@@ -5109,7 +5109,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   entry about to be deposited, which is §5's wall from a fifth side.
 * **Explaining a read** (§6). Stratum 0 produces structure rather than entries, so the resolution that
   fed a conclusion is undated and unattributed. R5 covers the conclusion and not the read.
-* ⭐ **Whether an ordinary rule may read the skeleton** (§12, §6, §20) — **settled, and the third
+* **Whether an ordinary rule may read the skeleton** (§12, §6, §20) — **settled, and the third
   option was the one nobody had listed.** The question was posed as a choice between promoting the
   skeleton to entries (which reinstates §6's circle) and leaving it unreadable (which makes every
   example a corpus fact). Neither is needed: **an ordinary rule reads the skeleton and concludes into
@@ -5121,7 +5121,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   by the agent's rules. `stratum0.py` is deleted, and §20's gate now measures the native read against
   **rules in the surface a corpus writes**.
 
-  ⚠ What it costs, stated: containment for a *stored* skeleton member is compositional rather than
+  What it costs, stated: containment for a *stored* skeleton member is compositional rather than
   structural. An upward walk cannot reach a sibling branch whatever is bound (§11); a stored relation
   cannot reach one *given what bound it*. The forking-chain check is what holds that, so it is a
   measurement rather than a construction.
@@ -5130,7 +5130,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   be a *different* operation — unification — and it too is a service. Anti-unification is the third
   member of the family (§20). What is still open is **lifting a modality across a rule**, the one
   caller of the four with no service — and §16 argues it is not wanted, since supposing dominates it.
-* ~~**`unless` is described and not implemented** (§12).~~ ⭐⭐⭐ **STRUCK — it was a name, not a
+* ~~**`unless` is described and not implemented** (§12).~~ **STRUCK — it was a name, not a
   gap.** `unless` is *if not*, and *if not* is an ordinary **negated antecedent member**, which has
   been in the surface since there were members. §12's *unless at altitude* is one line, and it does
   the per-entity exception §14's precedence cannot: `overrides` is per rule and per tick,
@@ -5146,12 +5146,12 @@ New with §20, and the first two are the reason it is a section rather than a pa
   too, by construction rather than by mechanism, because composition takes the union of the
   antecedents and a guard is one of them.
 
-  ⚠ **Everything that made this look hard came from writing the guard somewhere ELSE.** §8 scopes a
+  **Everything that made this look hard came from writing the guard somewhere ELSE.** §8 scopes a
   rule's variables to its own statement, so a guard written as a separate fact has a `?x` that is a
   *different node* — measured, 757 against 729. That is the `excluded` wall, and it was never
   `unless`'s problem.
 
-  ⚠⚠⚠ **BUT THE ROW SPLITS, AND STRIKING ALL OF IT WAS WRONG.** *if not* over a proposition the
+  **BUT THE ROW SPLITS, AND STRIKING ALL OF IT WAS WRONG.** *if not* over a proposition the
   corpus can name is a negated member, as above. *If **nothing** was said* — a default over an **open
   domain** — is not, and the difference is §9's: a negated member needs an entry that **denies**, and
   absence is not denial. Measured, on the dungeon's own case (*the hero attacks when the player has
@@ -5162,7 +5162,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   | nothing was declared | **no** |
   | one specific denial, `-declares(hero, cast)` | yes |
 
-  ⭐⭐⭐ **AND IT IS NOT MISSING EITHER — it needed a STRETCH, not a negation.** *Nothing was
+  **AND IT IS NOT MISSING EITHER — it needed a STRETCH, not a negation.** *Nothing was
   declared* has no truth conditions until you say **where you looked**; made precise it is *nothing
   arrived on this channel over this span*, which is bounded, dated and a claim about the chain the
   agent already keeps. A `-` on a **structural** member has meant *not derived* since the matchers
@@ -5184,36 +5184,36 @@ New with §20, and the first two are the reason it is a section rather than a pa
   states**, which is exactly what `docs/dungeon-feedback.md` §4 said precedence costs them: *you
   cannot read `<hero-holds>` and learn when it applies.*
 
-  ⭐ **Their oldest open item was waiting on spans as loci, and nobody knew** — including them, and
+  **Their oldest open item was waiting on spans as loci, and nobody knew** — including them, and
   including this document, which had just struck the row for the wrong reason and then restored it for
   the wrong reason too.
 
-  ⚠ **The limit, stated exactly**: the channel is a ground atom. Quantifying over channels does not
+  **The limit, stated exactly**: the channel is a ground atom. Quantifying over channels does not
   work, because a corpus relation cannot be structural — `listens(?c)` stops the rule being stratum 0
   and its structural members then match nothing. **Silence about a named channel is sayable; silence
   about *any* channel is not**, and that is the honest residue of this item.
 
-  ⚠⚠⚠ **And my census could not have found this.** It counted the negated members that corpus
+  **And my census could not have found this.** It counted the negated members that corpus
   **wrote**, and the one it could not write was not there to count — which is `docs/authoring.md`
   §8's own warning arriving against the person who wrote it: *a missing convention is silent by
   construction, and the only instrument for it is an author noticing.* An author had noticed, in
   prose, in a file in this repository, and a census that reads code rather than complaints missed it.
 
-  ⚠ So what is also genuinely absent is **amendment at a distance** — adding a guard to a rule you did not
+  So what is also genuinely absent is **amendment at a distance** — adding a guard to a rule you did not
   write — and it is now **refused by decision rather than open by omission**. An ordinary rule may
   not reach into another rule's application; that is §5's wall. Amending a rule is harmonization's
   job: the agent authors a better rule through `adopt` (§20), where the amendment is itself a claim
   that can be dated, attributed and argued with, rather than a patch applied by something that was
   only supposed to be reasoning.
-* **The skeleton is built, except for spans** (§11, §12, §13, §15). ✅ A member may say **where its
+* **The skeleton is built, except for spans** (§11, §12, §13, §15). A member may say **where its
   entry sits** — `+acts(goblin) at ?m` — so a rule relates two moments, which is what a foreign corpus
-  was spending 24% of itself simulating with a round counter. ✅ And the skeleton's *structural*
+  was spending 24% of itself simulating with a round counter. And the skeleton's *structural*
   members are all there: `asking`, `anc`, `sanc`, `pred`, `in_delta`, `entry_of`, `delta_next`,
-  `rests_on`. ✅ **And spans are loci** — `span_of(?s, ?start, ?end)` mints a stretch, a consequent's
+  `rests_on`. **And spans are loci** — `span_of(?s, ?start, ?end)` mints a stretch, a consequent's
   `at ?s` deposits at one, and §13's *taking turns* runs. What remains absent: `where` as a keyword
   and the `?t = entry(...)` **prefix** notation (the member form is `entry_of`), both cosmetic.
 
-  ⭐⭐⭐ **And the bound the read placed on it is gone.** This item recorded that a matcher sees the
+  **And the bound the read placed on it is gone.** This item recorded that a matcher sees the
   resolved state — one entry per proposition — so two *different* facts at different moments relate
   and **a single fact's own history does not**, because reaching it means matching the raw chain and
   reopening the bootstrap. It does not reopen it, for the reason §6's *the price, stated* now gives:
@@ -5222,7 +5222,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   takes two rules — one to see it, one to say it — and the second is an ordinary rule reading the
   first's conclusion beside an entry.
 
-  ⚠ Three engine defects sat between the capability and a corpus reaching it, and each is the kind
+  Three engine defects sat between the capability and a corpus reaching it, and each is the kind
   that has no outcome to be wrong: `asking` was seeded only by the gate, so a corpus's chain rules
   were **dead**; quiescence asked `resolve` about a conclusion that never enters the chain, so such a
   rule **never stopped**; and a structural fact enters no delta, so incremental matching **never
@@ -5247,7 +5247,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   rots in a way a branch does not*), and no gate covers a convention that has no rules to delete.
   Whether the surface should grow `where` is open; that it currently promises it is not.
 
-  ⚠⚠⚠ **This section scored three ways to supply succession and picked the wrong one, and the
+  **This section scored three ways to supply succession and picked the wrong one, and the
   scoring is left standing because the mistake in it is instructive.** The three were: a *skeleton
   member*, rejected as costing "a new member kind and new surface"; deposited `+succ(m7, m8)`
   *entries*, rejected because structure would become deniable (§12) at O(n) entries nobody asked for;
@@ -5260,17 +5260,17 @@ New with §20, and the first two are the reason it is a section rather than a pa
   reuses the sign the parser already read. The `order`/`precedes` answerer this section argued for was
   in fact built, and **deleted the same afternoon**.
 
-  ⭐⭐ **And the same move closes `rests_on` above**, which was stated as a dilemma with two bad horns —
+  **And the same move closes `rests_on` above**, which was stated as a dilemma with two bad horns —
   promote the trail to entries and the circle returns, leave it and every example must be a corpus
   fact. The third option was neither an answerer nor a promotion: the reading rule **concludes into
   the skeleton too**, by §6's own test, so nothing is promoted and nothing is asked for.
 
-  ⚠ The one real objection here survives and is worth keeping, because it is why the answerer was
+  The one real objection here survives and is worth keeping, because it is why the answerer was
   wrong. An answerer is a request, an answer, then a rule — several ticks, with deposits between them
   and other rules free to interleave — where a skeleton member is matched **inside one match**, so a
   multi-locus rule fires in one application. That is irrelevant for expanding a single change-term
   (§16) and decisive for recognising a shape over a long stretch (§13). The option that composes was
-  the one scored lowest. ⚠ And a deposited answer *about structure* would have been deniable, which is
+  the one scored lowest. And a deposited answer *about structure* would have been deniable, which is
   mildly incoherent: denying `pred(m7, m8)` does not change the chain, only what rules believe.
 * **How much of the bundle is actually rule-expressible** (§4). The gate is run for the read, the
   state and the move. It is not run for everything, and until it is, *these are conventions* is a
@@ -5296,7 +5296,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
 * **Consistency within a moment** (§8). Two entries with opposite signs in one locus is permitted and
   undetected. That is the right default, since consistency is a question rather than an invariant, but
   the design does not say who asks it or when.
-* ⚠⚠⚠ **A HALF-FINISHED CHANGE IS INDISTINGUISHABLE FROM A FINISHED ONE, AND AN AGENT WILL ACT ON IT**
+* **A HALF-FINISHED CHANGE IS INDISTINGUISHABLE FROM A FINISHED ONE, AND AN AGENT WILL ACT ON IT**
   (§8, §17, §19). Predicted by a foreign corpus and constructed here. A transfer takes gold from one
   purse and puts it in another; with the amounts computed by a **tool**, that is necessarily two
   applications, because an answer arrives through the write on a later tick. Between them the state is
@@ -5324,7 +5324,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
 
   > **Atomicity is available exactly when you do not need a tool, and you need a tool for arithmetic.**
 
-  ✅ **ANSWERED, by making the computation part of the application.** A **computator** is a function
+  **ANSWERED, by making the computation part of the application.** A **computator** is a function
   given *values* and returning a value — never the machine, the frame or the entry — so it cannot
   reach the graph, the register or the world. **Purity is structural rather than declared**, which is
   cheaper and stronger than the 45 lines of transitive static analysis the deleted engine used to
@@ -5343,7 +5343,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   says how the binding was built. A computed member accordingly consumes no entry and contributes
   nothing to the trail: five members, three on it.
 
-  ⭐⭐⭐ **And what remains is not the same problem, which is the correction this item most needed.**
+  **And what remains is not the same problem, which is the correction this item most needed.**
   The defect was never *an observer saw an intermediate*; it was *an observer saw an intermediate that
   corresponded to nothing*. The world never held twelve gold — the split was an artifact of arithmetic
   arriving through the write. That artifact is now gone.
@@ -5362,7 +5362,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   §19 refuses — was misapplied. §19 refuses a discipline when **the machinery could have known and
   did not**. Here it genuinely cannot.
 
-  ⭐⭐⭐ **And nothing is missing — the convention was simply written wrong.** This item said, twice,
+  **And nothing is missing — the convention was simply written wrong.** This item said, twice,
   that the design lacked *a vocabulary for transitional states*, and proposed a moment that declares
   itself unsettled. That was §2's own warning happening live: **reaching for a new engine feature to
   rescue a convention is how islands are made.**
@@ -5388,7 +5388,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   > statement the design has always been able to make.** *In transit* is open-class domain content; the
   > ignorance it implies is not.
 
-  ⚠ Recorded because the route to it is the finding, not the answer. This item was wrong three times:
+  Recorded because the route to it is the finding, not the answer. This item was wrong three times:
   first that atomicity was broken (only the *artifact* half was), then that a real intermediate needed
   hiding (it is true and should be visible), then that saying so needed new vocabulary. Each correction
   came from asking which of substrate and convention was at fault, and the answer was the convention
@@ -5426,7 +5426,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   **A known magnitude is a tool.** `20 − 3 = 17` needs no representation at all: arithmetic is a
   function, and §17 says a request answered by a function is a tool. Measured — a `minus` answerer
   and two ordinary rules take a purse from 20 to 17, with the old value invalidated. Nothing in the
-  engine changed. ⚠ And the fixture that first ran it debited forever, because nothing retracted the
+  engine changed. And the fixture that first ran it debited forever, because nothing retracted the
   trigger: §14's re-ask criterion, arriving in a corpus rather than in the machinery.
 
   **An unknown magnitude does not want a value slot; it wants a node.** Do not name the value — name
@@ -5445,7 +5445,7 @@ New with §20, and the first two are the reason it is a section rather than a pa
   at load, with a message saying so, and that refusal is right: an entry whose proposition contains a
   free variable is an existential, which is the same thing §5 says a `−` member cannot express.
 
-  ⚠ **What is actually open is narrower and is about repetition.** Once the level reads `?`, a second
+  **What is actually open is narrower and is about repetition.** Once the level reads `?`, a second
   change has nothing to compare against, so the quantity must be **chained** — `after1`, `after2`,
   with `above(after2(?g), after1(?g))` — and each step needs its own node. Measured working, and it
   is ordinal tracking rather than magnitude: the agent can come to know *the level is above the brim*
@@ -5650,9 +5650,9 @@ left to be discovered by an author writing the notation this document uses throu
 | the **skeleton** — `where`, named entries, a member's locus | §12 | ✅ built as **members** (`entry_of`, `span_of`, `at`, `as`); `where` as a keyword and the `?t = entry(...)` prefix form remain cosmetic gaps |
 | **spans as loci** | §11 | ✅ built — `span_of` mints, `at ?s` deposits at one |
 | **shapes** | §13 | ✅ follows from the two above — `<TT-base>`/`<TT-step>` run, over the raw chain |
-| ~~**`unless`**~~ | §12 | ✅ **struck, on the second attempt and for a better reason.** *if not* over a nameable proposition is a negated member. *If nothing was said* is *nothing arrived on this channel over this span* — three stratum-0 rules, no new negation. ⚠ Residue: silence about a **named** channel only. **Amendment at a distance** is separately refused by decision |
+| ~~**`unless`**~~ | §12 | ✅ **struck, on the second attempt and for a better reason.** *if not* over a nameable proposition is a negated member. *If nothing was said* is *nothing arrived on this channel over this span* — three stratum-0 rules, no new negation. Residue: silence about a **named** channel only. **Amendment at a distance** is separately refused by decision |
 
-⚠ **Nothing in §21's gates can see any of these**, and that is the general lesson rather than an
+**Nothing in §21's gates can see any of these**, and that is the general lesson rather than an
 oversight: the bundle gate deletes each shipped rule and re-runs the suite, so it measures what
 exists. **A convention with no rules has none to delete, and reads as passing.**
 
@@ -5683,14 +5683,14 @@ Seventeen, in one authored file, in an order that is itself a precedence claim a
 **Answerers — eight, each bound by a fact**
 
 `<fit>`, `<settle>`, `<verdict>`, `<root>`, `<supported>`, `<composer>`, `<remember>`, `<re-ask>`.
-⭐ A ninth was built and **retired the same day**: an `order` request answering `precedes`, made
+A ninth was built and **retired the same day**: an `order` request answering `precedes`, made
 unnecessary when the skeleton became an ordinary member (§12). It was the cheap route to something the
 open class should reach itself, and *the fix is usually a deletion* held again.
 Their bodies are native, which is what an answerer *is*; their **bindings** are claims, so *which of
 these exist* is a query. Four carry `standing`, and a denial of those is refused on the record (§19).
 The other four are safe to retire by §19's test — their absence is the status quo ante.
 
-⚠ **A corpus tool may not share a request relation with the apparatus**, and this is refused at
+**A corpus tool may not share a request relation with the apparatus**, and this is refused at
 registration. `_answer` calls *every* answerer bound to a relation, so a corpus tool and an apparatus
 answerer on one request both fire on every such write — the twin trap inverted, two answerers for one
 node rather than two nodes for one name, and worse than a twin because a tool **proposes** where the
@@ -5705,9 +5705,9 @@ believing a decline.**
 
 ### The count
 
-> **Zero phases.** The step is: read `enough` → recall → match → defeat → forgo → quiescence →
-> arbitrate → note doubt → apply, plus leaving a frame, waking on quiescence, and the escalations.
-> Nothing in it decides anything a rule could have decided.
+>**Zero phases.** The step is: read `enough` → recall → match → defeat → forgo → quiescence →
+>arbitrate → note doubt → apply, plus leaving a frame, waking on quiescence, and the escalations.
+>Nothing in it decides anything a rule could have decided.
 
 ### What moving them taught
 

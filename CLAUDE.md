@@ -8,7 +8,7 @@
 Message style is a short lowercase topic word — `wip` while a session is in progress, a topic name
 (`deparserization`) once the work has one.
 
-⚠ **Auditing authorship by `%an` / `%cn` is not enough.** GitHub renders a `Co-Authored-By` trailer as an
+**Auditing authorship by `%an` / `%cn` is not enough.** GitHub renders a `Co-Authored-By` trailer as an
 *additional author on the commit*, so a commit whose author and committer fields are both correct can
 still show a second author in the GitHub UI. Search the message bodies instead:
 
@@ -22,10 +22,10 @@ Removing them from history, if it ever happens again:
     git reflog expire --expire=now --all && git gc --prune=now
     git push --force-with-lease
 
-⚠ The old commit stays reachable from `refs/remotes/origin/*` until the push lands, so a grep over
+The old commit stays reachable from `refs/remotes/origin/*` until the push lands, so a grep over
 `--all` still finds it beforehand — that is not a failed rewrite.
 
-Force-pushing to tidy history is welcome here. ⚠ But *squashing is not implied by "fix the authors"* —
+Force-pushing to tidy history is welcome here. But *squashing is not implied by "fix the authors"* —
 ask first, or do the minimal thing and say plainly what was left alone.
 
 ## Where to start

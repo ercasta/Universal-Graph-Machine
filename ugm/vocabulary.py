@@ -41,8 +41,13 @@ ROLES: Dict[str, List[str]] = {
     # The surface's own marks -- connectives, signs, and the member modifier.
     "the surface": ["causes", "implies", "not", "plus", "minus", "unsure", "at"],
     # §4-§11: the history, and how to walk it.
+    # `licensed_by` sits beside `rests_on` and is here for its reason: *what
+    # produced this entry* is a fact about the chain's own construction, not
+    # about any world. ⚠ It arrived unclassified and this census is what caught
+    # it -- see docs/observations.md §2.14, where the invariant was written down
+    # one message before it fired.
     "the chain": ["anc", "sanc", "pred", "in_delta", "delta_next", "entry_of",
-                  "span", "span_of", "rests_on", "asking"],
+                  "span", "span_of", "rests_on", "licensed_by", "asking"],
     # R3/R4: rules are subjects, and rules are askable.
     "rules as data": ["rule", "ant", "con", "conn", "adopt", "compose",
                       "composed", "computes", "names", "binds", "exercised",

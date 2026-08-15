@@ -4752,14 +4752,24 @@ def a_relation_can_be_named_by_a_variable() -> None:
     # A consequent whose RELATION nothing bound is still refused, exactly as one
     # whose argument nothing bound always was -- the gate's rule did not need to
     # learn about this, which is the sign it was the right place for it.
+    # ⚠⚠⚠ This used to LOAD and then quietly mint nothing, and the note here
+    # said the gate was the right place for it. It was half right: the gate is
+    # the right place to REFUSE, and the load is the right place to SAY SO --
+    # which is what an unbound *argument* has always got. The two disagreed
+    # because `_vars_in` did not look at a relation, so `?p` was never *wanted*
+    # and the check passed vacuously. Now both are caught where the mistake is
+    # still attributable, which is `Chain.span`'s argument for its own position.
+    from .text import ParseError
+
     m2 = Machine()
-    kb2 = load(m2, "rule <bad> = implies( { +go(?t) }, { +?p(?t) } )" + chr(10)
-               + "fact +go(x)" + chr(10))
-    m2.run(limit=40)
-    minted = [e for e in m2._state()
-              if e.sign == PLUS and m2.g.is_var(m2.g.relation_of(e.proposition) or 0)]
-    check("§17", "...while a consequent whose RELATION nothing bound mints "
-          "nothing, like any other unbound consequent", not minted)
+    refused = False
+    try:
+        load(m2, "rule <bad> = implies( { +go(?t) }, { +?p(?t) } )" + chr(10)
+             + "fact +go(x)" + chr(10))
+    except ParseError:
+        refused = True
+    check("§17", "...while a consequent whose RELATION nothing bound is refused "
+          "at load, like any other unbound consequent", refused)
     # An ANTECEDENT member may name one too -- it just cannot be indexed.
     m3 = Machine()
     kb3 = load(m3, chr(10).join([

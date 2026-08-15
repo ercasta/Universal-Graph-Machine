@@ -25,7 +25,7 @@ class feature landed: the fight is unchanged at 17/0 and the suite at 472/0.
 
 antecedent sizes `{1:3, 2:5, 3:4, 4:4, 5:4, 7:1}`; 18 fine shapes for 21 rules.
 
-⭐ **The two primitives cover 73.9% of your corpora and 28.6% of this one, and the
+**The two primitives cover 73.9% of your corpora and 28.6% of this one, and the
 reason is a sign.** Your dominant shape is `implies ant[+] -> con[+p]` — pure
 assertion. The dungeon's is `con-signs['+', '-']`:
 
@@ -68,16 +68,16 @@ the `add` operator on the arithmetic tool, which exists *solely* to count rounds
 and would otherwise not be needed at all. A round integer is a moment ordinal
 re-implemented in the corpus because the real one is unreachable.
 
-⚠ **And the expensive half never came up.** `<wound>` needs the current hp and
+**And the expensive half never came up.** `<wound>` needs the current hp and
 the new one, but it has both at one locus — the tool is handed the old value and
 returns the new. Nothing in a fight ever asked *what was it before*. So on this
 evidence the half-day buys the whole thing and the hard half buys nothing yet.
 
 ---
 
-## 3. Confirming §4's ⚠, and asking you to promote it
+## 3. Confirming §4's , and asking you to promote it
 
-> *Without retracting the trigger the rule debits forever.*
+>*Without retracting the trigger the rule debits forever.*
 
 We found this independently, in a different domain, **three times in one corpus**,
 and each time it cost a run to the limit before it was visible:
@@ -93,9 +93,9 @@ is *true* for as long as it is the hero's turn — it is a perfectly good fact �
 that is exactly why acting on it re-fires. What was missing was not a denial but a
 **right that acting spends**.
 
-> **An occasion is consumed. A fact is not. If a rule models something
-> *happening*, something in its antecedent must stop being true because it
-> happened, and the corpus is the only thing that can arrange that.**
+>**An occasion is consumed. A fact is not. If a rule models something
+>*happening*, something in its antecedent must stop being true because it
+>happened, and the corpus is the only thing that can arrange that.**
 
 Quiescence cannot catch any of the three, because each pass genuinely says
 something new. We would put this above §1 in the running order: §1 costs you a
@@ -105,7 +105,7 @@ rule that never fires, which is inert; this costs you a run that never ends.
 
 ## 4. §1 has an open-domain case it does not cover
 
-> *Write your negatives.*
+>*Write your negatives.*
 
 Works when the negatives are enumerable. Ours were not. We wanted *the hero
 attacks by default when the player has declared nothing this round* — and the
@@ -145,9 +145,9 @@ The difference is whether the **winning** situation persists. Yours does —
 every tick, for ever. Ours does not — the goblin flees and is gone, so the
 suppression happens once and *arbitration is scheduling* does the rest.
 
-> **`overrides` is survivable when the winning rule's situation is transient, and
-> permanent damage when it is not.** Worth a line in §2, because the two look
-> identical when you write them and only one of them is a bug.
+>**`overrides` is survivable when the winning rule's situation is transient, and
+>permanent damage when it is not.** Worth a line in §2, because the two look
+>identical when you write them and only one of them is a bug.
 
 ---
 
@@ -168,7 +168,7 @@ This is the twin trap inverted — not two nodes with one name, but **one node w
 two meanings**, and the corpus had no way to know the name was taken. The census
 in Appendix C lists reserved names; the loader does not mention them.
 
-⭐ **Cheap fix, in the shape §7's answerer-collision refusal already took:** when
+**Cheap fix, in the shape §7's answerer-collision refusal already took:** when
 a corpus resolves a name to a reserved node in an *argument* position, say so at
 load. `plus`, `minus`, `unsure`, `not` and the numerals are the ones a domain
 author will reach for by accident. A registration is a declaration, and the
@@ -184,8 +184,8 @@ The fight was **decided correctly**, the verdict was right, every check about th
 outcome was green, and the agent turned an empty room over to **round 417 across
 8,072 entries**. Denying `may` instead stops it dead.
 
-> **Nothing that asserts what the agent concluded can see it still working
-> afterwards.**
+>**Nothing that asserts what the agent concluded can see it still working
+>afterwards.**
 
 That is `ugm.state`'s finding about the key set, arriving from a corpus. There is
 now one check in `ugm/dungeon.py` that can see it — *were any turns granted after
@@ -216,7 +216,7 @@ rule's conclusions are not worth predicting*, an RPG would use it on nearly ever
 mechanic. If there is not, that is worth knowing too — it means `causes` is
 priced for agents and not for simulations.
 
-⚠⚠⚠ **And a warning about our own number.** The first version of this said
+**And a warning about our own number.** The first version of this said
 **660×**. It was measured while the corpus still had the runaway clock of §7, so
 it compared a runaway loop against a terminating one and the connective was barely
 involved. The tidy quotable figure was wrong. A measurement taken across a bug

@@ -19,7 +19,7 @@ A round is a barrier: every agent runs to quiescence, then everything said is
 delivered. So an utterance made in round N is heard in round N+1, never
 mid-thought.
 
-⭐ **The wire turned out to be only a wire, because both ends already existed.**
+**The wire turned out to be only a wire, because both ends already existed.**
 `actuator` is documented as *a channel that carries intents OUT … acting is the
 same relation read the other way*, and `Loader.say` is the scoped door for
 arrivals. Between them there was nothing left to design: this module renders,
@@ -65,7 +65,7 @@ queues produces the identical transcript and the identical beliefs, round for
 round. Because crossing is already text, the queue carries the same payload the
 in-process wire does — the transport is a swap, not a redesign.
 
-⚠ **Never compare node ids across machines.** Two graphs built in the same order
+**Never compare node ids across machines.** Two graphs built in the same order
 assign the same integers. Probed twice: equal in one case, unequal in another. A
 cross-machine identity test is accidentally right often enough to pass a check.
 Compare rendered text.
@@ -98,7 +98,7 @@ save the next caller the same bug.
 
 ## An instrument lesson, since your traps file collects these
 
-⚠⚠⚠ **An A/B between two implementations is blind to any bug they share.**
+**An A/B between two implementations is blind to any bug they share.**
 
 We built `Local` and `Processes` and checked they agree — nine checks, all green.
 Two real bugs were invisible to every one of them, because both live in `Agent`,
@@ -111,7 +111,7 @@ repeats themselves and the table goes quiet*, *an utterance is directed and the
 third agent has no record of the speaker*. Both were written by putting the bug
 in first.
 
-⚠⚠ **And one check was worse than useless as first written.** The transcript
+**And one check was worse than useless as first written.** The transcript
 comparison catches arrival-order collection only when the OS scheduler *happens*
 to reorder replies — green on most runs with the bug present. The ordering is now
 a pure function handed a deliberately reversed dict, so it fails every run. A

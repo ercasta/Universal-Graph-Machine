@@ -914,9 +914,29 @@ def _mentions_a_rule(t: Term) -> bool:
 
 
 def _vars_in(g, node: NodeId) -> set:
+    """Every variable in a structure -- **including one in RELATION position.**
+
+    ⚠⚠⚠ It did not look at the relation, and `Graph.has_var` always has: `_mint`
+    computes genericity as *the relation is generic, or any member is*. So the
+    two disagreed about `?verb(?a, ?b)`, and the binding check is built from
+    both -- `has_var` decides whether a consequent needs checking and this
+    decides what would satisfy it.
+
+    The disagreement cut both ways, which is why it survived. A consequent
+    `+?r(?x, ?y)` passed the check because `?r` was never *wanted*; an antecedent
+    `+ev_at(?verb(?a, ?b), ?t)` failed it because `?verb` was never *had* -- so
+    destructuring a description was refused at the surface while `match` handled
+    it perfectly (measured: 2 matches, `?verb` bound to `attack` and `steal`).
+
+    ⭐ That is what blocked a **generic** interpreter: one rule per predicate was
+    forced, because a rule could not be written over the predicate itself.
+    """
     if g.is_var(node):
         return {node}
     out = set()
+    rel = g.relation_of(node)
+    if rel is not None:
+        out |= _vars_in(g, rel)
     for m in g.members(node):
         out |= _vars_in(g, m)
     return out

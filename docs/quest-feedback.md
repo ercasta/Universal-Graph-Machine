@@ -24,7 +24,7 @@ was an engine defect:
 | unconsumed request | the DM re-routes whenever the world moves |
 | two "fixes" for that | both hung — we applied your §0 at a channel (see §4) |
 
-⭐⭐⭐ **Not one of them produced an error.** Four ran to the tick limit, two were
+**Not one of them produced an error.** Four ran to the tick limit, two were
 silent. In the worst case — the eternal clock — the fight was decided correctly
 at round 8, **every check about the outcome stayed green**, and the agent kept
 working through 8,072 entries. We found it by reading a transcript.
@@ -47,16 +47,16 @@ inconsistent with your own practice: the depth and hypothesis budgets **both**
 deposit `bounded(<depth>)` and `bounded(<hypotheses>)` when they bite. The tick
 limit is the one bound that is not on the record.
 
-> **Your engine is not what broke. Our rules were. But the engine's response to a
-> wrong corpus is indistinguishable from its response to a corpus that simply has
-> nothing left to do.**
+>**Your engine is not what broke. Our rules were. But the engine's response to a
+>wrong corpus is indistinguishable from its response to a corpus that simply has
+>nothing left to do.**
 
 ### What we would ask for, in order
 
-1. ⭐⭐⭐ **`bounded(<ticks>)`, deposited like the other two bounds.** Three lines,
+1. **`bounded(<ticks>)`, deposited like the other two bounds.** Three lines,
    in your own idiom, and all four of our runaways become self-reporting. This is
    worth more to us than any feature in this document.
-2. ⭐⭐ **A static check for a rule that can re-trigger itself.** `ugm.atlas`
+2. **A static check for a rule that can re-trigger itself.** `ugm.atlas`
    already reports *pairs that could disagree*; a rule whose consequent can
    restore its own antecedent is the same shape of analysis, and it would have
    caught three of the six above before anything ran.
@@ -83,7 +83,7 @@ someone else. Cooperation is not a feature bolted on; it is what a blocked goal
 is *for*. The control — delete the agent holding the key — leaves p1 blocked for
 ever and the table goes quiet rather than spinning.
 
-⚠⚠⚠ **But `blocked` reports the rule's antecedent member AS WRITTEN, and this
+**But `blocked` reports the rule's antecedent member AS WRITTEN, and this
 shaped the corpus.** Probed three ways:
 
 ```
@@ -158,13 +158,13 @@ text.
 | a rule — `<narrate>` | refused |
 | anything generic | refused |
 
-⭐ **An agent cannot utter a time, and that is a second and different argument for
+**An agent cannot utter a time, and that is a second and different argument for
 the missing member kind.** `at ?m` shipped and solves the intra-agent half. Between
 agents a moment cannot cross at all, so **two agents can never refer to the same
 time**. We are not asking for it yet — flagging that the two halves will look like
 one requirement to whoever hits them.
 
-⚠ **Never compare node ids across machines.** Two graphs built in the same order
+**Never compare node ids across machines.** Two graphs built in the same order
 assign the same integers. Probed twice: equal once, unequal once. Accidentally
 right often enough to pass a check.
 
@@ -200,16 +200,16 @@ The denial is asserted up front (§1, *write your negatives*); the transfer's
 `+holds(p1, key1)` supersedes it; the member stops matching and the rule goes
 quiet with nothing retracted. So:
 
-> **Consume what you concluded. Never consume what you were told.**
+>**Consume what you concluded. Never consume what you were told.**
 
-⚠ Worth a line in §0 itself, because §0 as written sends an author straight into
+Worth a line in §0 itself, because §0 as written sends an author straight into
 a non-terminating loop at the one boundary every multi-agent corpus has.
 
 ---
 
 ## 5. Two bugs
 
-**⚠⚠⚠ `Loader.term` truncates silently.** It parses one term and ignores the
+**`Loader.term` truncates silently.** It parses one term and ignores the
 rest:
 
 ```
@@ -222,7 +222,7 @@ The `fact` and `rule` paths refuse loudly; `term()` does not, and `term()` is wh
 another**. Our wire now re-renders what was understood and compares it with what
 was sent, but any caller passing untrusted text to `term` is exposed.
 
-**⚠ `blocked` instantiation** — §1 above. Documented behaviour and actual
+**`blocked` instantiation** — §1 above. Documented behaviour and actual
 behaviour differ, and the document is the more useful of the two.
 
 ---
@@ -236,7 +236,7 @@ were editing `text.py` daily; we would rather you took them apart than found the
 number of further argument groups. The substrate always built a composite
 relation, `show` always printed it, `unify` learned to compare one when `?p(?t)`
 landed — the parser was the last component that could not read what the printer
-writes. ⚠ The loop fires **only** on a chained application, so every term that
+writes. The loop fires **only** on a chained application, so every term that
 parsed before produces a byte-identical AST. The tidier refactor — primary parses
 the head only, the loop does all application — would have collapsed the duplicated
 var/name branches, and we did not take it because `_fact` reads
@@ -249,14 +249,14 @@ notation, chosen by `syntax: lisp` on the first line or `lisp:` on one statement
 The tokeniser is shared and unmodified; only the parser is notation-specific, and
 `Loader` never learns which notation a node came from.
 
-⭐⭐⭐ **The reason it earns its place is that two readers are each other's check.**
+**The reason it earns its place is that two readers are each other's check.**
 The same corpus both ways builds the identical graph — same rules, members, signs,
 order, and the same 848 nodes, so neither reader minted a twin. It caught a real
 bug in ours within minutes: `((a b) c)` was folding to `a(c)`, a valid node nobody
 wrote, because we tested *head has no `fn`* where we needed *head is a leaf*.
 
 It also reaches `(moment)` — a relation instance with no members, which `show`
-prints as `moment()` and the default parser refuses. ⚠ We deliberately did **not**
+prints as `moment()` and the default parser refuses. We deliberately did **not**
 add that to the default notation: `a` and `a()` would be different nodes, which is
 the twin trap this repo has recorded six times. In a notation where parentheses
 mean application it is the rule rather than a trap.
@@ -265,12 +265,12 @@ mean application it is the rule rather than a trap.
 
 ## 7. An instrument lesson
 
-⚠⚠⚠ **An A/B between two implementations is blind to any bug they share.** We
+**An A/B between two implementations is blind to any bug they share.** We
 built two transports, checked they agree, and shipped nine green checks over two
 real bugs — both in the `Agent` class both transports use. The comparison *was*
 the instrument, so it could not see them.
 
-⚠⚠ **And a check whose sensitivity depends on a race reports green while the bug
+**And a check whose sensitivity depends on a race reports green while the bug
 is present.** Our transcript comparison caught arrival-order collection only when
 the OS scheduler happened to reorder replies. It is now a pure function handed a
 deliberately reversed dict, so it fails every run.
