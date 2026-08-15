@@ -5162,9 +5162,36 @@ New with §20, and the first two are the reason it is a section rather than a pa
   | nothing was declared | **no** |
   | one specific denial, `-declares(hero, cast)` | yes |
 
-  So **negation as failure over an open domain is genuinely absent**, and a corpus that needs it must
-  express the default as a *precedence between two rules* instead — at the cost that rule reports,
-  which is `docs/dungeon-feedback.md` §4: *you cannot read `<hero-holds>` and learn when it applies.*
+  ⭐⭐⭐ **AND IT IS NOT MISSING EITHER — it needed a STRETCH, not a negation.** *Nothing was
+  declared* has no truth conditions until you say **where you looked**; made precise it is *nothing
+  arrived on this channel over this span*, which is bounded, dated and a claim about the chain the
+  agent already keeps. A `-` on a **structural** member has meant *not derived* since the matchers
+  merged, so negation as failure was never the missing piece. What was missing was getting hold of the
+  stretch — and a moment can be named by **what was deposited there**, which `in_delta` and
+  `entry_of` bind, with `asking` naming the other end. Two bound endpoints is what `span_of` mints
+  from. Three stratum-0 rules and one ordinary one:
+
+  ```
+  rule <round>  = implies( { asking(?q), anc(?q, ?m), in_delta(?m, ?e),
+                             entry_of(?e, ?l, turn(hero, ?r), plus), span_of(?s, ?m, ?q) },
+                           { round_span(?r, ?s) } )
+  rule <silent> = implies( { round_span(?r, ?s), -heard(?s, player) }, { silent(?s, player) } )
+  rule <hero-acts> = implies( { silent(?s, player), +turn(hero, ?r) }, { +attacks(hero, ?r) } )
+  ```
+
+  Layers `[[round], [heard], [silent]]`, **derived and not assigned**. The player says nothing and the
+  hero attacks; the player says one word and it withdraws — and the default is a **condition the rule
+  states**, which is exactly what `docs/dungeon-feedback.md` §4 said precedence costs them: *you
+  cannot read `<hero-holds>` and learn when it applies.*
+
+  ⭐ **Their oldest open item was waiting on spans as loci, and nobody knew** — including them, and
+  including this document, which had just struck the row for the wrong reason and then restored it for
+  the wrong reason too.
+
+  ⚠ **The limit, stated exactly**: the channel is a ground atom. Quantifying over channels does not
+  work, because a corpus relation cannot be structural — `listens(?c)` stops the rule being stratum 0
+  and its structural members then match nothing. **Silence about a named channel is sayable; silence
+  about *any* channel is not**, and that is the honest residue of this item.
 
   ⚠⚠⚠ **And my census could not have found this.** It counted the negated members that corpus
   **wrote**, and the one it could not write was not there to count — which is `docs/authoring.md`
@@ -5623,7 +5650,7 @@ left to be discovered by an author writing the notation this document uses throu
 | the **skeleton** — `where`, named entries, a member's locus | §12 | ✅ built as **members** (`entry_of`, `span_of`, `at`, `as`); `where` as a keyword and the `?t = entry(...)` prefix form remain cosmetic gaps |
 | **spans as loci** | §11 | ✅ built — `span_of` mints, `at ?s` deposits at one |
 | **shapes** | §13 | ✅ follows from the two above — `<TT-base>`/`<TT-step>` run, over the raw chain |
-| **`unless`** — *half* | §12 | ⚠ **splits.** *if not* over a nameable proposition ✅ is a negated member and always was. *If nothing was said* — a default over an **open domain** — ❌ needs negation as failure and is absent; the dungeon hit it and worked around it with `overrides`. **Amendment at a distance** is separately refused by decision (§5's wall) |
+| ~~**`unless`**~~ | §12 | ✅ **struck, on the second attempt and for a better reason.** *if not* over a nameable proposition is a negated member. *If nothing was said* is *nothing arrived on this channel over this span* — three stratum-0 rules, no new negation. ⚠ Residue: silence about a **named** channel only. **Amendment at a distance** is separately refused by decision |
 
 ⚠ **Nothing in §21's gates can see any of these**, and that is the general lesson rather than an
 oversight: the bundle gate deletes each shipped rule and re-runs the suite, so it measures what

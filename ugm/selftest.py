@@ -805,6 +805,91 @@ def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
     )
 
 
+def silence_over_a_stretch_is_sayable() -> None:
+    """*Nothing was declared this round* -- without negation as failure. (§9, §11)
+
+    `docs/dungeon-feedback.md` §4 asked for negation as failure over an open
+    domain: *the hero attacks by default when the player has declared nothing
+    this round*, which no corpus can write as `-declares(hero, ?what)`, because
+    §9's `-` needs an entry that DENIES and absence is not denial. They expressed
+    the default as `overrides(<hero-acts>, <hero-holds>)` instead, and named the
+    cost exactly: **the default becomes a precedence rather than a condition, so
+    you cannot read the rule and learn when it applies.**
+
+    ⭐⭐⭐ **It needed no new negation. It needed a STRETCH.** *Nothing was
+    declared* has no truth conditions until you say where you looked; made
+    precise it is *nothing arrived on this channel over this span*, which is
+    bounded, dated, and a claim about the chain the agent already keeps. And a
+    `-` on a STRUCTURAL member has meant *not derived* -- negation as failure --
+    since the matchers merged.
+
+    ⭐ **The piece that was missing was named the same morning.** The stopper was
+    getting hold of the stretch: `span_of` refuses to enumerate, because any two
+    moments form a span. But a moment can be named by **what was deposited
+    there** -- `in_delta` and `entry_of` bind it -- and `asking` names now. Two
+    bound endpoints is exactly what `span_of` mints from. So the dungeon's oldest
+    open item was waiting on spans as loci and nobody knew.
+
+    ⚠ The channel is a ground atom here. Quantifying over channels does not work,
+    because a corpus relation cannot be structural: `listens(?c)` stops the rule
+    being stratum 0, and then its structural members match nothing. Silence about
+    a NAMED channel is sayable; silence about *any* channel is not.
+    """
+    from .text import load
+
+    src = chr(10).join([
+        "rule <round> = implies(",
+        "  { asking(?q), anc(?q, ?m), in_delta(?m, ?e),",
+        "    entry_of(?e, ?l, turn(hero, ?r), plus), span_of(?s, ?m, ?q) },",
+        "  { round_span(?r, ?s) } )",
+        "rule <heard> = implies(",
+        "  { round_span(?r, ?s), span_of(?s, ?a, ?b), anc(?b, ?m), anc(?m, ?a),",
+        "    in_delta(?m, ?e), entry_of(?e, ?l, arrived(?c, ?what, ?sign), plus) },",
+        "  { heard(?s, ?c) } )",
+        "rule <silent> = implies( { round_span(?r, ?s), -heard(?s, player) },",
+        "                        { silent(?s, player) } )",
+        "rule <hero-acts>  = implies( { silent(?s, player), +turn(hero, ?r) },",
+        "                             { +attacks(hero, ?r) } )",
+        "rule <hero-holds> = implies( { +says(player, hold(hero), ?g), +turn(hero, ?r) },",
+        "                             { +holds(hero, ?r) } )",
+        "fact +turn(hero, 1)", ""])
+
+    def round_of(declare: bool):
+        m = Machine()
+        kb = load(m, src)
+        if declare:
+            kb.say("player", "hold(hero)")
+        m.run(limit=60)
+        # ⚠ A ROUND IS A STRETCH, so it has duration whether or not anyone spoke.
+        # Minting the span only when the chain happened to move made silence
+        # unrepresentable: there was no span for nothing to have happened in.
+        now = m.chain.succeed(m.chain.moments[-1], None)
+        m.gate.reseat(m.focus, now)
+        m.ask_read(now)
+        layers = [[r.name for r in layer] for layer in m.rules.strata()]
+        m.settle_structure()
+        m.run(limit=120)
+        at = lambda q: m.chain.holds(kb.term(q), m.focus.topic, m.focus.seat)
+        return layers, at("attacks(hero, 1)"), at("holds(hero, 1)")
+
+    layers, attacks, holds = round_of(declare=False)
+    check("§6", "the three recognisers are stratum 0 by §6's own test, and the "
+          "layers are DERIVED -- silence must not be decided before what would "
+          "refute it has finished deriving",
+          layers == [["round"], ["heard"], ["silent"]])
+    check("§11", "⭐⭐⭐ *nothing was declared this round* is sayable, with no "
+          "negation as failure over an open domain: it is *nothing arrived on "
+          "this channel over this stretch*, and the stretch is named by the "
+          "entry that opened it",
+          attacks == PLUS and holds is None)
+
+    _, attacks2, holds2 = round_of(declare=True)
+    check("§9", "...and one word from the player withdraws it -- the default is "
+          "a CONDITION the rule states, not a precedence between two rules, "
+          "which is the cost the dungeon named",
+          attacks2 is None and holds2 == PLUS)
+
+
 def a_guard_is_an_ordinary_member() -> None:
     """`unless` is *if not*, and *if not* has been built all along. (§12, §21)
 
@@ -7101,6 +7186,7 @@ def main() -> int:
     a_member_can_name_what_it_matched()
     the_skeleton_is_an_ordinary_member()
     a_guard_is_an_ordinary_member()
+    silence_over_a_stretch_is_sayable()
     a_span_is_a_locus()
     the_matchers_are_one()
     a_half_finished_change_is_observable_and_actionable()

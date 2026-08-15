@@ -84,10 +84,35 @@ denial and you do not know what might have been said. Measured:
 | nothing was declared | **no** |
 | one specific denial | yes |
 
-So an **open-domain default** is expressed as `fact overrides(<hero-acts>, <hero-holds>)`, and the
-cost is exactly what they name: **the default becomes a precedence rather than a condition, so you
-cannot read the rule and learn when it applies.** That is negation as failure, it is genuinely
-absent, and it is the surviving half of `unless`.
+⭐⭐⭐ **But you no longer need the precedence workaround, and you never needed a new negation.**
+*Nothing was declared* is vague until you say where you looked. Made precise — **nothing arrived on
+this channel over this stretch** — it is bounded, checkable, and sayable today, because a `-` on a
+**structural** member already means *not derived*:
+
+```
+rule <round>  = implies( { asking(?q), anc(?q, ?m), in_delta(?m, ?e),
+                           entry_of(?e, ?l, turn(hero, ?r), plus), span_of(?s, ?m, ?q) },
+                         { round_span(?r, ?s) } )
+rule <heard>  = implies( { round_span(?r, ?s), span_of(?s, ?a, ?b), anc(?b, ?m), anc(?m, ?a),
+                           in_delta(?m, ?e), entry_of(?e, ?l, arrived(?c, ?w, ?g), plus) },
+                         { heard(?s, ?c) } )
+rule <silent> = implies( { round_span(?r, ?s), -heard(?s, player) }, { silent(?s, player) } )
+
+rule <hero-acts> = implies( { silent(?s, player), +turn(hero, ?r) }, { +attacks(hero, ?r) } )
+```
+
+The trick is that **a moment is named by what was deposited there** — `in_delta` and `entry_of` bind
+it, `asking` names now, and two bound endpoints is what `span_of` mints from. Your default is now a
+**condition the rule states**, which is the thing precedence cost you.
+
+⚠ Two warnings, both of which cost me time. **A round is a stretch, so it must have duration** — mint
+the span even when nothing happened, or there is no stretch for nothing to have happened in. And
+**anchoring order is everything**: `in_delta(?m, ?e)` before anything binds `?m` finds nothing,
+silently.
+
+⚠ **The residue**: the channel must be a ground atom. `listens(?c)` stops the rule being stratum 0,
+because a corpus relation cannot be structural — so silence about a **named** channel is sayable and
+silence about *any* channel is not.
 
 ---
 
@@ -364,9 +389,9 @@ session. You will reach for all of them in an RPG.
 ⭐⭐ **Almost no unbuilt rows left.** Relating two moments, a fact's own history, spans as loci and
 the shapes that follow from them are all built — and most of `unless` was never unbuilt at all.
 
-⚠⚠⚠ **What survives, and your §4 is why:** **negation as failure over an open domain.** *If nothing
-was said* is not a negated member, because absence is not denial, and no corpus can enumerate what
-was never uttered. It remains a precedence workaround, at the cost you documented.
+⭐⭐⭐ **And your §4 is closed too, by spans rather than by a negation.** *If nothing was said* is
+*nothing arrived on this channel over this stretch* — see §2 above. ⚠ Residue: a **named** channel
+only.
 
 ⚠ **What IS absent, correctly named:** **amendment at a distance** — adding a guard to a rule you did
 not write and cannot edit. That is refused by decision rather than missing by omission. An ordinary
