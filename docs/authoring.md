@@ -40,6 +40,44 @@ new. Nor can any check about the outcome: the fight is decided correctly and the
 See §7 of that document for a run that reached **round 417 across 8,072 entries** with every outcome
 check green.
 
+### ⚠⚠⚠ But never do this at a channel
+
+> **Consume what you concluded. Never consume what you were told.**
+
+A second corpus applied the rule above to an *arrival* and hung twice
+(`docs/quest-feedback.md` §4). The trace is the whole argument:
+
+```
+150  + says(p1, want(p1, key1), +)
+149  - says(p1, want(p1, key1), +)
+149  + wants(p1, key1)
+```
+
+`<intake>` is a **bundled** rule — `arrived(?c, ?said, ?sign) ⟹ says(...)` — and `arrived` is the
+unarguable record of a boundary event that nothing retracts. So denying `says` restores it on the
+next tick, along with everything derived from it, for ever.
+
+⭐ What works at a boundary is not consumption but **a gate that legitimately closes**: state the
+denial up front (§1 — *write your negatives*), and let the world's own change supersede it.
+
+```
+rule <route> = implies( { +wants(?who, ?k), -holds(?who, ?k), +holds(?keeper, ?k) },
+                        { ... } )
+fact -holds(p1, key1)
+```
+
+The transfer's `+holds(p1, key1)` supersedes the denial, the member stops matching, and the rule goes
+quiet with **nothing retracted**. Every multi-agent corpus has this boundary, so this exception is
+not a corner case — it is the first place §0 will send you wrong.
+
+⭐ **And you can now ask whether you hit the wall.** A run that is still working when the tick limit
+bites deposits `bounded(ticks)`, so a corpus can notice its own runaway instead of being cut off
+silently:
+
+```
+rule <panic> = implies( { +bounded(ticks) }, { +goal(diagnose(myself)) } )
+```
+
 ---
 
 ## 1. `−` means *denied*, never *absent*

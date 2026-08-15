@@ -693,8 +693,29 @@ class Loader:
         name meaning is a *scope*, and the corpus is that scope. So a question
         about what was loaded has to be asked through the loader that loaded it,
         which is the honest arrangement rather than an inconvenience.
+
+        ⚠⚠⚠ **It refuses leftovers, and until a foreign corpus reported it, it
+        did not.** `term("a b")` returned `a` and `term("a(b) junk here")`
+        returned `a(b)`, silently -- one term parsed and the rest of the string
+        dropped. The `fact` and `rule` paths refuse loudly; this one did not, and
+        this one is what `Loader.say` uses. So **an agent could say one thing and
+        the hearer believe another**, with nothing anywhere reporting a
+        difference (`docs/quest-feedback.md` §5).
+
+        That is worse than a parse error, because a truncation is still a valid
+        term: it fails as a **wrong answer** rather than as a crash, which this
+        repository has recorded as its most expensive failure shape.
         """
-        t = Parser(tokenise(src)).term()
+        toks = tokenise(src)
+        p = Parser(toks)
+        t = p.term()
+        if p.peek() is not None:
+            rest = " ".join(x.text for x in toks[p.i:])
+            raise ParseError(
+                f"a term and then {rest!r} -- `term` reads ONE term, and "
+                f"silently dropping the rest would let a caller believe "
+                f"something other than what it was given"
+            )
         return self.build(t, {})
 
     def load(self, src: str) -> List[Statement]:

@@ -56,7 +56,7 @@ ROLES: Dict[str, List[str]] = {
         "tolerance", "close", "forgone", "helped", "harmed", "concluded",
         "reached", "bounded", "widened", "support", "unsupported", "root",
         "rooted", "scoped", "loaded", "kb", "dormant", "due", "standing",
-        "prefer", "excluded",
+        "prefer", "excluded", "ticks",
     ],
     # Where a world touches the agent: what arrived, what was said, what was
     # done, and what may not be. About the ACT, never about its content.

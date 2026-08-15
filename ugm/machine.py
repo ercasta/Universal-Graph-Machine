@@ -466,6 +466,9 @@ class Machine:
         self.WIDENED = self.g.atom("widened")
         self.REACHED = self.g.atom("reached")
         self.BOUNDED = self.g.atom("bounded")
+        # ...and the third bound, which was the only one not on the record.
+        # A corpus asked for this first, ahead of every feature in its list.
+        self.TICKS = self.g.atom("ticks")
         self.BUDGET = self.g.atom("budget")
         self.DEPTH = self.g.atom("depth")
         self.HYPOTHESES = self.g.atom("hypotheses")
@@ -537,7 +540,7 @@ class Machine:
             "names": self.NAMES, "computes": self.COMPUTES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
-            "bounded": self.BOUNDED,
+            "bounded": self.BOUNDED, "ticks": self.TICKS,
             "budget": self.BUDGET, "depth": self.DEPTH,
             "hypotheses": self.HYPOTHESES,
             **{str(i): n for i, n in self.NUMERAL.items()},
@@ -2770,13 +2773,41 @@ class Machine:
 
     def run(self, limit: int = 100) -> List[Step]:
         """Bounded, and it returns a result *and* a state -- because a search that
-        stopped is not a search that found nothing (§9, §15)."""
+        stopped is not a search that found nothing (§9, §15).
+
+        ⭐⭐⭐ **And the bound says so, which is §21's defect for the eleventh
+        time and the one a foreign corpus asked for first.** `docs/quest-feedback.md`
+        §0: they wrote three corpora, made six rule bugs, and **not one produced an
+        error** -- four ran to the tick limit and two were silent. What the engine
+        said about a corpus that never terminates:
+
+            settles      steps=  3/60   last=quiescent
+            runs away    steps= 60/60   last=applied
+
+        A corpus that is finished and one that never will be differed only in
+        whether `len(steps)` happened to equal the limit **the caller chose**, and
+        `exhausted` stayed 0 either way. **No rule could ask *did I run out of
+        time?*** -- while the depth and hypothesis budgets both deposit
+        `bounded(...)` when they bite. The tick limit was the one bound not on the
+        record, and that was inconsistent with this engine's own practice rather
+        than a considered position.
+
+        ⚠ Deposited only when the loop is still WORKING at the limit. A run that
+        stops because there is nothing left to do has not been bounded by
+        anything, and saying it had would make the record useless in the other
+        direction.
+        """
         out: List[Step] = []
         for _ in range(limit):
             s = self.tick()
             out.append(s)
             if s.state not in ("applied", "supposed", "expanded", "quiet", "widened"):
-                break
+                return out
+        if out:
+            # Still going when the budget ran out: the agent stopped because it
+            # was told to, not because it was done.
+            self.exhausted += 1
+            self._note(self.g.rel(self.BOUNDED, self.TICKS))
         return out
 
     # -- the four primitives ----------------------------------------------

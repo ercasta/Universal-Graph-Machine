@@ -805,6 +805,74 @@ def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
     )
 
 
+def the_tick_limit_is_on_the_record() -> None:
+    """*Did I run out of time?* -- askable at last. (§13, §21)
+
+    ⭐⭐⭐ **A foreign corpus asked for this ahead of every feature on its list**
+    (`docs/quest-feedback.md` §0). They wrote three corpora, made six rule bugs,
+    and **not one produced an error**: four ran to the tick limit and two were
+    silent. What the engine said about a corpus that never terminates was:
+
+        settles      steps=  3/60   last=quiescent   exhausted=0
+        runs away    steps= 60/60   last=applied     exhausted=0
+
+    A corpus that is finished and one that never will be differed only in whether
+    `len(steps)` happened to equal the limit **the caller chose**. Meanwhile the
+    depth and hypothesis budgets both deposit `bounded(...)` when they bite, so
+    this was not a considered position -- it was the one bound inconsistent with
+    this engine's own practice. §21's defect, eleventh time.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <a> = implies( { +p(x) }, { +q(x) } )", "fact +p(x)", ""]))
+    steps = m.run(limit=60)
+    check("§13", "a run that finishes is NOT reported as bounded -- a corpus "
+          "with nothing left to do was stopped by nothing, and saying otherwise "
+          "would make the record useless in the other direction",
+          steps[-1].state == "quiescent"
+          and m.chain.holds(kb.term("bounded(ticks)"),
+                            m.focus.topic, m.focus.seat) is None)
+
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "rule <spin>  = causes( { +quiet(?m) }, { +turn(?m) } )",
+        "rule <panic> = implies( { +bounded(ticks) }, { +noticed(runaway) } )", ""]))
+    steps2 = m2.run(limit=40)
+    check("§21", "⭐⭐⭐ ...and a run still working when the budget bites SAYS so, "
+          "so a runaway stops being indistinguishable from a finished corpus",
+          len(steps2) == 40 and steps2[-1].state == "applied"
+          and m2.chain.holds(kb2.term("bounded(ticks)"),
+                             m2.focus.topic, m2.focus.seat) == PLUS)
+    m2.run(limit=10)
+    check("§19", "...and it is an OCCASION, so a corpus reacts to its own "
+          "runaway rather than being cut off in silence",
+          m2.chain.holds(kb2.term("noticed(runaway)"),
+                         m2.focus.topic, m2.focus.seat) == PLUS)
+
+    # ⚠⚠⚠ `Loader.term` parsed one term and dropped the rest of the string, and
+    # `Loader.say` uses it -- so an agent could say one thing and the hearer
+    # believe another, with nothing reporting a difference. A truncation is
+    # still a valid term, so it failed as a WRONG ANSWER rather than a crash.
+    from .text import ParseError
+    m3 = Machine()
+    kb3 = load(m3, "fact +z(z)" + chr(10))
+    refused = []
+    for src in ("a b", "a(b) junk here"):
+        try:
+            kb3.term(src)
+        except ParseError:
+            refused.append(src)
+    check("§8", "⚠⚠⚠ `term` refuses leftovers rather than silently truncating -- "
+          "what one agent says is what another believes, or the wire is a lie",
+          refused == ["a b", "a(b) junk here"])
+    check("§8", "...and a term that is genuinely one term still reads, including "
+          "a chained application",
+          m3.g.show(kb3.term("a(b)(c)")) == "a(b)(c)"
+          and m3.g.show(kb3.term("on(a, b)")) == "on(a, b)")
+
+
 def silence_over_a_stretch_is_sayable() -> None:
     """*Nothing was declared this round* -- without negation as failure. (§9, §11)
 
@@ -7186,6 +7254,7 @@ def main() -> int:
     a_member_can_name_what_it_matched()
     the_skeleton_is_an_ordinary_member()
     a_guard_is_an_ordinary_member()
+    the_tick_limit_is_on_the_record()
     silence_over_a_stretch_is_sayable()
     a_span_is_a_locus()
     the_matchers_are_one()
