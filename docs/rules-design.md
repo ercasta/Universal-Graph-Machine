@@ -526,6 +526,36 @@ silence. For a session-sized agent that is the right trade, and it is exactly th
 scale — volume and many hands — which is why §20 puts acquisition and harmonization first rather
 than treating them as polish.
 
+### ...and the same property is what detects it
+
+**Meaning is the web, so a name with no web is a mistake.** That is not a heuristic about spelling —
+it follows from the paragraph above. If a proposition means what follows from it, then a name nothing
+ever draws a conclusion from, or nothing ever establishes, means nothing, and a corpus containing one
+is smaller than it looks.
+
+⚠⚠⚠ **Only one of the two directions is a signal, and this had to be measured to find out which** —
+`harmony` having already shown that a detector no corpus can falsify reports thousands of false
+positives:
+
+| | on four healthy corpora | on a corpus with a typo |
+|---|---|---|
+| **written, never read** | **11–17 names** — the machinery's bookkeeping, and a corpus's own *outputs*, since nobody reads an answer | fires, but buried |
+| **read, never written** | **0, 0, 0, 0** | **1, and it is the bug** |
+
+⭐ The second needs only the one direction because **a typo always breaks a pairing, and a broken
+pairing always leaves some reader with no writer** — so a misspelling is caught whether it lands in
+the rule or in the fact.
+
+`ugm.vocabulary` gates it, with the engine's own names excluded (the machinery supplies `arrived`,
+`emitted`, `quiet`; without the exclusion the bundle reports 11) and **with a planted typo carried as
+a control** — because every real corpus reports zero, which is the same output a detector that had
+stopped working would give.
+
+⚠ **The known false positive, stated rather than discovered later:** a corpus that expects a world to
+supply an open-class fact at run time — from a channel rather than from its own text — reads a name
+it never writes and is right to. All four corpora here assert their world in the file; a corpus fed
+live would need to declare what its channel delivers.
+
 ⚠ **And the property is not this design's invention.** Inferential meaning over an open vocabulary is
 the logic-programming and knowledge-representation position — Prolog, Datalog, RDF, Cyc. What is
 being claimed here is only the discipline around it: the criteria scored before each decision, and

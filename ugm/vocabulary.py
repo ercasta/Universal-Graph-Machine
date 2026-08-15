@@ -78,6 +78,63 @@ CORPORA = [
 ]
 
 
+def web(m: Machine, rules) -> "tuple":
+    """For each relation name: how often it is READ (an antecedent member) and
+    WRITTEN (a consequent member, or a fact deposited).
+
+    ⭐⭐⭐ **Meaning in an open class is given by the web**, so a name with no web
+    is a mistake. That is the user's observation, and it is the answer to the
+    price the census above records: a proposition awaiting its meaning and a typo
+    are both well formed and both inert, and nothing could tell them apart.
+
+    ⚠⚠⚠ **Only one of the two directions is a signal, and measuring first is what
+    said which.** *Written and never read* reports **11 to 17 names on healthy
+    corpora** -- the machinery's own bookkeeping, plus a corpus's OUTPUTS, since
+    nobody reads an answer (`amount`, `rerouted`). That is `harmony`'s 3,545 false
+    positives arriving in a new shape. *Read and never written* reports **zero**
+    on every corpus here and exactly one on a corpus with a typo in it.
+
+    ⭐ And it catches a misspelling from **either side**, which is why it needs
+    only the one direction: a typo always breaks a pairing, and a broken pairing
+    always leaves some reader with no writer.
+    """
+    from collections import defaultdict
+    read, written = defaultdict(int), defaultdict(int)
+    for r in rules:
+        for x in r.antecedent:
+            rel = m.g.relation_of(x.pattern)
+            if rel is not None:
+                read[m.g.show(rel)] += 1
+        for x in r.consequent:
+            rel = m.g.relation_of(x.pattern)
+            if rel is not None:
+                written[m.g.show(rel)] += 1
+    for mo in m.chain.moments:
+        for e in mo.delta:
+            rel = m.g.relation_of(e.proposition)
+            if rel is not None:
+                written[m.g.show(rel)] += 1
+    return read, written
+
+
+def unwebbed(m: Machine, rules, res: Set[str]) -> List[str]:
+    """Names a corpus READS and nothing ever writes -- so no rule using one can
+    ever be satisfied, and the corpus is silently smaller than it looks.
+
+    ⚠ The engine's own names are excluded because the **machinery** supplies
+    them: the bundle reads `arrived`, `emitted`, `taken` and `quiet` and writes
+    none of them, correctly. Without the exclusion the bundle reports 11.
+
+    ⚠⚠ **The known false positive, stated rather than discovered later**: a
+    corpus that expects a world to supply an open-class fact at run time -- from
+    a channel rather than from its own text -- reads a name it never writes, and
+    is right to. None of the corpora here does that; all four assert their world
+    in the file. A corpus fed live would need to say what its channel delivers.
+    """
+    read, written = web(m, rules)
+    return sorted(n for n in read if not written.get(n) and n not in res)
+
+
 def reserved() -> Set[str]:
     """Every name a corpus may write and the engine already understands."""
     m = Machine()
@@ -199,6 +256,66 @@ def main() -> int:
         print(f"    {q:22} {got!r:6} {'ok' if got == expect else 'FAIL'}")
         if got != expect:
             failures.append(f"{q} is {got!r}, wanted {expect!r}")
+
+    # -- vocabulary connected to nothing -------------------------------------
+    print()
+    print("Vocabulary with no web -- names a corpus reads and nothing writes")
+    print()
+    from .text import load as _load
+
+    def corpus(src: str):
+        """A machine with the corpus loaded, and only the corpus's own rules."""
+        mm = Machine()
+        before = {r.node for r in mm.rules.rules}
+        kb2 = _load(mm, src)
+        mm.run(limit=300)
+        return mm, kb2, [r for r in mm.rules.rules if r.node not in before]
+
+    for label, path, _ in CORPORA:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                src = fh.read()
+        except OSError:
+            continue
+        if label == "the bundle itself":
+            mm = Machine()          # it is already loaded; re-loading redeclares
+            rules = list(mm.rules.rules)
+        elif label == "a D&D fight":
+            # ⚠ It registers three computators, so it cannot be loaded from its
+            # text alone -- and it is the one corpus written by another session,
+            # which makes it the false-positive test that actually counts.
+            from .dungeon import fight
+            bundled = {r.node for r in Machine().rules.rules}
+            mm, _, _ = fight(seed=1, limit=60)
+            rules = [r for r in mm.rules.rules if r.node not in bundled]
+        else:
+            try:
+                mm, _, rules = corpus(src)
+            except Exception as exc:
+                print(f"  {label:30} (will not load: {str(exc)[:34]})")
+                continue
+        orphans = unwebbed(mm, rules, res)
+        checked += 1
+        print(f"  {label:30} {len(orphans)} unwebbed  {orphans if orphans else ''}")
+        if orphans:
+            failures.append(f"{label} reads {orphans}, which nothing writes")
+
+    # ⚠⚠⚠ **The control, and the instrument is worth nothing without it.** Every
+    # corpus above reports zero, which is the same output a detector that has
+    # stopped being able to fire would give. This repo has recorded a check that
+    # was guarded twice over by later improvements and could no longer fail; a
+    # detector reporting all-clear on every input is that trap with the numbers
+    # already looking right.
+    mm2, _, planted = corpus(
+        "rule <trade> = implies( { +owns(?s, ?i), +wants(?b, ?i) },\n"
+        "                       { +sells(?s, ?b, ?i) } )\n"
+        "fact +owns(smith, sword)\n"
+        "fact +watns(hero, sword)\n")
+    caught = unwebbed(mm2, planted, res)
+    checked += 1
+    print(f"  {'a planted typo (watns/wants)':30} {len(caught)} unwebbed  {caught}")
+    if caught != ["wants"]:
+        failures.append(f"the control was not caught: {caught}")
 
     print()
     for f in failures:

@@ -52,6 +52,43 @@ Cyc's, which is why §20 puts acquisition first.
 (Prolog, Datalog, RDF, Cyc). What is claimed is the discipline around it. Documented in §2, after
 *closed is a rate, not a kind*, which it is the mirror of.
 
+### ⭐⭐⭐ ...and the same property detects the mistake it enables
+
+The user's follow-up: *could we detect vocabulary connected to nothing else? Meaning in the open class
+is given by the web, and a vocabulary connected to nothing is for sure a mistake.* It is, and it
+follows from the paragraph above rather than being a spelling heuristic.
+
+⚠⚠⚠ **Only one direction is a signal, and measuring is what said which** — `harmony`'s lesson applied
+before building, not after:
+
+| | four healthy corpora | a corpus with a typo |
+|---|---|---|
+| written, never read | **11–17** — bookkeeping, plus a corpus's own *outputs* | fires, but buried |
+| **read, never written** | **0, 0, 0, 0** | **1, and it is the bug** |
+
+⭐ One direction suffices because **a typo always breaks a pairing, and a broken pairing always leaves
+some reader with no writer** — so it is caught whether the misspelling lands in the rule or the fact.
+Gated in `ugm.vocabulary` (18 checks), with a **planted typo carried as a control**, because every
+real corpus reports zero and that is the same output a detector that had stopped working would give.
+Three kill-probes: a typo in a real corpus (3), the reserved-name exclusion removed (1), the control
+quietly fixed (1).
+
+⚠ **Known false positive, stated now rather than discovered later:** a corpus fed by a live channel
+legitimately reads names its own text never writes. All four corpora here assert their world in the
+file.
+
+⚠⚠⚠ **And a new instrument trap, caused by my own kill-probe.** After probing the control by swapping
+`watns` for `wants` and restoring, the detector reported all-clear on the control and stayed that way.
+The file on disk was correct; **Python was reusing a stale `.pyc`**, because the two spellings are the
+same length, so the restored file had an identical size and an mtime in the same second. A probe whose
+edit is byte-length-identical can leave its own result behind and make it look permanent — and the
+symptom is a detector that has quietly stopped detecting, which is the exact failure the control
+exists to catch. `rm -rf ugm/__pycache__` after a restore, or vary the length.
+
+⚠ **Open, and the natural next question:** whether this should run at **load** and warn the author,
+the way `plus`/`minus` shadowing now does. It is an instrument today, so nothing tells an author
+until someone runs it.
+
 ⚠ `delay.ugm` is **run and asserted**, not merely counted: a corpus a census only parses is
 decoration, and would let the census report a vocabulary for rules that do not work.
 
