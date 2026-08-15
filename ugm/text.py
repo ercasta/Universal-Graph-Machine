@@ -850,6 +850,50 @@ def _report_shadowed(ldr: "Loader") -> None:
           f"your own (see Appendix C)", file=sys.stderr)
 
 
+def _report_unwebbed(machine: Machine) -> None:
+    """Say when a rule reads a name nothing anywhere writes.
+
+    ⭐⭐⭐ **The open class's own price, detected by the open class's own
+    property.** A proposition needs no implementation, so a name awaiting its
+    meaning and a name that is a typo are both well formed and both inert --
+    and nothing in the engine could tell them apart. Meaning is the web, so a
+    name with no web is the mistake, and this is where an author is looking.
+
+    A note rather than an error, deliberately, and `_report_shadowed`'s argument
+    applies unchanged: **we cannot catch every mistake, so this must not pretend
+    to.** A corpus fed by a live channel legitimately reads what its own text
+    never writes; refusing it would be wrong, and staying silent is the failure
+    being repaired.
+
+    ⚠⚠⚠ **Called from the DOOR, not from `load`, and that is a measurement.**
+    Wired into every `load` it fired **91 times across the suite** -- and every
+    one was correct, because a suite is made of deliberately partial fixtures:
+    a rule loaded to test something else, whose premise nobody ever supplies.
+    Correct and useless is still useless, because a note that fires ninety-one
+    times is a note an author learns to skip. The four real corpora report
+    **zero**. So it is said where an author actually loads a corpus to run it,
+    and `Machine.unwebbed` stays available to anything that wants to ask.
+
+    ⚠ Computed over the WHOLE machine rather than one document, because a corpus
+    may span documents (§17's scopes) and the fact that satisfies a rule may
+    arrive in the next one.
+
+    ⚠ A fact arriving on a CHANNEL does not count as written, and that is right:
+    `say user: +heat(...)` deposits `arrived(user, heat(...), +)`, so `heat` is
+    an argument and not a claim until some rule asserts it. A corpus that never
+    writes that rule genuinely cannot fire, and the note says so.
+    """
+    if getattr(machine, "_booting", False):
+        return
+    missing = machine.unwebbed()
+    if not missing:
+        return
+    names = ", ".join(missing)
+    print(f"note: nothing writes {names}, and a rule reads it -- so that rule "
+          f"can never apply. A misspelling on either side does this; so does a "
+          f"fact you meant to assert and did not", file=sys.stderr)
+
+
 def load(machine: Machine, src: str, scope: Optional[str] = None,
          domain: Optional[str] = None) -> Loader:
     """Returns the loader, which is the corpus's name scope -- ask questions

@@ -52,6 +52,55 @@ Cyc's, which is why §20 puts acquisition first.
 (Prolog, Datalog, RDF, Cyc). What is claimed is the discipline around it. Documented in §2, after
 *closed is a rate, not a kind*, which it is the mirror of.
 
+### ⭐⭐⭐ `ugm.atlas` — a map of a corpus, and THREE independent defect classes
+
+The user's follow-up: *a way to test the rules / corpus, e.g. build a map of the web or of the possible
+inferential chains, and show it — maybe offline, with harmonization.* Then, sharpening the criterion:
+*meaning means connected to the web; a rule mentioning a proposition alone forms a disconnected
+subgraph. I expect islands (a domain's terminology) joined by bridges (common terminology), not a
+densely connected web.*
+
+`python -m ugm.atlas <corpus.ugm> [--mermaid]`. Three checks, and **none of them catches what the
+others do** — which is the argument for having all three:
+
+| | catches | what the others miss |
+|---|---|---|
+| a name nothing writes | `+bokked(?p, ?f)` | — |
+| **the reachability fixpoint** | a rule whose premise is written *only by a rule that itself can never apply* | `unwebbed` cannot: the name **is** written |
+| **connectivity** | a relation joined only to itself | it is written **and** grounded, so neither of the others looks at it |
+
+⭐⭐⭐ **And it catches `authoring.md` §1's most expensive trap statically**: `-gone(?x)` where nothing
+ever writes `gone` is a rule that can never apply, and that trap's whole cost is that it fails
+silently.
+
+⭐⭐⭐ **The prediction about the shape was made before the measurement and holds:**
+
+| | relations | links | density | islands |
+|---|---|---|---|---|
+| passenger rights | 13 | 13 | 0.167 | [13] |
+| the worked examples | 8 | 7 | 0.250 | **[4, 4]** |
+| **two domains + the bundle** | 43 | 37 | **0.041** | **[1,2,2,3,3,4,5,10,13]** |
+
+Sparse and fragmented, not a mesh. And the bridging terms divide exactly as predicted — each domain's
+own hubs (`disrupted`, `owed`, `amount`; `likely`) alongside the agent's **common** vocabulary
+(`says`, `did`, `goal`, `subgoal`, `verdict`). ⭐ `worked.ugm` reporting **two** islands is the measure
+being right about something known independently: that file is two unrelated worked examples.
+
+⚠⚠⚠ **`not` reports as joined to nothing and is a false positive** — the bare variable distorting a
+measurement for the **third** time. `<denial>` concludes `-?p`, which has no relation to draw a link
+to, so `not` looks isolated while it is joined to everything the agent can deny. Excluded by name and
+recorded rather than hidden.
+
+⚠ **The conflict half is a prompt, not a defect list**, and the rate says why: **1** pair on passenger
+rights (`weather vs crewing` — a flight both storm-delayed and short of crew has two answers and
+nobody said which) against **28** on the dungeon, where they are almost all the ordinary
+grant-and-spend cycle of a world model. **A corpus that CHANGES the world trips this far more than one
+that concludes about it** — the shape census's gap, seen from the conflict side.
+
+⚠ Static and argument-blind: `owns(smith, sword)` grounds `owns` for any rule reading `owns(?a, ?b)`.
+So a rule it calls live may still never fire; a rule it calls **dead genuinely cannot**. The false
+direction is the safe one.
+
 ### ⭐⭐⭐ ...and the same property detects the mistake it enables
 
 The user's follow-up: *could we detect vocabulary connected to nothing else? Meaning in the open class

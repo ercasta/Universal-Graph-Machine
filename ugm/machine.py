@@ -4106,6 +4106,56 @@ class Machine:
 
     # -- asking -----------------------------------------------------------
 
+    def web(self) -> Tuple[dict, dict]:
+        """For each relation name: how often it is READ (an antecedent member)
+        and WRITTEN (a consequent member, or a fact deposited).
+
+        ⭐⭐⭐ **Meaning in an open class is given by the web.** A name nothing
+        ever draws a conclusion from, or nothing ever establishes, means nothing
+        -- so a corpus containing one is silently smaller than it looks. This is
+        the price of §2's open class paying for its own detection: nothing else
+        in the engine could tell a proposition awaiting its meaning from a typo.
+
+        Here rather than in an instrument because the loader warns with it and
+        `ugm.vocabulary` maps with it, and a second implementation of a thing
+        that indexes what it re-implements is what `state` paid for once.
+        """
+        read: dict = {}
+        written: dict = {}
+        for r in self.rules.rules:
+            for x in r.antecedent:
+                rel = self.g.relation_of(x.pattern)
+                if rel is not None:
+                    read[self.g.show(rel)] = read.get(self.g.show(rel), 0) + 1
+            for x in r.consequent:
+                rel = self.g.relation_of(x.pattern)
+                if rel is not None:
+                    written[self.g.show(rel)] = written.get(self.g.show(rel), 0) + 1
+        for mo in self.chain.moments:
+            for e in mo.delta:
+                rel = self.g.relation_of(e.proposition)
+                if rel is not None:
+                    written[self.g.show(rel)] = written.get(self.g.show(rel), 0) + 1
+        return read, written
+
+    def unwebbed(self) -> List[str]:
+        """Names some rule READS that nothing anywhere writes.
+
+        ⚠ **The engine's own names are excluded, because the MACHINERY supplies
+        them**: the bundle reads `arrived`, `emitted`, `taken` and `quiet` and
+        writes none of them, correctly. Without this the bundle reports 11.
+
+        ⚠⚠ **Only this direction is a signal, and it was measured rather than
+        assumed.** *Written and never read* reports 11 to 17 names on healthy
+        corpora -- the machinery's bookkeeping, plus a corpus's own OUTPUTS,
+        since nobody reads an answer. That is `ugm.harmony`'s false-positive
+        shape arriving again. This direction reports **zero** on every corpus
+        here, and one on a corpus with a typo in it.
+        """
+        read, written = self.web()
+        return sorted(n for n in read
+                      if not written.get(n) and n not in self.reserved)
+
     def holds(self, proposition: NodeId, locus: Optional[Moment] = None) -> Optional[str]:
         locus = self.focus.topic if locus is None else locus
         return self.chain.holds(proposition, locus, self.focus.seat)

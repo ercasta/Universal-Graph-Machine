@@ -509,6 +509,62 @@ the ordinary loop can see `turns`. Nothing in the tick loop does that for you ye
 
 ---
 
+## 6b. ✅ How to test a corpus before it disappoints you
+
+Two commands, and between them they catch the failures that are otherwise silent.
+
+```
+python -m ugm <corpus.ugm>          # runs it, and warns about names nothing writes
+python -m ugm.atlas <corpus.ugm>    # maps what can be inferred from what
+python -m ugm.atlas <corpus.ugm> --mermaid    # ...as a diagram
+```
+
+⭐⭐⭐ **The one that will save you the most: a rule that can never apply.** §1
+above is this document's most expensive trap because it fails *silently* — you
+write `-poisoned(?x)`, nothing ever denies poison, and the rule is simply inert.
+`ugm.atlas` says so without you running anything:
+
+```
+rule <keep> = implies( { +held(?x), -gone(?x) }, { +kept(?x) } )
+fact +held(thing)
+
+  rules that can NEVER apply   : ['keep']
+  FOUND  <keep> can never apply (needs ['gone'])
+```
+
+⭐ **And it is transitive**, which is the part you cannot check by eye. A name
+nothing writes is easy to spot; a rule whose premise is written *only by a rule
+that itself can never apply* is not, and that is the shape a corpus acquires as
+it grows, because every link looks fine on its own:
+
+```
+rule <a> = implies( { +p(?x) }, { +q(?x) } )   # nothing asserts p
+rule <b> = implies( { +q(?x) }, { +r(?x) } )   # so <b> is dead too
+
+  rules that can NEVER apply   : ['a', 'b']
+```
+
+⚠ **What it will not tell you.** It ignores arguments: `owns(smith, sword)`
+grounds `owns` for any rule reading `owns(?a, ?b)`. So a rule it calls live may
+still never fire — but a rule it calls **dead genuinely cannot**. The false
+direction is the safe one, and silence is not a guarantee.
+
+⚠ A corpus that registers **tools** cannot be mapped from the command line, since
+its answerers are installed by its host. Call `atlas.survey(machine, rules)` from
+wherever you build the machine.
+
+### The last line is a question, not a defect
+
+`pairs that could disagree` lists rules that could conclude opposite signs of one
+thing with nothing on the record saying who wins. **Read it as a prompt.**
+Measured: **1** on the passenger-rights corpus — and it is a real question, since
+a flight both storm-delayed and short of crew has two answers — against **28** on
+the dungeon, where almost all of them are the ordinary grant-and-spend cycle of a
+world model. If your rules retract in their own consequents, expect a long list
+that is mostly your corpus working correctly.
+
+---
+
 ## 7. Smaller traps, each measured
 
 * **Two rules that say the same thing are two rules.** Restating is not revising; deny the one you

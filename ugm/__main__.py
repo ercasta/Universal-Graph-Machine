@@ -59,6 +59,10 @@ def main(argv=None) -> int:
         print(f"{resume}: resumed without acting again")
     if path:
         kb = load_file(m, path)
+        # ⭐ The one place an author loads a corpus in order to RUN it, which is
+        # the audience for this note. See `text._report_unwebbed`.
+        from .text import _report_unwebbed
+        _report_unwebbed(m)
         steps = m.run(limit=limit)
         last = steps[-1].state if steps else "nothing to do"
         print(f"{path}: {len(steps)} ticks, ended {last}")
