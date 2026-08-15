@@ -9,6 +9,52 @@ Two items. The handoff's item 1, **spans as loci** — and with it §13's *takin
 document's own worked example of a shape, **which had never once run**. And then **`unless`, struck
 off §22 without a line of engine written**, because it was a name for something already built.
 
+## ⭐⭐⭐ What the open class buys — measured, after the user named it
+
+The user's observation: *working with an open class beats traditional programming because you do not
+have to implement the meaning of everything — `owning`, `selling`. You create valid propositions and
+give them a specific meaning later.* `ugm.vocabulary` is what turns that into a number instead of
+agreement, and both halves hold.
+
+**What the engine reserves, by what it serves** — 101 names:
+
+| the agent's own deliberation | rules as data | the chain | the seam to a world | the surface | literals | **about any world** |
+|---|---|---|---|---|---|---|
+| 48 | 14 | 10 | 12 | 7 | 10 | **0** |
+
+⭐⭐⭐ **Not one reserved name is a domain word.** No engine name for a thing, a place, an amount, or
+an act of any particular kind — `did` and `says` are about the *act*, never its content. A corpus is
+not writing inside someone else's ontology, which is the strong form of the claim and the thing that
+would quietly be false if the floor had grown a world model.
+
+**What a corpus borrows**, with the bundle as the control:
+
+| corpus | about | its own | borrowed |
+|---|---|---|---|
+| a D&D fight | a world | 23 | 5 |
+| **passenger rights on a disrupted flight** (new, `ugm/rules/delay.ugm`) | a world | 13 | **1** — `implies`, a connective |
+| the design's worked examples | a world | 8 | 4 |
+| **the bundle** | **the agent** | **0** | **25** |
+
+⭐ **One classification, two opposite predictions, both hold.** The bundle borrows everything because
+it is the one corpus about the agent's own reasoning. ⚠⚠ My first version of that check called the
+bundle a **failure** — a check that fires on the case proving the classification right is measuring
+the wrong thing, so the prediction is now signed by what a corpus is *about*.
+
+⚠⚠⚠ **The price is the same property**: the engine cannot distinguish a proposition awaiting its
+meaning from a **mistake**. Both well formed, both inert, nothing says which. A typo (`watns` for
+`wants`) loads without complaint; `pred` meant the wrong thing; `plus`/`minus` were reserved
+silently; and `unless` survived in three documents. Conventional languages front-load that into a
+compile error, this back-loads it into silence — the right trade at session size and the wrong one at
+Cyc's, which is why §20 puts acquisition first.
+
+⚠ **And the property is not this design's invention** — it is the logic-programming and KR position
+(Prolog, Datalog, RDF, Cyc). What is claimed is the discipline around it. Documented in §2, after
+*closed is a rate, not a kind*, which it is the mirror of.
+
+⚠ `delay.ugm` is **run and asserted**, not merely counted: a corpus a census only parses is
+decoration, and would let the census report a vocabulary for rules that do not work.
+
 ## ⭐⭐⭐ `unless` was a NAME, not a gap — and the user's question is what found it
 
 The user asked, of a scoring table I had just produced: *I really don't understand why expressing

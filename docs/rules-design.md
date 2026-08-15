@@ -461,6 +461,77 @@ something is closed class it is no longer freely coinable, and every use of it m
 machinery that knows its name — which is the island of §2, arrived at by drift rather than by
 decision.
 
+### What the open class buys, and what it costs
+
+The closed class is what this section defends against. The open class is what the defence is *for*,
+and the point is easy to state and worth measuring rather than asserting:
+
+> **You never implement the meaning of `owning` or `selling`.** You coin the proposition, and the
+> meaning arrives later — as rules, written by someone else, without touching what is already there.
+
+A conventional program cannot defer that. `sell()` needs a body before it does anything, that body is
+one meaning, chosen once, by one author; and a second reading of the same event is a change to the
+first. Here meaning is **inferential rather than denotational**: `owns(hero, sword)` denotes nothing
+and means whatever follows from it. So the same proposition carries **several unrelated meanings at
+once** — a trade rule, a theft rule and an encumbrance rule may each read it, none knowing the others
+exist. That is the *composable* criterion, and it is why a whole new trade is 5 facts and 0 rules
+(§20).
+
+`ugm.vocabulary` measures both halves. **What the engine reserves, by what it serves:**
+
+| | |
+|---|---|
+| literals (numerals) | 10 |
+| the surface — connectives, signs, `at` | 7 |
+| the chain (§4–§11) | 10 |
+| rules as data (R3, R4) | 14 |
+| **the agent's own deliberation** | **48** |
+| the seam where a world reaches it — `arrived`, `says`, `did`, `forbidden` | 12 |
+| **about any world** | **0** |
+
+⭐⭐⭐ **Not one reserved name is a domain word.** There is no engine name for a thing, a place, an
+amount of anything, or an act of any particular kind: `did` and `says` are about the *act*, never
+about what was done or said. So a corpus is not writing inside someone else's ontology — which is the
+strong form of the claim, and the thing that would quietly be false if the floor had grown a world
+model.
+
+**And what a corpus borrows**, with the bundle as the control — one classification making two
+opposite predictions:
+
+| corpus | about | its own | borrowed |
+|---|---|---|---|
+| a D&D fight | a world | 23 | 5 |
+| passenger rights when a flight is disrupted | a world | 13 | **1** (`implies`, a connective) |
+| the design's worked examples | a world | 8 | 4 |
+| **the bundle** | **the agent** | **0** | **25** |
+
+The bundle borrows everything because it is the one corpus that is *about the agent's own reasoning*.
+That is the result rather than an exception, and it is why the check is signed by what a corpus is
+about: a table where every row agrees is not evidence.
+
+⚠⚠⚠ **The price is the same property.** Because a proposition needs no implementation, **the engine
+cannot distinguish one awaiting its meaning from a mistake.** Both are well formed, both are inert,
+and nothing says which is which. That is not hypothetical — it is most of the traps this project has
+recorded:
+
+| | |
+|---|---|
+| a typo — `watns` for `wants` | loads without complaint, derives nothing, says nothing |
+| `pred` | was the reflexive walk under the immediate one's name — *a name whose meaning is not what the name says is worse than an absent one* |
+| `plus` / `minus` | reserved, and a foreign corpus found out **silently** — now reported at load |
+| `unless(<R>, +C)` written as a fact | parses, is read by nothing, and survived in **three documents** as an open item |
+
+A conventional language front-loads that error into a compile failure; this back-loads it into
+silence. For a session-sized agent that is the right trade, and it is exactly the wrong one at Cyc's
+scale — volume and many hands — which is why §20 puts acquisition and harmonization first rather
+than treating them as polish.
+
+⚠ **And the property is not this design's invention.** Inferential meaning over an open vocabulary is
+the logic-programming and knowledge-representation position — Prolog, Datalog, RDF, Cyc. What is
+being claimed here is only the discipline around it: the criteria scored before each decision, and
+*closed is a rate, not a kind*. The observation earns its place because it is measured, not because
+it is new.
+
 ### That is the whole floor
 
 ```

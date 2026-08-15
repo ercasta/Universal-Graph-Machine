@@ -1,0 +1,48 @@
+# Passenger rights when a flight is disrupted.
+# A domain deliberately far from a D&D fight: entitlements, exceptions and
+# duties rather than actors, turns and damage.
+
+rule <cancel>  = implies( { +cancelled(?f) },        { +disrupted(?f) } )
+rule <late>    = implies( { +delayed(?f, long) },    { +disrupted(?f) } )
+
+# the duty of care is owed whatever the cause
+rule <care> = implies( { +disrupted(?f), +booked(?p, ?f) },
+                       { +owed(?p, meals), +owed(?p, lodging) } )
+
+# ...but compensation is not, if the cause was outside the carrier's control.
+# This is `unless`, written where a rule's variables live.
+rule <compensate> = implies(
+    { +disrupted(?f), +booked(?p, ?f), -extraordinary(?f) },
+    { +owed(?p, money) } )
+
+# a storm is outside the carrier's control; a crew shortage is not
+rule <weather> = implies( { +cause(?f, storm) },  { +extraordinary(?f) } )
+rule <crewing> = implies( { +cause(?f, crew) },   { -extraordinary(?f) } )
+
+# the amount depends on how far the passenger was going
+rule <far>   = implies( { +owed(?p, money), +flying(?p, ?f), +distance(?f, long) },
+                        { +amount(?p, 600) } )
+rule <near>  = implies( { +owed(?p, money), +flying(?p, ?f), +distance(?f, short) },
+                        { +amount(?p, 250) } )
+
+# re-routing: a seat on another service to the same place
+rule <reroute> = implies(
+    { +disrupted(?f), +booked(?p, ?f), +goes(?f, ?dest),
+      +goes(?g, ?dest), +seats_free(?g) },
+    { +rerouted(?p, ?g) } )
+
+fact +cancelled(bl204)
+fact +cause(bl204, crew)
+fact +booked(ana, bl204)
+fact +flying(ana, bl204)
+fact +distance(bl204, long)
+fact +goes(bl204, lisbon)
+
+fact +delayed(kt881, long)
+fact +cause(kt881, storm)
+fact +booked(raj, kt881)
+fact +flying(raj, kt881)
+fact +distance(kt881, short)
+
+fact +goes(zr9, lisbon)
+fact +seats_free(zr9)
