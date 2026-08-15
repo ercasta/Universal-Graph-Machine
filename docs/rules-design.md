@@ -562,6 +562,157 @@ being claimed here is only the discipline around it: the criteria scored before 
 *closed is a rate, not a kind*. The observation earns its place because it is measured, not because
 it is new.
 
+### The web of meaning: what it is made of, what shape it has, and how it fails
+
+If meaning is inferential, the structure that carries it is a **web**, and the web is a thing this
+engine can be asked about. Everything in this subsection is measured on the corpora in this
+repository; the numbers are `ugm.vocabulary` and `ugm.atlas`.
+
+#### There are two webs, and they answer different questions
+
+| | nodes | edges | says |
+|---|---|---|---|
+| **type level** — `ugm.atlas` | relation **names** (14 in the passenger-rights corpus) | rules | what *could* connect |
+| **token level** — already in the graph | **entries** (25) | `rests_on` (23) | what *did* connect |
+
+The first is terminology joined by rules, and it is blind to arguments: `owns(smith, sword)` grounds
+`owns` for every rule reading `owns(?a, ?b)`. The second is the **trail** — ground, argument-exact,
+per-run — and it long predates this section, because R5 needs it to answer *why do you believe that*.
+14 of those 25 entries rest on nothing: they are the facts and arrivals, the boundary where a world
+enters. A relation with type-level neighbours and no token-level edges is a third thing again, and it
+is what `ugm.bundle` measures when it reports *17 rules, 17 exercised*.
+
+#### The shape is islands joined by bridges, not a mesh
+
+Predicted before it was measured, and measured:
+
+| | relations | links | density | islands |
+|---|---|---|---|---|
+| passenger rights | 13 | 13 | 0.167 | [13] |
+| the design's worked examples | 8 | 7 | 0.250 | **[4, 4]** |
+| **two domains + the bundle** | 43 | 37 | **0.041** | **[1,2,2,3,3,4,5,10,13]** |
+
+⭐ The worked-examples file reporting **two** islands is the measure being right about something known
+independently — that file is a kettle and some rain, two unrelated examples. And the bridging terms
+(those whose removal splits the web) divide as the prediction says they should: each domain's own hubs
+— `disrupted`, `owed`, `amount`; `likely` — alongside the agent's **common** vocabulary, `says`,
+`did`, `goal`, `subgoal`, `verdict`. **A domain's special terminology clusters; the shared terminology
+is what holds the clusters together.**
+
+#### Four ways meaning fails, and they are genuinely different
+
+| | what is wrong | caught by |
+|---|---|---|
+| **an unwebbed name** | the term is unknown — `+bokked(?p, ?f)` | nothing writes it |
+| **a dead rule** | its premise can never be established, possibly because the rule that would establish it is itself dead | the reachability fixpoint |
+| **an isolated relation** | joined only to itself, so no chain reaches it | connectivity |
+| **an utterance with no path** | both terms known and richly connected, and **nothing relates them at any distance** | a path query over the web |
+
+The first three are static defects in a corpus. **The fourth is not a defect at all** — it is the
+shape of *"I ate, so tomorrow will rain."* Both terms are meaningful; the sentence is well formed;
+what is absent is any path between the eating island and the weather island. Measured: with the
+sentence asserted as a rule the web is one island of 8, without it [4, 4].
+
+> **The honest response is not *I did not understand*, but *I have nothing that connects eating and
+> rain*** — a report about the agent, never about the world. A healthy knowledge base that has simply
+> not learned some real connection says exactly the same thing, and should.
+
+⭐⭐⭐ **And that is why it is not a censor.** The natural reply — *what does eating have to do with
+rain?* — asks for the missing link; if the speaker supplies it, the agent has acquired a bridge
+between two islands, which is what §20's `adopt` is for. **Failing to understand and learning are the
+same event seen from two sides**, and a lone bridge is also exactly what a genuine discovery looks
+like.
+
+#### tonk, and what the surface refuses by accident
+
+Prior's `tonk` is the standing objection to inferential meaning: a connective with the introduction
+rule *A ⊢ A tonk B* and the elimination rule *A tonk B ⊢ B* lets anything be derived from anything, so
+inferential role alone cannot confer meaning. Two things here are worth recording.
+
+⭐ **The surface already refuses tonk-introduction**, and for an unrelated reason:
+
+```
+rule <tonk-in> = implies( { +?a }, { +tonk(?a, ?b) } )
+   REFUSED — concludes about a variable its antecedent never binds
+```
+
+That rule exists so the gate never deposits a generic proposition (§13). *Conclude something
+arbitrary* turns out to be unsayable, which is a harmony constraint arriving through the side door.
+
+⚠⚠⚠ **But a bound variable smuggles it back in, and none of the structural checks sees it.** With
+`{+holds(?a), +claim(?b)} ⟹ {+tonk(?a, ?b)}` and `{+tonk(?a, ?b)} ⟹ {+?b}`, the agent concludes
+`slippery(moon)` and `bankrupt(alice)` from nothing but someone having uttered them — and `ugm.atlas`
+reports **0 problems**, because every check above hunts for too *little* meaning and tonk has too
+much. What catches it is Belnap's own criterion, **conservative extension**, and it discriminates
+cleanly:
+
+| adding | new conclusions in the **old** vocabulary |
+|---|---|
+| tonk | **2** — `bankrupt(alice)`, `slippery(moon)` |
+| an ordinary rule (`slippery ⟹ careful`) | **0** |
+
+So the answer is *no, tonk is not detectable by the shape of the web* — and yes, by a dynamic test the
+repository is already tooled for, since `ugm.bundle` does exactly this mutation-and-rerun. The only
+structural residue is narrow: **a rule whose consequent is a bare variable can conclude anything.**
+`<denial>` and `<assert-act>` both have one deliberately, so it is a short list to report rather than
+a defect.
+
+⚠ **A name collision worth fixing before someone trips on it.** `ugm.harmony` and §21's *harmony
+criteria* use the word in the arbitration sense — which rule wins. **Proof-theoretic harmony** —
+Prior's problem and Dummett's condition on introduction and elimination rules — is a different thing
+wearing the same name, and it is the one that governs whether a rule set confers meaning at all.
+
+#### Where this sits in the literature, and what is not already there
+
+Almost none of it is new, and the pieces come from at least six places.
+
+* **The web itself is Quine's.** *Two Dogmas of Empiricism* (1951) has beliefs facing experience as a
+  corporate body rather than singly, and *The Web of Belief* (Quine and Ullian, 1970) is the metaphor
+  by name. ⚠ One honest difference: Quine's structure is a **revisability gradient** — periphery and
+  core — where the structure measured here is **connectivity components**. Islands are not the same
+  claim as a periphery, and this document should not borrow his authority for a different shape.
+* **Meaning as inferential role** is Wittgenstein's *meaning is use*, Sellars on material inference,
+  and Brandom's inferentialism (*Making It Explicit*, 1994). *"I ate, so tomorrow will rain"* asserts
+  a **material inference**, which is exactly the unit Brandom makes primary.
+* **tonk and its answer**: Prior, *The Runabout Inference-Ticket* (Analysis 21(2), 1960); Belnap,
+  *Tonk, Plonk and Plink* (Analysis 22(6), 1962), which gives conservative extension and uniqueness;
+  Dummett on harmony.
+* ⭐⭐⭐ **The computational version of both our checks already exists in one literature.**
+  **Conservative extension** is the standard formal criterion for ontology **modularity** in
+  description logics — deciding it is studied by Lutz, Walther and Wolter (IJCAI 2007; JSC 2010), and
+  module extraction by Cuenca Grau, Horrocks, Kazakov and Sattler. So *islands* and *conservativeness*
+  are not two separate ideas we happened to have; they are **one known research programme**, and this
+  section arrived at both ends of it empirically.
+* **Semantic distance and no-path** is spreading activation — Collins and Quillian (1969), Collins and
+  Loftus (1975). **Relevance theory** (Sperber and Wilson, 1986) is arguably the closest theoretical
+  match to what the path test measures: an utterance is relevant when it yields cognitive effects in
+  context, and this one yields none.
+* ⭐ **The repair has a name, and it is nearly ours.** Clark's *bridging* (1975) is the inference a
+  hearer must supply to connect new material to given material — and Clark's own description is that
+  bridging *results in the addition of one or more propositions to memory*. That is `adopt`,
+  described in 1975. The user's word for the structure and the field's word for the repair are the
+  same word, arrived at independently.
+* **Dead rules** are reachability analysis: unreachable predicates in Datalog and dead-code elimination
+  in compilers. **The token web** is a justification network — Doyle's TMS (1979), de Kleer's ATMS.
+  **Islands** are Cyc's **microtheories**, which Lenat partitioned by hand for the reason measured
+  here.
+
+**So what, if anything, is not already known?** Stated conservatively, because this repository's
+standing rule is that no feature is novel until something falsifies the claim:
+
+1. Nothing in the *concepts*. Every one of the four failure modes, the two webs, and both checks has a
+   literature, and in the description-logic case a single one.
+2. What may be uncommon is the **assembly**: one running system in which the type-level web is
+   computed statically, the token-level web is the provenance trail the same engine already keeps for
+   explanation, and the static web is then used **at run time** to judge an incoming utterance — with
+   the failure and the learning opportunity being the same event.
+3. And one measurement, which is about this artifact rather than about the world: **101 reserved names
+   and not one of them about any world**, against a corpus that needed to borrow **one**.
+
+⚠ Points 2 and 3 are hypotheses, not results. Neither has been checked against the modularity
+literature by anyone who works in it, and the right disposition is the one this document takes
+everywhere else: **it stays a hypothesis until someone who would know says otherwise.**
+
 ### That is the whole floor
 
 ```
