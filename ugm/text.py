@@ -230,6 +230,15 @@ class Parser:
                 name = self.next().text
                 self.expect("=")
             return Statement("fact", name, "", (), (), self.member(), "", t.line)
+        if t.text == "lisp" and self.at(":"):
+            # One statement in the other notation, inside an ordinary document.
+            # The TOKEN STREAM is shared, so the s-expression reader picks up at
+            # this position and hands back where it stopped -- no re-tokenising,
+            # and no second place for `?x` to stop meaning a variable.
+            self.next()
+            from .sexpr import read_one
+            stmt, self.i = read_one(self.toks, self.i)
+            return stmt
         if t.text == "say":
             ch = self.next()
             if ch.kind != "name":
@@ -689,7 +698,21 @@ class Loader:
         return self.build(t, {})
 
     def load(self, src: str) -> List[Statement]:
-        statements = Parser(tokenise(src)).program()
+        # A second SURFACE, not a second language (see `ugm/sexpr.py`). The
+        # graph is the truth and a notation is a way of writing it down, so the
+        # reader is chosen here and nothing downstream -- `build`, the name
+        # scope, the gate -- learns which notation a node was authored in.
+        #
+        # ⚠ Imported lazily and only when a marker is present, so a document
+        # with no marker takes exactly the path it always did.
+        if "syntax:" in src:
+            from . import sexpr
+            if sexpr.wants_lisp(src):
+                statements = sexpr.read(src)
+            else:
+                statements = Parser(tokenise(src)).program()
+        else:
+            statements = Parser(tokenise(src)).program()
         named = [s for s in statements if s.kind == "fact" and s.name]
 
         # Three passes, and the order is forced rather than chosen. A rule may
