@@ -28,6 +28,7 @@ the count and flatter whichever bucket it belonged in.
 """
 
 import re
+import sys
 from typing import Dict, List, Set
 
 from .machine import Machine
@@ -78,43 +79,13 @@ CORPORA = [
 ]
 
 
-def web(m: Machine, rules) -> "tuple":
-    """For each relation name: how often it is READ (an antecedent member) and
-    WRITTEN (a consequent member, or a fact deposited).
-
-    ⭐⭐⭐ **Meaning in an open class is given by the web**, so a name with no web
-    is a mistake. That is the user's observation, and it is the answer to the
-    price the census above records: a proposition awaiting its meaning and a typo
-    are both well formed and both inert, and nothing could tell them apart.
-
-    ⚠⚠⚠ **Only one of the two directions is a signal, and measuring first is what
-    said which.** *Written and never read* reports **11 to 17 names on healthy
-    corpora** -- the machinery's own bookkeeping, plus a corpus's OUTPUTS, since
-    nobody reads an answer (`amount`, `rerouted`). That is `harmony`'s 3,545 false
-    positives arriving in a new shape. *Read and never written* reports **zero**
-    on every corpus here and exactly one on a corpus with a typo in it.
-
-    ⭐ And it catches a misspelling from **either side**, which is why it needs
-    only the one direction: a typo always breaks a pairing, and a broken pairing
-    always leaves some reader with no writer.
-    """
-    from collections import defaultdict
-    read, written = defaultdict(int), defaultdict(int)
-    for r in rules:
-        for x in r.antecedent:
-            rel = m.g.relation_of(x.pattern)
-            if rel is not None:
-                read[m.g.show(rel)] += 1
-        for x in r.consequent:
-            rel = m.g.relation_of(x.pattern)
-            if rel is not None:
-                written[m.g.show(rel)] += 1
-    for mo in m.chain.moments:
-        for e in mo.delta:
-            rel = m.g.relation_of(e.proposition)
-            if rel is not None:
-                written[m.g.show(rel)] += 1
-    return read, written
+def web(m: Machine, rules):
+    """Delegates to `Machine.web`. ⚠ It used to be a second copy of it, and the
+    copy is how a fix landed in one of them: a variable in relation position was
+    excluded in the engine and still reported here. An index is a
+    re-implementation of what it indexes -- `state` paid for that lesson, and
+    this module had quietly acquired the same shape."""
+    return m.web(rules)
 
 
 def unwebbed(m: Machine, rules, res: Set[str]) -> List[str]:
@@ -125,14 +96,69 @@ def unwebbed(m: Machine, rules, res: Set[str]) -> List[str]:
     them: the bundle reads `arrived`, `emitted`, `taken` and `quiet` and writes
     none of them, correctly. Without the exclusion the bundle reports 11.
 
-    ⚠⚠ **The known false positive, stated rather than discovered later**: a
-    corpus that expects a world to supply an open-class fact at run time -- from
-    a channel rather than from its own text -- reads a name it never writes, and
-    is right to. None of the corpora here does that; all four assert their world
-    in the file. A corpus fed live would need to say what its channel delivers.
+    ⚠⚠ **The known false positive**: a corpus that expects a world to supply an
+    open-class fact at run time -- from a channel rather than from its own text
+    -- reads a name it never writes and is right to.
     """
-    read, written = web(m, rules)
-    return sorted(n for n in read if not written.get(n) and n not in res)
+    return m.unwebbed(rules)
+
+
+def sweep() -> "tuple":
+    """Every machine the suite builds, asked the unwebbed question.
+
+    ⭐⭐⭐ **91% of this repository's rules are invisible to every instrument
+    above.** 51 rules live in `ugm/rules/*.ugm`; **506 are string literals inside
+    Python**, 360 of them in `selftest.py`. So the census, the atlas and the
+    load-time note between them cover under a tenth of the corpus, and the
+    numbers this module reports are about the tenth that happens to be in a file.
+
+    This reaches the rest without moving a line, by `ugm.harmony`'s own trick:
+    hook `Machine.run` and ask each machine once. And it paid immediately -- it
+    found a bug **in the checker**, not in the corpora: a variable in relation
+    position (`+?kind(?item)`) was being reported as a relation nothing writes,
+    so a corpus using §4's *class as data* was told a working rule was broken.
+
+    ⚠ **What it does NOT justify is moving the fixtures.** 62 of 239 machines
+    report an unwebbed name and nearly all are correct about a deliberately
+    partial fixture -- a rule loaded to test something else, whose premise nobody
+    supplies. That is the same result the load-time note gave (91 fires, all
+    correct, all useless), and externalising the fixtures would not change it.
+    What externalising buys is **clarity about what is engine and what is
+    corpus**, which is a different argument and a better one.
+    """
+    import io
+    machines = [0, 0]
+    found: List[List[str]] = []
+    run = Machine.run
+
+    def swept(self, limit=100):
+        # ⚠⚠ A flag on the machine, never a set of `id()` -- CPython reuses an
+        # address the moment a machine is collected, which under-counted
+        # `ugm.harmony`'s census by 3.5× before it was found.
+        if not getattr(self, "_swept", False):
+            self._swept = True
+            machines[0] += 1
+            try:
+                got = self.unwebbed()
+            except Exception:
+                got = []
+            if got:
+                machines[1] += 1
+                found.append(got)
+        return run(self, limit)
+
+    Machine.run = swept
+    try:
+        from . import selftest as S
+        buf, old = io.StringIO(), sys.stdout
+        sys.stdout = buf
+        try:
+            S.main()
+        finally:
+            sys.stdout = old
+    finally:
+        Machine.run = run
+    return machines[0], machines[1], found
 
 
 def reserved() -> Set[str]:
@@ -316,6 +342,31 @@ def main() -> int:
     print(f"  {'a planted typo (watns/wants)':30} {len(caught)} unwebbed  {caught}")
     if caught != ["wants"]:
         failures.append(f"the control was not caught: {caught}")
+
+    # -- and the 91% none of the above reaches ------------------------------
+    if "--sweep" in sys.argv:
+        print()
+        print("Sweeping every machine the suite builds (91% of the rules here "
+              "are inline in Python)")
+        total, orphaned, found = sweep()
+        flat: Dict[str, int] = {}
+        for g in found:
+            for n in g:
+                flat[n] = flat.get(n, 0) + 1
+        print(f"  machines swept              : {total}")
+        print(f"  with an unwebbed name       : {orphaned}")
+        print(f"  most common                 : "
+              f"{sorted(flat.items(), key=lambda kv: -kv[1])[:8]}")
+        checked += 1
+        # ⚠ Not a failure. Nearly every one is correct about a deliberately
+        # partial fixture, which is the same answer the load-time note gave.
+        # What this gate asserts is that no VARIABLE is reported as a name --
+        # `+?kind(?item)` was, and a working corpus was called broken.
+        bogus = [n for n in flat if n.startswith("?")]
+        if bogus:
+            failures.append(f"a variable in relation position reported as a "
+                            f"name: {bogus}")
+        print(f"  variables misreported as names: {bogus if bogus else 'none'}")
 
     print()
     for f in failures:

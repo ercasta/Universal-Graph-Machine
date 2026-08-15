@@ -4206,7 +4206,7 @@ class Machine:
 
     # -- asking -----------------------------------------------------------
 
-    def web(self) -> Tuple[dict, dict]:
+    def web(self, rules=None) -> Tuple[dict, dict]:
         """For each relation name: how often it is READ (an antecedent member)
         and WRITTEN (a consequent member, or a fact deposited).
 
@@ -4219,26 +4219,44 @@ class Machine:
         Here rather than in an instrument because the loader warns with it and
         `ugm.vocabulary` maps with it, and a second implementation of a thing
         that indexes what it re-implements is what `state` paid for once.
+
+        ⚠⚠⚠ **A VARIABLE in relation position is not a name, and reporting one
+        was this instrument's own bug.** `+?kind(?item)` applies a class held in
+        a variable (§4's *a class as data*), and `relation_of` answers with the
+        variable node, which `show` prints as `?kind`. So a corpus using the
+        feature was told nothing writes a relation it never named -- the rule
+        derives correctly and the checker called it a defect. Found by sweeping
+        the 239 machines the suite builds, which is the only way it could have
+        been: the corpus that uses it is inline in a Python fixture, where none
+        of this tooling reaches. **The bare variable, distorting a measurement
+        for the fourth time.**
         """
         read: dict = {}
         written: dict = {}
-        for r in self.rules.rules:
+
+        def name(node):
+            rel = self.g.relation_of(node)
+            if rel is None or self.g.is_var(rel):
+                return None
+            return self.g.show(rel)
+
+        for r in (self.rules.rules if rules is None else rules):
             for x in r.antecedent:
-                rel = self.g.relation_of(x.pattern)
-                if rel is not None:
-                    read[self.g.show(rel)] = read.get(self.g.show(rel), 0) + 1
+                got = name(x.pattern)
+                if got is not None:
+                    read[got] = read.get(got, 0) + 1
             for x in r.consequent:
-                rel = self.g.relation_of(x.pattern)
-                if rel is not None:
-                    written[self.g.show(rel)] = written.get(self.g.show(rel), 0) + 1
+                got = name(x.pattern)
+                if got is not None:
+                    written[got] = written.get(got, 0) + 1
         for mo in self.chain.moments:
             for e in mo.delta:
-                rel = self.g.relation_of(e.proposition)
-                if rel is not None:
-                    written[self.g.show(rel)] = written.get(self.g.show(rel), 0) + 1
+                got = name(e.proposition)
+                if got is not None:
+                    written[got] = written.get(got, 0) + 1
         return read, written
 
-    def unwebbed(self) -> List[str]:
+    def unwebbed(self, rules=None) -> List[str]:
         """Names some rule READS that nothing anywhere writes.
 
         ⚠ **The engine's own names are excluded, because the MACHINERY supplies
@@ -4252,7 +4270,7 @@ class Machine:
         shape arriving again. This direction reports **zero** on every corpus
         here, and one on a corpus with a typo in it.
         """
-        read, written = self.web()
+        read, written = self.web(rules)
         return sorted(n for n in read
                       if not written.get(n) and n not in self.reserved)
 
