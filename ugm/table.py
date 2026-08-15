@@ -127,8 +127,24 @@ class Agent:
         Swallowed silently it would be worse, so the refusal is RETURNED and the
         table records it: §5's *a silence is the defect*, at the one boundary
         where the speaker cannot know whether it was understood.
+
+        ⚠⚠⚠ **And a refusal is not the only way to mishear.** `Loader.term`
+        parses ONE term and ignores whatever follows it, so `a(b)(c)` -- a node
+        whose relation is itself a structure, which the substrate builds happily
+        -- comes back as `a(b)` with the `(c)` dropped and **no exception at
+        all**. The hearer then believes something the speaker did not say, and
+        every check in this module would have called that a successful delivery.
+
+        So the text is re-rendered from what was actually understood and compared
+        with what was sent: an utterance that does not round-trip is refused.
+        ⚠ That makes `show` and the parser each other's check at the one place it
+        matters, which is cheap here and would not be if the wire were hot.
         """
         try:
+            back = self.kb.term(u.text)
+            got = self.m.g.show(back)
+            if got != u.text:
+                return f"{u.speaker}->{u.hearer}: {u.text}  (heard as {got})"
             self.hear(u)
             return None
         except Exception as ex:  # the hearer's parser, refusing
@@ -514,6 +530,21 @@ def main() -> int:
     gate("⚠ an agent cannot utter a time, a rule, or anything generic -- all "
          f"three refused at the receiver's parser, not silently mangled: {refused}",
          len(refused) == 3)
+
+    # ⚠⚠⚠ **The mishearing that raises nothing.** `a(b)(c)` is a real structure
+    # -- a node whose relation is itself a node, which is how *a composed with b,
+    # applied to c* differs from *a applied to b of c* -- and `Loader.term`
+    # returns `a(b)` for it with no exception. Without the round-trip guard the
+    # hearer believes `a(b)`, the wire reports a clean delivery, and nothing
+    # anywhere disagrees.
+    lone = Table(SCENARIO)
+    why = lone.wire.agents[1].hear_or_refuse(Utterance("dm", "p1", "a(b)(c)"))
+    gate("⭐⭐⭐ an utterance that does not ROUND-TRIP is refused: `a(b)(c)` "
+         "parses to `a(b)` and raises nothing, so a truncated hearing would "
+         f"otherwise read as success -- {why}",
+         why is not None and "heard as a(b)" in why
+         and not any(s.startswith("arrived(dm")
+                     for s in lone.wire.agents[1].beliefs()))
 
     # -- the same transcript across OS processes ---------------------------
     print("\n  the same table, one OS process per agent:")
