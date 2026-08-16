@@ -431,6 +431,33 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # Not a phase: the world may have spoken since the last move, and the
         # shipped loop asks the same question in the same place.
         arrivals = m.channels.since_last_tick() or 0
+
+        # ⭐⭐⭐ **Satisfaction, ported from the tick this loop replaces.** `stop`
+        # is the rule-level route and it stays the recommended one -- a rule
+        # concludes that here is over and its postcondition ends the run. This
+        # is the other half, and it is here rather than as a rule because the
+        # **open-goal veto is an aggregate**: *nothing else is wanted and unmet*
+        # is a claim about a set, and a rule cannot speak about the set of its
+        # own matches. `Machine._enough` already reads `enough(...)` at the
+        # focus and exercises the veto once per seat, so this calls it rather
+        # than growing a second copy.
+        #
+        # ⚠ Inside a hypothesis, enough ends the BRANCH and not the run -- which
+        # is `_leave`, the door that already existed, and is how *is this plan
+        # settled* gets a local answer.
+        #
+        # ⚠ And it deliberately writes no `quiet`. `quiet` continues the loop so
+        # a watchdog can key on it, because *the search finished* leaves work
+        # worth doing and *nothing more is worth doing* does not.
+        reason = m._enough()
+        if reason is not None:
+            if m._leave():
+                steps.append(Step(arrivals, 0, tried, None, (), "supposed"))
+                continue
+            m._halt(reason)
+            steps.append(Step(arrivals, 0, tried, None, (), "stopped"))
+            break
+
         state = m._situation()
         table.age(tick)
 
@@ -740,9 +767,16 @@ CORPORA = ("delay.ugm", "worked.ugm", "quest-p1.ugm", "dungeon")
 
 # What the table loop is allowed not to reach.
 #
+# Both are claims about an option set this loop deliberately never builds.
 # `close` is a doubt -- these two candidates scored within the tolerance -- and
-# it is a claim about an option set this loop deliberately never builds. It is
-# the one accepted loss.
+# `forgone` is *this way of getting it was passed up*, which needs the ways not
+# taken to have been materialised.
+#
+# ⚠ `forgone` was the harder call and the author took it. Its own check argues
+# it is **a safety property before it is a learning one** -- *an act cannot be
+# taken back* -- so dropping it means the agent no longer records which act it
+# passed up. Written down here rather than in a commit message, because the next
+# person to want it will look at this list first.
 #
 # ⭐⭐ **`defeated` WAS on this list and has come off it**, which is the useful
 # half of the story. It was accepted as unreachable on the same grounds: one
@@ -755,7 +789,7 @@ CORPORA = ("delay.ugm", "worked.ugm", "quest-p1.ugm", "dungeon")
 # ⚠ The list is short on purpose and every addition is a decision, not a
 # convenience. Anything else the table loop fails to conclude is a rule that has
 # not been written yet, and the gate below says so.
-ACCEPTED_LOSSES = frozenset({"close"})
+ACCEPTED_LOSSES = frozenset({"close", "forgone"})
 
 
 DEFAULT_POSTS = (Post("settle-doubt", None, (Buff("?a", 1),), frozen=True),)

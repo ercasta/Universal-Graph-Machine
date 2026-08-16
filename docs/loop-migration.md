@@ -8,7 +8,10 @@ This file is the measured work list rather than a plan. Every line below comes
 from running the suite with `Machine.run` pointed at `attention.run`, which is
 now a one-line change because the table loop returns `Step`s.
 
-    58 of 545 checks fail, and 1 raises.
+    58 of 545 -> **39 of 535**, and nothing raises.
+
+Progress is at the bottom. The count of checks falls as well as the count of
+failures, because a check about machinery that is going is deleted with it.
 
 Reproduce with `scratchpad/fallout.py`: it wraps every selftest function so one
 exception does not hide the rest, which is how the whole list came out in one
@@ -46,7 +49,7 @@ overwrites it.
 
 ## The 58, classified
 
-### A. Delete with the loop — 6
+### A. Delete with the loop — 6 · **DONE**
 
 These are about machinery that is going. The check goes with the code.
 
@@ -59,7 +62,7 @@ These are about machinery that is going. The check goes with the code.
 | ...and it is LINEAR in the corpus (weighing) | same |
 | a higher score outranks a lower one — cardinals | the old preference score; the table **is** the score now |
 
-### B. Accepted losses — 3
+### B. Accepted losses — 3 · **DONE**
 
 Claims about a set the prefix scan deliberately never materialises.
 
@@ -71,7 +74,7 @@ Claims about a set the prefix scan deliberately never materialises.
 
 ### C. Port — the real work, ~20
 
-**Stopping (10).** The table loop has `stop`, a postcondition. It has no
+**Stopping (10).** ✅ **DONE.** The table loop has `stop`, a postcondition. It has no
 `enough` and no open-goal veto. The design's own position is that *done is the
 output of a rule*, so the port is to make `enough` a rule that spends `stop`
 rather than to re-add `_enough` in Python — and the veto is the hard half,
@@ -116,3 +119,36 @@ should not depend on the loop at all — that one is a genuine unknown.
 That is the floor gate for *the move*: `_choose` against `_materialise`. Both
 arms live inside the loop being deleted, so deleting it retires the gate. It
 would be better to know why it disagrees while there is still something to ask.
+
+
+---
+
+## Progress
+
+| | checks | failing |
+|---|---|---|
+| the flip, as first measured | 545 | 58 (+1 raising) |
+| defeat restored (`_is_defeated`) | 545 | 58 |
+| **stopping ported** | 545 | **48** |
+| **A and B deleted** | **535** | **39** |
+
+**Stopping** is `Machine._enough` called from the table loop, rather than a
+second copy: it reads `enough(...)` at the focus and exercises the open-goal veto
+once per seat. `stop` remains the rule-level route and the recommended one; this
+is the half that cannot be a rule, because *nothing else is wanted and unmet* is
+an aggregate. Inside a hypothesis it is `_leave` -- enough here ends the branch,
+not the run -- and it deliberately writes no `quiet`.
+
+**Deleted with the loop**: `matching_is_incremental` (the `_match_cache`), the
+selection counter, the old `Step.state` taxonomy, two checks about weighing an
+option set, the old cardinal preference score, and the four `forgone` checks.
+
+>⚠ `forgone` was the author's call and the reasoning is recorded at
+>`ACCEPTED_LOSSES`: its own check argued it is a **safety** property, so dropping
+>it means the agent no longer records which act it passed up.
+
+**Remaining 39**, in rough order of size: effort records (`widened`, `reached`,
+`bounded`) 6 · suppositions 4 · recall, dormancy and callbacks 5 · `supersedes`
+per-case defeat 3 · learning and credit 8 · re-ask and re-suppose termination 3 ·
+the rest to investigate, including *a fact's own history is matchable*, which
+should not depend on the loop at all.

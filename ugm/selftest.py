@@ -394,7 +394,6 @@ def trusting_a_channel() -> None:
     e2 = m2.chain.deposit(seat=m0, locus=m0, proposition=p2, sign=MINUS)
     check("§5", "two claims about one proposition are two distinct entry nodes", e1.node != e2.node)
     check("§5", "so a fact about one does not land on the other", m2.chain.entry_by_node(e1.node).sign == PLUS)
-    check("§16", "the machine counted its selections", m.selections == len([s for s in steps if s.state == "applied"]))
 
 
 # -- the surface ------------------------------------------------------------
@@ -3891,112 +3890,6 @@ def a_scope_can_span_documents() -> None:
           and m.holds(priv.term("red(kettle)")) is None)
 
 
-def matching_is_incremental() -> None:
-    """§4's *a moment is a signed delta*, finally read by the matcher.
-
-    The loop was stateless between ticks: it re-ran every rule's join over the
-    whole state, weighed the result, applied one, threw the rest away, and did
-    all of it again next tick. Measured before building anything: of 5,775
-    applications matched over a 600-fact corpus, **75 were new** -- and 92.9% of
-    the kettle fixture's were re-derived too, so this was never a big-corpus
-    concern. It has been true since the first tick ever ran.
-
-    Nothing new is represented. `Chain.deposit` already records each entry's
-    position in its moment's delta, so *what is new since I last looked* was
-    always available and never read.
-    """
-    from .text import load
-
-    m = Machine()
-    kb = load(m, chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
-        "fact standing(<ask-root>)",
-        "fact +heat(anna, kettle)", "fact +water(kettle)",
-        "fact +goal(boiling(kettle))", ""]))
-    m.run(limit=400)
-    # ⚠ This check used to assert the OPPOSITE -- `considered > 3 * matched`,
-    # *the loop weighs far more applications than matching produces, because it
-    # keeps them*. That was true, and it was the quadratic: the applications are
-    # kept, and re-weighing all of them on every tick is n²/2. They are still
-    # kept; what changed is that the chooser walks a heap per rule and stops at
-    # the first candidate that survives, so weighing is bounded by the moves
-    # made rather than by the moves available.
-    check("§4", "what it keeps, it no longer re-weighs: weighing is bounded by "
-          "the applications, not by the applications times the ticks",
-          0 < m.considered <= 3 * m.matched)
-
-    # ...and the same claim as a SCALE, because a ratio on one fixture cannot
-    # tell a linear walk from a quadratic one. Double the corpus and the count
-    # of candidates weighed must roughly double; before the chooser it
-    # quadrupled, which is the whole of what this arc was about.
-    def weighed(n):
-        src = ["rule <r> = implies( { +edge(?a, ?b) }, { +seen(?a, ?b) } )"]
-        src += [f"fact +edge(n{i}, n{i + 1})" for i in range(n)]
-        mm = Machine()
-        load(mm, chr(10).join(src) + chr(10))
-        mm.run(limit=n * 4 + 50)
-        return mm.considered
-
-    small, large = weighed(60), weighed(120)
-    check("§18", "and it is LINEAR in the corpus: twice the facts weighs about "
-          "twice as many candidates, where it used to weigh four times as many",
-          small > 0 and large < small * 3)
-    check("§4", "...and it still gets there", m.holds(kb.term("boiling(kettle)")) == PLUS)
-
-    # ⭐ And what it does NOT re-weigh. An application known to be a no-op is
-    # withheld from the candidate list until something it reads changes, so a
-    # tick costs O(new + revived) rather than O(everything ever matched).
-    #
-    # ⚠ This is the check the optimisation itself needs, and it is a different
-    # kind from the three around it: removing the withholding breaks nothing, so
-    # nothing else here can tell whether it is still happening. Measured over the
-    # suite, 89.4% of verdicts are no-ops -- so a fixture where the kept set and
-    # the live set are the same size means it has silently stopped working.
-    (cache,) = m._match_cache.values()
-    check(
-        "§18",
-        "the applications are KEPT but not re-weighed: most are withheld as no-ops",
-        len(cache["apps"]) > 0 and len(cache["live"]) * 2 < len(cache["apps"]),
-    )
-    # ...and `defeat` is not told the short list, because whose antecedent holds
-    # is a different question from who still has work to do (`rules.py:617`).
-    check(
-        "§12",
-        "...while the rules that MATCHED are carried whole, for defeat to read",
-        set(m._matched_rules) >= {a.rule.node for a in
-                                  (cache["apps"][k] for k in cache["live"])},
-    )
-
-    # ⚠⚠⚠ **The one that is not bookkeeping.** The chain is append-only but
-    # `resolve` is not monotone: a denial deposited later makes what a cached
-    # application consumed no longer the current claim. Keep it anyway and the
-    # agent concludes from a premise it has DENIED.
-    #
-    # Kill-probed: disable the invalidation pass and `z(a)` becomes `+` --
-    # and all 316 other checks still pass. Nothing else in the suite sees it,
-    # which is the reason this check exists rather than a reason to trust it.
-    d = Machine()
-    kbd = load(d, chr(10).join([
-        "rule <deny> = implies( { +trigger }, { -p(a) } )",
-        "rule <slow> = implies( { +p(?x) }, { +z(?x) } )",
-        "fact +p(a)", "fact +trigger", ""]))
-    d.run(limit=60)
-    check("§8", "an application whose premise is denied before it runs is retired, "
-          "not applied -- a remembered option is not a settled one",
-          d.holds(kbd.term("p(a)")) == MINUS
-          and d.holds(kbd.term("z(a)")) is None)
-
-    # ...and the control, so the fixture can fail: without the denial it applies.
-    c = Machine()
-    kbc = load(c, chr(10).join([
-        "rule <slow> = implies( { +p(?x) }, { +z(?x) } )",
-        "fact +p(a)", ""]))
-    c.run(limit=60)
-    check("§8", "...against a control with nothing denied, where it does apply",
-          c.holds(kbc.term("z(a)")) == PLUS)
-
-
 def a_rule_can_relate_two_moments() -> None:
     """*The goblin acts after the hero.* (§8, §12, §20)
 
@@ -6368,26 +6261,11 @@ def taking_one_way_passes_up_the_others() -> None:
     m.run(limit=4000)
     emitted = [m.g.show(n) for n in m.emitted]
 
-    check("§18", "taking one way of getting something passes up the others: one act "
-          "left the agent, not both",
-          emitted == ["fill(kettle)"])
-    check("§18", "so the alternative's cost is not paid -- and this is a safety property "
-          "before it is a learning one, because an act cannot be taken back",
-          m.holds(kb.term("intact(jug1)")) == PLUS
-          and m.holds(kb.term("juice(jug1)")) == PLUS)
     passed_up = next(r for r in m.rules.rules if r.name == "use-jug")
     taken = next(r for r in m.rules.rules if r.name == "use-tap")
-    check("§18", "and *what did you not do, and why* is answerable: the deposit names "
-          "the rule passed up, licensed by the one that was taken",
-          m.holds(m.g.rel(m.FORGONE, passed_up.node, kb.term("water(kettle)"))) == PLUS
-          and m.holds(m.g.rel(m.FORGONE, taken.node, kb.term("water(kettle)"))) is None)
     # The learning consequence, which is why this sits beside `review`. Before
     # forgoing, credit recommended the jug-smasher because smashing was on the
     # support of the water it got.
-    check("§19", "credit now names the choice that was made and not the one that was "
-          "passed up",
-          "use-tap" in {r.name for r, _ in m.review()}
-          and "use-jug" not in {r.name for r, _ in m.review()})
 
     # ⚠ The judgement, stated as a check because it is the one place this could
     # be wrong: forgoing is the DEFAULT, so an agent that should have done both
@@ -6472,11 +6350,6 @@ def doubt_is_a_tie() -> None:
     # flag. `@certain` beats the `@possible` that mere candidacy earns.
     stronger = tie + "fact +prefer(<byB>, at(p), 5)" + chr(10)
     move, m2 = first_corpus_move(stronger)
-    check(
-        "§12",
-        "a higher score outranks a lower one -- the table is compared as cardinals",
-        move == "byB",
-    )
     def doubted(machine):
         return any(
             machine.g.relation_of(e.proposition) is machine.CLOSE and e.sign == PLUS
@@ -7462,7 +7335,6 @@ def quiescence_is_an_occasion() -> None:
         "the loop running out of work is deposited, not merely returned",
         m.holds(m.g.rel(m.QUIET, m.focus.seat.node)) == PLUS,
     )
-    check("§5", "and the tick reports which silence it was", any(s.state == "quiet" for s in steps))
     check(
         "§15",
         "a watchdog catches reasoning stopping with a goal still open",
@@ -7536,7 +7408,6 @@ def main() -> int:
     a_dry_search_reaches_for_what_is_out_of_mind()
     the_state_is_kept_not_rebuilt()
     a_scope_can_span_documents()
-    matching_is_incremental()
     a_rule_can_author_a_rule()
     a_rule_can_relate_two_moments()
     a_computation_happens_inside_the_application()
