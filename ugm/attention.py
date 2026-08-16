@@ -76,7 +76,7 @@ import time
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .graph import NodeId
-from .machine import Machine
+from .machine import Machine, Step
 from .rules import STOP, Application, Member, Rule, Situation, match, substitute
 from .text import load, load_file
 
@@ -336,6 +336,46 @@ class Report(NamedTuple):
     doubts: int = 0
     windows: List[int] = []
     widenings: int = 0
+    # One `Step` per move, in the shape the option-set loop returned, so this
+    # loop can BE `Machine.run` rather than sit beside it. `applied` above is
+    # the same sequence as names; this carries the `Application` itself, which
+    # is what a caller reading `s.applied.rule.name` needs.
+    steps: List["Step"] = []
+
+
+def _is_defeated(m: Machine, rule: Rule, state) -> bool:
+    """Does anything that overrides this rule match here?
+
+    ⭐ The option-set loop answered this by having matched everything already.
+    A prefix scan has not, so it asks the question the other way round: read the
+    rules that override this one -- precedence is read from the graph, and there
+    are usually one or two -- and match only those.
+
+    ⚠ `supersedes` is NOT here. It defeats per CASE rather than per rule: only
+    the applications sharing a consumed entry with the winner are out, so it
+    cannot be settled by asking whether a rule matched. It is applied where the
+    applications are, below.
+    """
+    higher = [h for h, lower in m.rules.precedence(m.rules.OVERRIDES)
+              if lower is rule]
+    for h in higher:
+        found = match(
+            m.g, m.chain, h, m.focus.topic, m.focus.seat, state,
+            computes=m.rules.computes, structural=m.rules.skeleton(),
+        )
+        # ⚠⚠⚠ **Matched, NOT survived**, and the difference is the whole of it.
+        # `_survives` asks whether the winner still has work to do -- and once it
+        # has applied, its conclusion holds, so it stops surviving and the loser
+        # is suddenly undefeated. Measured: A2 applied, then A1 applied straight
+        # after and overwrote it, which is exactly the failure the option-set
+        # loop records as *defeat is about whose antecedent holds, not about who
+        # still has work*.
+        if found:
+            # On the record, because *which of my rules actually fight* is a
+            # question about a run that no run recorded until it was deposited.
+            m._note(m.g.rel(m.DEFEATED, rule.node, h.node))
+            return True
+    return False
 
 
 def _standing(m: Machine) -> set:
@@ -380,6 +420,8 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
 
     index = _by_target(m)
     applied: List[str] = []
+    steps: List[Step] = []
+    arrivals = 0
     tried = 0
     doubts = 0
     widenings = 0
@@ -388,7 +430,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     for tick in range(limit):
         # Not a phase: the world may have spoken since the last move, and the
         # shipped loop asks the same question in the same place.
-        m.channels.since_last_tick()
+        arrivals = m.channels.since_last_tick() or 0
         state = m._situation()
         table.age(tick)
 
@@ -423,6 +465,27 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 # stays, because *this instantiation has run* is not the same
                 # claim as *this rule's score is low*, and keying firing-once to
                 # the rule would stop it ever applying to new data.
+                # ⭐⭐⭐ **Defeat, and it was MISSING -- which the corpus-level gate
+                # could not see.** `_survives` is the per-candidate filter and
+                # says so in its own docstring: defeat is per RULE, applied once
+                # per rule by the chooser this loop replaced. So a prefix scan
+                # dropped `overrides` entirely, and 65 checks said so the moment
+                # this loop became the loop.
+                #
+                # ⚠⚠ The gate agreeing was not wrong, it was WEAK: it compares
+                # final conclusions, and a loop that runs to quiescence applies
+                # the loser eventually anyway -- *ordering is not defeasibility*,
+                # this design's own line, arriving as an instrument defect. Two
+                # loops can agree about every conclusion and disagree about
+                # whether a rule was defeated.
+                #
+                # The repair keeps the prefix scan: `overrides(A, B)` needs to
+                # know whether A matched, and A's defeaters are a SMALL set read
+                # off the graph -- so match those rather than the pool. A join,
+                # not a scan, which is this repository's standing answer.
+                if _is_defeated(m, r, state):
+                    missed.append(r)
+                    continue
                 hit = False
                 for a in found:
                     if m._survives(a):
@@ -462,6 +525,10 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # empty window, so no notion of a goal is involved.
             if m._leave():
                 continue
+            # The run is over, and WHICH silence it was goes on the record: the
+            # option-set loop's callers read `steps[-1].state` in 33 places to
+            # tell a finished search from one that hit the limit.
+            steps.append(Step(arrivals, 0, tried, None, (), "quiescent"))
             break
         windows.append(len(window))
         # Who picks. The table picks by default -- that is System 1 -- but a
@@ -496,6 +563,8 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         wrote = m._apply(chosen)
         m._spend(chosen, wrote)
         applied.append(chosen.rule.name or "?")
+        steps.append(Step(arrivals, len(window), tried, chosen,
+                          tuple(wrote or ()), "applied"))
         if watch is not None:
             # AFTER the move, not at the choice: a tick that deposits a doubt
             # chooses and then does not apply, so watching at the choice
@@ -507,6 +576,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             table.trace.append(Spend(tick, "reflex", chosen.rule.name, 1, False))
         _spend_posts(m, table, chosen, tick, state)
         if table.stopped is not None:
+            steps.append(Step(arrivals, 0, tried, None, (), "stopped"))
             # *Completion is the output of a rule*, and this is the loop obeying
             # one. It knows a rule spent `stop`; it does not know what a goal is,
             # which is the line this file has held from the start.
@@ -514,9 +584,14 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     # The trace is held to the table on every run: same scores, rebuilt from
     # the defaults and the spends alone.
     assert table.rebuilt(limit) == table.score, "the trace cannot rebuild the table"
+    if len(steps) == limit and steps and steps[-1].state == "applied":
+        # Still working when the bound bit -- the one thing a caller must be
+        # able to tell from a finished run, and the reason `bounded(ticks)` is
+        # deposited at all.
+        m._note(m.g.rel(m.BOUNDED, m.TICKS))
     return Report(
         len(applied), applied, time.time() - t0, tried, _state(m), table,
-        doubts, windows, widenings
+        doubts, windows, widenings, steps
     )
 
 
@@ -663,18 +738,24 @@ def _state(m: Machine) -> set:
 
 CORPORA = ("delay.ugm", "worked.ugm", "quest-p1.ugm", "dungeon")
 
-# What the table loop is allowed not to reach, and why each one is here.
+# What the table loop is allowed not to reach.
 #
-# Both exist ONLY because the other loop materialises an option set, so both are
-# claims about a set this loop deliberately never builds. `close` is a doubt --
-# these two candidates scored within the tolerance -- and `defeated` is one rule
-# beating another, which needs both to have been matched. The author accepted
-# losing them when the table loop became the kernel.
+# `close` is a doubt -- these two candidates scored within the tolerance -- and
+# it is a claim about an option set this loop deliberately never builds. It is
+# the one accepted loss.
 #
-# ⚠ The list is short on purpose and every addition to it is a decision, not a
+# ⭐⭐ **`defeated` WAS on this list and has come off it**, which is the useful
+# half of the story. It was accepted as unreachable on the same grounds: one
+# rule beating another needs both to have been matched. That was wrong -- the
+# question can be asked the other way round. `overrides(A, B)` needs to know
+# whether A matched, A's overriders are read off the graph and there are usually
+# one or two, so `_is_defeated` matches THOSE rather than the pool. A join, not
+# a scan, and the prefix survives.
+#
+# ⚠ The list is short on purpose and every addition is a decision, not a
 # convenience. Anything else the table loop fails to conclude is a rule that has
 # not been written yet, and the gate below says so.
-ACCEPTED_LOSSES = frozenset({"close", "defeated"})
+ACCEPTED_LOSSES = frozenset({"close"})
 
 
 DEFAULT_POSTS = (Post("settle-doubt", None, (Buff("?a", 1),), frozen=True),)

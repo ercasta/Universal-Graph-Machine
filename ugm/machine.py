@@ -2945,6 +2945,17 @@ class Machine:
         anything, and saying it had would make the record useless in the other
         direction.
         """
+        # ⚠⚠⚠ **THE MIGRATION TO THE TABLE LOOP IS STAGED, AND THIS IS THE
+        # SWITCH.** Replacing the body with `attention.run(self, limit).steps`
+        # is one line and it works -- the table loop now returns `Step`s for
+        # exactly that reason. What it costs today is **58 of 549 checks**, and
+        # the list is not noise: `enough` and its open-goal veto, dormancy and
+        # callbacks, proposing a supposition, and the match cache. Each is a
+        # piece of the tick this loop does not do yet.
+        #
+        # Left on the option-set loop until those land, so the repository never
+        # stops running -- *subtract, do not rewrite*, which is the discipline
+        # that made every other Python deletion here safe.
         out: List[Step] = []
         for _ in range(limit):
             s = self.tick()
