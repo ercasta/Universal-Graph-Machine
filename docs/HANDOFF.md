@@ -285,6 +285,55 @@ table is never right* and meant *the comparison cannot be right*; and the watche
 rather than after the move, so a tick that deposited a doubt and applied nothing still taught a
 bigram for a move that never happened.
 
+### The query, by anti-unification -- and it is the first calibration that does not break anything
+
+Anti-unification is the dual of `unify`: unify goes down (what substitution makes these the same),
+this goes up (what is the least general thing both are instances of). Where two examples agree the
+structure is kept, where they differ a variable appears, and **the same disagreement gives the same
+variable everywhere** -- `generalise` in `rules.py`, which already existed for *an example becomes a
+rule*.
+
+What a demonstration becomes: the entries the taught rule CONSUMED -- what made the move available,
+not the whole state -- with the previous rule's own bindings folded back in, so the query says *this
+orc* rather than *some orc*. Then anti-unified across every demonstration of the same pair. Two
+guards: a member that generalises to a bare variable is dropped as saying nothing, and a query that
+also holds where the teacher chose **otherwise** after the same rule is dropped as too general. The
+negatives are free -- the teacher's own run recorded them.
+
+**The dungeon, taught by the shipped arbitration:**
+
+| | posts | moves | matched/move | moves agreeing with the teacher | conclusions lost |
+|---|---|---|---|---|---|
+| untaught | -- | 161 | 29.6 | 7 | 0 |
+| bigram (no query) | 31 | **400 (the limit)** | **6.2** | 50 | 84 |
+| with a query | 25 | **149** (the teacher's own count) | 25.8 | **93** | **11** |
+
+Agreement went from **7 of 161 to 93 of 149**, the runaway is gone, and the loss fell from 84 to 11.
+Five queries were dropped for holding where the teacher disagreed, which is the collision check doing
+real work.
+
+**And the speed came back out.** 6.2 matched per move was the bigram boosting indiscriminately; with
+a query the table is flat again most of the time, and the gain is only 29.6 to 25.8. That is the
+honest shape of the trade: **an unconditional buff is fast and wrong, a conditional buff is right and
+barely faster.** Getting both is what the author's *buffs persist until a refocus resets them* is
+for -- a lifted rule has to stay lifted for the next few moves, not for one.
+
+**One lesson could not be written down.** A sign atom renders as `+`, and `+` opens a member, so a
+premise mentioning one is a fact the graph holds and the surface cannot say. Counted rather than
+worked around: a calibration nobody can read cannot be argued with or frozen, which is the whole
+reason it belongs in the corpus.
+
+⚠ And teaching a corpus that is already right makes it worse. On `quest-p1` the untaught table
+reproduces the teacher on all 21 moves; teaching costs 9 conclusions with bigrams and 12 with
+queries. Calibration should be gated on disagreement -- there is nothing to learn where there is no
+disagreement, and something to lose.
+
+⚠ The lesson crosses machines as an **utterance**: node ids mean nothing outside the graph that
+minted them, so a query is rendered as text on the teacher's machine and re-read in the student's own
+name scope. That is `ugm/table.py`'s rule for what may cross between agents, arriving from the
+learning side -- and it makes a lesson a document: savable, diffable, and loadable into a corpus that
+was never taught.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

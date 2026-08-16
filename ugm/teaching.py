@@ -51,9 +51,12 @@ from typing import Dict, List, Optional, Tuple
 from .attention import (
     SETTLE, Table, _fight, _load, _state, run,
 )
+from .graph import NodeId
 from .machine import Machine
-from .rules import Application, Situation, arbitrate
-from .text import load
+from .chain import PLUS
+from .rules import (Application, Member, Situation, arbitrate,
+                    generalise, unify)
+from .text import ParseError, load, load_file
 
 
 def teacher(m: Machine, table: Table, window, state: Situation):
@@ -73,57 +76,188 @@ def teacher(m: Machine, table: Table, window, state: Situation):
 
 
 class Lesson:
-    """What the use left behind: which rule was picked after which."""
+    """What the use left behind: which rule was picked after which, and what
+    made the picked rule applicable at the time."""
 
     def __init__(self) -> None:
         self.pairs: Dict[Tuple[str, str], int] = {}
+        # One example per demonstration: the propositions the chosen rule
+        # CONSUMED, with the previous rule's own bindings folded back in. Not
+        # the whole state -- the state is enormous and mostly irrelevant, and
+        # the premises are precisely the reason the move was available.
+        self.examples: Dict[Tuple[str, str], List[Tuple]] = {}
         self.agreed = 0
         self.moves = 0
         self.last: Optional[str] = None
+        self.last_bindings: Dict = {}
 
     def watching(self, m: Machine, table: Table, window, chosen, tick: int):
         self.moves += 1
         # By RULE, not by application identity: the teacher builds its own
         # `Application` objects from `_materialise`, so `is` compares two
         # objects that describe the same move and answers no every time. It
-        # reported 0/149 before this line was fixed, which reads as *the table
-        # is never right* and meant *the comparison cannot be right*.
+        # reported 0/149 before this was fixed, which reads as *the table is
+        # never right* and meant *the comparison cannot be right*.
         if window and chosen.rule is window[0].rule:
             self.agreed += 1
         name = chosen.rule.name or "?"
         if self.last is not None:
-            self.pairs[(self.last, name)] = self.pairs.get((self.last, name), 0) + 1
+            key = (self.last, name)
+            self.pairs[key] = self.pairs.get(key, 0) + 1
+            # Anchored to the PREVIOUS rule's bindings: an individual the last
+            # move was about becomes that move's own variable, so the query
+            # says *this orc* rather than *some orc*. §14's one-mapping rule,
+            # one level up -- a query and the rule it hangs off must share
+            # variables or the postcondition is about nothing in particular.
+            back = {v: k for k, v in self.last_bindings.items()}
+            self.examples.setdefault(key, []).append(tuple(
+                _anchor(m, e.proposition, back) for e in chosen.consumed
+            ))
         self.last = name
+        self.last_bindings = dict(chosen.bindings)
 
-    def posts(self, m: Machine, weight: int = 3):
-        """The bigrams, as postconditions on the rule that ran first.
+    # -- what a demonstration becomes -------------------------------------
 
-        No query, deliberately: this is stage one, and a bigram that turns out
-        to be wrong in some situations is what earns a query. Attached to the
-        rule rather than kept beside it, so the calibration is in the corpus and
-        `ugm.attention` needs to know nothing about learning.
+    def lessons(self, m: Machine, conditional: bool = True) -> dict:
+        """What was learned, as TEXT.
+
+        A node id means nothing outside the graph that minted it, and the
+        lesson is learned on the teacher's machine and applied on the student's
+        -- so what crosses is an **utterance**, rendered here and re-read in the
+        receiver's own name scope. That is this repo's own rule for what may
+        cross between machines (`ugm/table.py`), arriving from the learning
+        side, and it makes a lesson a document: savable, diffable, arguable,
+        and loadable into a corpus that was never taught.
+
+        The whole query is rendered as ONE term, because `Loader.term` gives
+        each call a fresh scope -- two members parsed separately would not
+        share `?g0`, and a query whose variables do not co-refer is a different
+        and much weaker claim.
         """
-        by_name = {r.name: r for r in m.rules.rules if r.name}
-        added = 0
+        out = {"posts": {}, "declined": 0, "collided": 0}
         for (first, then), seen in self.pairs.items():
-            a, r = by_name.get(first), by_name.get(then)
-            if a is None or r is None or a is r:
+            if first == then:
                 continue
-            a.posts = tuple(a.posts) + (((), ((r.node, weight * min(seen, 3)),), False),)
-            added += 1
-        return added
+            text = ""
+            if conditional:
+                query = _query(m, self.examples.get((first, then), []))
+                if not query:
+                    # It generalised to nothing that says anything. Emitting an
+                    # unconditional buff instead is exactly the failure already
+                    # measured twice, so the lesson is declined.
+                    out["declined"] += 1
+                    continue
+                if _collides(m, query, self.examples, first, then):
+                    # The query also holds where the teacher chose otherwise
+                    # after the same rule, so it is too general to be a reason.
+                    out["collided"] += 1
+                    continue
+                text = "q(" + ", ".join(m.g.show(x.pattern) for x in query) + ")"
+            out["posts"][(first, then)] = (text, 3 * min(seen, 3))
+        return out
 
 
-def _machine(name: str) -> Machine:
-    m = _fight(False) if name == "dungeon" else _load(name)
+def install(m: Machine, ldr, lessons: dict) -> int:
+    """Read the lessons back in the student's own scope and hang them on its
+    rules. Nothing here knows how they were learned."""
+    by_name = {r.name: r for r in m.rules.rules if r.name}
+    added = 0
+    for (first, then), (text, weight) in lessons["posts"].items():
+        a, r = by_name.get(first), by_name.get(then)
+        if a is None or r is None:
+            continue
+        query = ()
+        if text:
+            try:
+                whole = ldr.term(text)
+            except ParseError:
+                # The lesson cannot be WRITTEN DOWN. A sign atom renders as `+`
+                # and `+` opens a member, so a premise that mentions one is a
+                # fact the graph holds and the surface cannot say. Counted
+                # rather than worked around: a calibration that cannot be
+                # written is a calibration nobody can read, argue with or
+                # freeze, which is the whole point of putting it in the corpus.
+                lessons["unspeakable"] = lessons.get("unspeakable", 0) + 1
+                continue
+            query = tuple(Member(PLUS, x, None, None) for x in m.g.members(whole))
+        a.posts = tuple(a.posts) + ((query, ((r.node, weight),), False),)
+        added += 1
+    return added
+
+def _anchor(m: Machine, prop: NodeId, back: Dict) -> NodeId:
+    """Replace anything the previous move bound with the variable it bound it
+    to. Recursive, because an individual may sit inside a structure."""
+    if prop in back:
+        return back[prop]
+    members = m.g.members(prop)
+    if not members:
+        return prop
+    rel = m.g.relation_of(prop)
+    return m.g.rel(back.get(rel, rel), *[_anchor(m, x, back) for x in members])
+
+
+def _query(m: Machine, examples: List[Tuple]):
+    """Anti-unify the examples into a query, or answer nothing.
+
+    Aligned by relation: a relation that appears exactly once in every example
+    is generalised across them; anything else is dropped rather than guessed at.
+    ONE mapping across every member, which is `generalise`'s own rule -- the
+    same disagreement must give the same variable everywhere, or the query is
+    strictly more general than the answer and fires on everything.
+    """
+    if not examples:
+        return ()
+    by_rel: List[Dict[NodeId, NodeId]] = []
+    for ex in examples:
+        seen: Dict[NodeId, List[NodeId]] = {}
+        for p in ex:
+            seen.setdefault(m.g.relation_of(p), []).append(p)
+        by_rel.append({k: v[0] for k, v in seen.items() if len(v) == 1})
+    shared = set(by_rel[0])
+    for d in by_rel[1:]:
+        shared &= set(d)
+    mapping: Dict = {}
+    out = []
+    for rel in sorted(shared):
+        lgg = by_rel[0][rel]
+        for d in by_rel[1:]:
+            lgg = generalise(m.g, lgg, d[rel], mapping)
+        if m.g.is_var(lgg):
+            continue  # a bare variable is true of everything and says nothing
+        out.append(Member(PLUS, lgg, None, None))
+    return tuple(out)
+
+
+def _collides(m: Machine, query, examples, first: str, then: str) -> bool:
+    """Does this query also hold where the same rule was followed by a
+    DIFFERENT one? The negatives are free -- the teacher's own run recorded
+    them -- and a reason that is equally true of the alternative is not one."""
+    for (a, b), other in examples.items():
+        if a != first or b == then:
+            continue
+        for ex in other:
+            if all(any(unify(m.g, mem.pattern, p, {}) is not None for p in ex)
+                   for mem in query):
+                return True
+    return False
+def _machine(name: str):
+    """A fresh machine and the loader that is its name scope -- a lesson is
+    re-read through it, since a bare name outside a scope names nothing."""
+    if name == "dungeon":
+        from . import dungeon
+        m, ldr, _asked = dungeon.fight(seed=7, limit=0)
+    else:
+        m = Machine()
+        ldr = load_file(m, os.path.join(
+            os.path.dirname(__file__), "rules", name))
     load(m, SETTLE)
-    return m
+    return m, ldr
 
 
 def measure(name: str, limit: int = 400) -> dict:
     """One teacher run gives both the lesson and the target; then the table
     loop runs twice, uncalibrated and calibrated, against it."""
-    gold_m = _machine(name)
+    gold_m, _gold_ldr = _machine(name)
     lesson = Lesson()
     gold = run(gold_m, limit=limit, chooser=teacher, watch=lesson.watching)
 
@@ -135,13 +269,16 @@ def measure(name: str, limit: int = 400) -> dict:
         # it is already high the corpus has nothing to teach.
         "teacher_took_the_top": lesson.agreed,
     }
-    for label, learn in (("before", False), ("after", True)):
-        m = _machine(name)
-        added = lesson.posts(m) if learn else 0
+    for label, learn in (("bigram", "flat"), ("query", "conditional")):
+        m, ldr = _machine(name)
+        taught = lesson.lessons(gold_m, conditional=(learn == "conditional"))
+        added = install(m, ldr, taught)
+        declined, collided = taught["declined"], taught["collided"]
         r = run(m, limit=limit)
         same = sum(1 for a, b in zip(r.applied, gold.applied) if a == b)
         out[label] = {
-            "posts": added,
+            "posts": added, "declined": declined, "collided": collided,
+            "unspeakable": taught.get("unspeakable", 0),
             "moves": r.ticks,
             "matched_per_move": r.tried / max(1, len(r.windows)),
             "prefix_agreement": same,
@@ -165,9 +302,12 @@ def main() -> int:
         print(f"  {c['corpus']}  -- {c['pairs']} bigrams from one taught run; "
               f"the teacher took the table's top choice "
               f"{c['teacher_took_the_top']}/{c['gold_moves']} times")
-        for label in ("before", "after"):
+        for label in ("bigram", "query"):
             d = c[label]
-            print(f"    {label:6} {d['moves']:>4} moves  "
+            print(f"    {label:7} {d['posts']:>3} posts "
+                  f"({d['declined']} said nothing, {d['collided']} too general, "
+                  f"{d['unspeakable']} unsayable)  "
+                  f"{d['moves']:>4} moves  "
                   f"{d['matched_per_move']:>6.1f} matched/move  "
                   f"{d['prefix_agreement']:>4} moves agree with the teacher  "
                   f"{d['conclusions']:>4} conclusions, {d['lost']} lost  "
