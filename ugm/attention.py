@@ -77,7 +77,8 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .graph import NodeId
 from .machine import Machine, Step
-from .rules import STOP, Application, Member, Rule, Situation, match, substitute
+from .rules import (STOP, Application, Member, Rule, Situation, _superseded,
+                    match, substitute)
 from .text import load, load_file
 
 # A rule the bundle marks `standing` is in the table at the default; everything
@@ -378,6 +379,38 @@ def _is_defeated(m: Machine, rule: Rule, state) -> bool:
     return False
 
 
+def _is_superseded(m: Machine, app: Application, state) -> bool:
+    """Defeated **for this case** rather than for this step.
+
+    ⭐ The property `supersedes` exists for is *substitute where an outcome is
+    declared, otherwise assume* -- and it is not expressible any other way. Three
+    routes were measured and all three fail:
+    **a buff** cannot, because ordering is not defeasibility -- boosting the
+    winner gets it applied first and the loser applies second and overwrites it,
+    which measured WORSE than doing nothing; **consumption** cannot, because the
+    trigger `did` is re-derived from `emitted`, the boundary record a corpus must
+    never consume; and **a negated member** cannot, because *this act has no
+    declared outcome* is negation over an open domain.
+
+    So it is ported rather than dropped, and the shape is `_is_defeated`'s one
+    construct along: the question is about a PAIR of applications, so match only
+    the rules that supersede this one and ask whether any of their applications
+    shares a consumed entry with this one. A join, not a scan -- where the old
+    loop answered it by materialising every application it had.
+    """
+    higher = [h for h, lower in m.rules.precedence(m.rules.SUPERSEDES)
+              if lower is app.rule]
+    if not higher:
+        return False
+    others: List[Application] = []
+    for h in higher:
+        others.extend(match(
+            m.g, m.chain, h, m.focus.topic, m.focus.seat, state,
+            computes=m.rules.computes, structural=m.rules.skeleton(),
+        ))
+    return _superseded(m.rules, app, others)
+
+
 def _standing(m: Machine) -> set:
     """The rules the bundle deposits `standing(<R>)` about -- the default table,
     which already exists in all but name."""
@@ -515,7 +548,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                     continue
                 hit = False
                 for a in found:
-                    if m._survives(a):
+                    if m._survives(a) and not _is_superseded(m, a, state):
                         window.append(a)
                         hit = True
                         if top is None:

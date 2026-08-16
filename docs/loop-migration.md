@@ -277,3 +277,72 @@ and everything downstream of it: learning, credit, generalisation, and the
 harmonization checks that need a learned rule to lose to an authored one. Plus
 three singletons -- dormancy's pointer, a re-ask costing one tick, and *a fact's
 own history is matchable*, which still has no explanation.
+
+
+---
+
+## `supersedes` — ported, and the three routes that were tried first
+
+The proposal was that `supersedes` is like `forbidden`: something that has to be
+**reasoned** rather than computed, with a buff on the superseding rule as the
+mechanism. The first half is right and the second is measurably wrong, which is
+worth recording because the correction is one the author has already made once.
+
+**A buff cannot defeat.** Two rules concluding opposite signs from one premise,
+in the table loop:
+
+| | applied | what `q` reads |
+|---|---|---|
+| nothing -- authored order | `A1, A2` | `-` |
+| **A2 first in the table** (the strongest possible buff) | `A2, A1` | **`+`** |
+| `overrides(A2, A1)` | `A2` | `-` |
+
+Boosting the winner gets it applied *first*, and then the loser applies second
+and **overwrites it** -- the buff produced the opposite conclusion, worse than
+doing nothing. This is *ordering is not defeasibility*, and it is why the author's
+own resolution for norms made `+lawful(?a)` **a premise, never a boost**.
+
+**Consumption cannot either**, and the reason is a rule this repository already
+has. Make `<outcome>` spend its trigger -- `{ +did(?a), +achieves(?a, ?y) } =>
+{ +?y, -did(?a) }` -- and the act is asserted anyway, because `did` is
+re-derived from `emitted` by a bundled rule. **Never consume what you were told**,
+arriving from the far side: the trigger is downstream of a boundary record.
+
+**A negated member cannot either**: *this act has no declared outcome* is
+negation over an open domain, which is exactly what §9 refuses.
+
+So the property `supersedes` exists for -- *substitute where an outcome is
+declared, otherwise assume* -- is not expressible any other way, and it is
+**ported rather than dropped**, in `_is_defeated`'s shape one construct along:
+the question is about a PAIR of applications, so match only the rules that
+supersede this one and ask whether any of their applications shares a consumed
+entry. A join where the old loop materialised everything it had.
+
+>⚠ And a census point that argued for deleting it and does not: **no `.ugm`
+>corpus uses `supersedes`.** Only its own tests. That is the shape that retired
+>the grade and the precedence table -- but the property here is one no other
+>construct can carry, so *unused* is an argument about corpora rather than about
+>the relation.
+
+⚠⚠ **A near-miss worth recording.** Both supersedes clusters were first reported
+green -- because the functions were run **without the flip applied**, so they
+exercised the old loop and passed as they always had. Re-run under the flip, one
+was genuinely fixed and the other was never about `supersedes` at all. *A check
+that is not running the thing under test agrees with everything.*
+
+### Where it stands
+
+| | checks | failing |
+|---|---|---|
+| the flip, as first measured | 545 | 58 |
+| stopping | 545 | 48 |
+| A and B deleted | 535 | 39 |
+| the 15 dropped | 523 | 27 |
+| effort records | 522 | 14 |
+| **`supersedes`** | **522** | **13** |
+
+**The remaining 13 are one cluster and three singletons.** Learning: an episode
+teaching the next, generalising to an unmentioned case, a learned rule losing to
+an authored one, a preference row not double-counting. Then dormancy's pointer,
+a re-ask costing one tick, and *a fact's own history is matchable* -- still
+unexplained, and still the one I would look at before assuming it is cosmetic.
