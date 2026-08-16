@@ -1,0 +1,140 @@
+# A player, as its own agent. Loaded by `ugm/melee.py`.
+#
+# This corpus exists to be a fixture the dungeon could not be: a fight is a
+# PIPELINE -- swing, to-hit, damage, wound -- so the previous move nearly
+# determines the next one and a lesson keyed on the predecessor is almost
+# enough. A player is not a pipeline. Every rule below is triggered by the same
+# thing, *the DM just told me something*, and which of them is right depends on
+# the state: how hurt I am, whether I still have a potion, whether the goblin is
+# bleeding. That is the shape a ranking-time trigger exists for, and the shape
+# no bigram can express.
+#
+# ⚠ THE TURN IS IN THE UTTERANCE, and that is not decoration. A proposition is
+# one node however often it is spoken, so saying `intends(p1, attack(gob))` a
+# second time concludes something that already holds -- quiescence stops it, no
+# entry is deposited, and **the hearer never learns that anything was said**.
+# Measured here: the DM heard the first attack, the defend, and then nothing at
+# all. An agent cannot repeat itself; it can only say something new, so an
+# utterance that may recur has to carry an occasion. This is
+# `reask-entry-not-request` arriving from the multi-agent side, and the turn
+# number is the occasion a player naturally has.
+
+fact +goal(alive(p1))
+fact +potion(p1)
+fact +foe(p1, gob)
+fact +turn(1)
+
+# What the DM says is so. A player is not entitled to its own dice.
+#
+# ⚠ AT THE ARRIVAL'S OWN LOCUS, which is the measured fix for the trap this
+# corpus would otherwise hit: `says` is standing, so anything derived from it is
+# re-derivable, and an action that consumes a report finds the report back on
+# the next tick -- observations §4.6, where the same shape ran 194 times.
+# Believing it where it arrived means a later denial governs, and re-deriving it
+# at the old locus changes nothing about the current answer.
+rule <trust-dm> = implies( { +says(dm, ?p, plus) at ?m }, { +?p at ?m } )
+
+# -- the branch, and it is one branch with four arms ------------------------
+#
+# Each arm spends the report it acted on and advances the turn, so the next
+# utterance is a new claim rather than a repetition nobody can hear.
+#
+# ⚠ THE POLICY GUARDS ARE GONE, at the author's direction, and the test that
+# decides which may go is three-way. A guard stays when the move would be
+# IMPOSSIBLE (`+potion(p1)` -- you cannot drink what you do not have) and when
+# it would be FORBIDDEN (a norm, which must stay a veto because a score can
+# always be outweighed). It goes when the move would merely be UNWISE, because
+# that is what a score is for.
+#
+# The point is not tidiness. A fully-guarded corpus is UNLEARNABLE: if at most
+# one arm can ever match, the window never holds two candidates, doubt never
+# fires, nobody is ever asked, and there is nothing for a lesson to be about.
+# Guards suppress the very signal the teaching loop feeds on.
+
+# Drink. ⚠ The guard `beats(4, ?n) as yes` -- *only when badly hurt* -- is GONE:
+# that is a tactic, not a fact about potions, and with a table it belongs in a
+# score. What is left is the world absolute, `+potion(p1)`: you cannot drink
+# what you do not have, and no amount of calibration makes that possible.
+rule <quaff> = causes( { +yours(?n), +potion(p1),
+                         +turn(?t), calc(add, ?t, 1) as ?next },
+                       { +doing(tell(dm, intends(p1, quaff, ?t))),
+                         -potion(p1), -yours(?n),
+                         +turn(?next), -turn(?t) } )
+
+# Run. The guard was `-potion(p1)` -- *only when there is nothing left to
+# drink* -- which is a whole strategy hard-coded into a premise. You may flee
+# with a full pack.
+rule <run> = causes( { +yours(?n),
+                       +turn(?t), calc(add, ?t, 1) as ?next },
+                     { +doing(tell(dm, intends(p1, flee, ?t))), +ran(p1),
+                       -yours(?n), +turn(?next), -turn(?t) } )
+
+# The foe is bleeding: finish it rather than trade blows.
+rule <press> = causes( { +bleeding(?foe), +foe(p1, ?foe) },
+                       { +considering(strike(?foe)), -bleeding(?foe) } )
+
+# Fight. The guard was `beats(?n, 5) as yes` -- *only while whole* -- the same
+# tactic as <quaff>'s, inverted.
+#
+# ⚠ It CONSIDERS rather than acts. Striking is the one move here that a
+# prescription might forbid, so it goes through the chain below.
+rule <trade> = causes( { +yours(?n), +foe(p1, ?foe) },
+                       { +considering(strike(?foe)), -yours(?n) } )
+
+# -- considering, evaluating, and only then acting --------------------------
+#
+# §19 used to take norms off the recall path and veto the write from Python.
+# The author's argument for moving them here: deciding whether something is
+# forbidden may need the combined effect of several prescriptions, which is a
+# reasoning act and not a mechanical one -- *brain chemistry knows nothing
+# about what is right and what is wrong*. So the engine keeps no opinion, and
+# the corpus reasons.
+
+# The prescription. It is an ordinary rule, and that is what retires the
+# `unifies` primitive: the MATCHER is the coverage test, the variables are this
+# rule's own, and combining prescriptions is combining rules.
+# ⚠ It SPENDS the consideration, and the first version did not. Denying
+# `lawful` was not enough: `<presumed>` re-derives the default at a LATER
+# moment, a later locus governs, and the agent struck the fleeing goblin one
+# move after recording that it would not. That is observations §2.6 -- a
+# default over an open domain does not work -- arriving in the worst possible
+# place. To forbid is to consume the deliberation, which is the same discipline
+# the DM's rules needed: a rule that spends something must read the thing it
+# spends, and a prohibition spends the considering.
+rule <no-fleeing> = causes( { +considering(strike(?foe)), +ran(?foe) },
+                            { +unlawful(strike(?foe)),
+                              -considering(strike(?foe)) } )
+
+# ⚠ Lawful by default, but ONLY ONCE THE AGENT HAS RUN OUT OF THINGS TO SAY
+# about it. `quiet` is the machinery's own note that the loop found nothing
+# more to do, so this is closure -- *nothing I know forbids it* -- rather than
+# negation as failure, which a `-` member cannot express anyway (it says an
+# entry DENIES this, never that none exists).
+rule <presumed> = implies( { +considering(?a), +quiet(?m) },
+                           { +lawful(?a) } )
+
+rule <barred> = causes( { +unlawful(?a) }, { -lawful(?a) } )
+
+# ⚠ `+lawful(...)` is a PREMISE, never a boost. Acting unlawfully is not
+# unwise, it is the row that stays a guard -- so no score can starve the
+# evaluation, because the act is not applicable until the verdict exists.
+rule <strike> = causes( { +considering(strike(?foe)), +lawful(strike(?foe)),
+                          +turn(?t), calc(add, ?t, 1) as ?next },
+                        { +doing(tell(dm, intends(p1, attack(?foe), ?t))),
+                          -considering(strike(?foe)),
+                          +turn(?next), -turn(?t) } )
+
+# ...and what it does instead, which is a claim rather than a silence.
+rule <stayed> = implies( { +unlawful(strike(?foe)) },
+                         { +held(p1, strike(?foe)) } )
+
+# Missed: cover up rather than swing wildly again.
+rule <guard> = causes( { +whiffed(p1, ?foe),
+                         +turn(?t), calc(add, ?t, 1) as ?next },
+                       { +doing(tell(dm, intends(p1, defend, ?t))),
+                         -whiffed(p1, ?foe), +turn(?next), -turn(?t) } )
+
+# It is over, one way or the other.
+rule <won> = implies( { +fallen(?foe), +foe(p1, ?foe) }, { +enough(alive(p1)) } )
+rule <away> = implies( { +ran(p1) }, { +enough(alive(p1)) } )
+rule <gone> = implies( { +ran(?foe), +foe(p1, ?foe) }, { +enough(alive(p1)) } )

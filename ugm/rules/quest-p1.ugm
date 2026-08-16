@@ -1,0 +1,14 @@
+# p1: wants a door open, has no key, and asks when it runs out of moves.
+# Loaded by `ugm/quest.py`.
+fact +goal(open(door1))
+fact +opens(key1, door1)
+
+rule <unlock> = causes( { +opens(key1, door1), +have(p1, key1) },
+                        { +open(door1) } )
+
+# ⭐ The ask. `blocked` is the occasion -- the agent has exhausted what it can do
+# alone, and this is the one moment where another mind is worth anything.
+rule <ask-for-it> = implies( { +blocked(have(p1, ?k)) },
+                             { +doing(tell(dm, want(p1, ?k))) } )
+
+rule <trust-dm> = implies( { +says(dm, ?p, plus) }, { +?p } )

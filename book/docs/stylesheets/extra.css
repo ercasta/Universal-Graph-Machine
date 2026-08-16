@@ -19,7 +19,8 @@
   color: var(--md-default-fg-color--light);
 }
 
-.ugm-corpus {
+.ugm-corpus,
+.ugm-asks {
   width: 100%;
   box-sizing: border-box;
   font-family: var(--md-code-font-family, monospace);
@@ -113,6 +114,20 @@
 }
 
 .ugm-ask:hover:not(:disabled) {
+  background: var(--md-default-fg-color--lighter);
+}
+
+/* A preset swaps a worked example into both fields and runs it. Same skin as
+   the quick-ask buttons it replaces. */
+.ugm-preset {
+  background: var(--md-default-fg-color--lightest);
+  color: var(--md-default-fg-color);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  font-family: var(--md-code-font-family, monospace);
+}
+
+.ugm-preset:hover:not(:disabled) {
   background: var(--md-default-fg-color--lighter);
 }
 

@@ -7,8 +7,8 @@ copyright: >
   Made with care for anyone curious about how machines can reason ·
   <a href="https://github.com/ercasta/Universal-Graph-Machine">View the project on GitHub</a>
 
-# Simpler, deterministic paths (playground/detective.html) so the live pages
-# can reference the Pyodide wheel with a plain relative URL.
+# Simpler, deterministic paths so the live pages can reference the Pyodide
+# wheel with a plain relative URL.
 use_directory_urls: false
 
 theme:
@@ -65,51 +65,48 @@ extra_javascript:
 
 nav:
   - Home: index.md
-  - "Part 1 — Basic":
-      - "0 · A machine that shows its work": basic/00-a-machine-that-explains-itself.md
-      - "1 · The substrate": basic/01-the-substrate.md
-      - "2 · Telling it things": basic/02-facts.md
-      - "3 · Asking: yes, no, and I don't know": basic/03-questions.md
-      - "4 · A rule is a little program you point at": basic/04-rules.md
-  - "Part 2 — Intermediate":
-      - "5 · Wanting something": intermediate/05-wanting-something.md
-      - "6 · Imagining": intermediate/06-imagining.md
-      - "7 · Finding a plan": intermediate/07-finding-a-plan.md
-      - "8 · Because…": intermediate/08-because.md
-      - "9 · Talking to it": intermediate/09-talking-to-it.md
-  - "Part 3 — Advanced":
-      - "10 · When reality disagrees": advanced/10-when-reality-disagrees.md
-      - "11 · Contingencies and replanning": advanced/11-contingencies.md
-      - "12 · What it may never do": advanced/12-what-it-may-never-do.md
-      - "13 · Remembering": advanced/13-remembering.md
-      - "14 · Learning from what it did": advanced/14-learning.md
-      - "15 · When two intentions collide": advanced/15-collisions.md
-  - "Part 4 — Deliberation":
-      - "16 · Choosing what to do next": deliberation/16-choosing-what-to-do-next.md
-      - "17 · Advice it may ignore": deliberation/17-advice-it-may-ignore.md
-      - "18 · Recipes, and rules you must follow": deliberation/18-recipes-and-rules.md
-      - "19 · Not knowing": deliberation/19-not-knowing.md
-  - "Part 5 — The internals":
-      - "20 · The instruction set": deep/20-instruction-set.md
-      - "21 · Types as shapes": deep/21-types-as-shapes.md
-      - "22 · Reading a rule": deep/22-reading-a-rule.md
-      - "23 · Concluding versus acting": deep/23-concluding-vs-acting.md
+  - "Part 1 — What the world is made of":
+      - "0 · A machine that shows its work": basic/00-shows-its-work.md
+      - "1 · Nodes, members, and nothing else": basic/01-the-substrate.md
+      - "2 · A proposition claims nothing": basic/02-propositions-and-entries.md
+      - "3 · Three signs, and silence": basic/03-signs.md
+      - "4 · Moments": basic/04-moments.md
+      - "5 · Reading is a walk": basic/05-the-read.md
+  - "Part 2 — Rules":
+      - "6 · A rule is a fact about two moments": rules/06-a-rule-is-a-fact.md
+      - "7 · Two connectives, and why exactly two": rules/07-connectives.md
+      - "8 · Writing a corpus": rules/08-writing-a-corpus.md
+      - "9 · Because…": rules/09-because.md
+      - "10 · Asking about rules": rules/10-rules-are-subjects.md
+  - "Part 3 — Wanting something":
+      - "11 · Reading a rule backwards": wanting/11-backwards.md
+      - "12 · Plans and subgoals": wanting/12-plans.md
+      - "13 · Blocked, and what silence means": wanting/13-blocked.md
+      - "14 · Acting": wanting/14-acting.md
+  - "Part 4 — Not being sure":
+      - "15 · How strongly": unsure/15-how-strongly.md
+      - "16 · Supposing": unsure/16-supposing.md
+      - "17 · When two rules disagree": unsure/17-disagreement.md
+      - "18 · What it may never do": unsure/18-norms.md
+  - "Part 5 — Out in the world":
+      - "19 · Stretches, not instants": world/19-spans.md
+      - "20 · Shapes": world/20-shapes.md
+      - "21 · Who said it": world/21-channels.md
+      - "22 · Arithmetic is not reasoning": world/22-tools.md
+      - "23 · When things happened": world/23-time.md
   - "Part 6 — Watching itself":
-      - "24 · What it saw, and whether it was me": watching/24-what-it-saw.md
-      - "25 · One loop, and everything on it": watching/25-one-loop.md
-      - "26 · Noticing it's taking too long": watching/26-taking-too-long.md
-      - "27 · Forgetting is the default": watching/27-forgetting.md
-      - "28 · What, where, and when": watching/28-what-where-when.md
-  - "Part 7 — Out in the world":
-      - "29 · When things happened": world/29-when-things-happened.md
-      - "30 · Who said it, and taking it back": world/30-who-said-it.md
-      - "31 · Overruled": world/31-overruled.md
-      - "32 · Waiting": world/32-waiting.md
+      - "24 · The agent's own state": watching/24-own-state.md
+      - "25 · Stopping": watching/25-stopping.md
+      - "26 · What comes to mind": watching/26-recall.md
+      - "27 · Learning": watching/27-learning.md
+  - "Part 7 — The floor":
+      - "28 · What cannot be a convention": floor/28-the-floor.md
+      - "29 · The bootstrap": floor/29-bootstrap.md
+      - "30 · Zero phases": floor/30-zero-phases.md
   - "Part 8 — Where the line is":
-      - "33 · Above and below the horizon": horizon/33-above-and-below.md
-      - "34 · Moving the line": horizon/34-moving-the-line.md
+      - "31 · Meaning is a web": horizon/31-the-web.md
+      - "32 · What is not built": horizon/32-not-built.md
   - "Playground":
-      - "Watch it plan": playground/tower.md
-      - "Ask it something": playground/asking.md
+      - "Run a corpus": playground/corpus.md
       - "Make it check itself": playground/selftest.md
   - "Appendix — concepts": appendix/index.md

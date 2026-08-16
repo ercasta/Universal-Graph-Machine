@@ -1,596 +1,216 @@
 # Appendix — concepts, in plain language
 
-The book teaches each idea when you first need it. This appendix is for when you
-want a little *more* on a concept, or you jumped straight here. Each entry is
-short, plain, and points back into the book.
+Alphabetical. Each entry says what the thing is, and points at the chapter where
+it earns its keep.
 
 ---
 
-## What is a graph?
+**anchored** — containing actual individuals, and connected to the real history.
+The opposite of *generic*. A rule's two halves are generic; everything else is
+anchored. The distinction is structural, so it's checkable rather than
+maintained by etiquette. [Chapter 4](../basic/04-moments.md)
 
-A **graph** is a collection of **dots** connected by **arrows**. The dots are
-**nodes**; the connections are **edges**.
+**antecedent** — the *if* half of a rule. A generic moment: a list of signed
+entry patterns, plus any *skeleton* members relating their loci. Its order is
+load-bearing, because the trail records what an application consumed by member
+position. [Chapter 6](../rules/06-a-rule-is-a-fact.md)
 
-You already know dozens of graphs:
+**anti-unification** — given two things that happened, the pattern they already
+agree about. The dual of unification, and what *learning from examples* is made
+of. The whole difficulty is using **one** dictionary across premise and
+conclusion. [Chapter 27](../watching/27-learning.md)
 
-- A **subway map** — stations are nodes, tracks are edges.
-- A **friend network** — people are nodes, "is friends with" is an edge.
-- A **family tree** — people are nodes, "is a parent of" is an edge.
+**arbitration** — choosing which of the applicable rules to apply. *Totality* —
+that something always answers — is a floor primitive. *Precedence* — which one
+wins — is an ordinary claim read from the graph. A loser is **deferred, not
+rejected**. [Chapter 17](../unsure/17-disagreement.md)
 
-This machine lives in a graph where **every arrow has a name**, and arrows
-sharing a name are kept **in order**. That second part sounds like a
-technicality; it means a one-to-many relationship is also a list, so "the second
-one" is a question you can ask.
+**blocked** — a claim the searcher makes about **itself**: I expanded this goal,
+nothing fit, and I have stopped. Not *there is no way* — *I found no way*. No
+positive rule can conclude it, because it's an aggregate over a finished
+search. [Chapter 13](../wanting/13-blocked.md)
 
-→ [Chapter 1](../basic/01-the-substrate.md)
+**causes** — one of two connectives. Its consequent is *asserted* and lands in a
+**later** moment, so it persists: water you have stopped heating stays boiled.
+[Chapter 7](../rules/07-connectives.md)
 
----
+**channel** — how something got here: a person, a sensor, a socket. What's
+recorded is that *the channel said so*; whether to believe it is a rule's
+business. Distinct from **authority**, which is whose word it is.
+[Chapter 21](../world/21-channels.md)
 
-## Node, edge, attribute, reference
+**computator** — a pure function given values and returning a value. Never sees
+the graph, so it runs *during the match*, which keeps a whole change in one
+application. Where arithmetic goes. [Chapter 22](../world/22-tools.md)
 
-- **Node** — a thing. Everything is one: a crate, a rule, a goal, a memory.
-- **Edge** — a named, ordered arrow between two nodes. An edge is a *claim*.
-- **Attribute** — a value on a node that isn't a relationship: `height: 3`.
-- **Reference** — a stored pointer to a node, held as an attribute value. Unlike
-  an edge, it asserts nothing. A bookmark, not a claim.
+**connective** — `implies` or `causes`. There are exactly two, and the
+membership test is that a connective must license a different *(forward,
+backward)* reading pair. Adding one adds **rows, not branches**.
+[Chapter 7](../rules/07-connectives.md)
 
-→ [Chapter 1](../basic/01-the-substrate.md)
+**consequent** — the *then* half of a rule. A delta relative to the antecedent,
+without being a second kind of object. May name a locus its antecedent bound.
+[Chapter 6](../rules/06-a-rule-is-a-fact.md)
 
----
+**corpus** — a text file of rules, facts and arrivals. What you teach the
+machine. [Chapter 8](../rules/08-writing-a-corpus.md)
 
-## Type — a shape, not a badge
+**delta** — the entries a moment holds. What changed. A moment stores only its
+delta, which is why reading is a walk. [Chapter 4](../basic/04-moments.md)
 
-A **type** describes a *shape*: which arrows a node must have, how many, and
-what attribute values. Nothing is ever tagged. Asking "is this a car?" re-checks
-the node's structure, every time.
+**deposit moment** — *when a claim was made*. Not a member of the entry — it's
+simply which moment's delta the entry sits in. The second of the read's two
+indices. [Chapter 2](../basic/02-propositions-and-entries.md)
 
-Two things fall out for free: a thing can satisfy several shapes at once, and it
-stops satisfying one the moment its structure changes — with nothing to
-invalidate, because nothing was stored.
+**entry** — a claim. Exactly three members: a **locus**, a **proposition**, and
+a **sign**. Two claims about the same proposition at the same locus are two
+different entries, because an entry is an *act of claiming*.
+[Chapter 2](../basic/02-propositions-and-entries.md)
 
-→ [Chapter 2](../basic/02-facts.md), [Chapter 21](../deep/21-types-as-shapes.md)
+**frame** — a process node: what reasoning is running, where it's standing, and
+where an answer is owed. Readable, writable and **selectable**, which is what a
+stack frame is not. [Chapter 24](../watching/24-own-state.md)
 
----
+**generic** — containing variables. A pattern. The one item on the floor that
+provably cannot be taught, because you cannot define matching-with-variables
+using rules that themselves require matching-with-variables.
+[Chapter 28](../floor/28-the-floor.md)
 
-## Cast
+**implies** — one of two connectives. Its consequent is *derived* and lands in
+the **same** moment: retract the antecedent and the conclusion goes with it.
+[Chapter 7](../rules/07-connectives.md)
 
-Because a type is a shape, **changing a thing's type is just changing its
-shape**. A rule promising `car → serviced_car` is a **cast**, and whatever it
-alters along the way is merely how the cast is achieved.
+**licence** — what authorised something. On a moment, why it differs from its
+predecessor. On an entry, which rule application, load or arrival produced it.
+Reading the licences is reading the machine's reasoning.
+[Chapter 9](../rules/09-because.md)
 
-Nothing records that a change happened. A node satisfies the stronger shape or
-it doesn't — checkable now, rather than a claim about the past.
+**locus** — what a claim is *about*: a moment, or a **span**. The first of the
+read's two indices, and the reason a claim about the past can be made now.
+[Chapter 2](../basic/02-propositions-and-entries.md)
 
-→ [Chapter 21](../deep/21-types-as-shapes.md)
+**moment** — a state of affairs. A signed delta, a predecessor, and a licence.
+A state in time, a hypothetical, a supposition and a rule's antecedent are all
+moments; there is no separate frame, world or context object.
+[Chapter 4](../basic/04-moments.md)
 
----
+**norm** — a prohibition. Checked at the **write**, never proposed and never
+arbitrated, because what comes to mind is opaque and *the opaque component may
+not be load-bearing for safety*. [Chapter 18](../unsure/18-norms.md)
 
-## Pointing (and why nothing "fires")
+**occasion** — a fact the machinery deposits when something notable happens:
+`quiet`, `blocked`, `left`, `defeated`, `bounded`, `unsupported`. A corpus keys
+on one to say *when this happens, think of me*.
+[Chapter 26](../watching/26-recall.md)
 
-In many reasoning systems a rule **fires** wherever the world matches it. Here a
-rule is a function with parameters: it runs when something **points** it at
-specific arguments, and never otherwise.
+**proposition** — a relation instance. The *idea* of something. Claims nothing
+on its own — it has no locus and no sign, so it structurally cannot be mistaken
+for a claim. [Chapter 2](../basic/02-propositions-and-entries.md)
 
-The trade: you lose automatic cascades, and you gain a rule that cannot surprise
-you, cannot run twice by accident, and cannot interact with a rule written by
-someone who never heard of it.
+**quiescent** — applying anything further would change nothing. **Exhaustion**,
+not satisfaction. The loop may end; it may not end quietly on something it was
+asked for. [Chapter 25](../watching/25-stopping.md)
 
-→ [Chapter 4](../basic/04-rules.md)
+**recall** — which rules come to mind. A function rather than a search, learned
+from outcomes, **incomplete by design** — so it returns a set *and a state*, and
+a dry shortlist must widen. [Chapter 26](../watching/26-recall.md)
 
----
+**register** — the one privileged pointer: the node the machinery is currently
+working in. Floor, because finding where to write requires a read, and a read
+needs somewhere to stand. [Chapter 28](../floor/28-the-floor.md)
 
-## Goal, and constraint
+**reification** — a rule deposited as ordinary facts — `rule`, `conn`, `ant`,
+`con` — so other rules can read it. Both the sign and the position are members,
+or a rule read back out of the graph is a different rule.
+[Chapter 10](../rules/10-rules-are-subjects.md)
 
-A **goal** is a set of **constraints** — things that must be true. Each is an
-ordinary node, and keeping them separate is what makes planning possible: a goal
-that can only say *yes/no* leaves a searcher nothing to aim at, while one that
-names **which** constraints are still false lets it work backwards from what's
-actually missing.
+**relation instance** — a node with a relation and ordered members. What would
+elsewhere be a labelled edge. Everything here is one.
+[Chapter 1](../basic/01-the-substrate.md)
 
-→ [Chapter 5](../intermediate/05-wanting-something.md)
+**sign** — `+`, `−` or `?`, a member of the entry. `−` means **denied**, never
+absent. `?` means *held before, does not now, and I cannot say what does*. No
+entry at all means **inherit**. [Chapter 3](../basic/03-signs.md)
 
----
+**skeleton** — the antecedent members that relate loci rather than claim
+anything: `anc`, `sanc`, `in_delta`, `entry_of`, `span_of`, `rests_on`. No sign,
+no locus, no licence, because nobody asserted them.
+[Chapter 6](../rules/06-a-rule-is-a-fact.md)
 
-## Safety and liveness
+**span** — a stretch of the chain: a node with a start moment and an end moment.
+Spans are **loci**, so a claim can be about a stretch rather than an instant.
+Contents are not stored, because the predecessor relation is single-valued.
+[Chapter 19](../world/19-spans.md)
 
-Two kinds of limit on *how* a goal may be reached, handled oppositely:
+**stamp** — the floor-level record on every node the engine mints: what produced
+it, under which substitution, with the register in which state. On the floor
+because voluntary provenance is forgeable.
+[Chapter 28](../floor/28-the-floor.md)
 
-- **Safety** (`never unstack`, `at most 3 steps`) — once broken, no continuation
-  repairs it. A breach is a **proof** the branch is dead, so it prunes, before
-  the step is even imagined.
-- **Liveness** (`must paint`) — a plan that hasn't done it yet is unfinished,
-  not in violation. Checked only at the end; it must never prune.
+**stratum 0** — rules whose antecedent members are *all* structural. Applied
+without a read, and therefore concluding structure rather than claims. One
+predicate, read off the antecedent, decides both halves — which is what closes
+the bootstrap circle. [Chapter 29](../floor/29-bootstrap.md)
 
-Get these backwards and planning fails in both directions.
+**supposing** — entering a hypothesis. **Unwrap on the way in, re-wrap on the way
+out**: inside the frame the assumption is an ordinary fact, and no rule needs a
+hedged twin. Containment is free — the frame's seat is a *successor*, so the
+caller's walk can't reach it. [Chapter 16](../unsure/16-supposing.md)
 
-→ [Chapter 5](../intermediate/05-wanting-something.md),
-[Chapter 12](../advanced/12-what-it-may-never-do.md)
+**tool** — a request answered by a function rather than by a search. Its answer
+lands a tick later, and it **proposes; it never concludes**.
+[Chapter 22](../world/22-tools.md)
 
----
-
-## Workbench and frame
-
-A **workbench** is a private copy of the world where the machine tries things
-out. A **frame** is a snapshot after each imagined step — which is what lets it
-answer "what was supposed to be true at step two?", the question that matters
-when step two surprises it.
-
-Nothing is committed by imagining.
-
-→ [Chapter 6](../intermediate/06-imagining.md)
-
----
-
-## Rank a guess; prune a proof
-
-The rule that keeps hard problems solvable.
-
-**Relevance** — how likely a move is to help — is a *guess*, so it only ever
-changes the **order** moves are tried. Filtering on it would lose solutions:
-some puzzles require taking something apart first, and that move scores badly by
-any measure of relevance.
-
-A **safety breach** is a *proof*, so pruning on it is sound.
-
-→ [Chapter 7](../intermediate/07-finding-a-plan.md)
-
----
-
-## The plan is found, not built
-
-The machine searches by imagining, and every frame records the step that reached
-it. So the path from the start to a frame satisfying the goal **already is** the
-plan. There's no plan-assembly step.
-
-Which is also why an answer arrives with its justification: the route *is* the
-explanation.
-
-→ [Chapter 7](../intermediate/07-finding-a-plan.md),
-[Chapter 8](../intermediate/08-because.md)
-
----
-
-## Yes, no, and unknown
-
-Three answers, and the third isn't a failure:
-
-- **yes** — a route was found;
-- **no** — something incompatible holds *now*;
-- **unknown** — nothing settles it either way.
-
-A failed search has learned about the machine's own library, not about the
-world. Treating "not found" as "false" is how a reasoner starts lying.
-
-→ [Chapter 3](../basic/03-questions.md)
-
----
-
-## Closed world vs. open world
-
-**Open world** (the default): what isn't known isn't thereby false. **Closed
-world**: assume the record is complete, so unproven means false.
-
-Closing the world is a **stance** you choose per question, not something baked
-into the machinery — and when the machine leans on it, it says so in the answer.
-
-→ [Chapter 3](../basic/03-questions.md)
+**twin trap** — minting a fresh node for something the graph already describes,
+so that everything said about the described thing goes to a node nothing uses,
+and everything the machinery says about the live one names a node nobody can
+reach. Found seven separate times here.
+[Chapter 27](../watching/27-learning.md)
 
 ---
 
-## Expectation
+## Four criteria, used everywhere
 
-What a step *should* produce, **derived** from the two frames the machine already
-imagined — never authored, never stored.
+Every representation decision in this design is scored against these, in a
+table, **before** the decision is taken — and the cost is written down even when
+the choice is obvious.
 
-Expectations are **qualitative, never quantitative**: an assumption that produced
-two files is offering a *witness, not a promise*. The expectation is that *some*
-file appears. One is fine, five are fine; **zero** diverges.
+| criterion | the question |
+|---|---|
+| **not leaking** | Can this shape state something the author did not intend? |
+| **not lossy** | Is everything the author knew recoverable from what was stored — including what they *didn't* know? |
+| **readable** | Can the obvious questions about this be asked as ordinary queries? |
+| **composable** | Do two independently authored instances combine without either being rewritten? |
 
-→ [Chapter 10](../advanced/10-when-reality-disagrees.md)
+And a fifth thing, which is a method rather than a criterion, because it's a
+property of two arcs of work **meeting**:
 
----
-
-## Divergence, contingency, replanning
-
-**Divergence** — reality didn't match what a step promised. The machine stops
-there and reports which step and how.
-
-**Contingency** — if the plan forked earlier, a branch that assumed *what
-actually happened* may already exist, imagined and checked. Continuing down it
-isn't replanning at all.
-
-**Replanning** — if nothing fits, pursue the goal again from the world as it now
-stands. Note that it goes back to the **goal**, not to a shape-chaining planner,
-which knows nothing about what you wanted.
-
-→ [Chapter 11](../advanced/11-contingencies.md)
+> **Two conventions that have never met are two conventions that have not been
+> tested.**
 
 ---
 
-## The thread
+## Standing lessons
 
-The machine's short-term memory, as ordinary graph data: what it attended to and
-what it applied, in order, each entry carrying *why* it followed the one before.
+Collected from throughout the book, because they transfer.
 
-It records what was **considered** as well as what was **done**, and a reader has
-to know which it wants — explaining why something is true uses only what was
-really done, or it would answer with roads not taken.
+> **Something the machinery knows and no rule can ask about is a defect, and the
+> repair is always to deposit the record.**
 
-→ [Chapter 13](../advanced/13-remembering.md)
+> **Index what was asserted. Never index what was derived.**
 
----
+> **An optimisation of a semantics is licensed by a gate. A cache of a claim is
+> debt.**
 
-## Episode, and learning
+> **Nothing came to mind is not nothing is left to do.**
 
-An **episode** is a sequence of applications. Compiling one produces a new rule
-that replays it on a fresh subject — stored identically to an authored rule, and
-indistinguishable from one.
+> **A corpus with no pathology cannot measure a detector for it.**
 
-There's no learning subsystem. Writing a rule is writing nodes and edges, which
-every rule can already do.
+> **An agreement gate that agrees is worth nothing until it could have
+> disagreed.**
 
-→ [Chapter 14](../advanced/14-learning.md)
+> **Data rots in a way a branch does not.**
 
----
+> **Closed is a rate, not a kind.**
 
-## Interference
-
-Two independently authored rules, brought together by a library that grew,
-writing the same thing for unrelated reasons. Both correct; the combination is
-what nobody intended.
-
-Distinguished from a **deliberate sequel** — two writes serving the *same* goal —
-which is just what doing things in order looks like. Without that distinction
-the detector reports everything and becomes noise.
-
-→ [Chapter 15](../advanced/15-collisions.md)
-
----
-
-## The five words
-
-The search consults a decision once per imagined step, and the answer is one of
-five: **expand** (imagine the best move — the default), **decompose** (raise
-subgoals instead), **commit** (stop planning, act on what we have), **sense**
-(stop planning and act in order to *find out*), **refuse** (there's no
-sanctioned way, don't improvise).
-
-Closed on purpose: it's the vocabulary everything authored has to speak, and a
-vocabulary nobody can enumerate is one nobody can check.
-
-→ [Chapter 16](../deliberation/16-choosing-what-to-do-next.md)
-
----
-
-## Guideline
-
-Authored preference — `prefer` and `avoid`. The weakest kind of knowledge here
-and the only one that cannot cause harm: a guideline **reorders candidate moves
-inside a relevance band** and does nothing else.
-
-**`avoid` means later, never never.** The word that means never is `never`, and
-it prunes because it's a proof. Advice is a guess.
-
-→ [Chapter 17](../deliberation/17-advice-it-may-ignore.md)
-
----
-
-## Method, procedure, and force
-
-Both are authored decompositions: *for a goal of this shape, raise these
-subgoals in this order.* They can be written identically, and what separates
-them is **force** — what happens when a step doesn't work out.
-
-- **method** (advisory) — fall back to searching.
-- **procedure** (mandatory) — **refuse**, and don't look for another route.
-
-Force is about failure, not strength, and it can't be inferred from the content,
-so it has to be declared.
-
-Both prune on **authority** rather than on evidence or proof, which is a third
-kind of justification and the only one that can make a reachable goal
-unreachable.
-
-→ [Chapter 18](../deliberation/18-recipes-and-rules.md)
-
----
-
-## Subgoal
-
-A goal inside a goal. The child points at the parent, so *"am I inside a
-procedure?"* is a short walk up a chain — the question a decision actually asks.
-
-A cycle is impossible (a goal's parent is fixed when it's created), but **depth
-isn't bounded**: a recipe that raises a goal matching the same recipe recurses
-happily forever. That's open.
-
-→ [Chapter 18](../deliberation/18-recipes-and-rules.md)
-
----
-
-## Not there, versus not looked
-
-An absent attribute means *hasn't got one*. A slot explicitly marked `UNKNOWN`
-means *nobody has looked* — present, but not a value, and false to anything that
-tests it.
-
-So a condition can be unmet for two different reasons, and only the second is a
-reason to go and look:
-
-- **false** → find an action that makes it true;
-- **unknown** → find an action that would reveal it.
-
-The machine senses only when the plan **bottoms out** in ignorance, never when
-it merely touches it.
-
-→ [Chapter 19](../deliberation/19-not-knowing.md)
-
----
-
-## Dispatch — the one door
-
-Every effect on the world goes through a single place. That's what makes one
-check cover every tool that will ever be registered.
-
-Two rules: check when the action is about to happen (not when it's planned, so a
-prohibition recorded afterwards still works), and commit the graph before going
-through (because once an effect leaves, no rollback reaches it).
-
-→ [Chapter 12](../advanced/12-what-it-may-never-do.md)
-
----
-
-## Purity — what may be used to think
-
-A rule may be used to answer a question only if it **provably never reaches
-outside**, read off its stored instructions. If the machine can't tell, the
-answer is no.
-
-Deliberately conservative in the opposite direction from effect-reading, because
-the costs differ: overstating what a rule *might do* wastes a step; understating
-what it *could reach* sends an email you can't unsend.
-
-→ [Chapter 23](../deep/23-concluding-vs-acting.md)
-
----
-
-## The instruction set
-
-A small, fixed vocabulary every rule body is made of: read, write, move, branch,
-call another rule, and exactly one instruction that reaches outside.
-
-Operands are literals, **registers** (local scratch), or **heads** — the things
-the rule was pointed at. A rule gets fresh heads holding only its own arguments,
-never its caller's.
-
-→ [Chapter 20](../deep/20-instruction-set.md)
-
----
-
-## Reading a rule's effects
-
-What a rule could make true, read **off its stored instructions** — never
-declared, so it can't drift from the body, because it *is* the body.
-
-Effects carry **roles**, and a role can be a path: a rule that navigates to part
-of its argument and writes there reports an effect on `c.right`, not on nothing.
-The path is resolved late, against real arguments.
-
-The result is an **over-approximation by contract** — safe for ordering
-candidates, unsafe for concluding that a rule definitely does something.
-
-→ [Chapter 22](../deep/22-reading-a-rule.md)
-
----
-
-## Belief, and sighting
-
-A **belief** is what the machine currently holds to be true — `count: 3` — and is
-what everything reasons over. A **sighting** is what was actually *seen*, and
-when.
-
-Keeping them apart is what lets a belief be recognised as **stale** rather than
-silently trusted. Something never looked at has no sighting at all — not a
-cautious one.
-
-→ [Chapter 24](../watching/24-what-it-saw.md)
-
----
-
-## Attribution — "was it me?"
-
-Given two sightings that differ, deciding whether the machine's own actions
-account for the change or the world moved on its own.
-
-It is **derived**, never logged: a journal of the machine's writes would miss
-every external change (nothing happens in the graph when a file appears) and
-would misreport the machine's own *look* as a change it made.
-
-→ [Chapter 24](../watching/24-what-it-saw.md)
-
----
-
-## Volatility
-
-How often a slot changed in ways the machine could **not** attribute to itself.
-
-It gives *go and look* a second trigger beside ignorance: not only *I don't
-know*, but **I do know, and it's probably stale.**
-
-→ [Chapter 24](../watching/24-what-it-saw.md)
-
----
-
-## Agenda, tick, and task
-
-An **agenda** is an ordered list of work. A **tick** advances the task at the
-front by exactly **one primitive step** and moves it to the back.
-
-A running program, a search, a plan being carried out, and a goal being pursued
-are all tasks, all steppable the same way. Interleaving isn't a policy — it's
-what falls out of rotating an ordered list.
-
-→ [Chapter 25](../watching/25-one-loop.md)
-
----
-
-## Look versus act
-
-Whether the next step is reversible. `imagine` and `look` cost time; **`act`**
-cannot be taken back.
-
-A tool declares which it is, and anything that doesn't declare is assumed to
-**act** — being wrong that way costs a pause, and being wrong the other way
-spends an action somebody meant to withhold.
-
-→ [Chapter 25](../watching/25-one-loop.md)
-
----
-
-## Keep what you cannot re-derive
-
-The forgetting rule. Two kinds of record are irreducible — **a crossing of the
-world** (a tool call's result) and **a surprise** (a change nothing the machine
-did explains). Everything else can be worked out again from the goal and the
-library.
-
-Implemented by naming what to **keep** rather than what to drop, so it can't
-drift as new kinds of record appear.
-
-→ [Chapter 27](../watching/27-forgetting.md)
-
----
-
-## Superseded — compaction
-
-Dropping a record that a **better** record already makes. Once a goal is closed
-by something real, its pointer into the imagined version of events is a snapshot
-of a world that no longer exists.
-
-A goal that was planned and *not* carried out is the opposite case: its imagined
-frame is the only account it has, and removing it would be forgetting the plan.
-
-→ [Chapter 27](../watching/27-forgetting.md)
-
----
-
-## Reach — `contains+`
-
-*Is X reachable from Y by following this arrow, at any depth?* The one genuine
-gap this project found in its own vocabulary — a parcel in a box in a warehouse
-*is* in the warehouse, and nothing could previously say so.
-
-Deliberately a **question only**: as a way of *naming* something it would denote
-a set, and every name in this machine promises one node or nothing.
-
-→ [Chapter 28](../watching/28-what-where-when.md)
-
----
-
-## Reader — what, where, when
-
-A question with a **gap** in it, answered by locating a thing in an order the
-world already has, rather than by searching.
-
-A reader **records nothing**, because its answer is one traversal away at any
-moment and a stored one could only drift. What reaches memory is the *question*.
-
-→ [Chapter 28](../watching/28-what-where-when.md)
-
----
-
-## Moment
-
-A point in time, held as a **node that points at what it dates** — never as a
-stamp written onto the thing dated. One look dates many facts, dating disturbs
-nothing, and a moment may carry no clock reading at all and be placed only by
-what it comes after.
-
-One action is one moment, and that covers what the action *produced*.
-
-→ [Chapter 29](../world/29-when-things-happened.md)
-
----
-
-## Utterance
-
-The fact that somebody **said** something, as a thing in the world. Its speaker
-is a node, not a name, and it points at whatever it authored — so it can be
-attributed, withdrawn, or answered.
-
-Withdrawing marks the authored block rather than deleting it: the outcome
-changes, the history survives, and the retraction is itself on the record.
-
-→ [Chapter 30](../world/30-who-said-it.md)
-
----
-
-## Norm
-
-A prohibition or permission about one action, attributed to a **source**, which
-can be defeated by a source that outranks it — or declared *inviolable*, which
-puts it outside the ranking rather than at the top of it.
-
-Settled before planning starts, and written into the goal as ordinary `never`
-constraints, so nothing downstream knows norms exist.
-
-→ [Chapter 31](../world/31-overruled.md)
-
----
-
-## Timer
-
-A moment on a task, saying when it may first run. The agenda **waits and says
-so** rather than rotating the task and retrying, because busy-looping looks
-exactly like progress.
-
-→ [Chapter 32](../world/32-waiting.md)
-
----
-
-## The horizon
-
-The line between the **closed class** — a small fixed vocabulary nothing above
-can define away — and the **web** of authored data, where a concept means what
-it means because of where it sits in the network.
-
-It is *not* the same line as machinery-versus-decisions. Constraint sorts are
-decisions somebody made, and still nothing above them can reconstruct them, so
-they sit between the two lines. Goals themselves are up in the web.
-
-→ [Chapter 33](../horizon/33-above-and-below.md)
-
----
-
-## The three answers
-
-What to do when something turns out to be inexpressible. **Expand** the closed
-class (costs a permanent member, which must have something that runs it),
-**keep it opaque** (named, not decomposed — an honest answer), or **relate it in
-the web** (rules connecting it to what exists, without claiming it reduces to
-them).
-
-The error is mistaking the third for the first: *kill* is not *cause to die*.
-The relation is real; the definition is wrong.
-
-→ [Chapter 33](../horizon/33-above-and-below.md)
-
----
-
-## Mediated access
-
-A rule never touches the graph directly. It goes through **eight fixed names** —
-read a slot, set a slot, ask about a relation, list them, take the nth, relate,
-unrelate, make — and every richer vocabulary is written in terms of those.
-
-The reason is **completeness**: one unmediated read while imagining, and the
-machine is planning against a half-changed world without knowing. You cannot get
-"every case" out of an open-ended set, so mediation must bottom out in a fixed
-one.
-
-→ [Chapter 34](../horizon/34-moving-the-line.md)
-
----
-
-*This appendix grows with the book. The project lives on
-[GitHub](https://github.com/ercasta/Universal-Graph-Machine).*
+> **A claim with no measurement behind it is an opinion.**

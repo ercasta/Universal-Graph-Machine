@@ -1,450 +1,215 @@
-"""The substrate — mutable nodes, named edges, ordered targets, references, and an undo journal.
+"""The substrate of §3: nodes, directed edges, ordered members. Nothing else.
 
-Mutable, deliberately. A persistent copy-on-write substrate costs O(size) per write to buy
-hypothesis-by-running, and copying the world to ask a question is the wrong trade.
+Edges carry no information beyond connecting, so anything you want to say about a
+connection has to be a node. A relation instance -- what would elsewhere be a
+labelled edge -- is therefore a node with a relation and ordered members:
 
-What replaces it is an undo journal. Every mutation records how to reverse itself, `savepoint()`
-returns a marker and `rollback(sp)` reverses back to it, at a cost proportional to the changes
-made rather than to the size of the graph:
+    on(a, b)        a node whose relation is `on` and whose members are a, b
 
-    sp = g.savepoint()
-    run_the_function(g)               # freely mutate
-    answer = read_something(g)
-    g.rollback(sp)                    # pencil erased, exactly
+Ordering is the one thing that is not itself structure (§3), which is why the
+substrate provides it natively and provides nothing else.
 
-Three representational commitments.
-
-Named edges with ordered targets. A label maps to an ordered list of targets: a single-valued
-relation is length 1, a one-to-many relation is longer, and index addressing is a list index.
-
-Edge properties. What role nodes used to buy — saying something about a connection — without
-charging a node per connection. Keyed by the edge's own identity, so an insert or removal moves
-positions and never properties, and an edge is itself a thing that can be pointed at.
-
-References. A node attribute may hold a `Ref` to another node, and this is distinct from an edge.
-An edge is a relation, part of what the graph asserts; a reference is a stored pointer, the
-graph's equivalent of a variable holding an address. A focus head saved for later, or one node
-naming another as data, is a reference rather than a claim that the two are related.
-
-The reverse index is maintained incrementally, which mutability makes practical. It is keyed
-without the position, deliberately: keeping indices in a reverse index means every insert
-rewrites unrelated entries, which is the kind of bookkeeping that is quietly wrong for a long
-time. The index within a label is recovered by looking in that label's short list.
-
-See `docs/concepts.md`.
+Determinism: no derived result is ever read out of a set. Membership, minting
+order and every iteration below are insertion-ordered, so a computation that ends
+in a tie breaks it the same way on every run.
 """
-from __future__ import annotations
 
-from dataclasses import dataclass
-from itertools import count
+from typing import Dict, List, Optional, Tuple
 
-_ids = count(1)
-
-
-class Refusal(Exception):
-    """A call declined because of the WORLD or the REQUEST — never because the program is wrong.
-
-    The distinction is whose fault it is, which is the standing rule for what an exception type means
-    here. A precondition that no longer holds, a standing prohibition naming the target, a target that
-    exists only inside a workbench: each is a fact about the situation, and a caller may reasonably want
-    it back as a value and carry on. An unset register, an unknown function or a bad opcode is a defect,
-    and handing one back as data would turn a bug into an `err` nobody reads.
-
-    It lives in the substrate so `ATTEMPT` can catch it without the instruction set importing the layers
-    that raise it. Each layer above declares its own subclass — `types.TypeViolation`, `dispatch.Vetoed`,
-    `dispatch.Imagined` — which is the `native.py` shape again: the kernel knows the *category* and never
-    the members. The kernel-boundary check caught the first version of `ATTEMPT` importing both.
-
-    `kind` is how a layer that cannot declare a Python subclass names its claim anyway. A program written
-    in the surface is a layer above too, and `REFUSE` is how it declines — but it has no way to define a
-    class, so the member name arrives as *data* and the kernel raises the category carrying it. That
-    keeps the rule intact rather than bending it: the kernel still never knows the members, and a name it
-    was handed is not a name it knows. Reported by `ATTEMPT` in preference to the Python class name, so a
-    surface refusal is as discriminable to its caller as `TypeViolation` is."""
-
-    def __init__(self, *args, kind: str | None = None) -> None:
-        super().__init__(*args)
-        self.kind = kind
-
-
-@dataclass(frozen=True)
-class Ref:
-    """A stored pointer to a node, held as an attribute value. Not an edge — see the module docstring."""
-    node: str
-
-    def __repr__(self) -> str:
-        return f"&{self.node}"
+NodeId = int
 
 
 class Graph:
-    __slots__ = ("attrs", "out", "lbls", "eids", "edges", "inc", "bykind", "eprops",
-                 "_journal", "_recording")
+    """Nodes with ordered members. Names are for printing and never for identity."""
 
     def __init__(self) -> None:
-        self.attrs: dict[str, dict] = {}
-        self.out: dict[tuple, list] = {}       # (src, label) -> [dst, …] ordered
-        # Which labels a node has edges under. Derivable from `out` — and deriving it was a scan of
-        # EVERY edge key in the graph, once per call, which made `labels` O(graph) and `drop` (which
-        # calls it once per node) O(graph) too. Invisible while the graph was small and while little was
-        # dropped; it became 70% of a planning run the moment calls started discarding their own
-        # scaffolding. Maintained here instead, in the five places an `out` key appears or disappears.
-        self.lbls: dict[str, set] = {}         # src -> {label, …}
-        # Edges have identity. `eids` runs parallel to `out`, same order, written only by `_insert`
-        # and `unlink`. Parallel rather than packing `(dst, eid)` into `out` on purpose: `targets` is
-        # the hottest read in the engine (161 call sites) and stays an allocation-free dict lookup.
-        # The sync risk is handled the way `thread._append` handles its two orderings — one writer, and
-        # a check that they cannot disagree.
-        self.eids: dict[tuple, list] = {}      # (src, label) -> [eid, …] parallel to `out`
-        self.edges: dict[str, tuple] = {}      # eid -> (src, label, dst)
-        # `inc` is keyed by whatever is pointed AT, and an eid is an ordinary string, so an edge can be
-        # a link target with no change here. That is what makes "what refers to this edge?" O(1).
-        self.inc: dict[str, set] = {}          # dst -> {(src, label), …}   dst may be a node OR an edge
-        self.bykind: dict[str, dict] = {}      # kind -> {node: None} in mint order — see `of_kind`
-        self.eprops: dict[str, dict] = {}      # eid -> {k: v}   ← keyed by identity, never by position
-        self._journal: list = []
-        self._recording = True
+        self._rel: Dict[NodeId, Optional[NodeId]] = {}
+        self._members: Dict[NodeId, Tuple[NodeId, ...]] = {}
+        self._name: Dict[NodeId, str] = {}
+        self._is_var: Dict[NodeId, bool] = {}
+        # ⭐⭐⭐ Whether a node is generic, decided at MINT rather than on every
+        # ask. It cannot change: a node's relation and members are fixed when it
+        # is built, so *contains a variable somewhere* is fixed with them.
+        #
+        # Profiled, and it was not a small share: `has_var` was **91% of the
+        # rule-level read** -- 7.6M calls recursing the whole structure each
+        # time, because the structural generators ask it of every instance in a
+        # bucket on every enumeration. Computing it here is O(arity) once
+        # instead of O(size) per question.
+        self._has_var: Dict[NodeId, bool] = {}
+        self._next = 0
+        # One index, over what was asserted rather than over what was derived
+        # (§12): relation instances keyed by (rel, members) so the same
+        # proposition is one node however often it is spoken of.
+        self._interned: Dict[Tuple[Optional[NodeId], Tuple[NodeId, ...]], NodeId] = {}
+        # A second index over what was asserted, not over what was derived (§16):
+        # instances by relation. A rule whose antecedent names a relation has to
+        # start somewhere, and scanning every node is the alternative.
+        self._by_rel: Dict[NodeId, List[NodeId]] = {}
+        # ...and a third, over the same instances by WHAT SITS IN EACH ARGUMENT
+        # POSITION. `_by_rel` answers *every `delta_next`*; this answers *every
+        # `delta_next` whose first argument is this entry*, which is what a
+        # matcher with one argument already bound actually wants.
+        #
+        # The entry side took this index once already -- an option set weighed
+        # by scanning was 2,006,004 unifications and 3,003 after -- and the
+        # structural side never did, because until §7 stopped hiding two thirds
+        # of the chain from the matcher there was nothing here big enough to
+        # notice. Profiled the hour it became visible: `cand` went 193 -> 2,062
+        # in one fixture, and `<beaten-locus>` joining `cand` against `cand` by
+        # scanning was 4.4M unifications in 60 seconds, which is 2,062 squared.
+        #
+        # Insertion-ordered like the others, so nothing downstream inherits a
+        # tie-break from a hash.
+        self._by_arg: Dict[Tuple[NodeId, int, NodeId], List[NodeId]] = {}
+        # Which variables are in a node, memoised. Immutable for `_has_var`'s
+        # reason -- a node's relation and members are fixed when it is built.
+        # ⚠ It lives HERE and not beside its one reader, because a node id means
+        # nothing outside the graph that minted it: a module-level cache keyed
+        # on the id answered a second machine's question with the first
+        # machine's node, and the suite reported a corpus rule as concluding
+        # about a variable nothing binds.
+        self._vars_in: Dict[NodeId, set] = {}
 
-    # --- journal ------------------------------------------------------------------------------------
-    def savepoint(self) -> int:
-        """A marker to roll back to. Cheap: an integer."""
-        return len(self._journal)
+    # -- minting ----------------------------------------------------------
 
-    def rollback(self, sp: int) -> None:
-        """Undo every mutation made since `sp`, in reverse order."""
-        was, self._recording = self._recording, False
-        try:
-            while len(self._journal) > sp:
-                self._journal.pop()()
-        finally:
-            self._recording = was
+    def atom(self, name: str) -> NodeId:
+        """A node with no relation and no members: an individual, or a relation
+        to be used by others. Nothing structural tells the two apart, which is
+        correct -- the difference is how they are used."""
+        n = self._mint(None, (), name)
+        return n
 
-    def _undo(self, fn) -> None:
-        if self._recording:
-            self._journal.append(fn)
+    def var(self, name: str) -> NodeId:
+        """A variable, for the generic moments of a rule (§4)."""
+        n = self._mint(None, (), name)
+        self._is_var[n] = True
+        # ⚠ Both, and this is the one place they can disagree: `_mint` decides
+        # genericity from the relation and members, which a bare variable has
+        # none of, so it would record False. A variable IS the generic thing.
+        self._has_var[n] = True
+        return n
 
-    def commit(self) -> None:
-        """Forget the undo history — nothing before this can be rolled back. Bounds journal growth for a
-        long-running process that has decided its past is settled."""
-        self._journal.clear()
+    def rel(self, relation: NodeId, *members: NodeId) -> NodeId:
+        """A relation instance. Interned: `on(a, b)` names one node however many
+        times it is built, so a proposition has one identity to be claimed about."""
+        key = (relation, tuple(members))
+        if key in self._interned:
+            return self._interned[key]
+        n = self._mint(relation, tuple(members), None)
+        self._interned[key] = n
+        return n
 
-    # --- reading ------------------------------------------------------------------------------------
-    def attr(self, node: str, key: str, default=None):
-        return self.attrs.get(node, {}).get(key, default)
+    def find_rel(self, relation: NodeId, *members: NodeId) -> Optional[NodeId]:
+        """The interned instance if it exists, without creating one.
 
-    def kind(self, node: str):
-        return self.attrs.get(node, {}).get("kind")
+        ⚠ `rel` cannot answer this: asking would build the thing asked about.
+        That is harmless for a proposition and not harmless for the skeleton,
+        where existing IS the fact -- so §6's quiescence needs a question it can
+        put without answering it. See `rules.already_there`.
+        """
+        return self._interned.get((relation, tuple(members)))
 
-    def targets(self, src: str, label: str) -> tuple:
-        return tuple(self.out.get((src, label), ()))
+    def instance(self, relation: NodeId, *members: NodeId) -> NodeId:
+        """A relation instance that is *not* interned: a distinct node every time.
 
-    def target(self, src: str, label: str):
-        t = self.out.get((src, label))
-        return t[0] if t else None
+        Propositions intern, because `on(a, b)` is one idea however often it is
+        spoken. Entries must not, because an entry is an act of claiming -- two
+        claims about the same proposition at the same locus are two events, and
+        §5 needs each to be a node other facts can be about. Interning them would
+        make `mistaken(<e>)` land on both at once.
+        """
+        return self._mint(relation, tuple(members), None)
 
-    def at(self, src: str, label: str, index: int):
-        t = self.out.get((src, label), ())
-        return t[index] if -len(t) <= index < len(t) else None
+    def _mint(
+        self, relation: Optional[NodeId], members: Tuple[NodeId, ...], name: Optional[str]
+    ) -> NodeId:
+        n = self._next
+        self._next += 1
+        self._rel[n] = relation
+        self._members[n] = members
+        self._is_var[n] = False
+        # Every constituent is already minted, so its answer is already here.
+        self._has_var[n] = (
+            (relation is not None and self._has_var.get(relation, False))
+            or any(self._has_var.get(mm, False) for mm in members)
+        )
+        if name is not None:
+            self._name[n] = name
+        if relation is not None:
+            self._by_rel.setdefault(relation, []).append(n)
+            for i, mm in enumerate(members):
+                self._by_arg.setdefault((relation, i, mm), []).append(n)
+        return n
 
-    def count(self, src: str, label: str) -> int:
-        return len(self.out.get((src, label), ()))
+    # -- reading ----------------------------------------------------------
 
-    def labels(self, src: str) -> tuple:
-        """Every label this node has outgoing edges under, sorted.
+    def relation_of(self, n: NodeId) -> Optional[NodeId]:
+        return self._rel[n]
 
-        Sorted because the order is a fact callers depend on: `reachable` visits in it, and `reachable`'s
-        order decides copy order, mint order and hence the search's tie-break."""
-        return tuple(sorted(self.lbls.get(src, ())))
+    def members(self, n: NodeId) -> Tuple[NodeId, ...]:
+        return self._members[n]
 
-    def edge_prop(self, src: str, label: str, index: int, key: str, default=None):
-        """Kept, signature unchanged, because five callers address an edge positionally and that is
-        still a reasonable thing to do. It now resolves the position to an id and reads the property
-        off that, so what used to be maintained by shifting is a lookup."""
-        eid = self.edge_at(src, label, index)
-        return default if eid is None else self.eprops.get(eid, {}).get(key, default)
+    def member(self, n: NodeId, i: int) -> NodeId:
+        return self._members[n][i]
 
-    def sources(self, dst: str, label: str | None = None) -> tuple:
-        """Who points at `dst` — O(1) via the maintained reverse index. This is what `BACK` needs, and
-        the reason it is worth maintaining `inc` at all."""
-        return tuple(sorted(s for (s, lbl) in self.inc.get(dst, ())
-                            if label is None or lbl == label))
+    def is_var(self, n: NodeId) -> bool:
+        return self._is_var.get(n, False)
 
-    def deref(self, node: str, key: str):
-        """Follow a stored reference. Returns `None` if the attribute is absent or is not a `Ref` —
-        dereferencing a non-reference is a caller's mistake, reported as nothing rather than as a
-        plausible-looking value."""
-        v = self.attr(node, key)
-        return v.node if isinstance(v, Ref) else None
+    def has_var(self, n: NodeId) -> bool:
+        """Whether a structure is generic -- contains a variable anywhere (§4).
 
-    @property
-    def nodes(self) -> tuple:
-        return tuple(self.attrs)
+        Decided at mint (see `_has_var`); this is the lookup. The recursive
+        definition it replaces is kept as `_has_var_slow`, and `ugm.selftest`
+        holds the two to each other over every node the suite builds -- an index
+        is a re-implementation of what it indexes, which is the lesson `state`
+        paid for once already.
+        """
+        return self._has_var[n]
 
-    def of_kind(self, kind: str) -> tuple:
-        """Every node of `kind`, in mint order — O(#that kind), maintained by `mint` and `drop`.
+    def _has_var_slow(self, n: NodeId) -> bool:
+        """The definition, walked. Not used by the engine; kept so the cached
+        answer has something to be wrong against."""
+        if self.is_var(n):
+            return True
+        r = self._rel[n]
+        if r is not None and self._has_var_slow(r):
+            return True
+        return any(self._has_var_slow(m) for m in self._members[n])
 
-        This is the same shape as `inc`, and legitimate for the same reason: the substrate maintains
-        it, so it cannot drift. It is not a rule asserting a claim about a node — the only way to acquire
-        a kind is to be minted with one, and `put` refuses to change it. Contrast `types.tag`, which stamps
-        `is_a` and *is* a claim, and so has to be re-validated on every read.
+    def instances_of(self, relation: NodeId) -> List[NodeId]:
+        """Every instance of a relation, in mint order. Insertion-ordered, so a
+        derivation that ends in a tie breaks it the same way on every run."""
+        return list(self._by_rel.get(relation, ()))
 
-        Why it exists: `types.find_type` and `function.find` scanned `g.nodes` — materialising a tuple of
-        every node in the graph — on every lookup, and `violations` reaches `find_type` about four
-        times per call (itself, plus `schema_of` and `attrs_of`, plus one per `base` hop). Measured on one
-        `driver.proposals` enumeration over a world holding 200 nodes that can bind to nothing: 21,525
-        `find_type` calls and 21,575 `g.nodes` tuple builds. That is why inert world content cost 57× the
-        enumeration time while yielding *zero* extra proposals — the cost was never in testing candidates,
-        it was in looking up the type by name once per test."""
-        return tuple(self.bykind.get(kind, ()))
+    def instances_with(self, relation: NodeId, pos: int, member: NodeId) -> List[NodeId]:
+        """Every instance of a relation with this node in this argument position.
+        The narrow form of `instances_of`, and the same guarantee: mint order."""
+        return self._by_arg.get((relation, pos, member), [])
 
-    # --- writing (in place, journalled) -------------------------------------------------------------
-    def mint(self, kind: str, **attrs) -> str:
-        node = f"{kind}#{next(_ids)}"
-        self.attrs[node] = {"kind": kind, **attrs}
-        self.bykind.setdefault(kind, {})[node] = None
+    def count(self) -> int:
+        return self._next
 
-        def undo():
-            self.attrs.pop(node, None)
-            self.bykind.get(kind, {}).pop(node, None)
-        self._undo(undo)
-        return node
+    # -- printing ---------------------------------------------------------
 
-    def put(self, node: str, **attrs) -> str:
-        # `kind` is set once, at mint, and `of_kind` indexes on it. Letting `put` change it would make
-        # the index drift silently — the defect class this codebase keeps re-finding. Nothing does it
-        # (`_copy_set` already excludes `kind` explicitly, calling it "positional"), so this refuses rather
-        # than maintaining machinery for a case that should not exist.
-        if "kind" in attrs and attrs["kind"] != self.attrs.get(node, {}).get("kind"):
-            raise ValueError(
-                f"kind is fixed at mint and indexed by `of_kind`; cannot put kind={attrs['kind']!r} "
-                f"on {node}. Mint a new node instead.")
-        existing = self.attrs.setdefault(node, {})
-        before = {k: existing.get(k, _MISSING) for k in attrs}
+    def call_it(self, n: NodeId, text: str) -> NodeId:
+        """Give an existing node a name, for printing only.
 
-        def undo():
-            for k, v in before.items():
-                if v is _MISSING:
-                    existing.pop(k, None)
-                else:
-                    existing[k] = v
-        existing.update(attrs)
-        self._undo(undo)
-        return node
+        Names are never identity here (that is the whole of §3's second
+        paragraph), so this cannot make two nodes one or tell two apart. What it
+        is for is that a rule is minted as `implies(moment(...), moment(...))`
+        and prints as ninety characters of its own structure -- in every plan
+        node, every licence, every `unmet`. The author called it `<boil>`; there
+        was simply nowhere to put that.
+        """
+        self._name[n] = text
+        return n
 
-    def set_ref(self, node: str, key: str, target: str) -> None:
-        """Store a pointer to `target` as an attribute. See the module docstring on refs vs edges."""
-        self.put(node, **{key: Ref(target)})
-
-    def link(self, src: str, label: str, dst: str, **props) -> str:
-        """Append an edge. Returns its id, which is stable for as long as the edge exists."""
-        return self._insert(src, label, len(self.out.get((src, label), ())), dst, props)
-
-    def link_at(self, src: str, label: str, index: int, dst: str, **props) -> str:
-        """Insert at a position, shifting later edges right. Their properties come with them, and now
-        for free: a property belongs to an edge id, so nothing has to be reindexed to keep it attached."""
-        return self._insert(src, label, index, dst, props)
-
-    def _insert(self, src: str, label: str, index: int, dst: str, props: dict) -> str:
-        """the only place an edge is created, so `out` and `eids` cannot disagree about order. That
-        is the same discipline `thread._append` keeps for its two orderings, and it earns a check for the
-        same reason: two parallel lists maintained in more than one place would drift silently."""
-        tgts = self.out.setdefault((src, label), [])
-        self.lbls.setdefault(src, set()).add(label)
-        ids = self.eids.setdefault((src, label), [])
-        index = max(0, min(index, len(tgts)))
-        eid = f"edge#{next(_ids)}"
-        tgts.insert(index, dst)
-        ids.insert(index, eid)
-        self.edges[eid] = (src, label, dst)
-        self.inc.setdefault(dst, set()).add((src, label))
-        if props:
-            self.eprops[eid] = dict(props)
-
-        def undo():
-            tgts.pop(index)
-            ids.pop(index)
-            self.edges.pop(eid, None)
-            self.eprops.pop(eid, None)
-            if not tgts:
-                self.out.pop((src, label), None)
-                self.eids.pop((src, label), None)
-                self.lbls.get(src, set()).discard(label)
-            if dst not in tgts:
-                self.inc.get(dst, set()).discard((src, label))
-        self._undo(undo)
-        return eid
-
-    def unlink(self, src: str, label: str, *, index: int | None = None, dst: str | None = None) -> None:
-        tgts = self.out.get((src, label))
-        if not tgts:
-            return
-        if index is None:
-            if dst is None or dst not in tgts:
-                return
-            index = tgts.index(dst)
-        if not (0 <= index < len(tgts)):
-            return
-        ids = self.eids.get((src, label), [])
-        removed, eid = tgts[index], ids[index]
-        props = self.eprops.pop(eid, None)
-        tgts.pop(index)
-        ids.pop(index)
-        self.edges.pop(eid, None)
-        if removed not in tgts:
-            self.inc.get(removed, set()).discard((src, label))
-        if not tgts:
-            self.out.pop((src, label), None)
-            self.eids.pop((src, label), None)
-            self.lbls.get(src, set()).discard(label)
-
-        def undo():
-            # The same id comes back. A rollback that minted a fresh one would leave anything pointing
-            # at this edge — a moment that dated it, say — dangling at something that no longer exists,
-            # which is exactly the guarantee edge identity was added to provide.
-            self.out.setdefault((src, label), tgts).insert(index, removed)
-            self.lbls.setdefault(src, set()).add(label)
-            self.eids.setdefault((src, label), ids).insert(index, eid)
-            self.edges[eid] = (src, label, removed)
-            if props is not None:
-                self.eprops[eid] = props
-            self.inc.setdefault(removed, set()).add((src, label))
-        self._undo(undo)
-
-    def drop(self, node: str) -> None:
-        """Remove a node and everything touching it. Journalled like anything else, so a hypothesis that
-        deletes is still reversible."""
-        for (s, lbl) in tuple(self.inc.get(node, ())):
-            while node in self.out.get((s, lbl), ()):
-                self.unlink(s, lbl, dst=node)
-        for lbl in self.labels(node):
-            for d in self.targets(node, lbl):
-                self.inc.get(d, set()).discard((node, lbl))
-            saved = self.out.pop((node, lbl))
-            self.lbls.get(node, set()).discard(lbl)
-            # The id indexes must go with the targets. Popping `out` alone left `eids` and `edges`
-            # holding ids for edges that no longer exist — `edge_ends` would answer confidently about a
-            # dropped edge, which is worse than answering `None`.
-            saved_ids = self.eids.pop((node, lbl), [])
-            saved_props = {e: self.eprops.pop(e) for e in saved_ids if e in self.eprops}
-            saved_ends = {e: self.edges.pop(e) for e in saved_ids if e in self.edges}
-
-            def undo(lbl=lbl, saved=saved, saved_ids=saved_ids,
-                     saved_props=saved_props, saved_ends=saved_ends):
-                self.out[(node, lbl)] = saved
-                self.lbls.setdefault(node, set()).add(lbl)
-                self.eids[(node, lbl)] = saved_ids
-                self.edges.update(saved_ends)
-                self.eprops.update(saved_props)
-            self._undo(undo)
-        attrs = self.attrs.pop(node, None)
-        if attrs is not None:
-            kind = attrs.get("kind")
-            self.bykind.get(kind, {}).pop(node, None)
-
-            def undo():
-                self.attrs[node] = attrs
-                if kind is not None:
-                    self.bykind.setdefault(kind, {})[node] = None
-            self._undo(undo)
-
-    # --- edges as things you can point at -----------------------------------------------------------
-    # `_reindex` / `_label_props` / `_restore_props` used to live here — three functions and a
-    # rollback dance that existed for one reason: `eprops` was keyed by `(src, label, index)`, so every
-    # insertion had to walk the label's properties and shift them. Edge identity deletes all of it. A
-    # property belongs to an edge, and an edge does not move when its neighbours do.
-
-    def edge_at(self, src: str, label: str, index: int):
-        """The id of the edge at this position, or `None`. The position is what shifts; the id does not."""
-        ids = self.eids.get((src, label), ())
-        return ids[index] if -len(ids) <= index < len(ids) else None
-
-    def edge_ids(self, src: str, label: str) -> tuple:
-        return tuple(self.eids.get((src, label), ()))
-
-    def edge_ends(self, eid: str):
-        """`(src, label, dst)` for this edge, or `None` if it no longer exists."""
-        return self.edges.get(eid)
-
-    def is_edge(self, thing: str) -> bool:
-        return thing in self.edges
-
-    def edge_props(self, eid: str) -> dict:
-        return dict(self.eprops.get(eid, {}))
-
-    def put_edge_props(self, eid: str, **props) -> str:
-        """Set properties on an edge that already exists. `put`, for an edge.
-
-        Until now properties could only be given at `link` time, and Python never needed more: it builds
-        the whole dict before creating the edge. The surface cannot — it has no way to hold a dict — so a
-        copy written in the surface has to make the edge and then carry the properties over one at a time.
-        That is `SET`'s shape, and this is what `SET` is for a node.
-
-        Refuses an edge that does not exist rather than accumulating properties for one that might appear.
-        An edge id comes from `edge_at` or `link`, so a bad one is a program error and the graph is the
-        last place that should be quiet about it."""
-        if eid not in self.edges:
-            raise KeyError(f"no edge {eid!r}; an edge id comes from `edge_at` or `link`")
-        existing = self.eprops.setdefault(eid, {})
-        before = {k: existing.get(k, _MISSING) for k in props}
-
-        def undo():
-            for k, v in before.items():
-                if v is _MISSING:
-                    existing.pop(k, None)
-                else:
-                    existing[k] = v
-        existing.update(props)
-        self._undo(undo)
-        return eid
-
-    def edge_between(self, src: str, label: str, dst: str):
-        """The id of the first edge `src -label-> dst`, or `None`. What names an edge you can only describe."""
-        for eid in self.eids.get((src, label), ()):
-            if self.edges.get(eid, (None, None, None))[2] == dst:
-                return eid
-        return None
-
-
-class _Missing:
-    pass
-
-
-_MISSING = _Missing()
-
-
-class _Unknown:
-    """NOT looked, as distinct from NOT there — the one thing this substrate could not say.
-
-    An attribute was present or absent, and absence meant *lacks it*. So the engine could perform
-    information-gathering actions but could only model them as world-*changing* ones: `scan_dir`'s mock
-    mints file nodes, as though scanning created files rather than revealing them. With no way to say
-    "we have not looked", an information-gathering subgoal had nothing to close and "did that help?" had
-    no answer.
-
-    Explicit only, and that restraint is the design. Absence still means *lacks it*; a slot is
-    unknown only when something says so. Treating every absence as ignorance would make the whole graph
-    unknown and every constraint undecidable — and it would be untrue, because most absences really are
-    knowledge. What the system knows it does not know is a fact an author (or a mock) states.
-
-    Attribute slots only. An absent *edge* has nowhere to hang a marker — there is no slot to write
-    on — which is the same substrate limit that makes an edge property unaddressable. Recorded rather than
-    worked around."""
-
-    def __repr__(self) -> str:
-        return "UNKNOWN"
-
-    def __bool__(self) -> bool:
-        # Falsy on purpose: `if g.attr(n, k):` must not read ignorance as a value.
-        return False
-
-
-UNKNOWN = _Unknown()
-
-
-def new_graph() -> Graph:
-    """A fresh graph with its `root` already present — the node every focus starts from."""
-    g = Graph()
-    g.attrs["root"] = {"kind": "root"}
-    return g
-
-
-__all__ = ["Graph", "Ref", "new_graph"]
+    def show(self, n: NodeId) -> str:
+        if n in self._name:
+            return self._name[n]
+        r = self._rel[n]
+        if r is None:
+            return f"#{n}"
+        inner = ", ".join(self.show(m) for m in self._members[n])
+        return f"{self.show(r)}({inner})"

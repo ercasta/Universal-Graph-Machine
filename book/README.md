@@ -1,19 +1,24 @@
 # The Universal Graph Machine — the book
 
 A multi-chapter, mobile-friendly tutorial that explains the Universal Graph
-Machine to curious beginners. Built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
-and published to GitHub Pages.
+Machine to curious beginners. Built with
+[MkDocs Material](https://squidfunk.github.io/mkdocs-material/) and published to
+GitHub Pages.
 
 **Live site:** https://ercasta.github.io/Universal-Graph-Machine/
 
-The playground pages run the *real* engine in the reader's browser via
-[Pyodide](https://pyodide.org/) — the pure-Python `ugm` package is
-compiled to a wheel and loaded with `micropip`. No server, no backend.
+Every code block in the book was **run** against the engine before it was
+written down, and every output is copied from a real run. That is the house
+rule: a claim with no measurement behind it is an opinion, and it gets marked as
+one.
 
-The pages drive `driver.pursue(trace=...)`, whose events are animated one per
-card. That hook is an **observer**: `ugm.selftest` asserts a traced
-search finds the identical plan to an untraced one, so the animation is the real
-search rather than a re-enactment of it.
+The playground pages run the *real* engine in the reader's browser via
+[Pyodide](https://pyodide.org/) — the pure-Python `ugm` package is compiled to a
+wheel and loaded with `micropip`. No server, no backend.
+
+They go through `text.load`, `Machine.run`, `Machine.report` and `Machine.why` —
+the same four calls `python -m ugm` makes — so the browser is running the engine
+rather than an imitation of it.
 
 ## Structure
 
@@ -23,14 +28,14 @@ book/
   requirements.txt      # mkdocs-material
   docs/
     index.md            # landing page
-    basic/              # Part 1 — Basic
-    intermediate/       # Part 2 — how it decides
-    advanced/           # Part 3 — when things go wrong
-    deliberation/       # Part 4 — guidelines, methods, procedures, sensing
-    deep/               # Part 5 — the internals
-    watching/           # Part 6 — reasoning about its own work
-    world/              # Part 7 — time, discourse, norms, waiting
-    horizon/            # Part 8 — the closed class, the web, de-pythonization
+    basic/              # Part 1 — what the world is made of
+    rules/              # Part 2 — rules
+    wanting/            # Part 3 — goals, plans, acting
+    unsure/             # Part 4 — modality, supposition, precedence, norms
+    world/              # Part 5 — spans, shapes, channels, tools, time
+    watching/           # Part 6 — the agent's own state, stopping, recall, learning
+    floor/              # Part 7 — the floor, the bootstrap, zero phases
+    horizon/            # Part 8 — the web of meaning, and what is not built
     playground/         # live Pyodide pages
     appendix/           # plain-language concept explainers
     javascripts/        # the playground widget (Pyodide loader)
@@ -52,8 +57,11 @@ python -m build --wheel --outdir book/docs/wheels .
 cd book && mkdocs serve
 ```
 
-Then open http://127.0.0.1:8000/. The playground's first "Run" downloads
-Pyodide from a CDN (a few seconds); after that it's instant.
+Then open http://127.0.0.1:8000/. The playground's first "Run" downloads Pyodide
+from a CDN (a few seconds); after that it's instant.
+
+If you bump the version in `pyproject.toml`, update the `data-wheel` attribute
+on both playground pages to match — the filename is pinned there.
 
 ## Publishing
 

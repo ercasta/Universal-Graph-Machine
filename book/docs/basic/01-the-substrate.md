@@ -1,159 +1,130 @@
-# The substrate
+# Nodes, members, and nothing else
 
-In the last chapter we watched the machine build a tower. Before we go further,
-let's look at the world it does its thinking *in*. It turns out to be
-astonishingly simple — just **dots and named arrows**.
+Everything in this machine is built out of two things.
 
-The technical name for this world is the **substrate**: the raw stuff everything
-else is built from. Think of it like LEGO. There's really one kind of brick, and
-yet you can build anything — including, eventually, the machine's own rules,
-goals and memories. All of it lives here.
+- There are **nodes**, and directed **edges** between them.
+- A node may have **ordered members**: an edge to a target at a known position.
 
-We'll use a kitchen for the rest of Part 1.
+That's it. In particular:
 
-## One kind of thing: a node
+> Edges carry no labels, no attributes, and no truth values. Anything you want
+> to say about a connection has to be a node.
 
-Every *thing* the machine knows about is a **node** — picture a dot.
+That last line is the whole design in one sentence, and it is worth sitting
+with, because most graph systems do the opposite.
 
-```
- (kitchen)     (shelf)     (salt)     (pepper)     (oil)
-```
+## A labelled edge, done properly
 
-Notice something already: a room, a piece of furniture, and three jars are all
-just dots. The machine has no separate boxes for "places" and "objects". One
-kind of thing, all the way down.
-
-A node carries a **kind** and any number of **attributes** — plain facts about
-it that aren't relationships to anything else:
+Elsewhere you'd draw `a --on--> b` and be done. Here, `on` is not something an
+edge can be. So the connection becomes a node of its own:
 
 ```
-kind of shelf      : shelf
-attributes         : {'kind': 'shelf', 'label': 'shelf', 'height': 3}
+on(a, b)        a node whose members are, in order, a and b
 ```
 
-`height: 3` is an attribute. So is `label: 'shelf'` — and that word *label*
-deserves a warning we'll come back to hard in Chapter 9:
+This is called a **relation instance**. It has a relation (`on`) and two
+members, and the order matters — position 0 is `a`, position 1 is `b`.
 
-!!! warning "A label is a convenience, not an identity"
-    The machine does not identify things by name. `label` is a human comfort,
-    like a sticky note. Two jars can carry the same sticky note. When you say
-    "the salt", the machine has to *look it up* — and if two things answer to
-    that name, the honest response is to refuse, not to guess. Nothing here is
-    identified by name alone.
-
-## Arrows have names
-
-Two nodes are joined by an **edge**, and every edge carries a name:
+Why go to the trouble? Because a node can be pointed at, and an edge cannot.
 
 ```
-   (kitchen) ──contains──> (shelf) ──jar──> (salt)
-                                   ──jar──> (pepper)
-                                   ──jar──> (oil)
+on(a, b)                       the idea that a is on b
+said_by(<that node>, anna)     ...and Anna is the one who said it
+mistaken(<that node>)          ...and I now think that record was wrong
 ```
 
-Read them out loud: *the kitchen **contains** the shelf; the shelf has a **jar**,
-salt.* The arrow's name is the relationship.
+If `on` were an edge label, none of the second two lines could be written
+without inventing a new mechanism for talking about edges. Because it's a node,
+they're just more relation instances. Nothing was added.
 
-You can ask a node which arrows lead out of it:
+## Everything is this shape
 
-```
-labels out of shelf : ('jar',)
-```
-
-The shelf has jars and nothing else.
-
-## Arrows are in order
-
-Here's something small that turns out to matter a great deal. When several
-arrows share a name, they're kept **in order**:
+This is why the rest of the book can keep saying "and that's an ordinary fact
+about it". Rules, claims, moments, stretches of time, plans, prohibitions, the
+machine's own goals — all of them are nodes, so all of them can be spoken about
+without introducing a new kind of thing.
 
 ```
-jars, in order     : ['salt', 'pepper', 'oil']
-the 2nd jar        : pepper
+person(paul)                       a proposition about a person
+rule(<mortality>)                  a fact about a rule
+by(<mortality>, boss)              who authored that rule
+overrides(<mortality>, <undead>)   which of two rules wins
 ```
 
-So a one-to-many relationship is also a *list*, for free, and "the second one"
-is a real question you can ask. That sounds like a detail. It isn't — when we
-get to Chapter 14 and the machine turns a sequence of things it did into a
-reusable procedure, the order of those steps is native to the substrate rather
-than something bolted on with a counter.
+Four lines, one shape, four completely different subjects.
 
-## An arrow is a thing too
+## Why ordering is provided
 
-Nodes aren't the only things you can point at. Every edge has its own
-**identity** — a name of its own — and that identity survives having other
-arrows inserted around it:
+You could get rid of ordered members. You'd encode each position as its own
+little node — *this slot holds position 1, and its filler is `a`* — which is
+roughly what RDF does. One node and three edges become three nodes and seven,
+and it works.
 
-```
-jars, in order  : ['salt', 'pepper', 'oil']
-                  ↑        ↑         ↑
-                  e1       e3        e2      ← the arrows' own names
-```
+It is not done here, and the reason is precise:
 
-`pepper` was slipped into the middle *after* the other two. Its position is
-second; its identity is whatever it always was. Positions shift; identities
-don't.
+> With ordered members, matching a pattern against a thing is **linear in the
+> pattern**. With unordered edges, matching becomes subgraph isomorphism.
 
-An edge can also carry **properties** of its own — small notes about the
-connection rather than about either end. *The shelf has this jar* is the edge;
-*and it was put there second* is a property of that edge.
+Ordering *fixes the correspondence* between the parts of a pattern and the parts
+of the thing you're matching it against. Take it away and the machine has to
+search over which edge answers to which — the same problem, and hard in general.
+Since matching happens on absolutely every step, that cost would be paid
+forever.
 
-Why this matters: because an edge is a thing, other things can point at it. In
-[Chapter 29](../world/29-when-things-happened.md) a moment in time points at
-an arrow to say *this connection appeared then* — which is how the machine can
-answer "when did this jar arrive on this shelf?" rather than only "what's on the
-shelf now?"
+So ordering is here **by economy**, not by necessity, and Chapter 28 says so out
+loud. It's one of only two things on the floor that could in principle be given
+up.
 
-!!! note "The alternative that was tried and dropped"
-    An earlier version of the machine had nameless arrows, and turned every
-    *role* into a node so that connections could be pointed at. That worked and
-    charged a node plus two extra arrows for **every** connection in the graph,
-    to buy something needed in a small minority of cases. Named arrows that can
-    optionally be pointed at cost nothing in the common case.
+## One index, and one rule about indexes
 
-## Arrows run backwards too
+The substrate keeps exactly one lookup table: **instances, by relation**. If a
+rule mentions `on`, it has to start its search somewhere, and the alternative is
+scanning every node in memory.
 
-Ask any node what points *at* it:
+One condition governs every index in this design:
 
-```
-what contains it   : ['kitchen']
-```
+> **Index what was asserted. Never index what was derived.**
 
-The machine keeps this index maintained as you build, so looking backwards is as
-cheap as looking forwards. That's what makes "what was this jar used for?" and
-"which plans touch this crate?" answerable at all.
+An index over asserted structure is just storage — it summarises writes, and a
+write is permanent. An index over *derived* values is a cache of something that
+might stop being true, and keeping such a cache correct means propagating
+invalidations across a web of dependencies: a second machine, with its own
+consistency problem, running underneath the first.
 
-## What is *not* here
+That rule gets invoked several times later in the book, always to delete
+something. It's the reason there is no stored "how sure am I" number
+(Chapter 15) and no stored table of which rule beats which (Chapter 17).
 
-Three absences are deliberate, and each one saves a whole category of trouble.
+!!! note "Deep dive: filing the same thing twice is still storage"
+    Filing an entry by relation alone makes some searches quadratic — a rule
+    asking about `child(?p, ?x), child(?x, ?y)` would draw every `child` fact
+    for each binding of the first member. Filing each entry *additionally* under
+    each of its arguments, and walking whichever member narrows first, turned
+    2,006,004 comparisons over 1,000 facts into **3,003** on the measurement
+    that prompted it.
 
-**No separate place for rules.** A rule is stored in this same graph, as nodes
-and edges. So is a goal, so is a plan, so are the machine's notes. There is one
-world, and everything is in it. Chapter 4 is where that stops being a slogan.
+    Both filings are over what was asserted, so neither is a cache. That's the
+    difference between an optimisation and a debt, and Chapter 30 makes it a
+    rule.
 
-**Nothing fires by itself.** Putting a fact in the graph does not wake anything
-up. In a lot of reasoning systems, adding a fact triggers every rule that
-matches it, and the hard part becomes stopping things from happening. Here
-nothing happens until something is *pointed* at something. Chapter 4, again.
+## Two things have no bucket
 
-**No hidden history.** The graph holds what is true *now*. If you want a record
-that something changed, that record is an ordinary node you can point at — not a
-private log the machine keeps for itself.
+Two kinds of pattern can't be filed, and it's worth knowing which:
 
-!!! note "Deep dive: references aren't edges"
-    An edge is a claim: *the shelf has this jar*. But sometimes you want a node
-    to merely **hold a pointer** to another — a bookmark, not an assertion. The
-    machine keeps those distinct: a *reference* is stored as an attribute value,
-    and it doesn't add anything to what the graph asserts. Confusing the two
-    would mean every bookmark quietly became a claim about the world.
+- a **bare variable** — `?p`, matching anything at all;
+- a pattern whose **relation** is a variable — `?kind(?item)`.
 
-## Where we are
+Neither says anything about what it names until it matches, so both fall back to
+scanning. That is the price of the two most general things the language can say.
+Measured on a small world with 200 unrelated facts, an antecedent member with a
+variable relation cost **14× the comparisons** of the equivalent concrete rules.
 
-The whole substrate is: **nodes with attributes, joined by named ordered edges,
-navigable both ways.** That's it. Everything in the rest of this book is built
-out of exactly this.
+They are both allowed. Chapter 8 shows what the second one buys — it's how *the
+smith sells weapons* becomes a fact rather than a rule per merchant — and where
+to put it so the cost doesn't bite.
 
 ---
 
-**Next:** how you put something *into* this world — and how the machine decides
-whether what you built is a proper shelf. [Telling it things →](02-facts.md)
+**Next:** we have somewhere to put things. Now: what does it look like to
+actually *claim* something?
+[A proposition claims nothing →](02-propositions-and-entries.md)
