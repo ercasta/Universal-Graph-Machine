@@ -28,18 +28,73 @@ The question is whether that price is worth paying on every tick.
 > scores of other rules. **The rules stay fixed; the postconditions are what a
 > learning process calibrates.**
 
-Three things the engine knows here, and **none of them is semantic**:
+Four things the engine knows here, and **none of them is semantic**:
 
 ```
 a score per rule    ordered, tie broken by declaration order
 apply the first     highest-scoring rule whose antecedent matches
 then spend          run that rule's postconditions to move the table
+...and stop         if one of them said so, the run is over
 ```
 
 That's the whole loop. No goal, no completeness, no widening. Those are *corpus
 rules* whose postconditions reset buffs — **refocusing is a rule**, and **done is
 the output of a rule** that checks against the goal. Nothing in the loop knows
 what either is.
+
+## Stopping, and what it is worth
+
+The fourth row is the one that makes the third mean anything, and it was missing
+for a while. *Done is the output of a rule* was the design from the start — and
+the loop had no way to **obey** one. A completion check concluded, and the agent
+carried straight on to quiescence anyway.
+
+```
+rule <done> = implies( { +want(?w), +?w }, { +finished(?w) } )
+after <done> => stop
+```
+
+| | moves |
+|---|---|
+| no postcondition — the agent notices and carries on | **62** |
+| `after <done> => stop` | **5** |
+
+`stop` is spent the way `boost`, `damp` and `reset` are spent, so it's a row in
+one vocabulary rather than a branch. And the loop still knows nothing about
+goals: it knows a rule said stop, exactly as it knows one said reset.
+
+!!! note "Deep dive: the feature next door, which is worth nothing"
+    The obvious next thought is: *let a goal raise the priority of the rule that
+    checks it.* It was built and measured, and it moves **nothing** — with the
+    check at the floor, reranked, buffed persistently in two places, and
+    standing. Identical every time, before `stop` existed and after.
+
+    A completion check is **self-gating**. It cannot match until the thing is
+    already done, so while the goal is unfinished it isn't losing to anything —
+    it isn't a candidate at all. The instant it becomes matchable, widening
+    reaches it in the same move.
+
+    > **Score decides which of several *matching* rules wins. It never decides
+    > whether a matching rule is reachable** — widening does that, and widening
+    > doesn't stop at the top of the table.
+
+    So a check that can only match at the finish line has nobody to go before.
+    That null result is kept as a check, where the next person to propose the
+    feature will find it.
+
+!!! note "Deep dive: what stopping costs"
+    The shipped loop refuses to stop **quietly** on something it was asked for —
+    an open goal *outranks* a satisfaction signal (Chapter 26).
+
+    The table loop cannot make that refusal, and the reason is exact: the veto is
+    an **aggregate** — *nothing else is wanted and unmet* — and a rule cannot
+    speak about the set of its own matches. Measured: give it two wants, make one
+    reachable, and it stops with the other still wanted and still unmet.
+
+    So the guarantee becomes a corpus's, which is the same trade the norms
+    decision made — an engine guarantee becoming a corpus property **with an
+    instrument watching it**. The measurement ships as a check rather than as a
+    claim that this is fine.
 
 ## A postcondition is not an opcode
 

@@ -17,6 +17,34 @@ CAUSES = "causes"
 IMPLIES = "implies"
 
 
+class _Stop:
+    """The postcondition that ends the run, as a sentinel rather than a node.
+
+    ⭐ `boost` and `damp` move a score, `reset` returns the table to its
+    defaults, and this stops. All four are what an applied rule SPENDS, so all
+    four are rows in one vocabulary rather than branches -- which is the test
+    this design applies to connectives and applies here for the same reason.
+
+    ⚠ Deliberately not `g.atom("stop")`. A corpus may name a rule `<stop>`, and
+    a reserved atom would make the verb and the rule one node with two meanings
+    -- the twin trap, which this repository has now recorded seven times. A
+    sentinel cannot collide with anything a corpus can write.
+
+    ⚠ And it is not a *score*. The design's line about norms applies exactly:
+    a thing that must not be outweighed is a premise, never a number. Stopping
+    is decided by the rule's own antecedent -- the query that had to hold for
+    the postcondition to run at all -- and never by outranking anybody.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "stop"
+
+
+STOP = _Stop()
+
+
 class Member(NamedTuple):
     """A signed entry in a rule's antecedent or consequent.
 
@@ -133,6 +161,10 @@ class RuleSet:
         # is worth thinking of, and the second is learned while the first is
         # authored. Read only by a loop that has a table.
         self.triggers: Dict[Optional[NodeId], List[Tuple]] = {}
+        # `STOP` (below) may appear as a trigger's target. It is a sentinel and
+        # not a node on purpose: a rule named `stop` must go on meaning that
+        # rule, and encoding the verb as a reserved atom is the twin trap in its
+        # cheapest form -- one name, two meanings.
         # Authored precedence (§14): the bottom-most arbitrator is a lookup that
         # always returns and never searches.
         # ⭐⭐⭐ **Precedence is READ, not kept.** These were two Python lists,

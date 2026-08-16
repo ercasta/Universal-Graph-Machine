@@ -41,7 +41,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 from .chain import MINUS, PLUS, UNSURE
 from .graph import NodeId
 from .machine import Machine
-from .rules import CAUSES, IMPLIES, Member
+from .rules import CAUSES, IMPLIES, STOP, Member
 
 SIGNS = {"+": PLUS, "-": MINUS, "?": UNSURE}
 
@@ -345,6 +345,14 @@ class Parser:
         variable the query bound -- a doubt is about rules nobody knew when the
         postcondition was written, so `boost(?a, 1)` has to be sayable."""
         t = self.next()
+        if t.kind == "name" and t.text == "stop":
+            # ⭐ *Done is the output of a rule that checks against the goal* --
+            # which the table loop's own design says, and had no way to obey.
+            # A rule concludes that here is over; its postcondition is what
+            # ends the run. The loop still knows nothing about goals: it knows
+            # a rule spent attention by saying stop, exactly as it knows one
+            # said `reset`.
+            return (STOP, 0)
         if t.kind == "name" and t.text == "reset":
             # Back to the default table. The author's mechanism for refocusing,
             # and it is a postcondition like any other: nothing in the engine
@@ -354,7 +362,7 @@ class Parser:
         if t.kind != "name" or t.text not in ("boost", "damp"):
             raise ParseError(
                 f"line {t.line}: a postcondition spends attention, so it says "
-                f"`boost(...)`, `damp(...)` or `reset`, not {t.text!r}"
+                f"`boost(...)`, `damp(...)`, `reset` or `stop`, not {t.text!r}"
             )
         self.expect("(")
         target = self.term()
@@ -728,7 +736,9 @@ class Loader:
             for mm in clause.query
         )
         buffs = tuple(
-            (None if t is None else self.build(t, scope), delta)
+            # `None` is a reset and `STOP` is a stop; neither is a term, so
+            # neither goes through `build`.
+            (t if t is None or t is STOP else self.build(t, scope), delta)
             for t, delta in clause.buffs
         )
         self.m.rules.triggers.setdefault(

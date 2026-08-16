@@ -18,15 +18,36 @@ not worth paying most of the time:
 > moves the scores of other rules. The rules stay fixed; the postconditions are
 > what a learning process calibrates.
 
-Three things the engine knows here, and none of them is semantic:
+Four things the engine knows here, and none of them is semantic:
 
     a score per rule    ordered, tie broken by declaration order
     apply the first     highest-scoring rule whose antecedent matches
     then spend          run that rule's postconditions to move the table
+    ...and STOP         if one of them said so, the run is over
 
 No goal, no completeness, no widening. Those are corpus rules whose
 postconditions reset buffs -- *refocusing* is a rule, *done* is the output of a
 rule that checks against the goal. Nothing in this file knows what either is.
+
+⭐⭐⭐ **The fourth row is `stop`, and it is what made the third mean anything.**
+*Done is the output of a rule* was written here from the start and the loop had
+no way to obey one: a completion check concluded and the agent carried straight
+on to quiescence. `stop` is a postcondition beside `boost`, `damp` and `reset`,
+so it is a row rather than a branch, and the loop still knows nothing about
+goals -- only that a rule spent one. Measured on `stopping()` below: **62 moves
+to 5.**
+
+⚠⚠⚠ **And the obvious feature next door is worth nothing, which is why it is
+checked rather than argued.** *Let a goal raise the priority of the rule that
+checks it* moves NOTHING -- a completion check is self-gating, so it cannot
+match until the thing is done, and the instant it can, widening reaches it in
+the same move. Score decides which of several MATCHING rules wins; a check that
+can only match at the finish line has nobody to go before.
+
+⚠⚠ **What `stop` costs**: the shipped loop refuses to stop quietly on something
+it was asked for, and this loop cannot make that refusal, because the veto is an
+aggregate a rule cannot state. `stopping()` measures the loss rather than
+asserting it is acceptable.
 
 ## What is deliberately NOT here
 
@@ -56,7 +77,7 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .graph import NodeId
 from .machine import Machine
-from .rules import Application, Member, Rule, Situation, match, substitute
+from .rules import STOP, Application, Member, Rule, Situation, match, substitute
 from .text import load, load_file
 
 # A rule the bundle marks `standing` is in the table at the default; everything
@@ -198,6 +219,10 @@ class Table:
         self.rules = list(rules)
         self._defaults = dict(self.score)
         self.trace: List[Spend] = []
+        # Why the run ended, if a postcondition ended it. A name rather than a
+        # flag, because *why did you stop?* has to be answerable -- the same
+        # reason the shipped loop's `_enough` returns what was named.
+        self.stopped: Optional[str] = None
         # (born, rule, delta) -- the score is DERIVED from these and the
         # defaults, so nothing has to be undone when one expires.
         self.live: List[Tuple[int, NodeId, int]] = []
@@ -245,6 +270,13 @@ class Table:
 
     def spend(self, tick: int, by: str, buffs, frozen: bool, bindings) -> None:
         for target, delta in buffs:
+            if target is STOP:
+                # Recorded here, obeyed by the loop. Keeping the decision out of
+                # `spend` is what lets the trace stay a pure account of scores --
+                # and a stop moves no score, so it must not pretend to.
+                self.stopped = by
+                self.trace.append(Spend(tick, by, "stop", 0, frozen))
+                continue
             if target is None:  # a reset, not a buff
                 self.clear(tick, by)
                 continue
@@ -467,6 +499,11 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             table.score[chosen.rule.node] = table.score[chosen.rule.node] + 1
             table.trace.append(Spend(tick, "reflex", chosen.rule.name, 1, False))
         _spend_posts(m, table, chosen, tick, state)
+        if table.stopped is not None:
+            # *Completion is the output of a rule*, and this is the loop obeying
+            # one. It knows a rule spent `stop`; it does not know what a goal is,
+            # which is the line this file has held from the start.
+            break
     # The trace is held to the table on every run: same scores, rebuilt from
     # the defaults and the spends alone.
     assert table.rebuilt(limit) == table.score, "the trace cannot rebuild the table"
@@ -525,8 +562,12 @@ def _rerank(m, table, state, chunk, index, tried: int):
         for hit in hits:
             bindings = {} if hit is None else hit.bindings
             for target, delta in buffs:
-                if target is None:
-                    continue  # a reset means nothing to a nudge that is not kept
+                if target is None or target is STOP:
+                    # A reset means nothing to a nudge that is not kept, and a
+                    # stop is not a nudge at all: a reranker reorders what is in
+                    # front of the agent, and ending the run is not an ordering.
+                    # A corpus that wants to stop hangs it off a rule that RAN.
+                    continue
                 node = table._target(target, bindings)
                 if node is not None and node in table.score:
                     lift[node] = lift.get(node, 0) + delta
@@ -731,6 +772,121 @@ def penguin() -> int:
     return wrong
 
 
+# -- stopping, which is what makes a score mean anything --------------------
+
+_IDLE = "\n".join(
+    "rule <f%d> = implies( { +wood(?x) }, { +step%d(?x) } )" % (i, i)
+    for i in range(1, 13))
+_DEEP = "\n".join(
+    "rule <g%d> = implies( { +step%d(?x) }, { +after%d(?x) } )" % (i, i, i)
+    for i in range(1, 13))
+
+# ⚠ `want`, not `goal`. `goal` is the apparatus's own relation and the backward
+# reader deposits its own, so a completion check written over `goal(?w)` fires
+# on the machinery's subgoals -- measured, and it reported the check firing
+# BEFORE the thing was built. A corpus's vocabulary is not the apparatus's.
+STOPPING = """
+fact +want(assembled(cart))
+fact +wood(cart)
+rule <wheel> = implies( { +wood(?x) },       { +have(wheel) } )
+rule <axle>  = implies( { +have(wheel) },    { +have(axle) } )
+rule <bed>   = implies( { +have(axle) },     { +have(bed) } )
+rule <build> = implies( { +have(bed) },      { +assembled(cart) } )
+rule <done>  = implies( { +want(?w), +?w },  { +finished(?w) } )
+""" + _IDLE + "\n" + _DEEP + "\n"
+
+# Two things wanted, one reachable: the stop fires on the one that was built
+# while the other is still wanted and still unmet.
+OPEN_WANT = """
+fact +want(assembled(cart))
+fact +want(painted(cart))
+fact +wood(cart)
+rule <wheel> = implies( { +wood(?x) },       { +have(wheel) } )
+rule <build> = implies( { +have(wheel) },    { +assembled(cart) } )
+rule <done>  = implies( { +want(?w), +?w },  { +finished(?w) } )
+after <done> => stop
+"""
+
+
+def _stopping_run(src, limit=400):
+    m = Machine()
+    load(m, src)
+    load(m, SETTLE)
+    return m, run(m, limit=limit)
+
+
+def stopping() -> int:
+    """`stop`, and the two things measuring it settled.
+
+    This file's own design says *done is the output of a rule that checks
+    against the goal* -- and the loop had no way to obey one: the check
+    concluded and the agent carried straight on to quiescence. `stop` is the
+    fourth thing a postcondition can spend, beside `boost`, `damp` and `reset`.
+    A row, not a branch, and the loop still knows nothing about goals: it knows
+    a rule said stop.
+
+    ⭐⭐⭐ **And the trigger everyone reaches for first is worth nothing.** The
+    obvious proposal -- let a goal raise the priority of the rule that checks it
+    -- was built and measured before this, and it moves NOTHING. A completion
+    check is **self-gating**: it cannot match until the thing is done, and the
+    instant it can, widening reaches it in the same move. Score decides which of
+    several MATCHING rules wins; a check that can only match at the finish line
+    has nobody to go before. Measured with the check at the floor, reranked,
+    buffed persistently in two places, and standing -- identical every time,
+    before `stop` existed and after. The rows below keep that null result where
+    the next person to propose it will find it.
+    """
+    print()
+    print("  stopping -- a cart to build, and a check that says when it is done")
+    bad = 0
+    seen = {}
+    cases = (
+        ("", "no postcondition"),
+        ("when { +want(?w) } => boost(<done>, 20)", "a trigger, and no stop"),
+        ("after <done> => stop", "stop, <done> at the floor"),
+        ("after <done> => stop\nwhen { +want(?w) } => boost(<done>, 20)",
+         "stop, and the trigger as well"),
+        ("after <done> => stop\nfact standing(<done>)",
+         "stop, and <done> standing"),
+    )
+    for post, label in cases:
+        _m, r = _stopping_run(STOPPING + "\n" + post)
+        done = any(p == "finished(assembled(cart))" and sg == "+"
+                   for p, sg in r.state)
+        seen[label] = r.ticks
+        print(f"    {label:32} {r.ticks:>4} moves   finished: {done}   "
+              f"stopped by {r.table.stopped}")
+        if not done:
+            bad += 1
+    # The claim, as a number: obeying the rule is what shortens the run.
+    if seen["stop, <done> at the floor"] >= seen["no postcondition"]:
+        print("    FAIL  `stop` did not shorten the run")
+        bad += 1
+    # ...and the null result, kept as a check so it cannot quietly come back.
+    if seen["stop, and the trigger as well"] != seen["stop, <done> at the floor"]:
+        print("    FAIL  the trigger changed the run -- the null result moved")
+        bad += 1
+
+    # ⚠⚠⚠ THE COST, measured rather than asserted. The shipped loop refuses to
+    # stop QUIETLY on something it was asked for: an open goal outranks an
+    # `enough`. This loop cannot, because that veto is an aggregate -- *nothing
+    # else is wanted and unmet* -- and a rule cannot speak about the set of its
+    # matches. So the guarantee becomes a corpus's, exactly as it did for norms,
+    # and this is the instrument that watches it rather than a claim that it is
+    # fine.
+    _m, r = _stopping_run(OPEN_WANT, limit=200)
+    held = {p for p, sg in r.state if sg == "+"}
+    quiet_on_open = ("want(painted(cart))" in held
+                     and "painted(cart)" not in held
+                     and r.table.stopped is not None)
+    print(f"    {'stopped with a want still open':32} {r.ticks:>4} moves   "
+          f"unmet want left behind: {quiet_on_open}")
+    if not quiet_on_open:
+        print("    FAIL  the open-want probe has nothing to measure")
+        bad += 1
+    return bad
+
+
 def main() -> int:
     import sys
 
@@ -773,7 +929,7 @@ def main() -> int:
     print("  BECAUSE it materialises an option set -- `close` is doubt, `quiet`")
     print("  is the loop saying it stopped, `left` is a supposition being exited.")
     print("  Each is a rule to write, and this list is the work list.")
-    return bad + penguin()
+    return bad + penguin() + stopping()
 
 
 if __name__ == "__main__":

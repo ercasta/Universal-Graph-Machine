@@ -146,6 +146,13 @@ relation the corpus names (Chapter 29), which is affordable for one corpus and i
 not a policy. The shape of the answer already exists — a claim that gates what is
 even considered — and joining the two is untried.
 
+**The open-goal veto is not expressible in the table loop.** The shipped loop
+refuses to stop quietly on something it was asked for. The table loop obeys a
+rule's `stop` and cannot make that refusal, because the veto is an aggregate —
+*nothing else is wanted and unmet* — and a rule cannot speak about the set of
+its own matches. Measured, and shipped as an instrument rather than as a claim
+that it is acceptable (Chapter 28).
+
 **Buffs are supplied from the host language.** The surface for a postcondition —
 `after { … } => boost(<R>, n)` — is deliberately left open until the loop has
 been watched running for longer. Until it closes, the one part of the table that
