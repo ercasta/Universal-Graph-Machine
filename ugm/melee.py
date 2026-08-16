@@ -139,6 +139,64 @@ def play(rounds: int = 24, loop: str = "shipped", coaching: bool = False):
     return t, quiet
 
 
+# -- (3) learning the coaching from play -------------------------------------
+
+
+def demonstrate(fights: int = 6, seed0: int = 7):
+    """Watch a well-played fight, several times over.
+
+    The teacher is the COACHED player: however the good play was produced, what
+    is learned from is the play itself. That is gold-episode fitting with the
+    gold being a game rather than a rig, and it is the honest test -- can the
+    policy that used to be guards be recovered from behaviour alone?
+
+    Several fights, because generalising over one keeps whatever that fight
+    happened to contain. Different dice, same corpus.
+    """
+    from . import teaching
+
+    lesson = teaching.Lesson()
+    last = None
+    for i in range(fights):
+        _RNG.seed(seed0 + i)
+        t = Table(scenario("table", True))
+        t.wire.by_name["p1"].watch = lesson.watching
+        t.play(rounds=30)
+        last = t.wire.by_name["p1"]
+        t.close()
+    return lesson, last
+
+
+def learn(fights: int = 6) -> Tuple[str, dict]:
+    """The demonstrations, as a trigger document."""
+    from . import teaching
+
+    lesson, teacher_agent = demonstrate(fights)
+    learned = lesson.recognisers(teacher_agent.m, teacher_agent.kb)
+    lines = []
+    for name, (text, weight) in sorted(learned["rules"].items()):
+        try:
+            whole = teacher_agent.kb.term(text)
+        except Exception:
+            learned["unspeakable"] = learned.get("unspeakable", 0) + 1
+            continue
+        members = ", ".join("+" + teacher_agent.m.g.show(x)
+                            for x in teacher_agent.m.g.members(whole))
+        lines.append("when { %s } => boost(<%s>, %d)" % (members, name, weight))
+    return "\n".join(lines) + "\n", learned
+
+
+def taught(text: str) -> Tuple[Spec, ...]:
+    """The same scenario, with the LEARNED triggers instead of the written
+    ones. Nothing else differs: same corpus, same tools, same loop."""
+    return (
+        Spec("dm", _corpus("melee-dm.ugm"), DM_TOOLS, limit=300,
+             computes=DM_COMPUTES),
+        Spec("p1", _corpus("melee-p1.ugm") + SETTLING + text,
+             limit=300, computes=P1_COMPUTES, loop="table"),
+    )
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

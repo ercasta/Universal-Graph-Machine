@@ -118,6 +118,10 @@ class Agent:
         self.name = spec.name
         self.limit = spec.limit
         self.loop = spec.loop
+        # An observer for the table loop's moves, set from outside. This is how
+        # a lesson is taken from ordinary play rather than from a rig: the agent
+        # plays, and what it did is watched.
+        self.watch = None
         self.m = Machine()
         self.kb = Loader(self.m, scope=spec.name)
         for tool, request, key in spec.tools:
@@ -184,7 +188,7 @@ class Agent:
         """
         if self.loop == "table":
             from .attention import run as table_run
-            table_run(self.m, limit=self.limit)
+            table_run(self.m, limit=self.limit, watch=self.watch)
         else:
             self.m.run(limit=self.limit)
         fresh, self._said = self.m.emitted[self._said:], len(self.m.emitted)

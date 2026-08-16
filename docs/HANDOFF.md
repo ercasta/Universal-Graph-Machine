@@ -648,6 +648,50 @@ what is in front of it. Widening the shortlist to the whole pool removes the mis
 shortlist knob bounds cost AND bounds how far experience can see -- which is the same speed/accuracy
 trade the dungeon measured, now visible in what an agent actually does rather than in a column.
 
+### (3) The system learns the coaching from play
+
+The teacher is the coached player and the gold is a game rather than a rig: six fights, different
+dice, and what is learned from is the behaviour. Then the learned triggers are installed in a fresh
+player that has none of the coaching.
+
+```
+when { +turn(?t), +whiffed(p1, gob) }            => boost(<guard>, 9)
+when { +turn(?t), +bleeding(gob), +foe(p1, gob) } => boost(<press>, 9)
+when { +yours(?n), +turn(?t), +foe(p1, gob) }     => boost(<trade>, 9)
+when { +ran(gob), +foe(p1, gob) }                 => boost(<gone>, 9)
+```
+
+| | p1's moves | outcome |
+|---|---|---|
+| untaught | quaff, flee | p1 fled; goblin untouched |
+| hand-coached | attack, defend, attack, attack, attack | goblin fled at 2; p1 at 8 |
+| **learned from play** | **attack, defend, attack, attack, attack** | **goblin fled at 2; p1 at 8** |
+
+**Identical.** The policy that used to live in three guards was removed, demonstrated, generalised by
+anti-unification and written back as triggers, and the agent plays the same.
+
+Three things had to be right, and two of them were wrong first:
+
+**A sign atom could not be written down.** `Graph.show` renders one as `+`, and `+` opens a member, so
+every example mentioning `says(dm, ..., plus)` was unsayable -- which is every example a PLAYER has,
+because a player acts on what it was told. **86 lessons declined, not one of them about a rule the
+author wrote.** The parser already accepts `plus`; only the renderer had no way to say it. A rendering
+gap, not a notation gap, and fixing it took the count to 8.
+
+**The keying went round a full circle and came back.** A situation lesson keyed on the rule's own
+premises was abandoned earlier, because a recogniser written as a RULE cannot fire before its target
+is applicable. As a RERANKER that objection disappears -- it is consulted while the shortlist is
+being ordered, which is exactly when the target is applicable. And the precursor keying turned out to
+be unusable here: a player's moves are separated by bookkeeping, so the previous move's premises
+share nothing across fifteen demonstrations and generalise to nothing. **A pipeline has stable
+precursors; a decision does not.**
+
+**And the learner produced no `<quaff>` trigger, correctly.** The coached teacher never drinks, so
+there is no demonstration of drinking, so nothing is learned about it. You cannot learn a rule that
+was never used -- which is the second signal from `ugm.teaching`'s opening note arriving from the
+other side: *none of these fits* is a missing rule, and *none of these was ever used* is a rule
+nothing can teach.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

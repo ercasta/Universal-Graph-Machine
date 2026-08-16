@@ -120,21 +120,26 @@ class Lesson:
             self.examples.setdefault(key, []).append(tuple(
                 _anchor(m, e.proposition, back) for e in chosen.consumed
             ))
-        # The PRECURSOR, not the occasion itself -- and running the other
-        # version is how that showed. A recogniser whose query is the target's
-        # own premises can never fire before the target is applicable, so the
-        # lift arrives too late and costs a move: 1 of 19 recognisers ever fired.
-        # What has to be recognised is the state one move EARLIER, so the lift
-        # is in place when the opportunity comes.
+        # THE RULE'S OWN SITUATION -- what made this move available -- and the
+        # keying went round a full circle to get back here. As a learned RULE a
+        # recogniser keyed this way can never fire in time, because by the time
+        # its query holds the target is already applicable; that is why it was
+        # moved to the precursor, the state one move earlier. As a RERANKER the
+        # objection is gone: it is consulted while the shortlist is being
+        # ordered, which is exactly when the target is applicable.
+        #
+        # And the precursor turned out to be unusable here for a reason worth
+        # keeping: a player's moves are separated by bookkeeping -- settling a
+        # doubt, recording an act -- so the previous move's premises share
+        # nothing across 15 demonstrations and generalise to nothing at all.
+        # A pipeline has stable precursors; a decision does not.
         #
         # As TEXT, from the start: experience comes from several fights, a fight
         # is its own machine, and a node id from one means nothing in another.
         # The utterance is what crosses (`ugm/table.py`), here at the moment the
         # example is taken rather than at the end.
-        if self.last_example is not None:
-            self.occasions.setdefault(name, []).append(self.last_example)
-        self.last_example = tuple(
-            m.g.show(e.proposition) for e in chosen.consumed)
+        self.occasions.setdefault(name, []).append(
+            tuple(_say(m, e.proposition) for e in chosen.consumed))
         self.last = name
         self.last_bindings = dict(chosen.bindings)
 
@@ -282,6 +287,32 @@ def install(m: Machine, ldr, lessons: dict) -> int:
             continue
         added += 1
     return added
+
+
+def _say(m: Machine, node: NodeId) -> str:
+    """Render a proposition so the surface can read it back.
+
+    `Graph.show` writes a sign atom as `+`, and `+` opens a member -- so every
+    example mentioning `says(dm, ..., +)` was unsayable, which is every example
+    a player has, because a player acts on what it was told. Measured before
+    this: 86 lessons declined as unwritable and not one of them about a rule the
+    corpus author wrote.
+
+    The parser already accepts `plus`, `minus` and `unsure` in argument
+    position; only the renderer had no way to say them. So this is a rendering
+    fix rather than a new notation, which is the honest kind: the graph could
+    always hold it and the surface could always read it.
+    """
+    signs = {m.rules.SIGN[s]: name
+             for s, name in (("+", "plus"), ("-", "minus"), ("?", "unsure"))}
+    if node in signs:
+        return signs[node]
+    members = m.g.members(node)
+    if not members:
+        return m.g.show(node)
+    rel = m.g.relation_of(node)
+    return "%s(%s)" % (_say(m, rel) if rel is not None else "?",
+                       ", ".join(_say(m, x) for x in members))
 
 
 def _anchor(m: Machine, prop: NodeId, back: Dict) -> NodeId:
