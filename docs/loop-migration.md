@@ -152,3 +152,70 @@ option set, the old cardinal preference score, and the four `forgone` checks.
 per-case defeat 3 · learning and credit 8 · re-ask and re-suppose termination 3 ·
 the rest to investigate, including *a fact's own history is matchable*, which
 should not depend on the loop at all.
+
+
+---
+
+## Can the remaining 39 just be dropped? — measured, and the answer is *most, not all*
+
+The test is not *does the check fail* but **is the capability absent**. Run each
+selftest function on its own (`scratchpad/classify.py`) and read its failures
+against its passes: a function whose outcome checks all pass while one
+bookkeeping check fails is gripping the old loop's internals; a function whose
+outcome checks fail has lost something.
+
+23 functions carry the 39.
+
+### Droppable — the check grips old internals, the capability is intact (~15)
+
+The clearest case, and it is the pattern:
+
+    ### rule_driven_supposition -- 1 of 7 failing
+        FAIL  a rule proposed the supposition
+
+The other six pass: **modality crossed the whole pipeline, the hedge fired on
+the wrapped conclusion, the guard held, nothing carried out of the frame.**
+Suppositions work perfectly. What fails is `s.state == "supposed"` -- a Step
+label the new loop does not emit.
+
+Same shape: the old `_in_play` preference key (3), doubt and tolerance over the
+option set (2), the old recall table and its widening (3), *the apparatus wins
+most of the agent's choices* (1), the self-join unification count (1), and the
+overrides-cycle fallback (1). The table **is** the preference now, and it has
+its own doubt and its own widening, so these are one mechanism measured twice.
+
+### Not droppable — four things the new loop genuinely does not do (~24)
+
+**1. Termination guards — 4 checks, and this is the one that matters.**
+
+    FAIL  waking is once per seat, so the occasion cannot re-arm itself
+    FAIL  an occasion the re-asking can itself CREATE warrants a re-ask forever
+
+>⚠⚠⚠ These are not bookkeeping. They are the guards that stop the agent asking
+>the same question **100+ times**. Dropping them does not remove a record, it
+>removes a bound -- and `_wake` per seat is exactly the shape this repository
+>has recorded runaways in before.
+
+**2. Learning — ~8 checks across 5 functions.** An episode teaching the next
+one, generalising to a case neither example mentioned, a learned rule losing to
+an authored one, an adopted rule actually applying. This is not a check
+artefact; learning is substantially broken under the new loop, and much of it is
+downstream of (3).
+
+**3. `supersedes` — 4 checks.** Per-CASE defeat: only applications sharing a
+consumed entry with the winner are out. `_is_defeated` cannot answer it, because
+the question is not *did that rule match* but *did that application share this
+premise* -- and the prefix scan holds only a window of applications.
+
+**4. Effort records — 7 checks.** `widened`, `reached`, `bounded`. The new loop
+widens 794 times on `dungeon` and deposits nothing. `bounded(ticks)` is written
+but does not fire -- the condition tests the last Step and the last Step is not
+`applied`. Cheap, and worth having: *a rule can act on how hard the agent had to
+try*.
+
+### So
+
+Dropping the ~15 is free and honest. Dropping the other ~24 means giving up
+learning, per-case defeat, effort-awareness -- and, in one case, **a termination
+guarantee**, which is not a feature to trade away in an experimental engine so
+much as a thing that will waste an afternoon later.
