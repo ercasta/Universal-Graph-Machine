@@ -663,6 +663,19 @@ def _state(m: Machine) -> set:
 
 CORPORA = ("delay.ugm", "worked.ugm", "quest-p1.ugm", "dungeon")
 
+# What the table loop is allowed not to reach, and why each one is here.
+#
+# Both exist ONLY because the other loop materialises an option set, so both are
+# claims about a set this loop deliberately never builds. `close` is a doubt --
+# these two candidates scored within the tolerance -- and `defeated` is one rule
+# beating another, which needs both to have been matched. The author accepted
+# losing them when the table loop became the kernel.
+#
+# ⚠ The list is short on purpose and every addition to it is a decision, not a
+# convenience. Anything else the table loop fails to conclude is a rule that has
+# not been written yet, and the gate below says so.
+ACCEPTED_LOSSES = frozenset({"close", "defeated"})
+
 
 DEFAULT_POSTS = (Post("settle-doubt", None, (Buff("?a", 1),), frozen=True),)
 
@@ -930,12 +943,30 @@ def main() -> int:
                     worst = sorted(by_rel.items(), key=lambda kv: -kv[1])[:6]
                     print(f"      {label:12} " +
                           ", ".join(f"{k} x{v}" for k, v in worst))
+        # ⭐⭐⭐ **And now it is a GATE, which it was not.** This block printed the
+        # diff and `bad` was never touched -- so *the table loop reaches the same
+        # conclusions* was asserted nowhere, by anything, while being the whole
+        # premise of replacing the other loop with it. A comparison that cannot
+        # fail is this repository's most-recorded instrument defect, and it was
+        # sitting in the one place that has to be trustworthy before any Python
+        # is deleted.
+        #
+        # The claim, stated so it can be wrong: **the table loop may conclude
+        # MORE than the option-set loop. It may not conclude LESS**, except for
+        # the two records that exist only because the other loop materialises an
+        # option set, and which the author accepted losing.
+        unexplained = sorted(p for p, _sign in missing
+                             if p.split("(")[0] not in ACCEPTED_LOSSES)
+        if unexplained:
+            print(f"      FAIL  {len(unexplained)} conclusion(s) lost that are "
+                  f"not an accepted loss: {unexplained[:4]}")
+            bad += 1
     print()
-    print("  shipped | table, per column. A difference is not a failure here:")
-    print("  everything the table loop drops is a record the shipped tick keeps")
-    print("  BECAUSE it materialises an option set -- `close` is doubt, `quiet`")
-    print("  is the loop saying it stopped, `left` is a supposition being exited.")
-    print("  Each is a rule to write, and this list is the work list.")
+    print("  option-set | table, per column. The gate is one-sided on purpose:")
+    print("  the table loop may conclude MORE, and may not conclude LESS except")
+    print(f"  for {', '.join(sorted(ACCEPTED_LOSSES))} -- records that exist only because the")
+    print("  other loop materialises an option set. Everything else it drops is")
+    print("  a rule still to write, and that list is a failure rather than a note.")
     return bad + penguin() + stopping()
 
 
