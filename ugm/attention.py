@@ -334,6 +334,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     for p in posts:
         by_rule.setdefault(p.of, []).append(p)
 
+    index = _by_target(m)
     applied: List[str] = []
     tried = 0
     doubts = 0
@@ -346,20 +347,20 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         m.channels.since_last_tick()
         state = m._situation()
         table.age(tick)
-        # Ranking-time triggers: what is in front of the agent, as opposed to
-        # what it was just doing. Ephemeral by construction -- recomputed every
-        # move and kept nowhere -- so there is no decay to tune and no runaway
-        # to guard against, which is the whole difference between the two kinds
-        # of attention.
-        rerank, tried = _rerank(m, table, state, tick, tried)
+
         window: List[Application] = []
         top = None
-        ordered = table.order(rerank)
+        ordered = table.order()
         cut = 0
         while cut < len(ordered) and not window:
             # One shortlist at a time. Score decides WHO is matched, which is
             # the whole proposal: a rule below the cut costs nothing at all.
             chunk = ordered[cut:cut + SHORTLIST]
+            # ...and the shortlist is reordered by what is in front of the
+            # agent now. Ephemeral: recomputed for each shortlist and kept
+            # nowhere, so there is no decay to tune and no runaway to guard
+            # against -- the difference between the two kinds of attention.
+            chunk, tried = _rerank(m, table, state, chunk, index, tried)
             if cut:
                 widenings += 1
             cut += SHORTLIST
@@ -470,20 +471,50 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     )
 
 
-def _rerank(m: Machine, table: Table, state: Situation, tick: int, tried: int):
-    """Every `when` trigger, matched against the state, as a nudge for this
-    move only.
+def _by_target(m: Machine) -> Tuple[Dict[NodeId, List], List]:
+    """Ranking-time triggers, indexed by the rule they lift.
 
-    The matches are COUNTED into the same cost column as everything else: a
-    reranker query is a match too, and reporting a saving that was only moved
-    from one column to another is the trap this file has already recorded twice.
+    §19's own trick for norms, one level up: `_forbid` is cheap because it looks
+    only at prohibitions whose relation matches what is about to be written, and
+    a reranker is cheap for the same reason -- a trigger about wounds costs
+    nothing on a move about doors. A trigger whose target is a VARIABLE cannot
+    be indexed, because which rule it lifts is what its query decides; those are
+    consulted whenever anything is.
     """
+    by_target: Dict[NodeId, List] = {}
+    floating: List = []
+    for trig in m.rules.triggers.get(None, ()):
+        targets = [t for t, _d in trig[1]]
+        if any(t is None or m.g.is_var(t) for t in targets):
+            floating.append(trig)
+            continue
+        for t in targets:
+            by_target.setdefault(t, []).append(trig)
+    return by_target, floating
+
+
+def _rerank(m, table, state, chunk, index, tried: int):
+    """Reorder THE SHORTLIST, and pay only for it.
+
+    The author's restriction, and it is what makes reranking affordable: a
+    reranker looks at the options in front of the agent and nudges them. It
+    cannot pull a rule in from the bottom of the table -- widening is what
+    reaches those, and a reranker applies to each shortlist as it is reached.
+
+    Measured before the restriction: every trigger evaluated on every move cost
+    fifteen extra matches a move on a scan that did not shrink, and the cost
+    column read 42.7 against a 29.6 baseline.
+    """
+    by_target, floating = index
+    wanted = []
+    for r in chunk:
+        wanted.extend(by_target.get(r.node, ()))
     lift: Dict[NodeId, int] = {}
-    for query, buffs, _frozen in m.rules.triggers.get(None, ()):
-        probe = Rule(0, "implies", list(query), [], "when")
+    for query, buffs, _frozen in wanted + floating:
         tried += 1
         hits = match(
-            m.g, m.chain, probe, m.focus.topic, m.focus.seat, state,
+            m.g, m.chain, Rule(0, "implies", list(query), [], "when"),
+            m.focus.topic, m.focus.seat, state,
             computes=m.rules.computes, structural=m.rules.skeleton(),
         ) if query else [None]
         for hit in hits:
@@ -494,7 +525,10 @@ def _rerank(m: Machine, table: Table, state: Situation, tick: int, tried: int):
                 node = table._target(target, bindings)
                 if node is not None and node in table.score:
                     lift[node] = lift.get(node, 0) + delta
-    return lift, tried
+    if not lift:
+        return chunk, tried
+    return sorted(chunk, key=lambda r: (-(table.score[r.node] + lift.get(r.node, 0)),
+                                        table.rank[r.node])), tried
 
 
 def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,

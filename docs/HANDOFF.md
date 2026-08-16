@@ -458,6 +458,43 @@ consult only those a fresh fact could satisfy** -- delta-driven reranking, so a 
 costs nothing on a move about doors. That is the next thing to build, and the column to watch is the
 same one.
 
+### The reranker works on the shortlist only -- and that decides what each mechanism is FOR
+
+The author's restriction: a reranker looks at the options in front of the agent and nudges them. It
+cannot pull a rule in from the bottom of the table -- widening is what reaches those, and a reranker
+applies to each shortlist as it is reached. Implemented with `_forbid`'s own trick one level up:
+triggers are indexed by the rule they lift, so a trigger about wounds costs nothing on a move about
+doors, and only the ones targeting a shortlist member are consulted.
+
+**And it has a consequence that is worth more than the cost saving: a reranker cannot shorten the
+scan.** Which chunks get scanned is decided by the base table before any reranker runs. So:
+
+| the two kinds of attention | decides | what it buys |
+|---|---|---|
+| `after <A> ... => boost` -- persistent, decays | **who is in** the shortlist | speed |
+| `when { ... } => boost` -- ephemeral, per shortlist | who wins **inside** it | accuracy |
+
+Measured on the dungeon, taught from four fights:
+
+| | posts | moves | matched/move | agrees (LCS) | lost | doubts |
+|---|---|---|---|---|---|---|
+| untaught | -- | 161 | 29.6 | -- | 0 | 13 |
+| persistent, unconditional | 39 | 158 | **14.2** | 140 / 149 | 10 | 10 |
+| persistent, with a query | 19 | 151 | 28.8 | 147 / 149 | 3 | 3 |
+| rerankers only | 15 | 155 | 39.5 | **148 / 149** | **0** | 7 |
+| both | 54 | 158 | 19.4 | 140 / 149 | 10 | 10 |
+
+**They do not compose yet, and the reason is the scale.** A persistent lift runs to the saturation
+ceiling, so the reranker's nudge is added to a number that has already decided the order and changes
+nothing: *both* scores exactly what the persistent half scores, 140 and 10 lost, while paying the
+reranker's cost.
+
+The fix is to stop adding them. Inside a shortlist the reranker should decide the ORDER and the base
+score should only break its ties -- experience of the moment outranking accumulated habit, rather
+than being summed with it. Ordinal within the chunk, cardinal outside it, which is the same split
+this design has taken before (`doubt-is-a-tie`: a cardinal score beside an ordinal grade, never added
+to it).
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

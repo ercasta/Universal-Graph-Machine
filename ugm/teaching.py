@@ -412,9 +412,22 @@ def measure(name: str, limit: int = 400) -> dict:
         # it is already high the corpus has nothing to teach.
         "teacher_took_the_top": lesson.agreed,
     }
-    for label in ("bigram", "query", "occasion"):
+    for label in ("bigram", "query", "occasion", "both"):
         m, ldr = _machine(name)
-        if label == "occasion":
+        if label == "both":
+            # The two kinds of attention doing their own jobs: persistent
+            # buffs decide WHO IS IN the shortlist, which is speed, and
+            # rerankers decide who wins INSIDE it, which is accuracy. The
+            # shortlist restriction is what makes that division of labour
+            # necessary rather than merely tidy -- a reranker cannot shorten a
+            # scan whose chunks were chosen before it ran.
+            taught = lesson.lessons(gold_m, conditional=False)
+            added = install(m, ldr, taught)
+            learned = lesson.recognisers(gold_m, gold_ldr)
+            added += install_recognisers(m, ldr, learned)
+            declined = taught["declined"] + learned["declined"]
+            collided = taught["collided"]
+        elif label == "occasion":
             # Keyed on the SITUATION: a learned recogniser that concludes
             # `noticing(<R>)` and spends its attention on R, so the lift arrives
             # whenever the occasion arises rather than only after one
@@ -464,7 +477,7 @@ def main() -> int:
         print(f"  {c['corpus']}  -- {c['pairs']} bigrams from one taught run; "
               f"the teacher took the table's top choice "
               f"{c['teacher_took_the_top']}/{c['gold_moves']} times")
-        for label in ("bigram", "query", "occasion"):
+        for label in ("bigram", "query", "occasion", "both"):
             d = c[label]
             print(f"    {label:7} {d['posts']:>3} posts "
                   f"({d['declined']} said nothing, {d['collided']} too general, "
