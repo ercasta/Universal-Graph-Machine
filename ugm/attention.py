@@ -89,6 +89,24 @@ WINDOW = 3
 # ran. With it, the worst case is exactly today's cost and the best case is N.
 SHORTLIST = 5
 
+# How long a buff lives, and how far a rule may be lifted.
+#
+# **Life.** A buff that never expires is what made the taught table run away:
+# `A` lifts `R`, `R` lifts `A`, and every lift is permanent, so the loop finds
+# work for ever. A lift is about what is going on NOW -- the author's *what I
+# was doing is part of my representation of the world* -- so it fades. What
+# survives is the postcondition, which re-applies whenever its query holds
+# again.
+#
+# **Saturation.** A boost shrinks as the rule is already lifted, which is the
+# useful half of a sigmoid: a monotone transform applied when the table is READ
+# cannot change any ordering, and ordering is all the table is for. Applied at
+# the UPDATE it bounds the scale -- and the scale has to be stable or
+# `tolerance` stops meaning anything. Measured: the runaway fired **0 doubts**
+# against 13 untaught, because nothing was ever close to anything again.
+LIFE = 12
+MAX_LIFT = 12
+
 # The default doubt-settling rule, and the author's correction to an earlier
 # sketch of mine: the loop does not need to HOLD a tick waiting for doubt to be
 # resolved, because a settling rule fires. Depositing the doubt IS the move;
@@ -175,6 +193,31 @@ class Table:
         self.rules = list(rules)
         self._defaults = dict(self.score)
         self.trace: List[Spend] = []
+        # (born, rule, delta) -- the score is DERIVED from these and the
+        # defaults, so nothing has to be undone when one expires.
+        self.live: List[Tuple[int, NodeId, int]] = []
+        self.now = 0
+
+    def age(self, tick: int) -> None:
+        """Drop what has expired and recompute. Cheap: the live list is short
+        by construction, because that is what a lift being about NOW means."""
+        self.now = tick
+        self.live = [b for b in self.live if tick - b[0] < LIFE]
+        self.score = dict(self._defaults)
+        for _born, node, delta in self.live:
+            self.score[node] = self.score[node] + delta
+
+    def clear(self, tick: int, by: str) -> int:
+        """Refocusing: back to the default table. The author's own mechanism --
+        a rule whose postcondition resets the buffs -- and it needs no notion of
+        a goal here, because deciding when to refocus is the rule's business."""
+        dropped = len(self.live)
+        for _born, node, delta in self.live:
+            self.trace.append(Spend(tick, by, self.name_of.get(node, "?"),
+                                    -delta, False))
+        self.live = []
+        self.age(tick)
+        return dropped
 
     def order(self) -> List[Rule]:
         return sorted(
@@ -191,12 +234,25 @@ class Table:
 
     def spend(self, tick: int, by: str, buffs, frozen: bool, bindings) -> None:
         for target, delta in buffs:
-            node = self._target(target, bindings)
-            if node is None or node not in self.score:
+            if target is None:  # a reset, not a buff
+                self.clear(tick, by)
                 continue
-            self.score[node] = self.score[node] + delta
+            node = self._target(target, bindings)
+            if node is None or node not in self._defaults:
+                continue
+            # Saturating: how much of the intended lift is left to give. A rule
+            # already at the ceiling gains nothing from being taught again,
+            # which is what keeps the scale -- and therefore `tolerance` --
+            # meaningful.
+            lift = self.score[node] - self._defaults[node]
+            room = max(0, MAX_LIFT - abs(lift))
+            actual = max(-room, min(room, delta))
+            if not actual:
+                continue
+            self.live.append((tick, node, actual))
+            self.score[node] = self.score[node] + actual
             self.trace.append(
-                Spend(tick, by, self.name_of.get(node, "?"), delta, frozen))
+                Spend(tick, by, self.name_of.get(node, "?"), actual, frozen))
 
     def _target(self, target: NodeId, bindings) -> Optional[NodeId]:
         """A rule node, or a variable the query bound to one."""
@@ -219,6 +275,8 @@ class Table:
         for s in self.trace:
             if s.tick > upto:
                 break
+            if s.tick < self.now - LIFE + 1 and s.delta > 0:
+                continue  # expired, and the trace records the life as well
             t = self.by_name.get(self._bare(s.target))
             if t is not None:
                 out[t.node] = out[t.node] + s.delta
@@ -281,6 +339,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # shipped loop asks the same question in the same place.
         m.channels.since_last_tick()
         state = m._situation()
+        table.age(tick)
         window: List[Application] = []
         top = None
         ordered = table.order()

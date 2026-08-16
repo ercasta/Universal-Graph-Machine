@@ -334,6 +334,45 @@ name scope. That is `ugm/table.py`'s rule for what may cross between agents, arr
 learning side -- and it makes a lesson a document: savable, diffable, and loadable into a corpus that
 was never taught.
 
+### Buffs that expire, saturate, and can be reset -- and the cost claim still does not move
+
+**Sigmoid: at read time it is a no-op.** The table is used only to order rules and to measure
+closeness, and a monotone transform cannot change an ordering. What was wanted is saturation at the
+UPDATE -- a boost that shrinks as a rule is already lifted, which is the sigmoid's derivative rather
+than the sigmoid. The evidence was already in the last run: the taught runaway fired **0 doubts**
+against 13 untaught, because scores had inflated until nothing was ever within `tolerance` of
+anything. A fixed tolerance only means something against a stable scale.
+
+Three things built, all small:
+
+* **a buff lives** (`LIFE`, 12 moves) and the score is DERIVED from the live buffs and the defaults,
+  so nothing has to be undone when one expires. A lift is about what is going on now; what survives
+  is the postcondition, which re-applies whenever its query holds again.
+* **saturating updates** (`MAX_LIFT`): a rule at the ceiling gains nothing from being taught again.
+* **`reset`**, a third postcondition verb beside `boost` and `damp`: back to the default table. The
+  author's refocusing mechanism, and nothing in the engine knows what a goal is -- deciding when to
+  refocus is a rule's business.
+
+| dungeon, taught | moves | matched/move | agree with teacher | lost | doubts |
+|---|---|---|---|---|---|
+| untaught | 161 | 29.6 | 7 | 0 | 13 |
+| bigram, before this | 400 (limit) | 6.2 | 50 | 84 | **0** |
+| bigram, now | 198 | 14.0 | 58 | 134 | 10 |
+| query, before this | 149 | 25.8 | 93 | 11 | 1 |
+| **query, now** | **148** | 28.5 | **105 of 149** | **10** | 0 |
+
+Agreement is now **70%** of the teacher's moves, the runaway is gone from both variants, and doubt
+survives. **But `matched/move` has not moved: 29.6 untaught, 28.5 taught.** Lowering the `standing`
+default from 10 to 5 buys 24.7 with no other change, and to 1 buys 24.3 while losing conclusions --
+so the default table is mildly miscalibrated and that is not where the cost is either.
+
+**The reason is structural, and it is the next thing to fix.** A bigram lifts a rule for the move
+after a *specific predecessor*. Most moves have no lifted candidate at all, so the scan is unguided
+and pays the full pool. To make the cost claim true, a lesson has to say *in situations like this,
+these rules are worth trying* -- keyed on the **situation** rather than on what fired last. The
+machinery is already there: the query is a situation, so the same anti-unification can hang a buff
+off the state instead of off a predecessor.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

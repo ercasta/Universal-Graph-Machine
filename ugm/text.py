@@ -331,10 +331,16 @@ class Parser:
         variable the query bound -- a doubt is about rules nobody knew when the
         postcondition was written, so `boost(?a, 1)` has to be sayable."""
         t = self.next()
+        if t.kind == "name" and t.text == "reset":
+            # Back to the default table. The author's mechanism for refocusing,
+            # and it is a postcondition like any other: nothing in the engine
+            # knows what a goal is, so deciding when to refocus is a rule's
+            # business and this is only what happens when it does.
+            return (None, 0)
         if t.kind != "name" or t.text not in ("boost", "damp"):
             raise ParseError(
                 f"line {t.line}: a postcondition spends attention, so it says "
-                f"`boost(...)` or `damp(...)`, not {t.text!r}"
+                f"`boost(...)`, `damp(...)` or `reset`, not {t.text!r}"
             )
         self.expect("(")
         target = self.term()
@@ -887,7 +893,8 @@ class Loader:
                              self.build(mm.at, scope) if mm.at else None,
                              self.build(mm.binds, scope) if mm.binds else None)
                       for mm in clause.query),
-                tuple((self.build(t, scope), delta) for t, delta in clause.buffs),
+                tuple((None if t is None else self.build(t, scope), delta)
+                      for t, delta in clause.buffs),
                 clause.frozen,
             )
             for clause in s.posts
