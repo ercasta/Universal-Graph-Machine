@@ -229,6 +229,36 @@ class Table:
         self.live: List[Tuple[int, NodeId, int]] = []
         self.now = 0
 
+    def absorb(self, rules: Sequence[Rule], standing: set) -> int:
+        """Take in rules the agent did not start with.
+
+        ⭐⭐⭐ **`adopt` means the rule set moves at run time**, and a table built
+        once cannot see it: the rule was live, it was the node the graph
+        described, and it never applied because nothing had a score for it. The
+        round trip was open at the last step.
+
+        A new rule enters at the floor like any other rule nothing has boosted --
+        `standing` if the bundle says so. Nothing already in the table is
+        touched, so the trace still rebuilds it.
+        """
+        added = 0
+        for r in rules:
+            if r.node in self.score:
+                continue
+            self.score[r.node] = (
+                STANDING if (r.node in standing or r.name in SETTLING) else FLOOR
+            )
+            self._defaults[r.node] = self.score[r.node]
+            # Ranked after everything present, which IS authored order: a rule
+            # adopted on tick 40 was authored on tick 40.
+            self.rank[r.node] = len(self.rules)
+            self.rules.append(r)
+            if r.name:
+                self.by_name[r.name] = r
+                self.name_of[r.node] = r.name
+            added += 1
+        return added
+
     def age(self, tick: int) -> None:
         """Drop what has expired and recompute. Cheap: the live list is short
         by construction, because that is what a lift being about NOW means."""
@@ -457,6 +487,11 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     # chain, and a table over a SUBSET of the rules. The loop does not know what
     # an expert is -- it is handed the rules it may consider, exactly as it is
     # handed the corpus. `ugm.experts` reads the subset off the graph.
+    # ⚠ Whether the pool was HANDED to us decides whether it may grow. An
+    # expert's pool is what `knows` says it is, and a rule the agent adopts is
+    # not that expert's until something says so. The default pool is *every
+    # rule*, and that is a set the agent can add to at run time.
+    fixed = pool is not None
     if pool is None:
         pool = m.rules.rules
     pool = [r for r in pool if r.name not in queries]
@@ -477,6 +512,22 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     for tick in range(limit):
         # Not a phase: the world may have spoken since the last move, and the
         # shipped loop asks the same question in the same place.
+        # ⭐⭐⭐ **The anchor a corpus reads the raw chain from.** Minting it is the
+        # whole of this line -- `asking(<seat>)` has to EXIST for a stratum-0
+        # rule to bind it, and a corpus has no hand to seed it with. Without it
+        # *it was on, then it was not* cannot be written at all: the rule is well
+        # formed, every other member matches, and it silently never applies.
+        #
+        # ⚠ Anchored at the SEAT rather than at every moment, which is the
+        # containment story as well as the cheap one: what the agent may read the
+        # chain about is where the agent is standing.
+        m.g.rel(m.chain.ASKING, m.focus.seat.node)
+
+        # A rule the agent authored since the last tick enters the table now.
+        if not fixed:
+            table.absorb([r for r in m.rules.rules if r.name not in queries],
+                         _standing(m))
+
         arrivals = m.channels.since_last_tick() or 0
 
         # ⭐⭐⭐ **Satisfaction, ported from the tick this loop replaces.** `stop`
@@ -672,6 +723,20 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # so after the first dry shortlist it never reached past one again for
         # the whole run. One line, and it is a real behavioural difference
         # rather than a record: measured, 3 widenings became 1.
+        # ⭐⭐⭐ **Taking one way of getting something passes up the others**, and
+        # this loop was not saying so -- which cost `ugm.learning` and
+        # `ugm.practice` entire, because rehearsing safely IS choosing and then
+        # naming what you did not do.
+        #
+        # ⭐ And it names the rivals the agent ACTUALLY WEIGHED -- the window --
+        # where the option-set loop named every application it had materialised.
+        # That is the more honest record of the two: *what did you pass up* ought
+        # to mean *what did you consider and not take*, not *what existed*.
+        #
+        # ⚠ `forgone` stays out of `ACCEPTED_LOSSES` for the corpus gate all the
+        # same: the two loops weigh different sets, so they legitimately pass up
+        # different things.
+        m._forgo(window, chosen)
         m._widened = False
         wrote = m._apply(chosen)
         m._spend(chosen, wrote)

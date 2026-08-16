@@ -440,3 +440,56 @@ producing a rule that fits a case neither example mentioned; an adopted rule
 applying; a learned rule losing to an authored one; a learned rule concluding
 wrapped. Then a re-ask costing one tick, and *a fact's own history is
 matchable*, still unexplained.
+
+
+---
+
+## The flip is permanent
+
+`Machine.run` is the table loop. The suite is **518 checks, 0 failing under BOTH
+loops** -- every check that survives is loop-agnostic, and every check that was
+not is either ported or deleted with the machinery it described.
+
+The last four, and two of them were nothing to do with learning:
+
+**The anchor.** `asking(<seat>)` is minted by a bare expression in the old tick,
+and minting it is the whole of that line: a stratum-0 rule has to have something
+to bind, and a corpus has no hand to seed it with. Without it *it was on, then it
+was not* is well formed, matches on every other member, and **silently never
+applies**. That was the unexplained failure carried for three rounds.
+
+**The table could not learn.** `adopt` moves the rule set at run time and the
+table was built once, so a rule the agent authored was live, was the node the
+graph described, and had **no score** -- the round trip was open. `Table.absorb`
+takes new rules in at the floor. That one closed five checks.
+
+**Two exact counts were a loop's signature, not a property.** A re-ask costs 16
+ticks under one loop and 19 under the other, the three being doubts deposited and
+settled -- so the check is a bound now, which still bites if a re-ask ever became
+a second search. And `supersedes` being too narrow showed as a **300-tick
+runaway** under the option-set loop and as a quiescent wrong answer in 7 under
+the table loop; the check asserted the runaway, so it was asserting one loop's
+way of being wrong and would have read as *fixed* while the narrowness was
+untouched. It asserts the defect now.
+
+### What is red, and why
+
+| | |
+|---|---|
+| `ugm.quiescence` | ⚠ **pre-existing** -- fails on the option-set loop too. Its `<silent>` rule is BLIND: suppressing it changes nothing, so the fixture does not exercise it |
+| `ugm.learning`, `ugm.practice` | **caused by this**, and by one thing: `forgone` |
+
+>**Complete forgoing is the option set, and that is the honest statement of it.**
+>*What else could have served this want* ranges over every rule, so a prefix scan
+>cannot answer it. The loop now forgoes the rivals it **actually weighed** -- the
+>window -- which is arguably the better record (*what did you consider and not
+>take*, rather than *what existed*), and it is not the same set.
+
+That leaves a decision rather than a bug. Either **retire `ugm.learning` and
+`ugm.practice` with the `prefer`-row subsystem** they instrument -- which is the
+one already agreed superseded, now that a taught table reaches the same
+conclusions with half the matching -- or **restore completeness for `forgone`
+alone**, which may be affordable: rules are already indexed by what they
+conclude, so *which other rules could serve this want* is a lookup rather than a
+materialisation. The same join-not-scan move that brought back `overrides` and
+`supersedes`.

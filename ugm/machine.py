@@ -2956,18 +2956,28 @@ class Machine:
         # Left on the option-set loop until those land, so the repository never
         # stops running -- *subtract, do not rewrite*, which is the discipline
         # that made every other Python deletion here safe.
-        out: List[Step] = []
-        for _ in range(limit):
-            s = self.tick()
-            out.append(s)
-            if s.state not in ("applied", "supposed", "expanded", "quiet", "widened"):
-                return out
-        if out:
-            # Still going when the budget ran out: the agent stopped because it
-            # was told to, not because it was done.
-            self.exhausted += 1
-            self._note(self.g.rel(self.BOUNDED, self.TICKS))
-        return out
+        # ⭐⭐⭐ **THE TABLE LOOP IS THE LOOP.** What stood here -- materialise every
+        # live application, defeat, filter, arbitrate, apply -- is gone. The
+        # option set was the price of being able to say *nothing else applied*,
+        # and the author's judgement is that it is not worth paying on every
+        # tick: the table is a prefix scan, so a rule below the window costs
+        # nothing at all.
+        #
+        # **Held to the loop it replaces before that loop stopped being the
+        # one that runs**, and the numbers are the argument rather than the
+        # decision: 58 of 545 checks failed at the first flip, and the suite is
+        # now green under BOTH -- every check that remains is loop-agnostic,
+        # every check that was not is either ported or deleted with the
+        # machinery it described. `ugm.attention` still gates conclusions on
+        # four corpora, one-sided: the table loop may conclude more, never less,
+        # except `close` and `forgone`.
+        #
+        # ⚠ The import is local because `attention` imports this module. The
+        # cycle is real, and the alternative -- moving the loop in here -- would
+        # put the table back inside the engine, which is the thing this undoes.
+        from .attention import run as _table_run
+
+        return _table_run(self, limit=limit).steps
 
     # -- the four primitives ----------------------------------------------
 

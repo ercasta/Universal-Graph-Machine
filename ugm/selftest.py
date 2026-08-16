@@ -3009,7 +3009,13 @@ def a_request_can_be_re_asked() -> None:
               for n in m.g.instances_of(m.AGAIN)))
     check("§6", "it costs one tick, because a re-ask is one application and one "
           "write and not a second search",
-          len(steps) == 16)
+          # ⚠ A BOUND rather than an exact count, because the exact count is a
+          # property of the loop and not of re-asking: the option-set loop takes
+          # 16 and the table loop 19, the three being doubts deposited and
+          # settled. What the check is for is that a re-ask is not a second
+          # SEARCH, and a second search is nowhere near this cheap -- so the
+          # bound still bites while the constant stops being a loop's signature.
+          len(steps) <= 20)
 
     # ⭐⭐ And it is bound the way a TOOL is, not the way the other eight
     # write-time hooks are -- so a corpus can see it and retire it. §21's *the
@@ -5578,8 +5584,15 @@ def what_a_learned_rule_may_conclude() -> None:
     check("§14", "⚠ ...and `supersedes` is too narrow: it defeats applications "
           "sharing a consumed entry, and two rules reaching one conclusion from "
           "different premises share none -- so they oscillate and never stop",
-          narrow.holds(kb_n.term("open(gate)")) == PLUS
-          and steps_n[-1].state == "applied")
+          # ⚠ The DEFECT, not the symptom. `supersedes` being too narrow shows
+          # as the learned rule's bare conclusion standing despite the authored
+          # denial -- which is what this asserts, and is true either way. How it
+          # shows depends on the loop: the option-set loop OSCILLATES (300 ticks,
+          # `applied`), and the table loop settles on the same wrong answer in 7
+          # and goes quiescent. Asserting the runaway was asserting one loop's
+          # way of being wrong, and it would have read as *fixed* when the
+          # narrowness was untouched.
+          narrow.holds(kb_n.term("open(gate)")) == PLUS)
 
     kept, kb_k, steps_k = episode(True, "")
     check("§12", "⭐⭐⭐ ...and a learned rule that concludes WRAPPED needs no "
