@@ -70,17 +70,63 @@ rule <run> = causes( { +yours(?n),
                        -yours(?n), +turn(?next), -turn(?t) } )
 
 # The foe is bleeding: finish it rather than trade blows.
-rule <press> = causes( { +bleeding(?foe), +foe(p1, ?foe),
-                         +turn(?t), calc(add, ?t, 1) as ?next },
-                       { +doing(tell(dm, intends(p1, attack(?foe), ?t))),
-                         -bleeding(?foe), +turn(?next), -turn(?t) } )
+rule <press> = causes( { +bleeding(?foe), +foe(p1, ?foe) },
+                       { +considering(strike(?foe)), -bleeding(?foe) } )
 
 # Fight. The guard was `beats(?n, 5) as yes` -- *only while whole* -- the same
 # tactic as <quaff>'s, inverted.
-rule <trade> = causes( { +yours(?n), +foe(p1, ?foe),
-                         +turn(?t), calc(add, ?t, 1) as ?next },
-                       { +doing(tell(dm, intends(p1, attack(?foe), ?t))),
-                         -yours(?n), +turn(?next), -turn(?t) } )
+#
+# ⚠ It CONSIDERS rather than acts. Striking is the one move here that a
+# prescription might forbid, so it goes through the chain below.
+rule <trade> = causes( { +yours(?n), +foe(p1, ?foe) },
+                       { +considering(strike(?foe)), -yours(?n) } )
+
+# -- considering, evaluating, and only then acting --------------------------
+#
+# §19 used to take norms off the recall path and veto the write from Python.
+# The author's argument for moving them here: deciding whether something is
+# forbidden may need the combined effect of several prescriptions, which is a
+# reasoning act and not a mechanical one -- *brain chemistry knows nothing
+# about what is right and what is wrong*. So the engine keeps no opinion, and
+# the corpus reasons.
+
+# The prescription. It is an ordinary rule, and that is what retires the
+# `unifies` primitive: the MATCHER is the coverage test, the variables are this
+# rule's own, and combining prescriptions is combining rules.
+# ⚠ It SPENDS the consideration, and the first version did not. Denying
+# `lawful` was not enough: `<presumed>` re-derives the default at a LATER
+# moment, a later locus governs, and the agent struck the fleeing goblin one
+# move after recording that it would not. That is observations §2.6 -- a
+# default over an open domain does not work -- arriving in the worst possible
+# place. To forbid is to consume the deliberation, which is the same discipline
+# the DM's rules needed: a rule that spends something must read the thing it
+# spends, and a prohibition spends the considering.
+rule <no-fleeing> = causes( { +considering(strike(?foe)), +ran(?foe) },
+                            { +unlawful(strike(?foe)),
+                              -considering(strike(?foe)) } )
+
+# ⚠ Lawful by default, but ONLY ONCE THE AGENT HAS RUN OUT OF THINGS TO SAY
+# about it. `quiet` is the machinery's own note that the loop found nothing
+# more to do, so this is closure -- *nothing I know forbids it* -- rather than
+# negation as failure, which a `-` member cannot express anyway (it says an
+# entry DENIES this, never that none exists).
+rule <presumed> = implies( { +considering(?a), +quiet(?m) },
+                           { +lawful(?a) } )
+
+rule <barred> = causes( { +unlawful(?a) }, { -lawful(?a) } )
+
+# ⚠ `+lawful(...)` is a PREMISE, never a boost. Acting unlawfully is not
+# unwise, it is the row that stays a guard -- so no score can starve the
+# evaluation, because the act is not applicable until the verdict exists.
+rule <strike> = causes( { +considering(strike(?foe)), +lawful(strike(?foe)),
+                          +turn(?t), calc(add, ?t, 1) as ?next },
+                        { +doing(tell(dm, intends(p1, attack(?foe), ?t))),
+                          -considering(strike(?foe)),
+                          +turn(?next), -turn(?t) } )
+
+# ...and what it does instead, which is a claim rather than a silence.
+rule <stayed> = implies( { +unlawful(strike(?foe)) },
+                         { +held(p1, strike(?foe)) } )
 
 # Missed: cover up rather than swing wildly again.
 rule <guard> = causes( { +whiffed(p1, ?foe),

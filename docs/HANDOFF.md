@@ -782,6 +782,52 @@ replaced by a corpus's own `unlawful`. The subtraction list is `at_or_after`, `s
 `_priority`, refraction, `_forbid`, plus the five pure deletions -- and no new primitive anywhere on
 it.
 
+### The worked example: a prescription, reasoned rather than vetoed
+
+*Do not strike a fleeing foe*, in `melee-p1.ugm`, with no engine involvement at all:
+
+```
+rule <trade>      = causes(  { +yours(?n), +foe(p1, ?foe) },
+                             { +considering(strike(?foe)), -yours(?n) } )
+rule <no-fleeing> = causes(  { +considering(strike(?foe)), +ran(?foe) },
+                             { +unlawful(strike(?foe)), -considering(strike(?foe)) } )
+rule <presumed>   = implies( { +considering(?a), +quiet(?m) }, { +lawful(?a) } )
+rule <strike>     = causes(  { +considering(strike(?foe)), +lawful(strike(?foe)), ... },
+                             { +doing(tell(dm, intends(p1, attack(?foe), ?t))), ... } )
+rule <stayed>     = implies( { +unlawful(strike(?foe)) }, { +held(p1, strike(?foe)) } )
+```
+
+The fight: four strikes while the goblin stands, and when it flees the agent **holds** -- no fifth
+attack, and `held(p1, strike(gob))` deposited. And the thing the veto could never do:
+
+```
+why unlawful(strike(gob))?
+  +unlawful(strike(gob)) @M8, licensed by applied(<no-fleeing>)
+    because +considering(strike(gob)) @M8, licensed by applied(<press>)
+    because +ran(gob) @M7, licensed by applied(<trust-dm>)
+    because +says(dm, ran(gob), +) @M7, licensed by applied(<intake>)
+    because +arrived(dm, ran(gob), +) @M7, via dm, licensed by utterance(dm, ran(gob))
+```
+
+The restraint traces back through the corpus's own reasoning to the moment the DM said the goblin
+ran. `refused(p, +, <norm>)` names one winner and shows nothing.
+
+**And the first version of it struck the fleeing goblin anyway**, one move after recording that it
+would not. `<no-fleeing>` denied `lawful`; `<presumed>` then re-derived the default at a LATER
+moment, and a later locus governs. That is observations §2.6 -- *a default over an open domain does
+not work* -- arriving in the most consequential place there is.
+
+The fix is the discipline the DM's rules needed, one level up: **to forbid is to consume the
+deliberation.** `<no-fleeing>` spends the `considering` rather than arguing with the verdict, so
+there is nothing left for the default to be about. A rule that spends something must read the thing
+it spends; a prohibition spends the considering.
+
+⚠ Which means the presumption of lawfulness is still a default over an open domain, and still does
+not work on its own. Two ways out, and they are the same two §2.6 already named: state lawfulness
+positively per act, or count -- `counted(unlawful(?a), 0)`, §4's aggregate. Nothing here needs it
+today, because spending the consideration sidesteps it, and that is worth knowing before anyone
+builds the aggregate for this reason.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention
