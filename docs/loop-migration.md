@@ -346,3 +346,36 @@ teaching the next, generalising to an unmentioned case, a learned rule losing to
 an authored one, a preference row not double-counting. Then dormancy's pointer,
 a re-ask costing one tick, and *a fact's own history is matchable* -- still
 unexplained, and still the one I would look at before assuming it is cosmetic.
+
+
+---
+
+## *A disabled mark on the rule* — the idea is right and it already has a name
+
+Proposed: mark a rule disabled and have the engine ignore it. That capability
+exists, and the form it exists in is the point.
+
+    dormant(<R>)      not considered
+    due(<R>)          ...until something claims this
+
+Both are **ordinary facts**, not a field on the rule. The table loop was ignoring
+them -- it built its pool and never asked -- so it now reads them every tick, at
+the register's own position. **13 → 12.**
+
+>⚠ **Why a claim and not a mark, since the behaviour is the same.** A mark
+>authored once is relative to nothing: not to the situation, not to the goal, not
+>to who is asking. That is §12's *achievability is not a mark*, this design's
+>earliest instance of the error it generalises everywhere else -- and the same
+>argument that retired the grade, moved norms out of the engine, and deleted the
+>precedence table. As claims, `dormant` and `due` are dated, attributable,
+>deniable, and readable by rules; *which rules is this hypothesis carrying* is a
+>query rather than a field, and `due` can be concluded by anything at all.
+
+And read **per tick**, never once when the pool is built: `due` can be concluded
+mid-run, and a callback attached inside a hypothesis must wake only there.
+
+>⚠⚠ It is also not the answer to `supersedes`, and the difference is worth
+>keeping straight. Dormancy is *this rule is not worth considering right now* --
+>an attention claim, recoverable, and safe to be wrong about. Defeat is *this
+>rule must not apply here* -- and being wrong about it means the loser
+>re-asserts and quietly undoes the winner. One is recall, the other is a veto.

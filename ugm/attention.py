@@ -379,6 +379,20 @@ def _is_defeated(m: Machine, rule: Rule, state) -> bool:
     return False
 
 
+def _dormant(m: Machine, r: Rule) -> bool:
+    """Claimed `dormant` and not yet claimed `due`.
+
+    ⚠ Deliberately NOT a mark on the rule that the engine reads. A mark authored
+    once is relative to nothing -- not to the situation, not to the goal, not to
+    who is asking -- which is §12's *achievability is not a mark*, the earliest
+    instance of the error this design generalises. As a pair of ordinary claims
+    it is dated, attributable, deniable, and readable by rules, and `due` can be
+    concluded by anything at all.
+    """
+    return (m._claims(m.g.rel(m.DORMANT, r.node))
+            and not m._claims(m.g.rel(m.DUE, r.node)))
+
+
 def _is_superseded(m: Machine, app: Application, state) -> bool:
     """Defeated **for this case** rather than for this step.
 
@@ -496,7 +510,17 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
 
         window: List[Application] = []
         top = None
-        ordered = table.order()
+        # ⭐⭐⭐ **Dormancy, and it is the right form of *disable a rule*.** A rule
+        # claimed `dormant` is not considered until something claims it `due` --
+        # which is all a callback is. Both are ordinary FACTS rather than a mark
+        # the engine reads, so both are askable, defeasible and attributable, and
+        # *which rules is this hypothesis carrying* is a query rather than a
+        # field.
+        #
+        # ⚠ Read every tick and at the register's own position, never once when
+        # the pool is built: `due` can be concluded mid-run, and a callback
+        # attached inside a hypothesis must wake only there.
+        ordered = [r for r in table.order() if not _dormant(m, r)]
         cut = 0
         while cut < len(ordered) and not window:
             # One shortlist at a time. Score decides WHO is matched, which is
