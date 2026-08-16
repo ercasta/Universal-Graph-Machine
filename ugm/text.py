@@ -241,6 +241,37 @@ class Parser:
             raise ParseError(f"line {t.line}: expected `rule`, `fact` or `say`, found {t.text!r}")
         if t.text == "rule":
             return self.rule(t.line)
+        if t.text == "expert":
+            # ⭐ Which expert the rules below belong to, and optionally which
+            # other expert's rules it inherits:
+            #
+            #     expert geometry
+            #     expert geometry extends arithmetic
+            #
+            # It declares nothing the surface could not already write --
+            # `knows(geometry, <R>)` and `extends(geometry, arithmetic)` are
+            # ordinary facts, and staying ordinary facts is what makes *which
+            # rules does this expert have* an ordinary query (R4). What the
+            # keyword buys is not having to name every rule twice.
+            name = self.next()
+            if name.kind != "name":
+                raise ParseError(
+                    f"line {name.line}: `expert` names an expert, and an expert "
+                    f"is an ordinary atom rather than a statement -- so it is "
+                    f"written without angle brackets"
+                )
+            base = ""
+            nxt = self.peek()
+            if nxt is not None and nxt.kind == "name" and nxt.text == "extends":
+                self.next()
+                b = self.next()
+                if b.kind != "name":
+                    raise ParseError(
+                        f"line {b.line}: `extends` names the expert whose rules "
+                        f"are inherited"
+                    )
+                base = b.text
+            return Statement("expert", name.text, base, (), (), None, "", t.line)
         if t.text in ("after", "frozen", "when"):
             # A trigger, and it stands on its own: what a rule MEANS and what
             # experience has learned about when to reach for it are different
@@ -889,9 +920,22 @@ class Loader:
         for s in named:
             if not _mentions_a_rule(s.member.term):  # type: ignore[union-attr]
                 self._name(s)
+        # Which expert owns what. Read in authored order and applied to the
+        # rules that follow the declaration, so a file reads top to bottom.
+        owner: Dict[str, str] = {}
+        current = ""
+        for s in statements:
+            if s.kind == "expert":
+                current = s.name
+                if s.connective:
+                    self._expert_extends(s.name, s.connective)
+            elif s.kind == "rule" and current:
+                owner[s.name] = current
         for s in statements:
             if s.kind == "rule":
                 self._rule(s)
+                if s.name in owner:
+                    self._expert_knows(owner[s.name], s.name)
         for s in named:
             if s.name not in self.rule_nodes:
                 self._name(s)
@@ -1034,6 +1078,32 @@ class Loader:
             source=self.source,
             mention=mentions,
         )
+
+    def _expert_fact(self, rel: str, a: NodeId, b: NodeId) -> None:
+        """`knows` and `extends`, written the way any other fact is written.
+
+        ⭐ Through the gate, mentioning, and stamped like everything else --
+        because *which rules does this expert have* has to be an ordinary query
+        over the graph (R4), not a table the loader keeps. This is the same
+        lesson as `precedence is read, not kept`: the loader's copy would be a
+        cache of a claim, and the claim is the definition.
+        """
+        prop = self.m.g.rel(self.atom(rel), a, b)
+        self.m.gate.write(
+            self.m.focus, prop, PLUS,
+            licence=self.m.g.rel(self.LOADED, prop),
+            source=self.source,
+            # A rule node carries the variables of its own patterns, so a claim
+            # ABOUT one is a mention rather than a generic claim (§13) -- the
+            # same reason `overrides(<a>, <b>)` is written as one.
+            mention=True,
+        )
+
+    def _expert_knows(self, expert: str, rule_name: str) -> None:
+        self._expert_fact("knows", self.atom(expert), self.rule_nodes[rule_name])
+
+    def _expert_extends(self, expert: str, base: str) -> None:
+        self._expert_fact("extends", self.atom(expert), self.atom(base))
 
     # `_maybe_precedence` was here: it read `overrides(A, B)` off a statement as
     # the loader parsed it and seeded §14's precedence table. It is gone, and

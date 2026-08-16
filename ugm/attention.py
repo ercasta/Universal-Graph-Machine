@@ -354,7 +354,8 @@ def _queries(m: Machine, posts: Sequence[Post]) -> set:
 
 
 def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
-        reflex: bool = False, chooser=None, watch=None) -> Report:
+        reflex: bool = False, chooser=None, watch=None,
+        pool: Optional[Sequence[Rule]] = None) -> Report:
     """The loop, in full. Everything else in this file is bookkeeping.
 
     `reflex` is the cheapest calibration imaginable and it is here to answer one
@@ -365,7 +366,13 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     the moment it finds out. If this does not move the number, no learning will.
     """
     queries = _queries(m, posts)
-    pool = [r for r in m.rules.rules if r.name not in queries]
+    # ⭐ `pool` is what makes an EXPERT possible: one shared graph, one shared
+    # chain, and a table over a SUBSET of the rules. The loop does not know what
+    # an expert is -- it is handed the rules it may consider, exactly as it is
+    # handed the corpus. `ugm.experts` reads the subset off the graph.
+    if pool is None:
+        pool = m.rules.rules
+    pool = [r for r in pool if r.name not in queries]
     table = Table(m.g, pool, _standing(m))
     by_rule: Dict[str, List[Post]] = {}
     for p in posts:

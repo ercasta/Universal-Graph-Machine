@@ -149,6 +149,98 @@ round for round, because crossing is already text.
     > **A check whose sensitivity depends on a race reports green while the bug
     > is there, which is worse than not having written it.**
 
+## The other axis: experts
+
+There's a second way to have more than one mind, and it is not a smaller version
+of this one. It's the opposite axis, and confusing the two is the mistake worth
+avoiding:
+
+| | **agents** | **experts** |
+|---|---|---|
+| what differs | what they **believe** | what they **know how to do** |
+| the graph | one each, disjoint | **one, shared** |
+| what crosses | an **utterance**, re-read in the hearer's scope | nothing — a conclusion is simply there |
+| fog of war | structural | none, by construction |
+
+Two agents can disagree about whether the door is locked. **Two experts cannot**,
+because there is one chain and one answer. What an expert has of its own is a
+**rule set and a table** — which is exactly what Chapter 27 said expertise
+consists of: *the right rules coming to mind at the right moment.*
+
+An expert is a **subset of the rules, read off the graph**:
+
+```
+knows(geometry, <area>)          this expert has this rule
+extends(geometry, arithmetic)    ...and everything that one has
+```
+
+And because those are ordinary facts, inheritance is **one ordinary rule** —
+transitive for free, with no engine support at all:
+
+```
+rule <inherit> = implies( { +extends(?e, ?f), +knows(?f, ?r) },
+                          { +knows(?e, ?r) } )
+```
+
+A corpus writes `expert geometry extends arithmetic` as a convenience over
+exactly that. *Which rules does this expert have* stays an ordinary query, and a
+rule can conclude `knows(...)` at run time — an expert that **learns** a rule is
+adoption (Chapter 29) plus one fact.
+
+### Consulting one
+
+```
++consult(geometry, area(plot1))         the request
++question(area(plot1))                  what the consulted expert sees
++reply(area(plot1), 12)                 what it concludes
++answered(geometry, area(plot1), 12)    what the caller sees
+```
+
+That last line is deliberately **a tool's answer** (Chapter 22). From the
+caller's side an expert and a tool are the same shape, so a corpus that consults
+one can be pointed at the other without touching a rule. Which is the honest
+definition of the difference:
+
+> A **tool** is a request answered by a function rather than by a search.
+> An **expert** is a request answered by a *search* rather than by a function.
+
+And an expert may consult an expert, so it's a stack:
+
+```
+geometry <- area(plot1)
+  geometry <- perim(plot1)
+    arithmetic <- twice(3)
+      -> 6
+    -> 6
+  -> 12
+```
+
+!!! note "Deep dive: the cycle test is on the pair, not the expert"
+    Depth alone won't do. `A → B → A` asking something *new* is ordinary
+    recursion and must be allowed; asking the same thing again is the loop. So
+    what's refused is a repeated **(expert, question)** already on the stack.
+
+    And the refusal goes **on the record** — `refused_consult(...)` — because a
+    consultation that quietly returns nothing is indistinguishable from one that
+    had nothing to say. Chapter 13's rule about silences, arriving in a new
+    place.
+
+    Two things this cost, both found by building. The first version ran a
+    consulted expert and returned, leaving anything *it* asked for to the outer
+    loop — so the stack was never deeper than one and the cycle test could never
+    fire. Worse, the check asserting depth **passed anyway**, because it read the
+    indentation off a log the code had written itself. A check built out of the
+    thing under test degrades with it.
+
+    The second: a refused consultation has to be marked *handled*, or the request
+    is handed back for ever and the refusal is recorded once per look instead of
+    once per request. Measured: 231 identical refusals.
+
+**What it costs, stated rather than discovered.** An expert's conclusions are
+**not contained**. One chain was the whole point, so a consulted expert that
+concludes nonsense has concluded it for everybody. That's the price of sharing
+beliefs, and it's precisely why the agents above exist for the other case.
+
 ## Why this is the natural home for `blocked`
 
 Chapter 13 introduced `blocked` — the agent's report that it has exhausted what

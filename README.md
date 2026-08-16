@@ -114,6 +114,7 @@ denied, never absent, and open-world reasoning stays honest.
 | **acquisition** | a rule is a node, so a rule can be the conclusion of a rule |
 | **attention** | a score per rule; take the first that matches, then spend — the rules stay fixed and the **postconditions** are what learning calibrates |
 | **several agents** | two minds are two scopes, not two frames; what crosses is an utterance, and belief is the hearer's trust rule |
+| **several experts** | the other axis: one graph and one history, separate rule sets and tables. `knows`/`extends` are ordinary facts, so inheritance is one rule and *which rules has this expert* is a query |
 
 ## Verification
 
@@ -141,6 +142,7 @@ python -m ugm.teaching        # a table calibrated from one demonstration agains
 python -m ugm.learning        # the same world twice, with "no better" an allowed answer
 python -m ugm.practice        # rehearsing a goal inside a supposition against enacting it
 python -m ugm.table           # several agents talking, in-process against one process each
+python -m ugm.experts         # several experts over ONE graph, consulting each other
 ```
 
 > **An agreement gate that agrees is worth nothing until it could have disagreed.** Every gate deletes
