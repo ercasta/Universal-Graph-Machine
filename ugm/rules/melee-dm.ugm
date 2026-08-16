@@ -24,8 +24,13 @@ fact +standing(p1)
 # world: the DM decides what happens. So an intent is heard, never believed.
 # Same locus discipline as the player's: an intent believed where it was heard
 # can be spent here, and re-deriving it at the old locus changes nothing.
-rule <heard> = implies( { +says(?who, intends(?who, ?act), plus) at ?m },
-                        { +intent(?who, ?act) at ?m } )
+# The turn the player numbered is the occasion everything downstream needs: a
+# request is a fact, and `roll(d20, hit(p1, gob))` asked twice is one node
+# answered once. Taking the occasion from the speaker rather than keeping a
+# clock is also the truer model -- players take turns, and the DM does not have
+# to decide when one ended.
+rule <heard> = implies( { +says(?who, intends(?who, ?act, ?t), plus) at ?m },
+                        { +intent(?who, ?act, ?t) at ?m } )
 
 # -- resolving an attack ----------------------------------------------------
 #
@@ -34,12 +39,9 @@ rule <heard> = implies( { +says(?who, intends(?who, ?act), plus) at ?m },
 # asked twice is the same node, answered once, and every later swing reuses the
 # first roll. `dungeon.ugm` records the same trap.
 
-fact +round(1)
-
-rule <swing> = causes( { +intent(?who, attack(?foe)), +standing(?foe),
-                         +round(?r), calc(add, ?r, 1) as ?next },
-                       { +swung(?who, ?foe, ?next), -intent(?who, attack(?foe)),
-                         +round(?next), -round(?r) } )
+rule <swing> = causes( { +intent(?who, attack(?foe), ?t), +standing(?foe) },
+                       { +swung(?who, ?foe, ?t),
+                         -intent(?who, attack(?foe), ?t) } )
 
 rule <to-hit> = implies( { +swung(?who, ?foe, ?r) },
                          { +roll(d20, hit(?who, ?foe), ?r) } )
@@ -80,16 +82,17 @@ rule <wound> = causes( { +hits(?who, ?foe),
 
 # -- the other three things a player may intend --------------------------
 
-rule <defends> = causes( { +intent(?who, defend) },
-                         { +guarding(?who), -intent(?who, defend) } )
+rule <defends> = causes( { +intent(?who, defend, ?t) },
+                         { +guarding(?who, ?t), -intent(?who, defend, ?t) } )
 
-rule <quaffs> = causes( { +intent(?who, quaff), +hp(?who, ?was),
+rule <quaffs> = causes( { +intent(?who, quaff, ?t), +hp(?who, ?was),
                           calc(add, ?was, 5) as ?now },
                         { +hp(?who, ?now), -hp(?who, ?was),
-                          -intent(?who, quaff) } )
+                          -intent(?who, quaff, ?t) } )
 
-rule <bolts> = causes( { +intent(?who, flee) },
-                       { +fled(?who), -standing(?who), -intent(?who, flee) } )
+rule <bolts> = causes( { +intent(?who, flee, ?t) },
+                       { +fled(?who), -standing(?who),
+                         -intent(?who, flee, ?t) } )
 
 # -- the state of a body ----------------------------------------------------
 
@@ -134,11 +137,11 @@ rule <report-hp> = implies( { +hp(p1, ?n) },
 # The goblin answers what the player did, which is what keeps the fight
 # alternating without a clock: one goblin swing per player action, and the
 # round advances in `<swing>` for both of them.
-rule <goblin-answers-swing> = causes( { +swung(p1, gob, ?r), +standing(gob) },
-                                      { +intent(gob, attack(p1)) } )
+rule <goblin-answers-swing> = causes( { +swung(p1, gob, ?t), +standing(gob) },
+                                      { +intent(gob, attack(p1), ?t) } )
 
-rule <goblin-answers-guard> = causes( { +guarding(p1), +standing(gob) },
-                                      { +intent(gob, attack(p1)) } )
+rule <goblin-answers-guard> = causes( { +guarding(p1, ?t), +standing(gob) },
+                                      { +intent(gob, attack(p1), ?t) } )
 
 rule <flees> = causes( { +bloodied(gob), +standing(gob) },
                        { +fled(gob), -standing(gob) } )

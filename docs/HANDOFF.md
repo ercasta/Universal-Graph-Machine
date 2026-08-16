@@ -533,17 +533,19 @@ recorded rule applies: a fixture that cannot lose cannot measure.
 ### The multi-agent dungeon -- `python -m ugm.melee`
 
 A DM that adjudicates and a player that decides, two machines, nothing shared, utterances crossing.
-It runs:
+It runs a whole fight:
 
 ```
-round 1  dm -> p1: yours(10)
-round 2  p1 -> dm: intends(p1, attack(gob))
-round 3  dm -> p1: whiffed(p1, gob)
-round 3  dm -> p1: whiffed(gob, p1)
-round 4  p1 -> dm: intends(p1, defend)
-round 5  dm -> p1: yours(9)
-round 6  p1 -> dm: intends(p1, attack(gob))
+round  1  dm -> p1: yours(10)          round  6  p1 -> dm: intends(p1, attack(gob), 3)
+round  2  p1 -> dm: intends(p1, attack(gob), 1)   round  7  dm -> p1: yours(8)
+round  3  dm -> p1: whiffed(p1, gob)   round  8  p1 -> dm: intends(p1, attack(gob), 4)
+round  3  dm -> p1: whiffed(gob, p1)   round  9  dm -> p1: bleeding(gob)
+round  4  p1 -> dm: intends(p1, defend, 2)        round  9  dm -> p1: ran(gob)
+round  5  dm -> p1: yours(9)           round 10  p1 -> dm: intends(p1, attack(gob), 5)
 ```
+
+The player ends at 8 hit points holding `enough(alive(p1))` -- it stops because its goal is met, not
+because it ran out of things to try. The goblin is bloodied at 2 and has fled.
 
 The player's four arms are the point: `<trade>`, `<guard>`, `<quaff>` and `<run>` are all triggered by
 *the DM just told me something*, and which is right depends on the state -- `<quaff>` and `<run>`
@@ -552,11 +554,11 @@ a player is not.
 
 `table.Spec` gained a `computes` field on the way: a die is an answerer, because it is the world
 speaking, but comparing two numbers the agent already has is a computator. Whose dice they are is the
-whole of a DM's authority, and now it is expressed rather than assumed -- the player is given `beats`
+whole of a DM's authority, and it is now expressed rather than assumed -- the player is given `beats`
 and `calc` and no `roll`.
 
-**Four runaways were found writing this, and all four are the same defect.** Worth listing, because
-each one looks different in the corpus and they are one thing:
+**Five defects were found writing this, and four of them are one defect.** Each looks different in
+the corpus:
 
 | what it looked like | why |
 |---|---|
@@ -565,14 +567,19 @@ each one looks different in the corpus and they are one thing:
 | six wounds from one damage roll | `<wound>` spent `hits` without READING it, so its own effect on the hit points made each repeat new |
 | ten hits from one roll | `<lands>` re-derived the hit from the standing answer |
 
-Two disciplines fix all four, and both are already in the record. **Believe an arrival at its own
+Two disciplines fix all four, and both are in the record already. **Believe an arrival at its own
 locus** (§4.6's measured trick): a later denial then governs, and re-deriving at the old locus changes
 nothing. And **a rule that spends something must read the thing it spends** -- if the premise it
 denies is not in its own antecedent, refraction cannot see that the work is done.
 
-⚠ The fight does not yet run to a conclusion: after the second attack the DM goes quiet with the
-goblin still standing. What is built is enough to teach on -- the player branches, and the branch is
-what the reranker experiment needs -- but the scenario is not finished.
+**The fifth is new and it is about talking: an agent cannot repeat itself.** A proposition is one node
+however often it is spoken, so `intends(p1, attack(gob))` said a second time concludes something that
+already holds -- quiescence stops it, no entry is deposited, and **the hearer never learns that
+anything was said**. Measured: the DM heard the first attack, the defend, and then nothing at all,
+for ever. So an utterance that may recur has to carry an occasion. This is
+`reask-entry-not-request` arriving from the multi-agent side, and the fix is the truer model as well
+as the working one: the player numbers its own turns, and the DM takes the occasion from the speaker
+rather than keeping a clock.
 
 ## What is left on this thread
 
