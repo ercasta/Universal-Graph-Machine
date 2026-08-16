@@ -692,6 +692,48 @@ was never used -- which is the second signal from `ugm.teaching`'s opening note 
 other side: *none of these fits* is a missing rule, and *none of these was ever used* is a rule
 nothing can teach.
 
+### A different monster -- and this is the line between memorised play and knowledge
+
+Three monsters, same rules, different numbers: goblin (7 hp, ac 12, d4), orc (11, 14, d6), troll
+(14, 13, d6). The corpora are identical modulo the individual's name, which is what makes the test
+mean something -- anything that fails to transfer failed because it learned an individual.
+
+**Taught on the goblin alone:**
+
+```
+when { +turn(?t), +whiffed(p1, gob) }             => boost(<guard>, 9)
+when { +turn(?t), +bleeding(gob), +foe(p1, gob) } => boost(<press>, 9)
+when { +yours(?n), +turn(?t), +foe(p1, gob) }     => boost(<trade>, 9)
+```
+
+| faced with | what it did |
+|---|---|
+| the goblin it learned on | attack, defend, attack, attack, attack -- goblin fled at 2 |
+| **an orc it had never seen** | **quaff, flee** |
+
+The triggers name `gob`, so against an orc not one of them fires and the agent falls straight back to
+the untaught behaviour. `generalise` was not wrong: what agrees is KEPT, and across six fights with
+one goblin, the goblin agrees every time.
+
+**Taught on the goblin AND the orc**, the same machinery and the same six fights:
+
+```
+when { +turn(?t), +whiffed(p1, ?x) }            => boost(<guard>, 9)
+when { +turn(?t), +bleeding(?x), +foe(p1, ?x) } => boost(<press>, 9)
+when { +yours(?n), +turn(?t), +foe(p1, ?x) }    => boost(<trade>, 9)
+```
+
+| faced with | what it did |
+|---|---|
+| the goblin (seen) | attack, defend, attack, attack, attack |
+| the orc (seen) | attack, defend, attack, attack, attack, attack |
+| **a troll it had never seen** | **attack, defend, attack, attack, attack, attack** |
+
+**Variety in experience is what turns a name into a variable.** Not more fights -- six either way --
+and not a better learner: the same anti-unification, given something to disagree about. That is the
+whole of the difference between having played a lot and knowing something, and it is measurable in
+one line of a trigger.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

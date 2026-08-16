@@ -48,6 +48,26 @@ def _corpus(name: str) -> str:
         return fh.read()
 
 
+# A monster is a name and three numbers. The corpora are written about `gob`
+# and substituted, which is the point of the transfer test: the RULES are
+# identical and only the individual differs, so anything that fails to transfer
+# failed because it learned an individual.
+MONSTERS = {
+    "gob":   (7, 12, "d4"),
+    "orc":   (11, 14, "d6"),
+    "troll": (14, 13, "d6"),
+}
+
+
+def _for(who: str, monster: str) -> str:
+    hp, ac, die = MONSTERS[monster]
+    src = _corpus(who).replace("gob", monster)
+    src = src.replace("+hp(%s, 7)" % monster, "+hp(%s, %d)" % (monster, hp))
+    src = src.replace("+ac(%s, 12)" % monster, "+ac(%s, %d)" % (monster, ac))
+    src = src.replace("+die(%s, d4)" % monster, "+die(%s, %s)" % (monster, die))
+    return src
+
+
 # The dice are the DM's, and the seed is on the record: a fight nobody can
 # replay is a fight nobody can argue about. ⚠ Module level, because a Spec
 # crosses a process boundary and a closure would not arrive.
@@ -117,18 +137,19 @@ frozen after <settle-doubt> => boost(?a, 1)
 """
 
 
-def scenario(loop: str = "shipped", coaching: bool = False) -> Tuple[Spec, ...]:
+def scenario(loop: str = "shipped", coaching: bool = False,
+             monster: str = "gob", learned: str = "") -> Tuple[Spec, ...]:
     return (
         # ⚠ A bounded limit, not the default 2000. An agent that loops runs to
         # its limit before the round ends, so a runaway in one corpus stalls the
         # whole table -- and this corpus had three of them before the locus
         # discipline was applied consistently.
-        Spec("dm", _corpus("melee-dm.ugm"), DM_TOOLS, limit=300,
+        Spec("dm", _for("melee-dm.ugm", monster), DM_TOOLS, limit=300,
              computes=DM_COMPUTES),
         Spec("p1",
-             _corpus("melee-p1.ugm")
-             + (SETTLING + COACHING if loop == "table" and coaching
-                else SETTLING if loop == "table" else ""),
+             _for("melee-p1.ugm", monster)
+             + (SETTLING + (COACHING.replace("gob", monster) if coaching else "")
+                + learned if loop == "table" else ""),
              limit=300, computes=P1_COMPUTES, loop=loop),
     )
 
@@ -142,7 +163,7 @@ def play(rounds: int = 24, loop: str = "shipped", coaching: bool = False):
 # -- (3) learning the coaching from play -------------------------------------
 
 
-def demonstrate(fights: int = 6, seed0: int = 7):
+def demonstrate(fights: int = 6, seed0: int = 7, monsters=("gob",)):
     """Watch a well-played fight, several times over.
 
     The teacher is the COACHED player: however the good play was produced, what
@@ -159,7 +180,7 @@ def demonstrate(fights: int = 6, seed0: int = 7):
     last = None
     for i in range(fights):
         _RNG.seed(seed0 + i)
-        t = Table(scenario("table", True))
+        t = Table(scenario("table", True, monsters[i % len(monsters)]))
         t.wire.by_name["p1"].watch = lesson.watching
         t.play(rounds=30)
         last = t.wire.by_name["p1"]
@@ -167,11 +188,11 @@ def demonstrate(fights: int = 6, seed0: int = 7):
     return lesson, last
 
 
-def learn(fights: int = 6) -> Tuple[str, dict]:
+def learn(fights: int = 6, monsters=("gob",)) -> Tuple[str, dict]:
     """The demonstrations, as a trigger document."""
     from . import teaching
 
-    lesson, teacher_agent = demonstrate(fights)
+    lesson, teacher_agent = demonstrate(fights, monsters=monsters)
     learned = lesson.recognisers(teacher_agent.m, teacher_agent.kb)
     lines = []
     for name, (text, weight) in sorted(learned["rules"].items()):

@@ -134,13 +134,13 @@ rule <report-hp> = implies( { +hp(p1, ?n) },
 # it is absent, so the guard would never hold. Refraction is what stops this
 # repeating -- one firing per set of premises -- which is the mechanism that
 # exists for exactly this and the reason the guard is not needed.
-# The goblin answers what the player did, which is what keeps the fight
-# alternating without a clock: one goblin swing per player action, and the
+# The monster answers what the player did, which is what keeps the fight
+# alternating without a clock: one monster swing per player action, and the
 # round advances in `<swing>` for both of them.
-rule <goblin-answers-swing> = causes( { +swung(p1, gob, ?t), +standing(gob) },
+rule <foe-answers-swing> = causes( { +swung(p1, gob, ?t), +standing(gob) },
                                       { +intent(gob, attack(p1), ?t) } )
 
-rule <goblin-answers-guard> = causes( { +guarding(p1, ?t), +standing(gob) },
+rule <foe-answers-guard> = causes( { +guarding(p1, ?t), +standing(gob) },
                                       { +intent(gob, attack(p1), ?t) } )
 
 rule <flees> = causes( { +bloodied(gob), +standing(gob) },
