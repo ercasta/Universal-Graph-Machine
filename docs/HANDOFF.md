@@ -373,6 +373,49 @@ these rules are worth trying* -- keyed on the **situation** rather than on what 
 machinery is already there: the query is a situation, so the same anti-unification can hang a buff
 off the state instead of off a predecessor.
 
+### Keying the lesson on the situation -- built, measured, and it does not work for a reason
+
+The plan was: key a lesson on the situation rather than on the predecessor, as a learned recogniser
+that concludes `noticing(<R>)` and hangs the buff off itself. Built, and two things had to be fixed
+before it could be judged at all.
+
+**The metric was wrong, and it said the mechanism destroyed the behaviour.** A learned recogniser and
+a settled doubt are moves the teacher never made, so they shift everything after them and a
+positional comparison counts one insertion as a hundred disagreements: it reported **5 of 149**.
+Aligned as a longest common subsequence, with the bookkeeping moves dropped, the same run scores
+**148 of 149**. The measurement trap this repo keeps recording, in a new place.
+
+**And experience means more than one fight.** Generalising over two runs of the SAME fight keeps
+`goblin1`, because both examples really do contain it -- `generalise` is right and the evidence is
+thin. Teaching from four fights with different seeds turns the constants into variables:
+`swing <= attack(?a, ?b, ?c)`, `harm <= hits(?a, ?b, ?c), die(?a, ?d)`.
+
+| dungeon, taught from four fights | posts | moves | matched/move | agrees (LCS) | lost | doubts |
+|---|---|---|---|---|---|---|
+| untaught | -- | 161 | 29.6 | -- | 0 | 13 |
+| **bigram** | 41 | 158 | **14.2** | 140 / 149 | 10 | 10 |
+| bigram + query | 19 | 151 | 28.0 | **148 / 149** | **0** | 3 |
+| situation recogniser | 15 | 157 | 30.3 | 148 / 149 | 0 | 7 |
+
+**The recogniser fires 2 times out of 16 installed, and the reason is structural.** A recogniser
+whose query is the target's own premises cannot fire before the target is applicable -- so it was
+rekeyed on the PRECURSOR, the state one move earlier, which took it from 1 in 19 to 2 in 16. Still
+nothing, and now the reason is clear: **in a one-move-per-tick loop, spending a move on recognition
+competes with doing the work.** The recogniser's premises are exactly what makes the precursor rule
+applicable, so the precursor wins the scan and the recogniser never gets its turn.
+
+Which says where situation-keyed lessons have to live: **not in a rule, but in a postcondition** --
+something evaluated for free after whatever applied, rather than something that must win a move to be
+heard. And the cheap version of *evaluated after whatever applied* is the bigram, where the
+predecessor acts as an index into when the query is worth checking.
+
+**So the best operating point measured is the plain bigram with decay and saturation**: `matched/move`
+29.6 to **14.2**, 140 of 149 moves reproduced, 10 conclusions lost. The cost claim is delivered; what
+it costs is those ten conclusions and three fewer doubts. Adding the query buys them back and gives
+the speed away, because a discriminating query is in force far less often. That is a real curve
+between *how often the lift is in place* and *how often it is right*, and it is now measurable on
+both axes.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

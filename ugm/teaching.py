@@ -86,10 +86,17 @@ class Lesson:
         # the whole state -- the state is enormous and mostly irrelevant, and
         # the premises are precisely the reason the move was available.
         self.examples: Dict[Tuple[str, str], List[Tuple]] = {}
+        # ...and the same demonstrations keyed on the RULE ALONE, unanchored.
+        # A lesson keyed on a predecessor fires on the move after that
+        # predecessor and never otherwise, so most moves have nothing lifted
+        # and the scan pays for the whole pool. Keyed on the situation it fires
+        # whenever the situation arises, which is what experience is.
+        self.occasions: Dict[str, List[Tuple]] = {}
         self.agreed = 0
         self.moves = 0
         self.last: Optional[str] = None
         self.last_bindings: Dict = {}
+        self.last_example: Optional[Tuple] = None
 
     def watching(self, m: Machine, table: Table, window, chosen, tick: int):
         self.moves += 1
@@ -113,6 +120,21 @@ class Lesson:
             self.examples.setdefault(key, []).append(tuple(
                 _anchor(m, e.proposition, back) for e in chosen.consumed
             ))
+        # The PRECURSOR, not the occasion itself -- and running the other
+        # version is how that showed. A recogniser whose query is the target's
+        # own premises can never fire before the target is applicable, so the
+        # lift arrives too late and costs a move: 1 of 19 recognisers ever fired.
+        # What has to be recognised is the state one move EARLIER, so the lift
+        # is in place when the opportunity comes.
+        #
+        # As TEXT, from the start: experience comes from several fights, a fight
+        # is its own machine, and a node id from one means nothing in another.
+        # The utterance is what crosses (`ugm/table.py`), here at the moment the
+        # example is taken rather than at the end.
+        if self.last_example is not None:
+            self.occasions.setdefault(name, []).append(self.last_example)
+        self.last_example = tuple(
+            m.g.show(e.proposition) for e in chosen.consumed)
         self.last = name
         self.last_bindings = dict(chosen.bindings)
 
@@ -155,6 +177,81 @@ class Lesson:
                 text = "q(" + ", ".join(m.g.show(x.pattern) for x in query) + ")"
             out["posts"][(first, then)] = (text, 3 * min(seen, 3))
         return out
+
+
+    def recognisers(self, m: Machine, ldr) -> dict:
+        """The demonstrations keyed on the situation: for each rule taught,
+        what the situations it was taught in have in common.
+
+        The example is the same one -- what made the move available -- but
+        UNANCHORED, because there is no predecessor to anchor to and that is the
+        point: the query binds its own variables, so it holds whenever a
+        situation of that shape arises.
+        """
+        out = {"rules": {}, "declined": 0, "unspeakable": 0}
+        for name, examples in self.occasions.items():
+            read = []
+            for ex in examples:
+                if not ex:
+                    continue
+                try:
+                    # One term per example, so its own variables co-refer and
+                    # two examples share nothing by accident.
+                    whole = ldr.term("q(" + ", ".join(ex) + ")")
+                except ParseError:
+                    out["unspeakable"] += 1
+                    continue
+                read.append(tuple(m.g.members(whole)))
+            if len(read) < 2:
+                # One example generalises to itself, which is a query about one
+                # goblin. Two is the least that can say anything general, and
+                # `generalise` decides what they share.
+                out["declined"] += 1
+                continue
+            query = _query(m, read)
+            if not query:
+                out["declined"] += 1
+                continue
+            out["rules"][name] = (
+                "q(" + ", ".join(m.g.show(x.pattern) for x in query) + ")",
+                3 * min(len(read), 3),
+            )
+        return out
+
+
+def install_recognisers(m: Machine, ldr, learned: dict) -> int:
+    """Author the situation rules in the student's corpus, from text.
+
+    A learned rule, not a learned weight: `<when-N>` concludes `noticing(<R>)`
+    -- *this looks like a job for R* -- and hangs the buff off itself. The
+    business rules are untouched, which is the author's separation; what is
+    learned is a recogniser and what it spends.
+    """
+    by_name = {r.name: r for r in m.rules.rules if r.name}
+    added = 0
+    for i, (name, (text, weight)) in enumerate(sorted(learned["rules"].items())):
+        target = by_name.get(name)
+        if target is None:
+            continue
+        try:
+            whole = ldr.term(text)
+        except ParseError:
+            learned["unspeakable"] = learned.get("unspeakable", 0) + 1
+            continue
+        members = ", ".join(
+            "+" + m.g.show(x) for x in m.g.members(whole)
+        )
+        src = (
+            "rule <when-%d> = implies( { %s }, { +noticing(<%s>) } )\n"
+            "  after => boost(<%s>, %d)\n" % (i, members, name, name, weight)
+        )
+        try:
+            ldr.load(src)
+        except ParseError:
+            learned["unspeakable"] = learned.get("unspeakable", 0) + 1
+            continue
+        added += 1
+    return added
 
 
 def install(m: Machine, ldr, lessons: dict) -> int:
@@ -240,6 +337,32 @@ def _collides(m: Machine, query, examples, first: str, then: str) -> bool:
                    for mem in query):
                 return True
     return False
+EXTRA_SEEDS = (11, 13, 17)
+
+
+def _agree(mine: List[str], theirs: List[str]) -> int:
+    """How much of the teacher's sequence the student reproduced, as the
+    longest common subsequence.
+
+    ⚠ Positional comparison is wrong here and reported 5 of 149 before this,
+    which would have read as *situation-keyed lessons destroy the behaviour*
+    and meant *the comparison cannot see them*. A learned recogniser and a
+    settled doubt are moves the teacher never made; they SHIFT everything after
+    them, so a positional check counts one insertion as a hundred
+    disagreements. The bookkeeping moves are dropped and the rest is aligned.
+    """
+    skip = lambda xs: [x for x in xs
+                       if not x.startswith("when-") and x != "settle-doubt"]
+    a, b = skip(mine), skip(theirs)
+    prev = [0] * (len(b) + 1)
+    for x in a:
+        cur = [0]
+        for j, y in enumerate(b):
+            cur.append(prev[j] + 1 if x == y else max(cur[j], prev[j + 1]))
+        prev = cur
+    return prev[-1]
+
+
 def _machine(name: str):
     """A fresh machine and the loader that is its name scope -- a lesson is
     re-read through it, since a bare name outside a scope names nothing."""
@@ -257,9 +380,22 @@ def _machine(name: str):
 def measure(name: str, limit: int = 400) -> dict:
     """One teacher run gives both the lesson and the target; then the table
     loop runs twice, uncalibrated and calibrated, against it."""
-    gold_m, _gold_ldr = _machine(name)
+    gold_m, gold_ldr = _machine(name)
     lesson = Lesson()
     gold = run(gold_m, limit=limit, chooser=teacher, watch=lesson.watching)
+    # ...and more experience, from fights that are not this one. A
+    # generalisation over two runs of the SAME fight keeps `goblin1`, because
+    # both examples really do contain it -- `generalise` is right and the
+    # evidence is thin. Different seeds are what turn a constant into a
+    # variable, which is the difference between having seen a thing twice and
+    # having experience of it.
+    for seed in EXTRA_SEEDS:
+        if name != "dungeon":
+            break
+        from . import dungeon
+        other, _kb, _asked = dungeon.fight(seed=seed, limit=0)
+        load(other, SETTLE)
+        run(other, limit=limit, chooser=teacher, watch=lesson.watching)
 
     out = {
         "corpus": name, "pairs": len(lesson.pairs),
@@ -269,13 +405,32 @@ def measure(name: str, limit: int = 400) -> dict:
         # it is already high the corpus has nothing to teach.
         "teacher_took_the_top": lesson.agreed,
     }
-    for label, learn in (("bigram", "flat"), ("query", "conditional")):
+    for label in ("bigram", "query", "occasion"):
         m, ldr = _machine(name)
-        taught = lesson.lessons(gold_m, conditional=(learn == "conditional"))
-        added = install(m, ldr, taught)
-        declined, collided = taught["declined"], taught["collided"]
+        if label == "occasion":
+            # Keyed on the SITUATION: a learned recogniser that concludes
+            # `noticing(<R>)` and spends its attention on R, so the lift arrives
+            # whenever the occasion arises rather than only after one
+            # particular predecessor.
+            learned = lesson.recognisers(gold_m, gold_ldr)
+            added = install_recognisers(m, ldr, learned)
+            declined = learned["declined"]
+            collided = 0
+            taught = {"unspeakable": learned.get("unspeakable", 0)}
+        else:
+            taught = lesson.lessons(
+                gold_m, conditional=(label == "query"))
+            added = install(m, ldr, taught)
+            declined, collided = taught["declined"], taught["collided"]
         r = run(m, limit=limit)
-        same = sum(1 for a, b in zip(r.applied, gold.applied) if a == b)
+        # ⚠ The learned recognisers are moves the teacher never made, so they
+        # SHIFT the sequence and a positional comparison counts every later
+        # move as a disagreement. It reported 5 of 149 before this line, which
+        # would have read as *situation-keyed lessons destroy the behaviour*
+        # and meant *the comparison cannot see them*. A recogniser concludes
+        # `noticing(<R>)` about the agent's own attention and nothing about the
+        # world, so it is dropped from both sides.
+        same = _agree(r.applied, gold.applied)
         out[label] = {
             "posts": added, "declined": declined, "collided": collided,
             "unspeakable": taught.get("unspeakable", 0),
@@ -302,7 +457,7 @@ def main() -> int:
         print(f"  {c['corpus']}  -- {c['pairs']} bigrams from one taught run; "
               f"the teacher took the table's top choice "
               f"{c['teacher_took_the_top']}/{c['gold_moves']} times")
-        for label in ("bigram", "query"):
+        for label in ("bigram", "query", "occasion"):
             d = c[label]
             print(f"    {label:7} {d['posts']:>3} posts "
                   f"({d['declined']} said nothing, {d['collided']} too general, "
