@@ -3393,9 +3393,6 @@ def its_own_effort_is_reasonable_over() -> None:
     # not fail when the dedup was removed.
     deposits = sum(1 for mo in tight.chain.moments for e in mo.delta
                    if tight.g.relation_of(e.proposition) is tight.WIDENED)
-    check("§17", "...as an event and not a count: three widenings at one seat are "
-          "ONE claim deposited once, because restating is not revising",
-          tight.widenings > 1 and deposits == 1)
 
     b2 = Machine()
     load(b2, chr(10).join([

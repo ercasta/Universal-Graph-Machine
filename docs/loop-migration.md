@@ -219,3 +219,61 @@ Dropping the ~15 is free and honest. Dropping the other ~24 means giving up
 learning, per-case defeat, effort-awareness -- and, in one case, **a termination
 guarantee**, which is not a feature to trade away in an experimental engine so
 much as a thing that will waste an afternoon later.
+
+
+---
+
+## Effort records, done — and what it taught about the *other* three
+
+Asked as *port to the new loop, or move out to rules?*, and the answer turned
+out to be **neither**, which is the finding.
+
+>**`widened`, `reached` and `bounded` are not portable to rules, and they were
+>never really Python "logic" either. They are the loop reporting its own event**
+>-- the same shape as `quiet` and `arrived`: the smallest unarguable record of
+>something only the loop can know. A rule cannot conclude that the shortlist ran
+>dry, for the same reason a rule cannot conclude that a channel spoke.
+
+So the work was to call what already exists rather than to rewrite or relocate
+it: `Machine._widen` and `Machine._recover` already read the budget knob off the
+graph, guard once per seat, and deposit. The table loop now calls them, in the
+old tick's order.
+
+**9 failing → 0**, and it took two real bugs with it.
+
+**One Step per tick.** The table loop appended nothing on the paths that
+`continue` -- widening, waking, leaving a frame, depositing a doubt -- so a run
+of 40 ticks returned 20 steps and every caller comparing `len(steps)` against its
+own limit was wrong. The old loop returned a Step for every tick, and a caller
+counting them has to see the ticks that did something other than apply.
+
+**The widening guard was never reset.** The old tick clears `_widened` whenever
+something applies -- *widening is a state the agent is in, not a mode it is
+switched into* -- and this loop did not, so after the first dry shortlist it
+never reached past one again for the whole run.
+
+>⚠ Neither was on the work list. Both were found by porting a **record** and
+>then asking why the record was still wrong, which is the argument for doing
+>these one at a time rather than in a batch.
+
+One check dropped with the old recall: *three widenings at one seat are ONE
+claim*. The property still holds (deposits == 1); what cannot be met is its own
+vacuity guard, `widenings > 1`, which needed the old recall's narrow-and-widen
+arrangement. **The table's window IS the shortlist now** -- one mechanism where
+there were two.
+
+### Where that leaves it
+
+| | checks | failing |
+|---|---|---|
+| the flip, as first measured | 545 | 58 |
+| stopping ported | 545 | 48 |
+| A and B deleted | 535 | 39 |
+| the 15 dropped | 523 | 27 |
+| **effort records** | **522** | **14** |
+
+**The remaining 14 are two things, not four.** `supersedes` (per-case defeat)
+and everything downstream of it: learning, credit, generalisation, and the
+harmonization checks that need a learned rule to lose to an authored one. Plus
+three singletons -- dormancy's pointer, a re-ask costing one tick, and *a fact's
+own history is matchable*, which still has no explanation.

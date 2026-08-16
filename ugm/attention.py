@@ -544,13 +544,33 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # stopped is waiting for -- `<give-up>`, the watchdogs, `blocked`.
             # Without it the bundle never gets its turn, which is why the first
             # version of this loop never acted at all on `quest-p1`.
+            # ⭐⭐⭐ **Effort, and the order is the old tick's exactly.** A
+            # shortlist that ran dry is not a search that finished, and neither
+            # is a search that never looked at what it had put out of mind. Both
+            # deposit -- `widened(<seat>)`, `reached(<seat>)` -- so *I had to go
+            # and get that* is a sentence a corpus can write.
+            #
+            # ⚠ These are NOT ported logic. They are the loop reporting its own
+            # event, which is the same shape as `quiet` and `arrived`: the
+            # smallest unarguable record of something only the loop can know.
+            # `Machine._widen` already reads the budget knob off the graph and
+            # guards once per seat, so this calls it rather than growing a
+            # second copy that would drift.
+            if m._widen():
+                steps.append(Step(arrivals, 0, tried, None, (), "widened"))
+                continue
+            if m._recover():
+                steps.append(Step(arrivals, 0, tried, None, (), "widened"))
+                continue
             if m._wake():
+                steps.append(Step(arrivals, 0, tried, None, (), "quiet"))
                 continue
             # ...and the register: nothing more applies HERE, and here may be
             # inside a supposition. Moving the register is chemistry -- the
             # same move `causes` makes -- and the decision to make it is the
             # empty window, so no notion of a goal is involved.
             if m._leave():
+                steps.append(Step(arrivals, 0, tried, None, (), "supposed"))
                 continue
             # The run is over, and WHICH silence it was goes on the record: the
             # option-set loop's callers read `steps[-1].state` in 33 places to
@@ -583,10 +603,19 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 # Depositing IS the move. A settling rule -- the default one, or
                 # a corpus's own -- is in the table and gets the next turn.
                 doubts += 1
+                steps.append(Step(arrivals, len(window), tried, None, (),
+                                  "applied"))
                 continue
             # ...and the backstop: the doubt already stands and nothing settled
             # it, so restating it changes nothing and the winner applies. A
             # corpus with no settling rule loses a tick, not the loop.
+        # ⚠⚠⚠ **Something applied, so the shortlist is trusted again.** The old
+        # tick resets this on every application -- *widening is a state the
+        # agent is in, not a mode it is switched into* -- and this loop did not,
+        # so after the first dry shortlist it never reached past one again for
+        # the whole run. One line, and it is a real behavioural difference
+        # rather than a record: measured, 3 widenings became 1.
+        m._widened = False
         wrote = m._apply(chosen)
         m._spend(chosen, wrote)
         applied.append(chosen.rule.name or "?")
@@ -611,10 +640,18 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     # The trace is held to the table on every run: same scores, rebuilt from
     # the defaults and the spends alone.
     assert table.rebuilt(limit) == table.score, "the trace cannot rebuild the table"
-    if len(steps) == limit and steps and steps[-1].state == "applied":
-        # Still working when the bound bit -- the one thing a caller must be
-        # able to tell from a finished run, and the reason `bounded(ticks)` is
-        # deposited at all.
+    # ⚠ **The loop ran out of ITERATIONS, not out of work.** The first version of
+    # this asked whether the last `Step` was `applied`, and the last step is
+    # never `applied` -- the loop appends a `quiescent` or `stopped` step when it
+    # finishes and appends nothing when the `for` simply runs out. So the test is
+    # the absence of an ending: a run that finished wrote one, and a run the
+    # budget cut off did not.
+    #
+    # A run that stops because there is nothing left to do has not been bounded
+    # by anything, and saying it had would make the record useless in the other
+    # direction.
+    if steps and steps[-1].state == "applied":
+        m.exhausted += 1
         m._note(m.g.rel(m.BOUNDED, m.TICKS))
     return Report(
         len(applied), applied, time.time() - t0, tried, _state(m), table,
