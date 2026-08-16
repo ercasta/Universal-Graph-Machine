@@ -77,7 +77,7 @@ What the mark would have been doing is three things, each with a home already:
 
 | the work | where it belongs |
 |---|---|
-| *don't expand this, you'll thrash* | **what comes to mind** (Chapter 26) — learned, and recoverable when wrong |
+| *don't expand this, you'll thrash* | **what comes to mind** (Chapter 27) — learned, and recoverable when wrong |
 | *achievable, but only by waiting, or only for the boss* | a **claim**, attributed and deniable, with its cost as timing |
 | *you could, and you must not* — seeding clouds to make it rain | a **prohibition** (Chapter 18), checked at the write |
 
@@ -104,7 +104,7 @@ replaces the bound.
 
 A plan is not a list of steps to be re-derived later. It holds what it bound,
 which is what makes the check above possible and what makes a plan something you
-can be *surprised* by (Chapter 24) rather than merely something you execute.
+can be *surprised* by (Chapter 25) rather than merely something you execute.
 
 !!! note "Deep dive: taking one way passes up the others"
     When several rules fit a goal, choosing one is not the same as rejecting the
@@ -116,7 +116,7 @@ can be *surprised* by (Chapter 24) rather than merely something you execute.
     Losing an argument is not being wrong, either. A rule that loses to a more
     specific one is still right about every case the specific rule doesn't
     cover, and retiring it on a single defeat throws all of those away
-    (Chapter 27).
+    (Chapter 29).
 
 ---
 

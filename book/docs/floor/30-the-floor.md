@@ -32,7 +32,7 @@ expansion become rules that those apply. An interpreter with one phase per
 convention has, in effect, compiled the whole taught layer into itself.
 
 The count of phases is therefore a direct measure of how much has escaped onto
-the floor. It's a number an implementation can print. Chapter 30 prints it.
+the floor. It's a number an implementation can print. Chapter 32 prints it.
 
 ## The floor, in full
 
@@ -117,7 +117,7 @@ substitution, with the register in which state.
 This introduces no name and says nothing about channels, authority or evidence.
 It's on the floor because the alternative is **voluntary** provenance, and
 voluntary provenance is forgeable — and both the modality argument (Chapter 15)
-and the acquisition argument (Chapter 27) make the trail load-bearing for
+and the acquisition argument (Chapter 29) make the trail load-bearing for
 *correctness* rather than for explanation.
 
 > **Nothing is prohibited; everything is stamped.**
@@ -203,11 +203,11 @@ That's an optimisation, not a status, and the difference is checkable:
 > compiled path must agree with it on answers *and on behaviour*.**
 
 The second clause isn't decoration. A convention compiled into the host language
-**is not interruptible**, and Chapter 24 spends its length arguing that being
+**is not interruptible**, and Chapter 25 spends its length arguing that being
 able to slow a thing down and look at it is the property worth protecting.
 
 ---
 
 **Next:** if reading a rule requires applying rules, how does anything ever
 start?
-[The bootstrap →](29-bootstrap.md)
+[The bootstrap →](31-bootstrap.md)

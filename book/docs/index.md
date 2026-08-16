@@ -87,7 +87,8 @@ dives; you can use the machine perfectly well having read the first five.
     ---
 
     Claims about stretches rather than instants, patterns with no fixed length,
-    who told you and whether you believe them, and where arithmetic goes.
+    who told you and whether you believe them, where arithmetic goes — and what
+    happens when there is more than one mind.
 
     [:octicons-arrow-right-24: Part 5](world/19-spans.md)
 
@@ -96,9 +97,10 @@ dives; you can use the machine perfectly well having read the first five.
     ---
 
     Optional. The machine's own expectations and commitments as ordinary facts;
-    knowing when to stop; what comes to mind; and writing itself a new rule.
+    knowing when to stop; what comes to mind; the table of scores that decides
+    it; and writing itself a new rule.
 
-    [:octicons-arrow-right-24: Part 6](watching/24-own-state.md)
+    [:octicons-arrow-right-24: Part 6](watching/25-own-state.md)
 
 - :material-numeric-7-circle:{ .lg .middle } **The floor**
 
@@ -107,7 +109,7 @@ dives; you can use the machine perfectly well having read the first five.
     Optional. The five things that genuinely cannot be taught, the test that
     decides, and how a machine made of rules ever gets started reading one.
 
-    [:octicons-arrow-right-24: Part 7](floor/28-the-floor.md)
+    [:octicons-arrow-right-24: Part 7](floor/30-the-floor.md)
 
 - :material-numeric-8-circle:{ .lg .middle } **Where the line is**
 
@@ -117,7 +119,7 @@ dives; you can use the machine perfectly well having read the first five.
     follows from means nothing — and that is measurable. Plus an honest list of
     what isn't built.
 
-    [:octicons-arrow-right-24: Part 8](horizon/31-the-web.md)
+    [:octicons-arrow-right-24: Part 8](horizon/33-the-web.md)
 
 </div>
 

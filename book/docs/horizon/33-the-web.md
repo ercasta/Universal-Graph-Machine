@@ -141,7 +141,7 @@ exactly the same thing, and should.
 
 **And that's why it isn't a censor.** The natural reply — *what does eating have
 to do with rain?* — asks for the missing link. If the speaker supplies it, the
-agent has acquired a **bridge** between two islands, which is what Chapter 27's
+agent has acquired a **bridge** between two islands, which is what Chapter 29's
 adoption is for.
 
 > **Failing to understand and learning are the same event seen from two sides.**
@@ -238,4 +238,4 @@ who would know says otherwise.
 ---
 
 **Next:** the honest list.
-[What is not built →](32-not-built.md)
+[What is not built →](34-not-built.md)

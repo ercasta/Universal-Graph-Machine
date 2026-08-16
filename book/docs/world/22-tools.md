@@ -122,7 +122,7 @@ something already correct. Measured directly, an ideal lookup table replacing
 the read bought **zero**, and a wrong one costs more as knowledge grows.
 
 The place a model belongs is where the current answer is a guess: what comes to
-mind (Chapter 26), and how good an option looks. And the shape it should return
+mind (Chapter 27), and how good an option looks. And the shape it should return
 is a **pair** — a score (*how good*) and a strength (*how sure*) — because those
 are two different things and this design has already learned not to collapse
 them into one number.

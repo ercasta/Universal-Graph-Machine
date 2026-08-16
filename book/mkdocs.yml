@@ -94,18 +94,20 @@ nav:
       - "21 · Who said it": world/21-channels.md
       - "22 · Arithmetic is not reasoning": world/22-tools.md
       - "23 · When things happened": world/23-time.md
+      - "24 · Several agents": world/24-several-agents.md
   - "Part 6 — Watching itself":
-      - "24 · The agent's own state": watching/24-own-state.md
-      - "25 · Stopping": watching/25-stopping.md
-      - "26 · What comes to mind": watching/26-recall.md
-      - "27 · Learning": watching/27-learning.md
+      - "25 · The agent's own state": watching/25-own-state.md
+      - "26 · Stopping": watching/26-stopping.md
+      - "27 · What comes to mind": watching/27-recall.md
+      - "28 · The table": watching/28-the-table.md
+      - "29 · Learning": watching/29-learning.md
   - "Part 7 — The floor":
-      - "28 · What cannot be a convention": floor/28-the-floor.md
-      - "29 · The bootstrap": floor/29-bootstrap.md
-      - "30 · Zero phases": floor/30-zero-phases.md
+      - "30 · What cannot be a convention": floor/30-the-floor.md
+      - "31 · The bootstrap": floor/31-bootstrap.md
+      - "32 · Zero phases": floor/32-zero-phases.md
   - "Part 8 — Where the line is":
-      - "31 · Meaning is a web": horizon/31-the-web.md
-      - "32 · What is not built": horizon/32-not-built.md
+      - "33 · Meaning is a web": horizon/33-the-web.md
+      - "34 · What is not built": horizon/34-not-built.md
   - "Playground":
       - "Run a corpus": playground/corpus.md
       - "Make it check itself": playground/selftest.md

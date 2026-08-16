@@ -105,7 +105,7 @@ request and not a primitive.
 
 Two other capabilities are the same shape: composing two rules is a service that
 returns a finished **rule**, and learning from examples is a service that
-returns a finished **pattern**. Both in Chapter 27.
+returns a finished **pattern**. Both in Chapter 29.
 
 ## Six rules, and no phase
 

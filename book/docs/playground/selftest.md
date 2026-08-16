@@ -52,7 +52,7 @@ the feature were broken in the *obvious* way, so they were written to fail
 instead.
 
 Several exist because an earlier version of the same check passed without
-testing anything. Chapter 30 has the list of instruments that lied here, and the
+testing anything. Chapter 32 has the list of instruments that lied here, and the
 rule that came out of it:
 
 > **An agreement gate that agrees is worth nothing until it could have
@@ -75,6 +75,17 @@ The suite is one of several runners, and the others are gates rather than tests
 | `python -m ugm.bundle` | deletes each shipped rule and re-runs the suite |
 | `python -m ugm.vocabulary` | unwebbed names, with a planted typo as a control |
 | `python -m ugm.atlas` | the web: islands, bridges, dead rules, and pairs that could disagree |
+
+And a set of **comparisons** rather than gates — each runs two loops, or two
+runs, over the same corpora and reports where they differ:
+
+| | what it compares |
+|---|---|
+| `python -m ugm.attention` | the table loop against the shipped one, in ticks and conclusions |
+| `python -m ugm.teaching` | a table calibrated from one demonstration against an uncalibrated one |
+| `python -m ugm.learning` | the same world run twice, with the second run allowed to be no better |
+| `python -m ugm.practice` | rehearsing a goal inside a supposition against enacting it for real |
+| `python -m ugm.table` | several agents talking, in-process against one OS process each |
 
 They aren't run here because several of them take longer than a browser tab
 deserves. From a checkout, they're one command each.

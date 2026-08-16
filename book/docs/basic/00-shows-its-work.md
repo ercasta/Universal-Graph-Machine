@@ -71,7 +71,7 @@ The run said `3 ticks, ended quiescent`. A tick is one move: the machine chose
 one rule, applied it, and wrote down what followed. It stopped when applying
 anything further would change nothing — which is what *quiescent* means, and
 which is itself a fact it deposits about itself rather than a state hidden in an
-interpreter. Chapter 25 is about stopping.
+interpreter. Chapter 26 is about stopping.
 
 There is no compile step, no phase order, no "inference engine" with a fixed
 pipeline inside it. There is one loop, and everything that happens on it —

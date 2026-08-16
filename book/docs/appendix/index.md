@@ -18,7 +18,12 @@ position. [Chapter 6](../rules/06-a-rule-is-a-fact.md)
 **anti-unification** — given two things that happened, the pattern they already
 agree about. The dual of unification, and what *learning from examples* is made
 of. The whole difficulty is using **one** dictionary across premise and
-conclusion. [Chapter 27](../watching/27-learning.md)
+conclusion. [Chapter 29](../watching/29-learning.md)
+
+**attention** — what an applied rule **spends**. A rule's postconditions are
+queries paired with **buffs**, and applying the rule runs them, moving other
+rules' scores in the table. Buffs fade; the postcondition is what survives.
+[Chapter 28](../watching/28-the-table.md)
 
 **arbitration** — choosing which of the applicable rules to apply. *Totality* —
 that something always answers — is a floor primitive. *Precedence* — which one
@@ -69,12 +74,12 @@ different entries, because an entry is an *act of claiming*.
 
 **frame** — a process node: what reasoning is running, where it's standing, and
 where an answer is owed. Readable, writable and **selectable**, which is what a
-stack frame is not. [Chapter 24](../watching/24-own-state.md)
+stack frame is not. [Chapter 25](../watching/25-own-state.md)
 
 **generic** — containing variables. A pattern. The one item on the floor that
 provably cannot be taught, because you cannot define matching-with-variables
 using rules that themselves require matching-with-variables.
-[Chapter 28](../floor/28-the-floor.md)
+[Chapter 30](../floor/30-the-floor.md)
 
 **implies** — one of two connectives. Its consequent is *derived* and lands in
 the **same** moment: retract the antecedent and the conclusion goes with it.
@@ -101,7 +106,7 @@ not be load-bearing for safety*. [Chapter 18](../unsure/18-norms.md)
 **occasion** — a fact the machinery deposits when something notable happens:
 `quiet`, `blocked`, `left`, `defeated`, `bounded`, `unsupported`. A corpus keys
 on one to say *when this happens, think of me*.
-[Chapter 26](../watching/26-recall.md)
+[Chapter 27](../watching/27-recall.md)
 
 **proposition** — a relation instance. The *idea* of something. Claims nothing
 on its own — it has no locus and no sign, so it structurally cannot be mistaken
@@ -109,15 +114,15 @@ for a claim. [Chapter 2](../basic/02-propositions-and-entries.md)
 
 **quiescent** — applying anything further would change nothing. **Exhaustion**,
 not satisfaction. The loop may end; it may not end quietly on something it was
-asked for. [Chapter 25](../watching/25-stopping.md)
+asked for. [Chapter 26](../watching/26-stopping.md)
 
 **recall** — which rules come to mind. A function rather than a search, learned
 from outcomes, **incomplete by design** — so it returns a set *and a state*, and
-a dry shortlist must widen. [Chapter 26](../watching/26-recall.md)
+a dry shortlist must widen. [Chapter 27](../watching/27-recall.md)
 
 **register** — the one privileged pointer: the node the machinery is currently
 working in. Floor, because finding where to write requires a read, and a read
-needs somewhere to stand. [Chapter 28](../floor/28-the-floor.md)
+needs somewhere to stand. [Chapter 30](../floor/30-the-floor.md)
 
 **reification** — a rule deposited as ordinary facts — `rule`, `conn`, `ant`,
 `con` — so other rules can read it. Both the sign and the position are members,
@@ -142,15 +147,26 @@ Spans are **loci**, so a claim can be about a stretch rather than an instant.
 Contents are not stored, because the predecessor relation is single-valued.
 [Chapter 19](../world/19-spans.md)
 
+**table** — a score per rule, ordered, ties broken by declaration order. The loop
+takes the **first** rule in the window whose antecedent matches, then spends its
+attention. Scores only fall down the table, so the window is a **prefix**: below
+it, nothing is matched at all. A dry window widens.
+[Chapter 28](../watching/28-the-table.md)
+
+**table (of agents)** — several machines, each with its own scope, chain and
+corpus, wired channel-to-channel. Nothing is shared; what crosses is an
+**utterance**. Two minds are two scopes, not two frames.
+[Chapter 24](../world/24-several-agents.md)
+
 **stamp** — the floor-level record on every node the engine mints: what produced
 it, under which substitution, with the register in which state. On the floor
 because voluntary provenance is forgeable.
-[Chapter 28](../floor/28-the-floor.md)
+[Chapter 30](../floor/30-the-floor.md)
 
 **stratum 0** — rules whose antecedent members are *all* structural. Applied
 without a read, and therefore concluding structure rather than claims. One
 predicate, read off the antecedent, decides both halves — which is what closes
-the bootstrap circle. [Chapter 29](../floor/29-bootstrap.md)
+the bootstrap circle. [Chapter 31](../floor/31-bootstrap.md)
 
 **supposing** — entering a hypothesis. **Unwrap on the way in, re-wrap on the way
 out**: inside the frame the assumption is an ordinary fact, and no rule needs a
@@ -161,11 +177,16 @@ caller's walk can't reach it. [Chapter 16](../unsure/16-supposing.md)
 lands a tick later, and it **proposes; it never concludes**.
 [Chapter 22](../world/22-tools.md)
 
+**utterance** — what crosses between two agents: **rendered text**, re-read in
+the hearer's own name scope. A proposition survives the trip; a moment, an entry,
+a rule and anything generic are refused at the hearer's parser.
+[Chapter 24](../world/24-several-agents.md)
+
 **twin trap** — minting a fresh node for something the graph already describes,
 so that everything said about the described thing goes to a node nothing uses,
 and everything the machinery says about the live one names a node nobody can
 reach. Found seven separate times here.
-[Chapter 27](../watching/27-learning.md)
+[Chapter 29](../watching/29-learning.md)
 
 ---
 

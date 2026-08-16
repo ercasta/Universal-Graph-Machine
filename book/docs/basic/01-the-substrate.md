@@ -71,7 +71,7 @@ search over which edge answers to which — the same problem, and hard in genera
 Since matching happens on absolutely every step, that cost would be paid
 forever.
 
-So ordering is here **by economy**, not by necessity, and Chapter 28 says so out
+So ordering is here **by economy**, not by necessity, and Chapter 30 says so out
 loud. It's one of only two things on the floor that could in principle be given
 up.
 
@@ -104,7 +104,7 @@ something. It's the reason there is no stored "how sure am I" number
     that prompted it.
 
     Both filings are over what was asserted, so neither is a cache. That's the
-    difference between an optimisation and a debt, and Chapter 30 makes it a
+    difference between an optimisation and a debt, and Chapter 32 makes it a
     rule.
 
 ## Two things have no bucket

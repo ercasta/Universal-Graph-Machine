@@ -111,7 +111,7 @@ It means the machinery acted on a judgement nothing can argue with.
 
 That defect has been shipped in this design repeatedly, and the fix has been the
 same every time — take the thing out of a hidden field and deposit it as a
-record. Chapter 24 is where that becomes a working method rather than an
+record. Chapter 25 is where that becomes a working method rather than an
 anecdote.
 
 ## Two claims about the same thing are two claims
@@ -137,7 +137,7 @@ still two rules, with different authors, provenance and standing.
     The honest consequence: *is this moment consistent?* is a query somebody has
     to actually run. And there is currently no vocabulary for saying that two
     propositions are *incompatible* — you can deny one, but you cannot say they
-    cannot both hold. Chapter 32 lists that as a real gap.
+    cannot both hold. Chapter 34 lists that as a real gap.
 
 ## Variables belong to the statement that wrote them
 

@@ -176,4 +176,4 @@ cost is in matching and not in the loop.
 
 **Next:** knowing when you're finished, which turns out to be two different
 questions.
-[Stopping →](25-stopping.md)
+[Stopping →](26-stopping.md)

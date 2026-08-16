@@ -120,7 +120,7 @@ Four separate capabilities hit that same wall:
 - reading a rule backwards (Chapter 11),
 - lifting an uncertainty across a rule (Chapter 16),
 - asking whether a generic subgoal is already satisfied (Chapter 12),
-- composing two rules into one (Chapter 27).
+- composing two rules into one (Chapter 29).
 
 Three of them now have a resolution, and all three take the same shape.
 

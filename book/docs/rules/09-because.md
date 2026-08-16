@@ -119,7 +119,7 @@ There's an honest limit, and it is structural rather than an oversight:
 The walk that resolves the state (Chapter 5) is itself made of rules — but of a
 special stratum that produces *structure*, not claims. If it deposited its
 intermediate results as claims, it would be reading claims to do so, and the
-whole thing would never start. Chapter 29 is that argument.
+whole thing would never start. Chapter 31 is that argument.
 
 So the read's own working state is undated, unattributed and unexplained. Every
 conclusion carries its support; the *resolution* that fed the conclusion does
@@ -127,7 +127,7 @@ not.
 
 There's a second one, from a different direction. *Why did you consider that
 rule?* has no answer either, because what comes to mind is a function rather
-than a search (Chapter 26). In practice, then, the guarantee reads: *every
+than a search (Chapter 27). In practice, then, the guarantee reads: *every
 conclusion carries its support, among what surfaced.*
 
 And that has a safety consequence which is stated as a principle rather than

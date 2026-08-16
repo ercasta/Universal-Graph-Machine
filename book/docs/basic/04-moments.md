@@ -47,7 +47,7 @@ a particular past would be about that one occasion and could never be reused.
 
 Because the distinction is structural, it's checkable rather than maintained by
 etiquette. It is the one place in Part 1 where that's true, and it's true
-because *generic* is one of the five floor items showing through (Chapter 28).
+because *generic* is one of the five floor items showing through (Chapter 30).
 
 The machine's central operation is then one line:
 
@@ -66,7 +66,7 @@ moments having predecessors.
 !!! note "Deep dive: scope is not control"
     Ancestry answers *what can I see from here*. It says nothing about *which
     reasoning invoked which, and where an answer is owed* — that's a separate
-    structure (Chapter 24), and the absence of a scope stack doesn't imply the
+    structure (Chapter 25), and the absence of a scope stack doesn't imply the
     absence of the other one.
 
 ## A moment is already a belief state

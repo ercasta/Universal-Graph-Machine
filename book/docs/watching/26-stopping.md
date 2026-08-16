@@ -63,7 +63,7 @@ And the same fact from the other direction:
 > what comes to mind changes the *order* in which conclusions are reached, and
 > nothing else, until something stops.
 
-Which is why Chapter 26 comes after this one, and why the order **stopping →
+Which is why Chapter 27 comes after this one, and why the order **stopping →
 recall → learning** is the order the pieces had to be built in.
 
 ## Quiescence is itself made of rules
@@ -142,4 +142,4 @@ trail rather than a coin flip nobody recorded.
 ---
 
 **Next:** which rules even get considered.
-[What comes to mind →](26-recall.md)
+[What comes to mind →](27-recall.md)

@@ -146,7 +146,7 @@ A misspelling on either side does this; so does a fact you meant to assert and
 did not
 ```
 
-That check has a precise justification, and it's Chapter 31's subject: if the
+That check has a precise justification, and it's Chapter 33's subject: if the
 meaning of a word is what follows from it, then a word nothing ever establishes
 means nothing, and a corpus containing one is smaller than it looks.
 

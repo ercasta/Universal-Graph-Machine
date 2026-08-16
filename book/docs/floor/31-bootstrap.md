@@ -157,7 +157,7 @@ is structural rather than an oversight.
 And it gets charged somewhere unexpected. An entry's **support** — what it was
 derived from — is structural by exactly this test: it's *how the entry was
 made*, not a claim about the world. Which made it readable by stratum 0 and not
-by ordinary rules — and Chapter 27 ran into that wall from the learning side,
+by ordinary rules — and Chapter 29 ran into that wall from the learning side,
 where the agent's own trail is the best source of examples it has and the one
 source its own rules couldn't see.
 
@@ -182,4 +182,4 @@ editable by the agent that runs it.
 ---
 
 **Next:** the number that says whether any of this is true of the implementation.
-[Zero phases →](30-zero-phases.md)
+[Zero phases →](32-zero-phases.md)

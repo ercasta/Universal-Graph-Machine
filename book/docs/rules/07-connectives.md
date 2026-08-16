@@ -6,7 +6,7 @@ rule <weather> = implies( { +cloudy(?d, morning) },  { +likely(rain(?d, afternoo
 ```
 
 There are two, and the interesting question isn't *why does the engine know
-about them* — it must not, and Chapter 30 explains why — but **why exactly two**.
+about them* — it must not, and Chapter 32 explains why — but **why exactly two**.
 
 ## The membership test
 
@@ -151,7 +151,7 @@ A third connective is a third rule of the same shape.
 
 > **Adding a connective adds rows, not branches.**
 
-That's the test this whole design is built to pass, and Chapter 30 shows what
+That's the test this whole design is built to pass, and Chapter 32 shows what
 happens when you run it against an implementation and count.
 
 ---

@@ -200,9 +200,140 @@ running first:
 
 Usually it is.
 
+## Experience: where the table's numbers come from
+
+Chapter 28 left one thing open. The postconditions are *what a learning process
+calibrates* — so what is the learning process?
+
+Three answers have been built, and they are genuinely different.
+
+### 1. Being taught — the residue of ordinary use
+
+> A human is the first, manual user of the knowledge base.
+
+Not a labelling task run beside the system. The ordinary first use of a corpus,
+by a person who steps it and picks the next rule. **They are doing exactly what
+the table will later do**, so what they leave behind *is* the table.
+
+Two signals come out of that use, and only one of them is calibration:
+
+| | |
+|---|---|
+| **the wrong order** | a buff — *this rule should have come first here* |
+| **none of these fits** | a **missing rule**, which no calibration can supply |
+
+The second is the more valuable one early, and **only manual use surfaces it**.
+No amount of tuning scores finds a rule nobody wrote.
+
+And a demonstration cannot produce a flat opinion about a rule. The reflex
+experiment settled it: damping every rule that was *tried and missed* cost **125
+conclusions**, because
+
+> **tried and missed is not evidence a rule is unimportant — it is evidence it
+> did not apply in that state.**
+
+So a lesson has to be **conditional**, and the smallest conditional thing that
+carries a sequence is a bigram on the rule that just applied: *after A, prefer
+R*.
+
+### 2. Reviewing — offline, and it is a corpus
+
+An episode ends; the trail is walked; what was learned is written as **surface
+text the next episode loads**. Nothing about the loop changes.
+
+Which makes the only question worth asking about it obvious: **run the same
+world twice and see whether the second run is better** — with a gate that allows
+the answer to be *no*.
+
+The finding that made the file exist:
+
+> **Suppression is not a decision.**
+
+An episode that smashed a jug blames the smasher and drops it from what it
+recommends — and then **smashes the jug again**, because omitting a rule leaves
+it exactly where it was, first in authored order. *Do not recommend this* cannot
+say *do that instead*, and only the second changes a run.
+
+!!! note "Deep dive: an ensemble's agreement is invisible"
+    Preferences are scores that sum (Chapter 27), so several learned rows behave
+    as an ensemble. But two **identical** rows are one proposition — restating is
+    not revising — so `3` and `3` scores **3**, while two **distinct** rows sum,
+    so `3` and `4` scores **7** and outweighs a single `5`.
+
+    > **An ensemble's agreement is invisible, and only its disagreement adds.**
+
+    That was filed as a known limitation in one place and as an unexplained
+    failure in another, for a while, before anyone noticed they were the same
+    fact.
+
+### 3. Practising — goals the agent sets itself
+
+Reviewing has a cost it cannot pay off: *exploration still pays for the
+knowledge* — the bad start had to take the costly route once to find out what it
+cost. It paid in a broken vase.
+
+The proposal is **one rule and no machinery**:
+
+```
+rule <practise> = implies( { +achieves(?a, ?y) }, { +suppose(goal(?y), certain) } )
+```
+
+A corpus already says what its acts bring about. Read that fact the other way
+round and it names something the agent **knows how to want**. So the goals come
+out of the corpus's own vocabulary, and nobody wrote a curriculum.
+
+What makes it safe was already built, which is why this is five rules of fixture
+rather than a subsystem: the supposition boundary keys on `doing` (Chapter 14).
+Inside a frame entered by supposing, deciding to act deposits `taken(x)` instead
+of `emitted(x)`, and the reasoning is carried past the act by its assumed effect.
+
+So a rehearsal runs to the end — routes taken, jugs broken, goals lost — with
+**nothing leaving the agent**. And it is kill-probed: propose the goal bare
+instead of supposing it, and the vase really shatters.
+
+## Where this stands, honestly
+
+The instruments are green on their own terms. The comparison is not, and it
+would be dishonest to leave that out of a chapter about learning.
+
+Teaching a table from one demonstration, gated against the **uncalibrated** table
+on the same corpus:
+
+| corpus | teacher took the table's top choice | what calibration cost |
+|---|---|---|
+| `quest-p1.ugm` | **21 of 21** | 9 conclusions lost by three of four lesson kinds |
+| `dungeon` | **16 of 149** | occasion-keyed lessons lose **173**; both kinds together, **213** |
+
+Read those two rows together, because separately each is misleading.
+
+On `quest-p1` the teacher agreed with the table's own ordering **every single
+time** — so there was nothing to teach, and everything a lesson changed was a
+change for the worse. *A corpus with nothing to teach cannot measure a teacher*,
+which is the same shape as Chapter 18's census finding.
+
+On `dungeon` there was plenty to teach — the teacher and the table disagreed on
+133 of 149 moves — and the lessons cost conclusions anyway.
+
+So the honest statement is: **calibration currently buys fewer moves and costs
+answers**, and the mechanism for spending attention is built while the process
+that should be calibrating it is not yet working. Chapter 34 lists it where it
+belongs.
+
+!!! note "Deep dive: a gate that crashes reports the same thing as a gate that passes"
+    That comparison had not been run for some time. The gate read two keys the
+    measurement had stopped producing, so it raised on the first corpus of two —
+    **every run**, loudly enough that nobody read the rest.
+
+    Which means `dungeon`, the only corpus of the pair with anything to teach,
+    was never measured at all.
+
+    Chapter 32 has this project's list of instruments that lied. This is a new
+    entry in it, and a new variety: not a check that could not fail, but a check
+    that could not *finish*.
+
 ---
 
 That's Part 6. Parts 7 and 8 are the last two, and they go underneath.
 
 **Next:** the five things that genuinely could not be taught.
-[What cannot be a convention →](../floor/28-the-floor.md)
+[What cannot be a convention →](../floor/30-the-floor.md)

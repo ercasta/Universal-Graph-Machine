@@ -100,7 +100,7 @@ emitted.** That's the use/mention distinction of Chapter 10 arriving at the
 boundary, where the entry already carries the information needed to tell the two
 apart and nothing reads it.
 
-Chapter 32 records it as an open defect, because it is one.
+Chapter 34 records it as an open defect, because it is one.
 
 ## Supposing something must not bring it about
 

@@ -109,7 +109,7 @@ loads fine. Nothing complains. Write a rule per sign.
 
 Two better answers exist and neither is built. An arrival *should* be a
 **moment** — a report is a signed delta, and trust would then be a rule relating
-two moments rather than a rule per sign. Chapter 32 records it.
+two moments rather than a rule per sign. Chapter 34 records it.
 
 ## An arrival is not something the agent does
 
@@ -122,7 +122,7 @@ generic. Crossing it **on the agent's schedule** is a claim, and a false one.
 So delivery is the boundary calling in, at the moment the world speaks, rather
 than a first line of the loop. What remains in the step is a *counter* — how
 much arrived since the last one — because *nothing applied* and *nothing arrived
-and nothing applied* have to be different silences (Chapter 25).
+and nothing applied* have to be different silences (Chapter 26).
 
 The behavioural difference is visible without running anything: a report is on
 the graph the moment the world speaks, and *what it means* still waits for a

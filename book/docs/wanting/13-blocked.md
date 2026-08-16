@@ -102,7 +102,7 @@ rule <panic> = implies( { +bounded(ticks) }, { +goal(diagnose(myself)) } )
 ## Stopping with a goal still open
 
 There's a stronger claim in the same family, and it's worth stating now because
-it constrains Chapter 25:
+it constrains Chapter 26:
 
 > **The loop may end. It may not end quietly on something it was asked for.**
 

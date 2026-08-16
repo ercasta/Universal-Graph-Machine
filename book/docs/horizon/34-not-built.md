@@ -67,20 +67,39 @@ not an invariant the substrate maintains. Chapter 2.
 ## Deliberate, and a real cost
 
 **You cannot ask *why did you read it that way*.** Promoting the read into the
-ordinary stratum reinstates the bootstrap circle. Chapter 29.
+ordinary stratum reinstates the bootstrap circle. Chapter 31.
 
 **You cannot ask *why did you consider that rule*.** Recall is a function, not a
 search. Which is why nothing load-bearing for safety may depend on it —
 Chapter 18.
 
 **Composition across `causes` is refused.** Measured to lose conclusions.
-Chapter 27.
+Chapter 29.
 
 ## Genuinely absent
 
 **No vocabulary for incompatibility.** You can deny a proposition. You cannot
 say that two propositions **cannot both hold**. That's a real gap, noticed when
 an older engine's `refutes` had nothing to port to.
+
+**Calibration currently costs conclusions.** The table's attention-spending
+mechanism is built (Chapter 28); the learning process that is supposed to
+calibrate it is not working. Gated against the uncalibrated table: on one corpus
+the teacher agreed with the table's own order **21 of 21** times, so there was
+nothing to teach and every lesson made it worse; on the other there was plenty to
+teach and the lessons still lost up to **213** conclusions. Chapter 29 has both
+rows and why they have to be read together.
+
+**Two agents can never refer to the same time.** Every moment renders as
+`moment()`, so a moment cannot cross a wire even if a parser accepted it.
+*The goblin acts after the hero* is writable within one agent; *you attacked
+before I did* has no route at all. A moment would need a renderable,
+re-readable name.
+
+**No agent can teach another a rule.** It falls out of *a fact may not contain a
+variable*, so it is presumably deliberate — but it means a DM can say *the door
+is locked* and can never say *locked doors need keys*. Whether that's a position
+or an accident is genuinely undecided.
 
 **Every clarification request about a rule is decided on and never emitted.** A
 rule node is generic by construction, and an intent with an unbound member is
@@ -121,6 +140,16 @@ unbuilt.
 
 **Where should a learned model sit?** Chapter 22 argues *where there is no
 algorithm*, and names the two places. Nothing is built.
+
+**What should be rehearsed?** Practice generates a goal from every achievable
+relation the corpus names (Chapter 29), which is affordable for one corpus and is
+not a policy. The shape of the answer already exists — a claim that gates what is
+even considered — and joining the two is untried.
+
+**Buffs are supplied from the host language.** The surface for a postcondition —
+`after { … } => boost(<R>, n)` — is deliberately left open until the loop has
+been watched running for longer. Until it closes, the one part of the table that
+is *not* data is the part learning is supposed to write.
 
 **Loop detection.** Designed, measured, and deliberately not built — because the
 corpora available could not measure a detector for it, and a detector nobody can

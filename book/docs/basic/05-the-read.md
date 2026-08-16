@@ -83,7 +83,7 @@ the walk one order throughout.
 > **A deterministic computation whose result depends on an undeclared
 > enumeration order has a tie-break nobody authored.**
 
-That line comes up again for rankings (Chapter 26) and for random draws. It's
+That line comes up again for rankings (Chapter 27) and for random draws. It's
 one of this project's standing lessons.
 
 ## What it costs, and what was done about it
@@ -108,7 +108,7 @@ from quadratic to **linear**. Measured: 1,600 facts from 4.79s to **0.48s**, and
 12,800 facts in less time than 1,600 used to take. Doubling doubles.
 
 !!! note "Deep dive: why that's an optimisation and not a debt"
-    Chapter 30 draws the line explicitly, and this is the cleanest example of
+    Chapter 32 draws the line explicitly, and this is the cleanest example of
     the good side of it.
 
     The kept state is an *optimisation of a semantics*. The slow definition —

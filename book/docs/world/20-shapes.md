@@ -53,7 +53,7 @@ The step case needs precisely that earlier turn.
 
 So the two recognisers have to match over the **raw chain** rather than the
 resolved state. And that turns out to be allowed, for a reason that connects
-straight back to Chapter 29:
+straight back to Chapter 31:
 
 > **A rule whose antecedent is entirely structural concludes structure rather
 > than a claim.**
