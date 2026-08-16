@@ -62,7 +62,7 @@ Score it against the four criteria:
 
 And the program form fails one more test outright: `overrides(<R1>, <R2>)` has
 no subject when a rule is a program. Nothing can be said *about* it — and
-Chapter 27, where the agent writes itself a rule, becomes unreachable entirely,
+Chapter 29, where the agent writes itself a rule, becomes unreachable entirely,
 because a rule the agent authored has nothing to be authored *as*.
 
 ## An antecedent is a sequence of members
@@ -99,7 +99,7 @@ is what the explanation and the tie-breaking see.
     actually runs.
 
     That shape — a defect that changes the *record* and never the *answer* —
-    recurs throughout this project, and Chapter 30 is largely about how to build
+    recurs throughout this project, and Chapter 32 is largely about how to build
     checks that can see it.
 
 ## Two kinds of member
@@ -116,7 +116,7 @@ The **skeleton** relates the loci. `sanc(?mq, ?mp)`, `anc`, `in_delta`,
 no locus and no licence, because nobody asserted them: they're facts about how a
 node is built, not relations in the world.
 
-The two kinds don't merge, and Chapter 29 explains why that separation is what
+The two kinds don't merge, and Chapter 31 explains why that separation is what
 lets the machine boot at all.
 
 Distinctness lives in the skeleton for the same reason. `?a ≠ ?b` is a condition
@@ -155,7 +155,7 @@ con(<boil>, boiling(?w), +, 0)     what reification stores: a generic pattern
 
 A rule that tried to relate those needs one variable to be both the generic
 pattern and the ground goal — and deciding that the two *correspond* is exactly
-matching, which is a floor primitive that no rule may call (Chapter 28).
+matching, which is a floor primitive that no rule may call (Chapter 30).
 
 Four separate ambitions hit that same wall: reading a rule backwards, lifting an
 uncertainty across a rule, asking whether a generic subgoal is already

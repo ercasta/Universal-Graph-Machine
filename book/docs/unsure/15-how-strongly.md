@@ -129,7 +129,7 @@ rule <collapse> = implies( { +likely(possible(?x)) }, { +possible(?x) } )
 That's the trade, and it is the trade this design makes everywhere else.
 
 !!! note "Deep dive: a deletion that fixed something two sections away"
-    Composing a chain of rules into one shortcut (Chapter 27) used to refuse
+    Composing a chain of rules into one shortcut (Chapter 29) used to refuse
     anything but a certain conclusion, because composing a grade would have been
     a minimum computed once from defeasible constituents — the very objection
     that ruled out storing a grade on a proposition, arriving one level up.

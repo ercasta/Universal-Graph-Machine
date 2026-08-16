@@ -443,9 +443,19 @@ def measure(name: str, limit: int = 400) -> dict:
         # it is already high the corpus has nothing to teach.
         "teacher_took_the_top": lesson.agreed,
     }
-    for label in ("bigram", "query", "occasion", "both"):
+    # ⚠ `none` is the UNCALIBRATED arm, and it went missing. This function's
+    # own docstring says the loop runs twice, uncalibrated and calibrated, and
+    # the gate in `main` still read `before`/`after` -- keys nothing here has
+    # produced for some time. So the gate raised `KeyError` on the first corpus
+    # every run: it could not fail, because it never got as far as comparing,
+    # and `dungeon` was never measured at all. A gate that crashes reports the
+    # same thing as a gate that passes -- nothing -- and it does it loudly
+    # enough that nobody reads the rest.
+    for label in ("none", "bigram", "query", "occasion", "both"):
         m, ldr = _machine(name)
-        if label == "both":
+        if label == "none":
+            taught, added, declined, collided = {"unspeakable": 0}, 0, 0, 0
+        elif label == "both":
             # The two kinds of attention doing their own jobs: persistent
             # buffs decide WHO IS IN the shortlist, which is speed, and
             # rerankers decide who wins INSIDE it, which is accuracy. The
@@ -508,7 +518,7 @@ def main() -> int:
         print(f"  {c['corpus']}  -- {c['pairs']} bigrams from one taught run; "
               f"the teacher took the table's top choice "
               f"{c['teacher_took_the_top']}/{c['gold_moves']} times")
-        for label in ("bigram", "query", "occasion", "both"):
+        for label in ("none", "bigram", "query", "occasion", "both"):
             d = c[label]
             print(f"    {label:7} {d['posts']:>3} posts "
                   f"({d['declined']} said nothing, {d['collided']} too general, "
@@ -518,8 +528,15 @@ def main() -> int:
                   f"{d['prefix_agreement']:>4} moves agree with the teacher  "
                   f"{d['conclusions']:>4} conclusions, {d['lost']} lost  "
                   f"{d['doubts']} doubts")
-        if c["after"]["lost"] > c["before"]["lost"]:
-            bad += 1
+        # The claim being gated: calibration must not cost conclusions the
+        # uncalibrated table already reached. It may cost MOVES -- that is the
+        # point of it -- and it may disagree with the teacher, who is one
+        # person on one run. Losing an answer is the failure.
+        for label in ("bigram", "query", "occasion", "both"):
+            if c[label]["lost"] > c["none"]["lost"]:
+                print(f"    FAIL  {label} lost {c[label]['lost']} against "
+                      f"{c['none']['lost']} uncalibrated")
+                bad += 1
     return bad
 
 

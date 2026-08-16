@@ -112,6 +112,8 @@ denied, never absent, and open-world reasoning stays honest.
 | **norms** | checked at the write, never in the competition, because the opaque component may not be load-bearing for safety |
 | **the agent's own state** | goals, plans, expectations and surprise as ordinary entries; preemption is a precedence claim over ordinary rules |
 | **acquisition** | a rule is a node, so a rule can be the conclusion of a rule |
+| **attention** | a score per rule; take the first that matches, then spend — the rules stay fixed and the **postconditions** are what learning calibrates |
+| **several agents** | two minds are two scopes, not two frames; what crosses is an utterance, and belief is the hearer's trust rule |
 
 ## Verification
 
@@ -128,6 +130,17 @@ python -m ugm.quiescence      # the compiled verdict against the six rules defin
 python -m ugm.bundle          # deletes each shipped rule and re-runs the suite
 python -m ugm.vocabulary      # unwebbed names, with a planted typo as a control
 python -m ugm.atlas           # islands, bridges, dead rules, pairs that could disagree
+```
+
+And the comparisons, which run two loops or two runs over the same corpora and report
+where they differ rather than passing or failing:
+
+```bash
+python -m ugm.attention       # the table loop against the shipped one
+python -m ugm.teaching        # a table calibrated from one demonstration against an uncalibrated one
+python -m ugm.learning        # the same world twice, with "no better" an allowed answer
+python -m ugm.practice        # rehearsing a goal inside a supposition against enacting it
+python -m ugm.table           # several agents talking, in-process against one process each
 ```
 
 > **An agreement gate that agrees is worth nothing until it could have disagreed.** Every gate deletes

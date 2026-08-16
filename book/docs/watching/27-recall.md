@@ -6,7 +6,7 @@ choose from.
 That step is called **recall**, and it is the most consequential *policy* in the
 design — which is why the fact that it was once listed as a primitive is worth
 correcting out loud. Earlier drafts named four primitives: recall, match, write,
-arbitrate. Against the actual floor (Chapter 28) they decompose unevenly:
+arbitrate. Against the actual floor (Chapter 30) they decompose unevenly:
 
 | earlier primitive | verdict |
 |---|---|
@@ -137,7 +137,7 @@ A corpus keys on one, and that's the first thing a corpus can say to recall:
 > match, can still lose, and can still be defeated.
 
 That distinction is the whole reason this is safe. A callback that *invoked*
-would be control flow that owns the loop, which Chapter 24 spent its length
+would be control flow that owns the loop, which Chapter 25 spent its length
 arguing against.
 
 And a request can be **re-asked**, with a rule to govern when:
@@ -148,5 +148,5 @@ Otherwise you have built a loop. Chapter 7 has the two-line demonstration.
 
 ---
 
-**Next:** the agent writing its own rules.
-[Learning →](27-learning.md)
+**Next:** what the shortlist should actually be made of.
+[The table →](28-the-table.md)

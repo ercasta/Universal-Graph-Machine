@@ -77,7 +77,7 @@ history is not**.
 in the state.
 
 Reaching it means matching over the **raw chain**, which is what the structural
-stratum is for (Chapter 29), and it takes two rules: one to see it, one to say
+stratum is for (Chapter 31), and it takes two rules: one to see it, one to say
 it. The corpus that asked for moment ordering needed only the first half and
 never once wanted the second.
 
@@ -116,7 +116,7 @@ thing people actually say, and it's unsayable if the delay is a slot.
 ## Timing is read both ways
 
 **Forwards**, it says when to expect the effect — and therefore when its absence
-is a **deviation** rather than merely patience. Chapter 24 is what matches
+is a **deviation** rather than merely patience. Chapter 25 is what matches
 against that.
 
 **Backwards**, it's a **filter**: needing boiling water within two minutes rules
@@ -133,11 +133,5 @@ leans on when it refuses to mark a member unachievable.
 
 ---
 
-That's Part 5. The machine now handles stretches, indefinite patterns, other
-people, numbers, and clocks.
-
-The remaining parts are optional. They turn the machine around to look at
-itself.
-
-**Next:** the agent's own commitments, as ordinary facts.
-[The agent's own state →](../watching/24-own-state.md)
+**Next:** point two agents' channels at each other, and something else appears.
+[Several agents →](24-several-agents.md)

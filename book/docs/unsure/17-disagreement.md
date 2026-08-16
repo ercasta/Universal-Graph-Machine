@@ -96,7 +96,7 @@ Which has a consequence that took a while to see, and it's a nice one:
 
 Ask, take the first rule that matches, act. So *completion is the output of a
 rule* isn't a detail of the design; it's what makes a preference mean anything
-at all. Chapter 25.
+at all. Chapter 26.
 
 ## Precedence is read, not kept
 

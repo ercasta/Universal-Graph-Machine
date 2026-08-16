@@ -31,7 +31,7 @@ prohibition refused it.
 This is the one carve-out in a design that otherwise puts everything into the
 same arena, and it follows from something already established.
 
-Chapter 26 is going to say that *what comes to mind* is a learned, incomplete,
+Chapter 27 is going to say that *what comes to mind* is a learned, incomplete,
 opaque function. Recall may fail to surface a good rule; that's a recoverable
 mistake, and the machine widens and tries again.
 
@@ -118,7 +118,7 @@ refusal happens, not merely that nothing bad did.
     The one real limitation is Chapter 6's wall showing through: deciding whether
     a stored generic pattern covers a particular proposition is matching, and
     matching is floor. So the norm gate does that in the machinery, and a *rule*
-    cannot ask *would this be forbidden?* without being told. Chapter 32 records
+    cannot ask *would this be forbidden?* without being told. Chapter 34 records
     it.
 
 ---

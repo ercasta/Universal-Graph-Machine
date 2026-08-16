@@ -1,6 +1,6 @@
 # Zero phases
 
-Chapter 28 stated a test with a falsifiable consequence:
+Chapter 30 stated a test with a falsifiable consequence:
 
 > **The interpreter's step should have no phases.**
 
@@ -149,4 +149,4 @@ state index would cost an order of magnitude.
 
 **Next:** the last part. If meaning is what follows from a word, what happens
 when nothing follows?
-[Meaning is a web →](../horizon/31-the-web.md)
+[Meaning is a web →](../horizon/33-the-web.md)
