@@ -76,6 +76,12 @@ class Rule:
         # is the source. Without this a rule that ATTACHES a rule to something is
         # dropped by quiescence -- silently, and only at `_would_change`.
         self.mentions = mentions
+        # What this rule spends when it applies (the author's design): a list of
+        # (query, buffs, frozen), where a query is an ordinary antecedent and a
+        # buff moves another rule's score. Empty for every rule that does not
+        # say otherwise, and read only by a loop that has a table -- the shipped
+        # loop does not look at it.
+        self.posts: Tuple = ()
         self._orders: Optional[List[Tuple[int, ...]]] = None
 
     def walk_order(self, pivot: Optional[int]) -> Tuple[int, ...]:
@@ -766,6 +772,24 @@ def ground(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
     return g.rel(r2, *new)
 
 
+def _left_open(g, pattern, bindings) -> bool:
+    """Did this member leave a variable of its OWN unbound?
+
+    The question `has_var` over the grounded node was standing in for, and the
+    two part company exactly where §14 does. A rule reading `con(?r, ?pat, +, ?i)`
+    binds `?pat` to a stored pattern, so its conclusion contains variables and
+    every one of them is bound -- a ground claim that happens to be about a
+    generic thing. A rule whose consequent names a variable its antecedent never
+    bound is the other case, and only that one has nothing to deposit.
+
+    Told apart by asking of the MEMBER rather than of the result: a variable
+    that survives substitution and belongs to this member is unbound; one that
+    arrived inside a binding's value does not belong to it.
+    """
+    from .text import _vars_in  # deferred: `text` imports this module
+    return any(v not in bindings for v in _vars_in(g, pattern))
+
+
 def substitute(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
     """Ground a consequent pattern. Anything still generic afterwards is a rule
     whose consequent names something its antecedent never bound, and the gate
@@ -1302,9 +1326,19 @@ def _ground(g, n, bindings) -> bool:
     structure, so neither `is_var` nor `has_var` answers this on its own: the
     first is blind to `loaded(?p)`, the second is blind to `?p` being bound.
     """
-    n = walk(g, n, bindings)
-    if g.is_var(n):
+    w = walk(g, n, bindings)
+    if g.is_var(w):
         return False
+    if w != n:
+        # `n` was a variable and this is its VALUE -- a thing the match has
+        # already found, so it anchors this member however generic what is
+        # INSIDE it may be. Recursing further asks whether some other rule's
+        # pattern, quoted inside an entry about a rule, is ground; it is not,
+        # and answering no refused the walk an anchor it had. That is what kept
+        # deposit order from crossing a reified entry: `in_delta(?m, ?e)` bound
+        # `?e` to such an entry, and `delta_next(?e, ?f)` then found no anchor
+        # and enumerated nothing (docs/observations.md Part 6.3).
+        return True
     rel = g.relation_of(n)
     if rel is not None and not _ground(g, rel, bindings):
         return False
@@ -1353,10 +1387,8 @@ def _stored(g, chain, want, bindings):
     # docs/observations.md §3.1, finding 2.
     if not any(_ground(g, a, bindings) for a in args):
         return  # unbounded: this would enumerate the history, so it finds nothing
-    for node in g.instances_of(rel):
-        if g.has_var(node):
-            continue  # a pattern, not a fact (§7)
-        b = unify(g, want.pattern, node, bindings)
+    for node in _narrowed(g, rel, want, bindings):
+        b = _as_fact(g, want, node, bindings)  # a pattern is not a fact (§7)
         if b is not None:
             yield b
 
@@ -1420,6 +1452,102 @@ def _find(comp: Dict[int, set], rel) -> Optional[int]:
     return None
 
 
+# Pairs already checked by `occurs`. A variable and a value are the same two
+# nodes every time the same fact is offered to the same member, and the answer
+# cannot change: node identity is immutable here. Profiled before adding it,
+# `occurs` was 6,021,023 calls and a third of the read's runtime.
+_SAFE = set()
+
+
+def _narrowed(g, rel, want, bindings):
+    """The instances worth offering this member, using §3's argument-position
+    index instead of every instance of the relation.
+
+    The pivot is the bound argument with the FEWEST instances, which is the same
+    choice the entry side makes and for the same reason: a join is not a scan.
+    An argument counts as bound if it is a value already -- an atom or a
+    structure written in the pattern -- or a variable this match has bound.
+    With none bound the answer is what it always was, every instance, and
+    `_stored`'s anchor rule refuses that case before it is reached.
+    """
+    best = None
+    for i, a in enumerate(g.members(want.pattern)):
+        node = walk(g, a, bindings) if g.is_var(a) else a
+        if g.is_var(node):
+            continue
+        bucket = g.instances_with(rel, i, node)
+        if best is None or len(bucket) < len(best):
+            best = bucket
+    return g.instances_of(rel) if best is None else list(best)
+
+
+def _as_fact(g, want, node, bindings):
+    """Unify a structural want against a candidate node, and answer only if the
+    candidate is a FACT rather than a pattern.
+
+    §7 splits generic from anchored, and this seam asked it as `has_var` over
+    the whole candidate node. That is the wrong question for a chain-deposited
+    relation, and the cost was measured: a reified rule is deposited as a
+    mention, so its proposition is the rule's pattern, so the entry node carries
+    that pattern's variables -- and with them every `mentioned`, `in_delta` and
+    `delta_next` fact about it. On one four-line corpus, 97 of 125 `mentioned`
+    facts and 175 of 216 `delta_next` facts were invisible to the matcher,
+    although the chain deposited every one of them and nobody authored any of
+    them as a pattern. `delta_next` is a chain, so each hidden link severed
+    deposit order across it, and the rule-level read came back with two answers
+    where `Chain.resolve` has one (docs/observations.md Part 6.3).
+
+    The question §7 actually asks is already written down in `unify_patterns`'s
+    own table: in MATCH, *a variable binds to a thing*; binding a variable to
+    another variable is the pattern-against-pattern operation, and that is a
+    different service. So that is the test -- match, and refuse the result if it
+    bound a variable to a variable. A rule's own member, interned and therefore
+    found among the instances of its relation, unifies with itself variable for
+    variable and is refused; a chain fact about a generic proposition binds a
+    variable to a STRUCTURE that contains variables, which is exactly what a
+    rule reading about rules is for.
+    """
+    if not g.has_var(node):
+        # The common case, and the one this seam always handled: a ground fact
+        # cannot bind a variable to a variable and cannot contain one, so the
+        # two guards below have nothing to do and are not paid for. Measured
+        # before adding this line: the checks cost 30x on a fixture where they
+        # changed no answer at all.
+        return unify(g, want.pattern, node, bindings)
+    if any(g.is_var(a) for a in g.members(node)):
+        # A cheap reject for the pattern case: an authored member has variables
+        # in its own argument positions, and a fact the chain deposited never
+        # does -- its arguments are entries, moments and propositions, however
+        # generic what is INSIDE them may be. Without this the seam pays a full
+        # unification per authored pattern per member.
+        return None
+    if node == want.pattern:
+        # The member finding ITSELF. `g.rel` interns, so a rule's own member is
+        # among the instances of its relation, and `unify` returns early on
+        # identity -- binding nothing, and therefore binding nothing to a
+        # variable either, which is how this walked past the test below and
+        # derived `near(M, ?p)` with `?p` free.
+        return None
+    b = unify(g, want.pattern, node, bindings)
+    if b is None:
+        return None
+    for k, v in b.items():
+        if g.is_var(v):
+            return None
+        if g.has_var(v) and (k, v) not in _SAFE and occurs(g, k, v, {}):
+            # A rule reading the reification of ITSELF: `<echo>`'s antecedent
+            # `con(?r, ?pat, plus, ?i)` meets the entry that reifies `<echo>`,
+            # whose stored pattern contains that very `?pat` node -- and binding
+            # it builds a structure that contains itself, which every later walk
+            # runs forever on. `occurs` exists for exactly this and says match
+            # cannot produce it; once a chain fact about a generic proposition
+            # is visible, match can, so the check comes with the visibility.
+            return None
+        if g.has_var(v):
+            _SAFE.add((k, v))
+    return b
+
+
 def _bounded(g, chain, want, bindings):
     """A skeleton relation that needs no anchor, because it is bounded by
     construction: `asking(<seat>)`, and whatever a stratum-0 rule concludes.
@@ -1442,10 +1570,8 @@ def _bounded(g, chain, want, bindings):
     structural would stop it. `Machine.ask_read` is the one caller.
     """
     rel = g.relation_of(want.pattern)
-    for node in g.instances_of(rel):
-        if g.has_var(node):
-            continue
-        b = unify(g, want.pattern, node, bindings)
+    for node in _narrowed(g, rel, want, bindings):
+        b = _as_fact(g, want, node, bindings)
         if b is not None:
             yield b
 
@@ -1576,9 +1702,12 @@ def structural_relations(chain) -> Dict[NodeId, Callable]:
         chain.DELTA_NEXT: _stored,
         chain.RESTS_ON: _stored,
         chain.LICENSED_BY: _stored,
+        chain.ARRIVED_ON: _stored,
+        chain.MENTIONED: _stored,
         chain.ENTRY_OF: _members_of,
         chain.SPAN_OF: _span_of,
         chain.ASKING: _bounded,
+        chain.ASKED: _bounded,
     }
 
 

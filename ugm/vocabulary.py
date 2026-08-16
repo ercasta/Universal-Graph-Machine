@@ -47,7 +47,8 @@ ROLES: Dict[str, List[str]] = {
     # it -- see docs/observations.md §2.14, where the invariant was written down
     # one message before it fired.
     "the chain": ["anc", "sanc", "pred", "in_delta", "delta_next", "entry_of",
-                  "span", "span_of", "rests_on", "licensed_by", "asking"],
+                  "span", "span_of", "rests_on", "licensed_by",
+                  "arrived_on", "mentioned", "asking", "asked"],
     # R3/R4: rules are subjects, and rules are askable.
     "rules as data": ["rule", "ant", "con", "conn", "adopt", "compose",
                       "composed", "computes", "names", "binds", "exercised",
@@ -63,6 +64,9 @@ ROLES: Dict[str, List[str]] = {
         "reached", "bounded", "widened", "support", "unsupported", "root",
         "rooted", "scoped", "loaded", "kb", "dormant", "due", "standing",
         "prefer", "excluded", "ticks",
+        # Refraction (§14): what has already run, on what, and the
+        # contradiction that stopping a loop would otherwise hide.
+        "spent", "premises", "contested",
     ],
     # Where a world touches the agent: what arrived, what was said, what was
     # done, and what may not be. About the ACT, never about its content.

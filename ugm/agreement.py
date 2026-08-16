@@ -43,6 +43,14 @@ from .text import load
 # The read, as rules. Written in the surface, so this is also the expressibility
 # claim: nothing here is a notation the document invented for the engine.
 #
+# ⚠ The order within a delta is walked back from a CANDIDATE, not closed over
+# every entry. Both give `<beaten-deposit>` the same answers -- it only ever
+# asks about two entries that are already candidates for one proposition -- but
+# the closure is the difference between one walk per candidate and one per pair
+# of entries in the history. It went unnoticed while §7 hid two thirds of the
+# chain from the matcher: with the reified entries visible the same fixture
+# stopped finishing at all (docs/observations.md Part 6.6).
+#
 # ⚠ Every member is ANCHORED, and the order is what anchors it. `anc(?seat, ?d)`
 # walks upward from a bound seat; `in_delta(?d, ?e)` enumerates a bound moment's
 # entries; `entry_of(?e, ...)` reads a bound entry's own three members. A member
@@ -51,7 +59,7 @@ from .text import load
 READ = """
 rule <cand> = implies(
   { asking(?seat), anc(?seat, ?locus), anc(?seat, ?d), in_delta(?d, ?e),
-    entry_of(?e, ?x, ?prop, ?sign), anc(?locus, ?x) },
+    entry_of(?e, ?x, ?prop, ?sign), asked(?prop), anc(?locus, ?x) },
   { cand(?seat, ?locus, ?prop, ?e) } )
 
 rule <beaten-locus> = implies(
@@ -61,17 +69,16 @@ rule <beaten-locus> = implies(
   { beaten(?seat, ?locus, ?prop, ?e) } )
 
 rule <dep-within> = implies(
-  { asking(?seat), anc(?seat, ?m), in_delta(?m, ?e), delta_next(?e, ?f) },
+  { cand(?seat, ?locus, ?prop, ?e), delta_next(?e, ?f) },
   { dep_after(?e, ?f) } )
 
 rule <dep-within-step> = implies(
-  { asking(?seat), anc(?seat, ?m), in_delta(?m, ?e),
-    delta_next(?e, ?x), dep_after(?x, ?f) },
+  { dep_after(?e, ?x), delta_next(?x, ?f) },
   { dep_after(?e, ?f) } )
 
 rule <dep-across> = implies(
-  { asking(?seat), anc(?seat, ?m), in_delta(?m, ?e),
-    anc(?seat, ?n), in_delta(?n, ?f), sanc(?m, ?n) },
+  { cand(?seat, ?locus, ?prop, ?e), cand(?seat, ?locus, ?prop, ?f),
+    in_delta(?m, ?e), in_delta(?n, ?f), sanc(?m, ?n) },
   { dep_after(?e, ?f) } )
 
 rule <beaten-deposit> = implies(
@@ -178,7 +185,7 @@ def _compare(drop: Tuple[str, ...] = ()) -> Tuple[int, List[str], int]:
     # The read is anchored on the question, so the gate asks for every seat it
     # is about to compare. Each derived fact is keyed by its seat, so one
     # fixpoint answers all of them.
-    m.ask_read(*fx["moments"])
+    m.ask_read(*fx["moments"], about=fx["props"])
     derived = m.settle_structure()
 
     moments: List[Moment] = fx["moments"]

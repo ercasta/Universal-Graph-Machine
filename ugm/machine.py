@@ -41,6 +41,7 @@ from .rules import (
     Situation,
     current_state,
     substitute,
+    _left_open,
 )
 
 
@@ -464,6 +465,12 @@ class Machine:
         self.COMPOSE = self.g.atom("compose")
         self.COMPOSED = self.g.atom("composed")
         self.WIDENED = self.g.atom("widened")
+        # Refraction's vocabulary (§14). `spent` is the record of an
+        # instantiation having run; `premises` names the entries it ran on;
+        # `contested` is the occasion refraction would otherwise have hidden.
+        self.SPENT = self.g.atom("spent")
+        self.PREMISES = self.g.atom("premises")
+        self.CONTESTED = self.g.atom("contested")
         self.REACHED = self.g.atom("reached")
         self.BOUNDED = self.g.atom("bounded")
         # ...and the third bound, which was the only one not on the record.
@@ -522,6 +529,8 @@ class Machine:
             "recall": self.RECALL, "recalled": self.RECALLED,
             "close": self.CLOSE, "tolerance": self.TOLERANCE,
             "defeated": self.DEFEATED, "adopt": self.ADOPT,
+            "spent": self.SPENT, "premises": self.PREMISES,
+            "contested": self.CONTESTED,
             "compose": self.COMPOSE, "composed": self.COMPOSED,
             "at": self.AT,
             # The skeleton, as names a corpus may write (§6, §12). `pred` is the
@@ -533,11 +542,13 @@ class Machine:
             "delta_next": self.chain.DELTA_NEXT,
             "rests_on": self.chain.RESTS_ON,
             "licensed_by": self.chain.LICENSED_BY,
+            "arrived_on": self.chain.ARRIVED_ON,
+            "mentioned": self.chain.MENTIONED,
             "entry_of": self.chain.ENTRY_OF,
             # ...and a stretch of it. `span_of(?s, ?start, ?end)` mints when the
             # endpoints are bound and decomposes when the span is (§11).
             "span_of": self.chain.SPAN_OF, "span": self.chain.SPAN,
-            "asking": self.chain.ASKING,
+            "asking": self.chain.ASKING, "asked": self.chain.ASKED,
             "names": self.NAMES, "computes": self.COMPUTES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
@@ -637,6 +648,10 @@ class Machine:
         # See `_mint_structure`: structure sits in no delta, so this is the only
         # thing that can tell the incremental path a skeleton fact appeared.
         self._structure_touched: set = set()
+        # Refraction (§14). An instantiation -- a rule and the entries it
+        # consumed -- fires once. See `_instantiation`, `_spend`, `_contest`.
+        self._spent: dict = {}
+        self._spent_by_prop: dict = {}
         # §19. `None` is the deliberate-reasoning setting -- recall with the
         # budget removed -- and it is the default, because narrowing is a claim
         # about what an agent has learned and a fresh agent has learned nothing.
@@ -673,7 +688,8 @@ class Machine:
                              self.RECALL, self.RECALLED, self.CLOSE,
                              self.TOLERANCE, self.BUDGET, self.DEPTH,
                              self.HYPOTHESES, self.WIDENED, self.REACHED,
-                             self.BOUNDED, self.DEFEATED, self.ADOPT}
+                             self.BOUNDED, self.DEFEATED, self.ADOPT,
+                             self.SPENT, self.PREMISES, self.CONTESTED}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -738,6 +754,8 @@ class Machine:
         # The narrowing lives in the `prefer` table and the budget, which are
         # separately deniable and were what the criterion was actually about.
         self.gate.on_write.append(self._adopt)
+        # Refraction's cost, checked at the write: see `_contest`.
+        self.gate.on_write.append(self._contest)
         self.gate.on_write.append(self._dispatch)
         self.gate.on_write.append(self._enter)
         self.gate.on_write.append(self._answer)
@@ -2710,6 +2728,7 @@ class Machine:
                         source=self.KB, mention=True,
                     )
         frame.state = "discharged"
+        self._forget_spent(frame)
         frame.carried = out
         return out
 
@@ -2835,6 +2854,10 @@ class Machine:
         # state the agent is in, not a mode it is switched into.
         self._widened = False
         wrote = self._apply(chosen)
+        # Refraction: this instantiation has now run. Recorded AFTER the write,
+        # because `_spend` indexes what the application concluded and that is
+        # what `_contest` watches for a later denial.
+        self._spend(chosen, wrote)
         self.useful_writes += len(wrote)
         # `matched` in a Step is now *how many candidates were weighed to make
         # this move*, which is what the field always meant and no longer the
@@ -3261,7 +3284,7 @@ class Machine:
             # than as a crash, which is the only reason the gate caught it.
             before = self.g.count()
             grounded = substitute(self.g, m.pattern, app.bindings)
-            if self.g.has_var(grounded):
+            if _left_open(self.g, m.pattern, app.bindings):
                 continue
             if m.sign != PLUS:
                 # There is nothing to deny. A skeleton fact is how the graph was
@@ -3295,15 +3318,23 @@ class Machine:
             self._structure_touched.add(self.g.relation_of(grounded))
         return added
 
-    def ask_read(self, *seats) -> None:
-        """Seed `asking(<seat>)` -- what the rule-level read is anchored on.
+    def ask_read(self, *seats, about=()) -> None:
+        """Seed `asking(<seat>)` -- what the rule-level read is anchored on --
+        and `asked(<prop>)` for each proposition the question is about.
 
         Skeleton, so it is minted rather than deposited: the question is not a
         claim about the world, and §6's price applies to it as to every other
         structural fact the read produces.
+
+        `about` may be empty, and then the read is asked about everything the
+        chain mentions, which is what it always did. That is the honest default
+        and a costly one: the read is a fixpoint, so an unasked proposition
+        still gets its candidates, its beatings and its winner.
         """
         for s in seats:
             self.g.rel(self.chain.ASKING, s.node)
+        for p in about:
+            self.g.rel(self.chain.ASKED, p)
 
     def settle_structure(self) -> int:
         """Run the stratum-0 rules to fixpoint, layer by layer.
@@ -3897,11 +3928,158 @@ class Machine:
             (tuple(-c.node for c in app.consumed), _stamp(app), cache["seq"], k),
         )
 
+    def _instantiation(self, app: Application) -> tuple:
+        """What a rule application IS, for the purpose of firing once.
+
+        The rule and **the entries it consumed** -- not its bindings. That
+        distinction is the whole difference between this and the dedup `_enter`
+        deleted, which keyed on the assumption alone and made a hypothesis
+        unfinishable: *explore `broken(pipe)` […] then be told `wet(pipe)`, and
+        the hypothesis is never revisited*.
+
+        Being told something new deposits a new ENTRY, so an application that
+        consumes it is a different instantiation and runs on its own. An
+        application whose premises have not moved is the same one, and repeating
+        it derives nothing the first did not.
+
+        The bindings are in the key as well, and leaving them out cost 12 checks
+        before it cost anything else. A structural or computed member **consumes
+        no entry** -- `match` drops its slot -- so a stratum-0 rule's consumed
+        tuple is empty for *every* binding, and keying on premises alone made
+        such a rule fire once in its life. That took out the recursion over
+        spans, hypothesis explanation and norm retirement together. Premises say
+        *what the world showed*; bindings say *which case this is*, and firing
+        once means once per case.
+        """
+        return (app.rule.node,
+                tuple(sorted(e.node for e in app.consumed)),
+                frozenset(app.bindings.items()))
+
+    def _spend(self, app: Application, wrote: Tuple[Entry, ...]) -> None:
+        """Mark an instantiation spent, and put it on the record.
+
+        Refraction, in the sense OPS5 gave the word: an instantiation fires once
+        for a given set of premises. What is new here is not the mechanism but
+        that it is **sayable** -- `spent(<R>, premises(...))` is deposited, so
+        the agent can be asked which of its rules have already run on what, and
+        a corpus can reason about it. Chemistry that leaves a note.
+
+        Measured need: `<grant>` applied 4 times in 8 ticks on one unchanging
+        premise, and a foreign corpus, the dungeon and this document's own
+        interpreter each hand-built a different substitute (`may(x, r)`, a round
+        counter, a grant placed at an earlier locus).
+        """
+        key = self._instantiation(app)
+        if key in self._spent:
+            return
+        # A refused write never happened -- §19 runs the veto *before* the
+        # deposit, so "a forbidden entry never exists, not even briefly". An
+        # instantiation fires once when it fires; being turned away at the gate
+        # is not firing, and marking it spent would make refusal permanent.
+        # That is the property measured earlier in this session and nearly lost
+        # here: withdraw the prohibition and the rule applies on its own, which
+        # is `arbitration-is-scheduling`'s *a loser is deferred, not rejected*
+        # holding at the gate as well as in the chooser.
+        if wrote and all(
+            self.g.relation_of(e.proposition) is self.gate.REFUSED for e in wrote
+        ):
+            return
+        concluded = tuple(e.proposition for e in wrote if e.sign == PLUS)
+        self._spent[key] = (app.rule.node, app.consumed, concluded, self.focus)
+        # ...and RETIRE it, rather than leaving it in the candidate set to be
+        # skipped. Measured: filtering it in `_survives` instead cost the two
+        # optimisations this loop was built around -- `live` and `apps` came out
+        # the same size, which that check's own comment calls the sign that
+        # withholding "has silently stopped working", and weighing went back to
+        # quadratic (60 facts: 1,950 candidates weighed; 120: 7,500). Returning
+        # early from `_survives` skips `_would_change`, so no no-op verdict is
+        # ever cached and every spent candidate is re-walked for ever. A spent
+        # instantiation cannot fire again while its frame lives, so it does not
+        # belong in the candidate set at all.
+        # WITHHELD, not retired. Retiring it outright also removes it from
+        # `by_rule`, which is what `defeat` reads to know which rules matched
+        # here -- and `overrides` is per tick, so an overriding rule that had
+        # fired once stopped counting as having matched and the defeat silently
+        # lapsed. That cost 11 checks across `overrides`, `supersedes` and
+        # `defeated`. The application stays on the record; it only leaves the
+        # live set, which is the same treatment a no-op verdict gets.
+        for cache in self._match_cache.values():
+            cache["live"].discard((app.rule.node, frozenset(app.bindings.items())))
+        for p in concluded:
+            self._spent_by_prop.setdefault(p, set()).add(key)
+        if app.consumed:
+            self._note(self.g.rel(
+                self.SPENT, app.rule.node,
+                self.g.rel(self.PREMISES, *sorted(e.node for e in app.consumed))))
+
+    def _contest(self, frame: Frame, e: Entry) -> None:
+        """The price of refraction, paid rather than accepted.
+
+        Firing once turns a loud contradiction into a silent one. `<grant>`'s
+        runaway was not a rule misbehaving: `implies` says *whenever A, B*, and
+        the corpus asserted `-B` while `A` still held. The 194 acts were the
+        engine believing both. Refraction stops the symptom and leaves the
+        contradiction in place -- which is the one failure mode this design is
+        least willing to buy, and §8 already names it as unowned: *is this moment
+        consistent? is a query somebody must run, and the design does not say
+        who.*
+
+        So this is who, for exactly the case refraction creates: a spent
+        instantiation's conclusion is denied **while its premises still stand**.
+        That is the loop, caught at the moment it would have started, and
+        deposited as `contested(<R>, <what>)` for a corpus to answer.
+
+        Cheap because it is indexed by the proposition being written, like
+        `_forbid`: a denial about something no spent rule concluded costs one
+        dict lookup.
+        """
+        if e.sign != MINUS:
+            return
+        for key in list(self._spent_by_prop.get(e.proposition, ())):
+            rule_node, consumed, _, _f = self._spent[key]
+            if not all(
+                self.chain.resolve(c.proposition, frame.topic, frame.seat) is c
+                for c in consumed
+            ):
+                continue  # the premises moved: the rule may run again on its own
+            self._note(self.g.rel(self.CONTESTED, rule_node, e.proposition),
+                       licence=self.g.rel(self.APPLIED, rule_node))
+
+    def _forget_spent(self, frame: Frame) -> None:
+        """A frame's refraction ends with the frame.
+
+        `_match_cache` is already per-seat, and says why: *the cache belongs to
+        a seat, because a `Situation` does. Supposing forks.* Refraction is the
+        same kind of state and needs the same scope -- an instantiation spent
+        inside a hypothesis must not stay spent outside it, or **supposing
+        changes what the agent believes**, which is the one thing supposing may
+        not do (`_adopt`'s argument, and `_dispatch`'s).
+
+        Found by measurement rather than foresight: leaving it global broke the
+        modality pipeline, hypothesis explanation and structural containment on
+        a forking chain -- every one of them a check about supposing.
+        """
+        gone = [k for k, v in self._spent.items() if v[3] is frame]
+        for k in gone:
+            _, _, concluded, _ = self._spent.pop(k)
+            for p in concluded:
+                bucket = self._spent_by_prop.get(p)
+                if bucket is not None:
+                    bucket.discard(k)
+
     def _survives(self, app: Application) -> bool:
-        """The two per-candidate filters, in `tick`'s order. Defeat is not here:
-        it is per RULE, and the chooser applies it once per rule rather than
-        once per candidate."""
-        return not self._passed_up(app) and self._would_change(app)
+        """The three per-candidate filters, in `tick`'s order. Defeat is not
+        here: it is per RULE, and the chooser applies it once per rule rather
+        than once per candidate."""
+        # Spent is checked LAST, and the order is the whole of it. Checked first,
+        # it returns before `_would_change` runs -- so no no-op verdict is ever
+        # cached, the candidate is revived on every change it reads, and weighing
+        # goes back to quadratic (measured: 60 facts weighed 1,950 candidates,
+        # 120 weighed 7,500). Running the verdict first keeps the withholding
+        # machinery intact and lets refraction filter what survives it.
+        if self._passed_up(app) or not self._would_change(app):
+            return False
+        return self._instantiation(app) not in self._spent
 
     def _choose(self, proposed: List[Rule], keys: set):
         """Pick the move without materialising the option set.

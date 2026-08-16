@@ -5466,17 +5466,29 @@ def the_agent_harmonizes_itself() -> None:
     # rules undo each other forever, and the rule that would settle it is
     # starved. Same corpus, one word (`standing`) removed.
     loud = Machine()
-    load(loud, chr(10).join([
+    kb_loud = load(loud, chr(10).join([
         "rule <hot> = implies( { +go(?x) }, { +q(?x) } )",
         "rule <cold> = implies( { +go(?x) }, { -q(?x) } )",
         "rule <referee> = implies( { +p(?x) }, { +overrides(<cold>, <hot>) } )",
         "fact +p(a)", "fact +go(a)", ""]))
     noisy = loud.run(limit=60)
-    check("§19", "⚠ ...and a conflict STARVES the rule that would settle it: "
-          "without `standing` the two undo each other and the settler never "
-          "gets a turn",
-          noisy[-1].state == "applied"
-          and "referee" not in {s.applied.rule.name for s in noisy if s.applied})
+    # This check used to assert the OPPOSITE, and the finding it recorded was
+    # real: without `standing`, `<hot>` and `<cold>` undid each other for ever
+    # and `<referee>` -- the rule that would settle the conflict -- never got a
+    # turn. Refraction removed the starvation rather than the fixture: each
+    # instantiation now fires once, so the pair cannot loop, the referee gets
+    # its turn, and the run reaches quiescence in five ticks.
+    #
+    # And the conflict is not hidden by that. `contested(<hot>, q(a))` is
+    # deposited, which is the occasion refraction was built with precisely so
+    # that a stopped loop does not become a silent contradiction.
+    check("§19", "...and a conflict no longer starves the rule that would "
+          "settle it: refraction stops the pair looping, so the referee gets "
+          "its turn and the contradiction is deposited rather than run",
+          noisy[-1].state == "quiescent"
+          and "referee" in {s.applied.rule.name for s in noisy if s.applied}
+          and loud.holds(loud.g.rel(loud.CONTESTED, kb_loud.rule_ref("hot"),
+                                    kb_loud.term("q(a)"))) == PLUS)
 
     # -- 2. and it can be withdrawn ----------------------------------------
     undone = Machine()
@@ -7221,6 +7233,109 @@ def reference_is_binding() -> None:
 
 
 
+def the_chain_mirrors_nothing_of_its_own() -> None:
+    """Every field of `Entry` and `Moment` is a cache of the graph, and this is
+    what holds it to that.
+
+    The rule this enforces: Python may keep an index to make a lookup fast; it
+    may not be the only place something is known. `Entry.locus/proposition/sign`
+    are members 0-2 of the entry node, `consumed` is `rests_on`, `licence` is
+    `licensed_by`, `source` is `arrived_on`, `mention` is `mentioned`;
+    `Moment.predecessor` is `pred`, `delta` is `in_delta`, `depth` is the length
+    of the `pred` walk. `Moment.licence` is gone -- it was assigned once and read
+    nowhere, while §4 claimed it was what said whether a moment was time or
+    derivation.
+
+    Without this, the two can drift silently, which is `ugm.state`'s lesson at
+    one construct down: an index is a re-implementation of what it indexes.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <boil> = causes( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <warn> = implies( { +boiling(?w) }, { +doing(say(hot(?w))) } )",
+        "fact +heat(anna, kettle)", "fact +water(kettle)", ""]))
+    m.actuator("say")
+    ch, g = m.chain, m.g
+    m.run(limit=200)
+
+    bad = []
+    n_entries = 0
+    for mo in ch.moments:
+        for e in mo.delta:
+            n_entries += 1
+            if g.relation_of(e.node) is not ch.ENTRY:
+                bad.append(("relation", e.node))
+            if g.member(e.node, 0) != e.locus.node:
+                bad.append(("locus", e.node))
+            if g.member(e.node, 1) != e.proposition:
+                bad.append(("proposition", e.node))
+            if g.member(e.node, 2) != ch.SIGN[e.sign]:
+                bad.append(("sign", e.node))
+            rests = {g.member(n, 1) for n in g.instances_of(ch.RESTS_ON)
+                     if g.member(n, 0) == e.node}
+            if rests != set(e.consumed):
+                bad.append(("consumed", e.node))
+            lic = {g.member(n, 1) for n in g.instances_of(ch.LICENSED_BY)
+                   if g.member(n, 0) == e.node}
+            if lic != ({e.licence} if e.licence is not None else set()):
+                bad.append(("licence", e.node))
+            src = {g.member(n, 1) for n in g.instances_of(ch.ARRIVED_ON)
+                   if g.member(n, 0) == e.node}
+            if src != ({e.source} if e.source is not None else set()):
+                bad.append(("source", e.node))
+            seen = any(g.member(n, 0) == e.node
+                       for n in g.instances_of(ch.MENTIONED))
+            if seen != bool(e.mention):
+                bad.append(("mention", e.node))
+
+    check("§20", "every Entry field is a cache of the graph and agrees with it",
+          n_entries > 20 and not bad)
+
+    mbad = []
+    for mo in ch.moments:
+        preds = {g.member(n, 1) for n in g.instances_of(ch.PRED)
+                 if g.member(n, 0) == mo.node}
+        want = {mo.predecessor.node} if mo.predecessor is not None else set()
+        if preds != want:
+            mbad.append(("pred", mo.node))
+        in_delta = {g.member(n, 1) for n in g.instances_of(ch.IN_DELTA)
+                    if g.member(n, 0) == mo.node}
+        if in_delta != {e.node for e in mo.delta}:
+            mbad.append(("delta", mo.node))
+        walk, cur = 0, mo
+        while cur.predecessor is not None:
+            walk += 1
+            cur = cur.predecessor
+        if walk != mo.depth:
+            mbad.append(("depth", mo.node))
+    check("§20", "...and every Moment field is too -- pred, delta and depth",
+          len(ch.moments) >= 2 and not mbad)
+
+    # A span is a node with two ordered members and NOTHING else; the Python
+    # object adds only `depth`, which is the end's. And a locus is a moment or a
+    # span (§8), so getting from a bound node back to the thing has to ask both
+    # -- which is the one place the two kinds meet.
+    a, b = ch.moments[0], ch.moments[-1]
+    sp = ch.span(a, b)
+    check("§11", "...and a Span is its own node: two members, and depth is the "
+          "end's -- nothing of its own",
+          g.relation_of(sp.node) is ch.SPAN
+          and g.members(sp.node) == (a.node, b.node)
+          and sp.start is a and sp.end is b and sp.depth == b.depth)
+    check("§8", "...and a locus resolves from its node to either kind",
+          ch.locus_by_node(sp.node) is sp
+          and ch.locus_by_node(b.node) is b
+          and ch.span_by_node(sp.node) is sp)
+    # Interned: two recognisers reaching one stretch must reach one node, or
+    # everything said about it splits in two.
+    check("§11", "...and a span is interned, so one stretch is one node",
+          ch.span(a, b) is sp)
+    check("§4", "...and a Moment carries no licence: it was written and never "
+          "read, so it is not a cache of anything", not hasattr(ch.root, "licence"))
+
+
 def a_cached_application_can_be_retracted() -> None:
     """§6, §12. Negation as failure on a structural member is evaluated **at
     match time**, and the delta-match cache carries applications across ticks --
@@ -7444,6 +7559,7 @@ def main() -> int:
     the_index_agrees_with_the_walk()
     a_cause_moves_the_register()
     reference_is_binding()
+    the_chain_mirrors_nothing_of_its_own()
     a_cached_application_can_be_retracted()
     a_structural_member_needs_a_ground_anchor()
     quiescence_is_an_occasion()

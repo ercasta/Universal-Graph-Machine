@@ -79,11 +79,9 @@ class Moment:
         self,
         node: NodeId,
         predecessor: Optional["Moment"],
-        licence: Optional[NodeId],
     ) -> None:
         self.node = node
         self.predecessor = predecessor
-        self.licence = licence
         self.delta: List[Entry] = []
         self.depth = 0 if predecessor is None else predecessor.depth + 1
 
@@ -260,6 +258,13 @@ class Chain:
         # matcher did, and why it was *deliberately slow*: it derived the read
         # for every seat in the history whether or not anything asked.
         self.ASKING = g.atom("asking")
+        # ...and WHAT is being asked about. A read answers about a proposition,
+        # so a read that derives candidates for every proposition in the history
+        # is answering questions nobody put. It went unnoticed while §7 hid two
+        # thirds of the chain from the matcher: with the reified entries visible
+        # the same five-moment fixture derived 10,638 facts to answer 28
+        # questions. Seeded beside the seat, and by the same one caller.
+        self.ASKED = g.atom("asked")
         self.IS_MOMENT = g.atom("moment_of")
         # A stretch of the chain, as a member a rule may write (§11):
         # `span_of(?s, ?start, ?end)`. Nothing is deposited for it -- the span
@@ -293,13 +298,19 @@ class Chain:
         # finding 1 of the audit in Part 1: the discriminator between *told* and
         # *inferred* sat on every entry and no rule could read it.
         self.LICENSED_BY = g.atom("licensed_by")
+        # ...and the other two fields §5 called "ordinary facts about the entry"
+        # while keeping them in Python. `arrived_on` is §13's channel;
+        # `mentioned` is §14's use/mention. Skeleton, for `rests_on`'s reason:
+        # nobody asserted them, they are how the entry was made.
+        self.ARRIVED_ON = g.atom("arrived_on")
+        self.MENTIONED = g.atom("mentioned")
         # Sign atoms live here rather than in the rule set, because an entry's
         # third member is a sign and the chain is what mints entries. Everything
         # else takes them from here: `atom` does not intern, so a second
         # `g.atom("+")` would be a different node that no rule could match --
         # the name-identity trap, which has cost this design four silent bugs.
         self.SIGN = {s: g.atom(s) for s in (PLUS, MINUS, UNSURE)}
-        self.root = Moment(g.instance(self.MOMENT), None, None)
+        self.root = Moment(g.instance(self.MOMENT), None)
         g.rel(self.IS_MOMENT, self.root.node)
         self.moments: List[Moment] = [self.root]
         self._moment_by_node: Dict[NodeId, Moment] = {self.root.node: self.root}
@@ -318,7 +329,11 @@ class Chain:
         # stratum-0 rule was written that needed to tell two of them apart. The
         # design says a moment is a node so that facts can be about it; that is
         # false the moment they are all the same node.
-        m = Moment(self.g.instance(self.MOMENT), predecessor, licence)
+        # The licence is no longer carried: it was assigned here and read
+        # nowhere in the repository, while §4 claimed *which of the two this is
+        # is said by the licence and by nothing else*. The moment's own
+        # succession is `pred`; what a moment is FOR is a fact about it.
+        m = Moment(self.g.instance(self.MOMENT), predecessor)
         self.g.rel(self.IS_MOMENT, m.node)
         self.g.rel(self.PRED, m.node, predecessor.node)
         self.moments.append(m)
@@ -358,6 +373,10 @@ class Chain:
             self.g.rel(self.RESTS_ON, node, c)
         if licence is not None:
             self.g.rel(self.LICENSED_BY, node, licence)
+        if source is not None:
+            self.g.rel(self.ARRIVED_ON, node, source)
+        if mention:
+            self.g.rel(self.MENTIONED, node)
         e = Entry(node, locus, proposition, sign, licence, source, consumed, mention)
         seat.delta.append(e)
         # ...and an index by the entry's own node. `entry_by_node` was a scan of

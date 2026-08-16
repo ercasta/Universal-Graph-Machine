@@ -59,7 +59,9 @@ class Tok(NamedTuple):
     line: int
 
 
-_PUNCT = set("(){},=:@+-?")
+_PUNCT = set("(){},=:@+-?>")
+# `>` is punctuation only as the second half of `=>`, which is what a
+# postcondition's arrow is. `<` never reaches here -- it opens a rule name.
 
 # Rule names live in angle brackets, as the design document writes them: `<R1>`.
 # Without the marker they share one namespace with relations, and a rule named
@@ -165,6 +167,29 @@ class RuleMember(NamedTuple):
     binds: Optional[Term] = None
 
 
+class PostClause(NamedTuple):
+    """A postcondition, as written: a query, and what it does to the table.
+
+        rule <classify> = implies( { +asked(?x) }, { +considered(?x) } )
+          after { +penguin(?x) } => boost(<flightless>, 3), damp(<flies>, 2)
+          frozen after => boost(?a, 1)
+
+    The query is an ordinary antecedent -- no new notation, and the same
+    matcher -- and it is matched with the rule's OWN bindings already in hand,
+    so `?x` above is the `?x` the rule bound. A bare `after` is the query that
+    asks nothing and always holds.
+
+    `frozen` marks what a calibration process may not touch. It changes nothing
+    about how the postcondition runs, which is the point: an authority rule and
+    a learned one are the same construct, and only the learner treats them
+    differently.
+    """
+
+    query: Tuple[RuleMember, ...]
+    buffs: Tuple[Tuple["Term", int], ...]
+    frozen: bool
+
+
 class Statement(NamedTuple):
     kind: str  # rule | fact | say
     name: str
@@ -174,6 +199,7 @@ class Statement(NamedTuple):
     member: Optional[RuleMember]
     channel: str
     line: int
+    posts: Tuple[PostClause, ...] = ()
 
 
 class Parser:
@@ -270,7 +296,54 @@ class Parser:
         self.expect(",")
         con = self.block()
         self.expect(")")
-        return Statement("rule", name_tok.text, conn.text, ant, con, None, "", line)
+        return Statement("rule", name_tok.text, conn.text, ant, con, None, "",
+                         line, self.posts())
+
+    def posts(self) -> Tuple[PostClause, ...]:
+        """Zero or more `after` clauses following a rule."""
+        out = []
+        while True:
+            t = self.peek()
+            if t is None or t.kind != "name" or t.text not in ("after", "frozen"):
+                break
+            frozen = t.text == "frozen"
+            self.next()
+            if frozen:
+                nxt = self.peek()
+                if nxt is None or nxt.text != "after":
+                    raise ParseError(
+                        f"line {t.line}: `frozen` marks a postcondition, so it is "
+                        f"written `frozen after ... => ...`"
+                    )
+                self.next()
+            query = self.block() if self.at("{") else ()
+            self.expect("=")
+            self.expect(">")
+            buffs = [self.buff()]
+            while self.at(","):
+                self.next()
+                buffs.append(self.buff())
+            out.append(PostClause(query, tuple(buffs), frozen))
+        return tuple(out)
+
+    def buff(self) -> Tuple["Term", int]:
+        """`boost(<R>, 3)` or `damp(?a, 2)`. The target may be a rule name or a
+        variable the query bound -- a doubt is about rules nobody knew when the
+        postcondition was written, so `boost(?a, 1)` has to be sayable."""
+        t = self.next()
+        if t.kind != "name" or t.text not in ("boost", "damp"):
+            raise ParseError(
+                f"line {t.line}: a postcondition spends attention, so it says "
+                f"`boost(...)` or `damp(...)`, not {t.text!r}"
+            )
+        self.expect("(")
+        target = self.term()
+        self.expect(",")
+        n = self.next()
+        if not n.text.isdigit():
+            raise ParseError(f"line {n.line}: how much to {t.text} is a numeral")
+        self.expect(")")
+        return (target, int(n.text) * (1 if t.text == "boost" else -1))
 
     def block(self) -> Tuple[RuleMember, ...]:
         self.expect("{")
@@ -803,6 +876,22 @@ class Loader:
                 f"never binds -- the gate would refuse to deposit it (§13)."
             )
         r = self.m.rules.rule(s.connective, ant, con, s.name)
+        # The postconditions, built in the RULE's own scope -- so `?x` in a
+        # query is the same variable node the antecedent bound, and a query is
+        # matched with the application's bindings already in hand rather than
+        # from nothing. That is what makes it a POSTcondition rather than a
+        # second rule.
+        r.posts = tuple(
+            (
+                tuple(Member(mm.sign, self.build(mm.term, scope),
+                             self.build(mm.at, scope) if mm.at else None,
+                             self.build(mm.binds, scope) if mm.binds else None)
+                      for mm in clause.query),
+                tuple((self.build(t, scope), delta) for t, delta in clause.buffs),
+                clause.frozen,
+            )
+            for clause in s.posts
+        )
         # The same `<...>` marker `_fact` reads, one level up: a rule authored
         # naming a rule is mentioning, and everything it concludes inherits that.
         #
@@ -933,12 +1022,21 @@ def _vars_in(g, node: NodeId) -> set:
     """
     if g.is_var(node):
         return {node}
+    # Memoised on the node, which is sound for the reason `has_var` is computed
+    # at mint: a node's relation and members are fixed when it is built, so the
+    # set of variables in it cannot change. Profiled once quiescence made this
+    # the test for *did this member leave a variable of its own unbound* --
+    # 2,729,643 calls in one comparison, on a few hundred distinct nodes.
+    hit = g._vars_in.get(node)
+    if hit is not None:
+        return hit
     out = set()
     rel = g.relation_of(node)
     if rel is not None:
         out |= _vars_in(g, rel)
     for m in g.members(node):
         out |= _vars_in(g, m)
+    g._vars_in[node] = out
     return out
 
 

@@ -46,6 +46,30 @@ class Graph:
         # instances by relation. A rule whose antecedent names a relation has to
         # start somewhere, and scanning every node is the alternative.
         self._by_rel: Dict[NodeId, List[NodeId]] = {}
+        # ...and a third, over the same instances by WHAT SITS IN EACH ARGUMENT
+        # POSITION. `_by_rel` answers *every `delta_next`*; this answers *every
+        # `delta_next` whose first argument is this entry*, which is what a
+        # matcher with one argument already bound actually wants.
+        #
+        # The entry side took this index once already -- an option set weighed
+        # by scanning was 2,006,004 unifications and 3,003 after -- and the
+        # structural side never did, because until §7 stopped hiding two thirds
+        # of the chain from the matcher there was nothing here big enough to
+        # notice. Profiled the hour it became visible: `cand` went 193 -> 2,062
+        # in one fixture, and `<beaten-locus>` joining `cand` against `cand` by
+        # scanning was 4.4M unifications in 60 seconds, which is 2,062 squared.
+        #
+        # Insertion-ordered like the others, so nothing downstream inherits a
+        # tie-break from a hash.
+        self._by_arg: Dict[Tuple[NodeId, int, NodeId], List[NodeId]] = {}
+        # Which variables are in a node, memoised. Immutable for `_has_var`'s
+        # reason -- a node's relation and members are fixed when it is built.
+        # ⚠ It lives HERE and not beside its one reader, because a node id means
+        # nothing outside the graph that minted it: a module-level cache keyed
+        # on the id answered a second machine's question with the first
+        # machine's node, and the suite reported a corpus rule as concluding
+        # about a variable nothing binds.
+        self._vars_in: Dict[NodeId, set] = {}
 
     # -- minting ----------------------------------------------------------
 
@@ -114,6 +138,8 @@ class Graph:
             self._name[n] = name
         if relation is not None:
             self._by_rel.setdefault(relation, []).append(n)
+            for i, mm in enumerate(members):
+                self._by_arg.setdefault((relation, i, mm), []).append(n)
         return n
 
     # -- reading ----------------------------------------------------------
@@ -155,6 +181,11 @@ class Graph:
         """Every instance of a relation, in mint order. Insertion-ordered, so a
         derivation that ends in a tie breaks it the same way on every run."""
         return list(self._by_rel.get(relation, ()))
+
+    def instances_with(self, relation: NodeId, pos: int, member: NodeId) -> List[NodeId]:
+        """Every instance of a relation with this node in this argument position.
+        The narrow form of `instances_of`, and the same guarantee: mint order."""
+        return self._by_arg.get((relation, pos, member), [])
 
     def count(self) -> int:
         return self._next

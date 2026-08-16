@@ -2259,7 +2259,58 @@ cannot both hold* is about two **named, distinct** propositions, not about the s
 remains the open item `rules-design.md` §8 records — but it is now the *only* one of Part 2's
 candidate primitives that the aggregate does not cover.
 
-## 4.6 The decisions to take before writing code
+## 4.6 The locus IS the iteration primitive — and it is already in the corpus's hands
+
+> **The position.** Do we just need an iteration primitive in the open class, plus operational
+> instructions? This should not belong in the engine.
+
+Correct for one-shot execution, and here is the measurement.
+
+**Two corpus-level attempts failed first, and they failed for one reason.** Spending the command
+(`-command(...)`) ran away, because `says` is standing and `<trust>` re-derives it. Granting a right
+and spending it (`may_act`) ran away too — 194 attacks — because `<grant>` re-issues the right from a
+standing `need`. The general shape of the failure:
+
+> **Anything derived from a standing arrival is re-derivable, so consuming it does not stick.**
+
+**What works is the locus.** `resolve` orders by *latest locus first*. So place the grant at the
+moment the need sits at, and spend it at the current one:
+
+```
+rule <grant> = implies( { +need(?d) at ?m },  { +may_act(?d) at ?m } )
+rule <i-run> = causes(  { +command(?verb(?d)), +imperative(?verb),
+                          +denotes(?d, ?g), +may_act(?d) },
+                        { -may_act(?d), +doing(?verb(?g)) } )
+```
+
+| | |
+|---|---|
+| emitted | `['attack(gob_b)']` — **once** |
+| ticks | 14, quiescent |
+| engine change | none |
+
+The denial sits at a later locus than the grant, so it governs; and re-deriving the grant at the
+**old** locus changes nothing about the current answer, so quiescence holds instead of breaking. The
+`at` slot — added in §12 for relating two moments — turns out to be the consumption primitive the
+whole of §0 was reaching for.
+
+**So the engine primitive is not needed for this**, and the position that it does not belong there is
+the one the measurement supports.
+
+### What this does and does not settle
+
+| | |
+|---|---|
+| act **exactly once** on a description | solved, corpus-level, measured |
+| pick **which** when several match | arbitration picks one — here `gob_b`, by stamp order |
+| **know** that several matched | not solved; nothing counts |
+
+The last row is the honest remainder. The agent now does the right *number* of things and still cannot
+say *there were two, which did you mean?* — which is the difference between acting once and
+understanding a definite description. Whether that too is reachable from the locus trick, by iterating
+with an accumulator, is the next thing to test and has not been tested.
+
+## 4.7 The decisions to take before writing code
 
 * **Where does it run?** At the write (like `_forbid` and `_answer`), or as a structural relation the
   matcher walks? The first is the `root`/`blocked` precedent; the second would make a count matchable
@@ -2272,6 +2323,57 @@ candidate primitives that the aggregate does not cover.
 * **Does it conclude, or propose?** Per `a-tool-is-data`, an answerer proposes. A count is a fact
   about the agent's own state rather than about a world, which argues it may conclude — but that is
   an argument to make, not to assume.
+
+---
+
+# Part 5 — The line, stated by the author
+
+> Python may hold **conventions**: building a specific graph structure when something arrives and must
+> be stamped. It may hold **indexes** in the strict sense — no semantics, like *all nodes labelled
+> `moment`*. It may **not** hold logic, and it may not hold specific classes. **An entry is a graph
+> node too.**
+
+## 5.1 What that permits, and what it condemns
+
+| in Python | verdict |
+|---|---|
+| `Graph` — nodes, members, interning | the substrate; nothing represents it but itself |
+| `Chain.deposit` — mint `entry(locus, prop, sign)`, `in_delta`, `rests_on`, `licensed_by`, `arrived_on`, `mentioned` | **convention**: stamping a fixed shape. Permitted |
+| `_claims`, `_by_node`, `_moment_by_node`, `by_rel` — key to node-ids | **index**. Permitted |
+| the tick | permitted by the author |
+| `Entry`, `Moment`, `Span` as **classes** | condemned. An entry is a node; these are typed records standing between a rule and the graph |
+| `Moment.at_or_after` | **logic** — inheritance, containment, and §11's rule that a span is at-or-before a moment once complete |
+| `Span.at_or_after` returning `other is self` | **logic** — a policy (no containment between spans) that the docstring itself tells a corpus to override with `during(?s2, ?s1)` |
+| `Chain.resolve` | **logic** — the read: latest locus, then latest deposit |
+| `scope_of` | **logic** — what may supersede what |
+
+The tell for the condemned rows is that each one **argues for itself in a docstring**. Nobody argues
+for an index.
+
+## 5.2 The one thing that cannot move, and the design already knows
+
+The read cannot be rules all the way down. Matching needs a state; the state is what the read
+produces. That is §5's wall, and `ugm.agreement` is the answer already built: the rule-level read
+exists, in the surface a corpus writes, matched by the ordinary matcher — and it is a **gate**, not a
+replacement. It ran the Python walk and the rule walk against each other and required identical
+answers, after deleting `stratum0.py`, "a second engine with its own rule type, its own item type and
+its own solver".
+
+So the achievable target is not *no logic in Python*. It is: **every piece of logic in Python has a
+rule-level definition it is held to.** Three gates exist (`state`, `arbitration`, `agreement`); the
+rest of the list is in §2.15 and Part 1.
+
+## 5.3 The decomposition that makes `at_or_after` movable
+
+It is two things fused, and only one is logic:
+
+* **ancestry** — walk `pred` from here and ask whether the other moment is on it. That is retrieval
+  over a stored relation, and `anc`/`sanc` already expose it to rules.
+* **the span rules** — moment-at-or-after-span (yes, once complete), span-at-or-after-moment (no),
+  span-at-or-after-span (only itself). Three cases, each a decision, each currently unargued-with.
+
+Splitting them leaves a walk that is an index and three rules that are a corpus's to disagree with.
+That is the smallest real step toward the line above, and it is the one to take first.
 
 ---
 
@@ -2534,3 +2636,244 @@ already-shipped behaviour, and it should be checked before anything is built on 
 `authoring.md`'s snippets use `--` for inline comments. The tokeniser (`text.py:82`) accepts only
 `#`; `--` is a parse error on the first line that carries one. Copy-pasteable snippets are that
 document's stated promise, so this is a real defect in it.
+
+---
+
+# Part 6 — Quiescence as rules, and what it found
+
+The handoff's next task, run: `ugm/quiescence.py`, a §20 floor gate over `Machine._would_change` in
+the shape `ugm.agreement`, `ugm.state` and `ugm.arbitration` already have. **62 candidates compared,
+0 disagreeing, 3/3 of its own rules exercised.**
+
+## 6.1 The blocking question is answered: no new primitive
+
+The rewrite was blocked on one unknown — whether `_recall`, `_would_change` and `_choose` need §4's
+missing aggregate. For quiescence the answer is no, and the reason is precise enough to be reused.
+
+**There are two different universals here and only one of them is the gap.** §4's is a claim about a
+set of *entries* — *nothing was told about this*, *exactly one thing answers this description* — and
+there a `-` member says *an entry denies this*, never *for no `?x`*. Quiescence's universal is *no
+conclusion of this application would change anything*, and its members are **structure**: a
+structural fact has no entry, so a `-` on one can only mean *not derived*, which is exactly the
+universal wanted. It is the same line `agreement`'s `<best>` has relied on since stratum 0 arrived.
+
+So quiescence is three rules:
+
+```
+rule <holds> = implies(
+  { best(?seat, ?locus, ?prop, ?e), entry_of(?e, ?le, ?pe, ?sign) },
+  { holds_as(?seat, ?locus, ?prop, ?sign) } )
+
+rule <changes> = implies(
+  { proposes(?a, ?seat, ?locus, ?prop, ?sign), -holds_as(?seat, ?locus, ?prop, ?sign) },
+  { would_change(?a) } )
+
+rule <quiet> = implies(
+  { candidate(?a), -would_change(?a) },
+  { settled(?a) } )
+```
+
+`<changes>` is the existential the loop actually filters on; `<quiet>` is the universal, and it costs
+one negated member. Both are derived and compared, not one and its complement — a gate that read one
+and inverted it could not tell `<quiet>` from arithmetic.
+
+What the harness hands over is only `proposes(...)`: the grounded conclusion, its own locus, and the
+seat. Grounding is `substitute` and the locus is a lookup once the binding is made, both of which the
+author's line puts on the substrate side. **The verdict is not handed over** — whether the
+proposition already holds is derived from `best`, which is `agreement`'s read imported rather than
+copied, because a second read would be a twin.
+
+## 6.2 What is not expressible, and it is not the aggregate
+
+Four branches of `_decide_change` are excluded and counted rather than left silent. Three are narrow:
+a stratum-0 rule's verdict is about the graph, not the read; a conclusion at a span needs a read that
+walks spans; and a **forbidden** conclusion needs `unifies(?pat, ?prop)`, since `_forbid` unifies a
+stored generic pattern against the proposition and no structural relation offers that. That last one
+is the only place in quiescence that would need something new, and it is not an aggregate.
+
+The fourth is the interesting one.
+
+## 6.3 §7 hides the chain's own facts about mentions — measured
+
+**Fixed in Part 7**, at the author's direction. What follows is the finding as it stood.
+
+**A node containing a variable is a pattern rather than a fact (§7), and the chain's skeleton facts
+about mentions contain variables.** A reified rule is deposited as a mention; its proposition is the
+rule's pattern; that pattern has variables; so the entry node has variables, and so does every
+`mentioned`, `in_delta` and `delta_next` fact about it. On this gate's own four-line fixture:
+
+| | total | invisible to the matcher |
+|---|---|---|
+| `mentioned(...)` | 125 | **97** |
+| `delta_next(...)` | 216 | **175** |
+
+Every one of them was deposited by the chain, and none was authored as a pattern. This is why the
+mention half of quiescence cannot be written as rules: §14's inheritance test — *a conclusion drawn
+from a mentioned entry is itself a mention* — needs `consumed_by(?a, ?e), mentioned(?e)`, and the
+`mentioned` facts it needs are exactly the ones the matcher will not show it.
+
+**And it breaks the read itself, which no existing gate could show.** `delta_next` is a chain, so
+severing one link stops deposit order being transitive across it. A generic entry deposited between
+two revisions of one proposition inside a single delta severs it; both revisions come out unbeaten;
+and the rule-level read has two answers where `Chain.resolve` has one. `ugm.agreement` reports 28/28
+because its fixture deposits nothing generic — the homogeneous-fixture trap, in the one gate whose
+job is the read. `ugm.quiescence` reaches it in a four-line corpus, and reports those candidates as
+*the read could not settle*, separately from agreement or disagreement, because misattributing a
+defect is worse than not finding it. It is also why the read's five ordering rules come out blind
+under this gate's kill-probe: the cases that would exercise them are the cases this severs.
+
+**This is a decision to take, not a patch to apply.** The test that divides *pattern* from *fact* is
+`has_var` over the whole node. For a chain-deposited relation the structural fact is ground and
+factual however generic the proposition inside it is, so the test is asking the wrong question there
+— but changing it changes what §7's split means everywhere, which is the author's call.
+
+## 6.4 Two instrument traps, both of them mine, both caught by the fixture
+
+**The kill-probe must not delete.** A rule's conclusion relation becomes structural by §6's fixpoint,
+so removing the rule unregisters the relation — and `strata` skips a structural relation as *the
+floor*, so the negated members stop ordering the layers that make them mean anything. Declaring the
+derived relations structural to hold the classification still broke it from the other side: 18
+disagreements, every one of them the probe measuring its own repair. The rule is **suppressed**
+instead — kept, still stratum 0, still in the dependency graph, with one member nothing can satisfy.
+
+**And the suppressing member must be generic.** Written ground, `candidate(never-satisfied)` minted
+the very instance it was supposed to be unable to find, so every rule matched itself and the whole
+read came out 0/10 exercised — a green fixture reporting that nothing could fail. The interning trap
+wearing the probe's own clothes, and the fifth face of it recorded here.
+
+## 6.5 The concept itself, and the author's question about it
+
+> Shouldn't we always reach quiescence by either fulfilling a subgoal, or bailing out when exhausting
+> the budget? And isn't quiescence an open-class concept? I don't want to risk closing it too.
+
+Two things share the name, and only the first is what this gate is about.
+
+`_would_change` is **not** *when to stop*. It is *does this move do anything* — one candidate at a
+time, no aggregate. What it protects is the difference between the ways of stopping: without it every
+rule reapplies for ever, so every run ends by exhausting the budget, and *finished* and *gave up*
+become the same silence. This design cares about that difference more than most: `enough(x)` is
+satisfaction where quiescence is exhaustion, `blocked` claims a search finished, `<give-up>` asks its
+verdict at `quiet`, and §19's veto refuses to end quietly on an open goal. Budget exhaustion is the
+third way and the worst-informed one; the agent should reach it rarely.
+
+**And the concept is closed today, which is the honest answer to the second half.** *Restating what
+the chain already says is not a step* is a decision, and a corpus might disagree with it — §4.6's
+locus trick is a corpus compensating for exactly this, and refraction is a second notion of
+firing-once sitting beside it. Today no rule can read that verdict, argue with it, or override it. So
+writing it as rules is not closing it further; it is the un-closing, and this gate is what holds the
+definition still while it moves. What stays in Python afterwards is a cache over a definition that
+now exists in the surface — which is what §5.2 says the achievable target is: *every piece of logic
+in Python has a rule-level definition it is held to.*
+
+---
+
+# Part 7 — The fix §6.3 asked for, taken; and the three things it uncovered
+
+The author's answer to §6.3 was *go on, it is not an issue if we have to rewrite rules*. So the test
+was changed, and everything below is what fell out. **549 checks 0 failing, `ugm.agreement` 28/0 with
+7/7 exercised, `ugm.quiescence` 137 candidates 0 disagreeing.**
+
+## 7.1 One question asked in three places, all of them wrong
+
+§7 divides *generic* from *anchored*, and three pieces of machinery were asking it as `has_var` over
+a whole node — *does a variable appear anywhere inside this?* The question they meant is **did this
+member leave a variable of its OWN unbound?** A rule reading `con(?r, ?pat, +, ?i)` binds `?pat` to a
+stored pattern, so its conclusion contains variables and every one of them is bound: a ground claim
+that happens to be about a generic thing. That is not the same as a consequent naming a variable
+nothing bound, and only the second has nothing to deposit.
+
+| where | asked | now asks |
+|---|---|---|
+| `_stored` / `_bounded` | is the candidate node var-free? | `_as_fact`: does the match bind a variable to a variable? |
+| `_mint_structure` | is the conclusion var-free? | `_left_open`: is a variable of this member's own pattern unbound? |
+| `_ground` (the anchor test) | is the argument recursively ground? | a variable **bound to a value** anchors, whatever is inside the value |
+
+The third was the one actually severing deposit order, and it was invisible from the other two:
+`in_delta(?m, ?e)` bound `?e` to a reified entry, and `delta_next(?e, ?f)` then found no anchor and
+enumerated nothing. Fixing the first two alone changed no answer at all — the same shape as the span
+work, where the write and quiescence were one defect twice.
+
+**Two guards came with the visibility**, both of them cases match could not previously produce:
+
+- **a member finding itself.** `g.rel` interns, so a rule's own member is among the instances of its
+  relation, and `unify` returns early on identity — binding nothing, and therefore binding nothing to
+  a variable either. It walked straight past the test and derived `near(M, ?p)` with `?p` free.
+- **a rule reading its own reification.** `<echo>`'s antecedent `con(?r, ?pat, plus, ?i)` meets the
+  entry that reifies `<echo>`, whose stored pattern contains that very `?pat` node. Binding it builds
+  a structure that contains itself and every later walk runs for ever. `occurs` exists for exactly
+  this and its docstring says match cannot produce it; once the chain's facts about mentions are
+  visible, match can.
+
+## 7.2 The read was quadratic and nothing had noticed
+
+With the reified entries visible, `ugm.agreement` — a five-moment fixture — stopped finishing. It was
+not the fix; it was that the fix removed the blindfold:
+
+| | before | after the fix | after 7.3 |
+|---|---|---|---|
+| `cand` facts derived | 193 | **2,062** | 61 |
+| one comparison | ~3s | **90.3s** | **0.3s** |
+
+Profiled: 4.4M unifications in 60 seconds, which is 2,062 squared. `<beaten-locus>` joins `cand`
+against `cand`, and a structural relation was matched by **scanning `instances_of`** — the entry side
+took its argument-position index when the option-set quadratic was found (2,006,004 unifications to
+3,003), and the structural side never did, because until now there was nothing here big enough to
+notice. *A join is not a scan*, for the second time, in the half of the matcher the first fix did not
+touch.
+
+## 7.3 Three fixes, and the last one is the only interesting one
+
+**An index over structural instances by argument position** (`Graph._by_arg`, `instances_with`), with
+the matcher pivoting on the bound argument that has the fewest instances. Substrate, no semantics.
+
+**Two memos.** `occurs` was 6,021,023 calls and a third of the read's runtime — a variable and a
+value are the same two nodes every time, and node identity is immutable here. `_vars_in` was
+2,729,643 calls on a few hundred distinct nodes, which is the cost `_left_open` introduced.
+The memo trap arrived with it, and the suite caught it: **a node id means nothing outside the graph
+that minted it**, so a module-level cache answered a second machine's question with the first
+machine's node, and a corpus rule was reported as concluding about a variable nothing binds. It lives
+on the graph now.
+
+**And the real one: the read is a question, so ask it about something.** `ask_read` seeded
+`asking(<seat>)` and nothing else, so the read derived candidates, beatings and a winner for **every
+proposition the chain mentions** in order to answer twenty-eight questions about two. `asked(<prop>)`
+is the missing half of the seed; `<cand>` reads it; the gates pass what they are about.
+
+> 10,638 derived facts and 90 seconds, against **61 facts and 0.3 seconds**.
+
+The index is worth having and the memos are worth having, but neither is the lesson. The lesson is
+that a fixpoint answers every question it can rather than the one it was asked, and the only cure is
+to say what was asked. `<dep-across>` and `<dep-within>` were narrowed for the same reason — deposit
+order is only ever consulted about two entries that are already candidates for one proposition, and
+closing over every pair in the history to find that out is the same mistake one level down.
+
+## 7.4 What the fix bought, measured by the gate that found the defect
+
+| `ugm.quiescence` | §6 | now |
+|---|---|---|
+| candidates compared | 66 | **137** |
+| the read could not settle | 4 | **0** |
+| excluded as generic | 71 | **0** |
+| its own rules exercised | 3/3 | **5/6** |
+
+The ambiguity is gone: with `delta_next` visible across a reified entry, two revisions of one
+proposition in one delta are ordered again and the rule-level read has one answer where it had two.
+
+**And the mention half of quiescence is now writable**, which §6.2 said it was not. §14's inheritance
+test — *a conclusion drawn from a mentioned entry is itself a mention* — is `consumed_by(?a, ?e),
+mentioned(?e)`, and it derives, because the `mentioned` facts it needs are the ones that were hidden.
+So quiescence is six rules and every branch of `_decide_change` is compared except the three narrow
+ones (stratum 0, spans, and `_forbid`'s missing `unifies`).
+
+**One rule stays blind and the reason is worth keeping.** `<silent>` — a conclusion that is generic
+and NOT a mention — cannot be reached from the surface at all: the loader refuses a consequent
+variable no antecedent binds. It is reachable only through `adopt` or `compose`, which build rules
+nobody parsed. Printed as blind rather than quietly dropped, because the branch exists in Python and
+something should be able to reach it.
+
+## 7.5 The one input still not in the graph
+
+`app.rule.mentions` is handed to the rule-level side rather than derived. `reify` records a rule's
+members, their loci and their `as` names, and not this — so a rule read back out of the graph loses
+whether it names a rule, and `adopt` would have to recompute it from the consequent. Small, and now
+the only one: everything else the verdict rests on is a fact a rule can match.

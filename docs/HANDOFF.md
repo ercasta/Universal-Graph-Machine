@@ -1,3 +1,386 @@
+# Handoff — 2026-08-15 (quiescence as rules, and §7's test)
+
+Branch `restart`. **549 checks, 0 failing.** New gate `python -m ugm.quiescence`: **137 candidates
+compared, 0 disagreeing, 5/6 of its own rules exercised.** `ugm.agreement` 28/0 with 7/7 exercised,
+and **1.2s where it was 118s**; every other instrument green (`vocabulary` 18/0 with `asked` added).
+
+**Read `docs/observations.md` Parts 6 and 7** — 6 is quiescence as rules and what it found, 7 is the
+fix the author authorised and the three things that fell out of it.
+
+## The blocking question is answered: no new primitive
+
+The rewrite was blocked on whether `_would_change` needs §4's missing aggregate. **It does not.**
+§4's gap is a claim about a set of **entries**, where a `-` member can only say *an entry denies
+this*. Quiescence's universal — *no conclusion of this application would change anything* — ranges
+over **structure**, where a `-` member can only mean *not derived*. That is the universal wanted, for
+free. Quiescence is six rules; the harness hands over the grounded conclusion, its locus and the
+seat, and never the verdict.
+
+**So the rewrite target is fully specified. Start it.** The only branch that needs something new is
+`_forbid`: it unifies a stored generic pattern against the proposition, and `unifies(?pat, ?prop)` is
+not a structural relation a rule can ask.
+
+## §7's test was asking the wrong question in three places
+
+*Does a variable appear anywhere inside this node* is not *did this member leave a variable of its
+own unbound*. The difference is every fact the chain deposits about a **mention** — a reified rule's
+proposition is a pattern, so the entry node carries its variables, and so did every `mentioned`,
+`in_delta` and `delta_next` fact about it. Measured before the fix: **97 of 125 `mentioned` and 175
+of 216 `delta_next` facts invisible to the matcher**, and with them the rule-level read was wrong
+wherever a generic entry sat between two revisions in one delta.
+
+Fixed in `_as_fact` (binds a variable to a variable), `_left_open` (`_mint_structure`), and `_ground`
+(a variable bound to a value anchors its member). Two guards came with it, both cases match could not
+previously produce: **a member finding itself** — interning puts a rule's own member among the
+instances of its relation, and `unify` short-circuits on identity — and **a rule reading its own
+reification**, which binds `?pat` to `echoed(?pat)` and builds a structure containing itself.
+
+## The read was quadratic, and the blindfold was what hid it
+
+With the reified entries visible, `agreement`'s five-moment fixture derived 2,062 `cand` facts and
+stopped finishing: 4.4M unifications in 60 seconds, which is 2,062 squared. Three fixes, in order of
+how much they bought:
+
+- **the read is a question, so ask it about something.** `ask_read` seeded only `asking(<seat>)`, so
+  the read answered about every proposition in the chain. `asked(<prop>)` is the missing half:
+  **10,638 derived facts and 90.3s → 61 facts and 0.3s.**
+- **an argument-position index over structural instances** (`Graph._by_arg`) — the entry side took
+  this when the option-set quadratic was found; the structural side never had it. *A join is not a
+  scan*, in the half of the matcher the first fix did not touch.
+- **two memos**, `occurs` (6.0M calls) and `_vars_in` (2.7M). The second arrived with its own trap
+  and the suite caught it: a node id means nothing outside the graph that minted it, so a
+  module-level cache answered one machine with another machine's node.
+
+The suite is **11.5s against 13.1s** before all of this, so the visibility was paid for and change
+was returned.
+
+## A table-driven loop, first version — `python -m ugm.attention`
+
+The author's design, built beside the shipped loop rather than in it: a score per rule, apply the
+highest-scoring rule whose antecedent matches, then run that rule's postconditions (query → buff) to
+move the table. Declaration order is the tiebreak — which is §18's rule already. `standing` seeds the
+default table; every other rule sits at the floor, so nothing is dead. Buffs are supplied from Python
+so the `after { … } => boost(<R>, n)` surface stays open. Every buff is traced as
+`(tick, by, target, delta, frozen)` and the trace is held to the live table on every run.
+
+**The penguin case works, and it needed one postcondition.** Same corpus, same declaration order,
+`<flies>` declared before `<flightless>`:
+
+| | applied | concluded |
+|---|---|---|
+| declaration order alone | `classify`, `flies` | `can_fly(pingu)` |
+| one buff, `+20` on `<flightless>` | `classify`, `flightless` | `grounded(pingu)` |
+
+No defeat relation, no `unless`, no precedence claim. **But ordering alone is not defeasibility**, and
+running it is how that showed: a loop that continues to quiescence applies *both* rules whatever the
+order, because a low score delays a rule and never removes one — and removal is what this design
+refuses on purpose. What turns an order into a default is **stopping**: ask, take the first rule that
+matches, act. So *completion is the output of a rule* is not a detail of the design; it is what makes
+a score mean anything.
+
+**Against the shipped loop, on three corpora** — conclusions reached, by relation:
+
+| corpus | ticks (shipped / table) | only shipped | only table |
+|---|---|---|---|
+| `delay.ugm` | 11 / 9 | `close` x15, `quiet` x1 | — |
+| `worked.ugm` | 12 / 6 | `close` x4, `left` x2, `quiet` x1 | `spent` x2, `rain`, `raining` |
+| `quest-p1.ugm` | 18 / 10 | `spent` x6, `exercised` x4, `verdict` x3, `pursued` x2, `quiet`, `emitted` | — |
+
+Read it as the work list rather than as a failure. `close` is doubt — a record that exists only
+because the shipped tick materialises an option set, and by the author's argument it should not
+exist. `quiet`, `left`, `verdict`, `emitted` are the other half: the shipped tick does five things
+besides choosing (`_enough`, `_leave`, `_wake`, `_widen`, `_recover`), and this loop does none of
+them, so `quest-p1` never acts and `worked` never exits its supposition. **Those five are exactly the
+rules the design says should carry reset-buff postconditions**, and the diff says which conclusions
+each is responsible for.
+
+**Cost is not measurable at this size** — both loops are hundredths of a second, and the table loop
+matched 219 rules over 9 ticks on `delay`. The saving the design predicts is real only where the pool
+is large and the table is small; a corpus big enough to show it does not exist here yet.
+
+### ...and doubt as an occasion, not a record
+
+The author's second correction: the loop does not hold a tick waiting for doubt to resolve, because
+a **settling rule fires**. So depositing the doubt IS the move, `<settle-doubt>` gets the next turn,
+and what it does is spend attention -- the settlement is a buff like any other, calibratable rather
+than a branch. A corpus replaces it by writing a rule that outscores it (ask the user, apply a
+domain criterion). The backstop needs no semantics: if nothing settles, restating the doubt changes
+nothing, so quiescence lets the winner apply and a corpus without a settling rule loses one tick
+rather than the loop.
+
+The window is a **prefix scan**: scores only fall down the table, so once a match is found at `s`,
+everything below `s - tolerance` is irrelevant *without being matched*. The count knob is a guard
+against a pathological table, not the mechanism. `?a` in `boost(?a, 1)` is the winner as the doubt
+named it -- writable only because rules are subjects here and `_note` deposits `close` as a mention.
+
+With doubt on, over the three corpora: **7/27, 3/13 and 7/28 moves raised a doubt, window never
+wider than 3**, and the `close` records the first version dropped come back -- `delay` went from 15
+missing to 4. The price is visible in ticks (9 -> 20 on `delay`), because a doubt costs a move and
+settling costs another.
+
+**The penguin, with the settling rule in place:**
+
+| | doubts | applied | first answer |
+|---|---|---|---|
+| declaration order alone | 1 | `classify`, `settle-doubt`, `flies`, `flightless` | `can_fly(pingu)` |
+| one buff, `+20` | 0 | `classify`, `flightless`, `flies` | `grounded(pingu)` |
+
+Both rules still fire eventually -- ordering is not defeasibility, and that is the boundary above.
+What the buff decides is **which answer comes first**, and whether the agent hesitates at all.
+
+### The mechanism validates: same conclusions, three corpora
+
+Adding two lines to the loop -- when the window is empty, say `quiet(<seat>)`, and if that changes
+nothing, move the register (`_leave`) -- closes the gap:
+
+| corpus | ticks (shipped / table) | missing | doubts / moves |
+|---|---|---|---|
+| `delay.ugm` | 11 / 20 | **4**, all `close` | 7 / 27 |
+| `worked.ugm` | 12 / 11 | **0** | 3 / 14 |
+| `quest-p1.ugm` | 18 / 27 | **0** | 7 / 34 |
+
+`quest-p1` acts again -- the emission, the verdict, `pursued`, `blocked`. Nothing about goals was
+written: the bundle's rules were simply never given their turn, because `quiet` is what they react to
+and the first version never said it. The four remaining differences on `delay` are `close` records
+about rivals outside the window, which is the bounded comparison working as designed rather than a
+loss.
+
+What the engine knows, in full: a score per rule, the first match, the window, deposit a doubt,
+deposit `quiet`, move the register. No goal, no completion, no widening -- `_widen` and `_recover`
+did not have to be rewritten as rules because a table has no shortlist to widen.
+
+The table loop takes more ticks (a doubt costs a move and settling costs another) and the same
+wall-clock to a hundredth of a second. Cost is still unmeasurable at this size: the saving the design
+predicts needs a pool large enough that not matching most of it matters.
+
+### The dungeon answers the cost question, and the answer is not the expected one
+
+`ugm.dungeon` is the largest corpus here -- 21 rules of its own, three tools, a fight that takes
+tens of moves. It cannot be loaded from the file alone (`<dice>`, `<arith>` and `<beats>` are
+answerers registered in Python), so the machine is built the way `ugm.dungeon` builds it and only the
+loop differs.
+
+| | shipped | table |
+|---|---|---|
+| moves | 148 | 165 |
+| seconds | **0.31** | **0.26** |
+| conclusions | 726 | 765, missing **1** (`defeated`) |
+| doubts | -- | 17 of 182 moves, window never wider than 3 |
+
+So the table loop is already slightly faster on a real corpus while reaching the same conclusions.
+**But not for the predicted reason, and this is the number to keep:** it matched **36.8 rules per
+move** out of a pool of ~38. Stopping at the first match saves nothing yet, because the table is
+FLAT -- every corpus rule sits at the floor, so the scan walks almost the whole pool before it finds
+anything. What the run saves is the option set and the arbitration over it, not the matching.
+
+That makes the metric for calibration precise and cheap to watch: **rules matched per move**. It is
+36.8 today; every postcondition that lifts the right rule pulls it down, and if learning cannot move
+it, the design's central performance claim is unsupported. No corpus here has a table worth reading
+yet, which is exactly what the learning work is for.
+
+### The surface exists
+
+```
+rule <classify> = implies( { +asked(?x) }, { +considered(?x) } )
+  after { +penguin(?x) } => boost(<flightless>, 20)
+
+rule <settle-doubt> = implies( { +close(?a, ?b) }, { +settled(?a, ?b) } )
+  frozen after => boost(?a, 1)
+```
+
+`after` takes an ordinary antecedent -- no new notation, the same matcher -- and it is matched with
+the application's own bindings already substituted in, which is what makes it a POSTcondition rather
+than a second rule. A bare `after` has no query and always holds. `boost` and `damp` name a rule or
+a variable the query bound; `frozen` marks what a calibration process may not touch and changes
+nothing about how the clause runs. Parsed by `text.py`, stored on `Rule.posts`, read only by a loop
+that has a table -- the shipped loop never looks at it.
+
+The penguin, with everything now in the corpus and nothing in Python:
+
+| | doubts | applied | first answer |
+|---|---|---|---|
+| declaration order alone | 1 | `classify`, `settle-doubt`, `flies`, `flightless` | `can_fly(pingu)` |
+| with the postcondition | 0 | `classify`, `flightless`, `flies` | `grounded(pingu)` |
+
+### Score first, match only the top -- and a negative result about learning
+
+The author's optimisation: score decides WHO is matched, so a rule below the cut costs nothing at
+all. A shortlist of five is matched; if nothing in it applies, the shortlist **widens** -- which is
+the shipped guarantee, *a dry shortlist is not a finished search*, and it is what stops a miss in the
+top five from depositing `quiet` while work remained. Worst case is exactly the old cost; best case
+is five.
+
+| corpus | matched/move | widenings | seconds (shipped / table) | conclusions lost |
+|---|---|---|---|---|
+| `delay.ugm` | 25.1 | 66 | 0.01 / 0.01 | 11, all `close` |
+| `worked.ugm` | 35.0 | 66 | 0.02 / 0.02 | 2, all `close` |
+| `quest-p1.ugm` | 17.7 | 67 | 0.01 / 0.01 | **0** |
+| `dungeon` | 29.6 (was 36.8) | 862 | 0.28 / 0.22 | 5: four `close`, one `defeated` |
+
+**No substantive conclusion is lost anywhere** -- every difference is a doubt record about a rival
+the bounded window never looked at. But 862 widenings over 174 moves is about five per move: the top
+of the table is occupied by rules that do not match. The `standing` default puts the bundle there,
+and the bundle is exactly the reactive half -- intake, watchdogs, `<give-up>` -- which fires on rare
+occasions by design.
+
+**And the cheapest possible calibration makes it worse, which is the useful part.** `reflex` damps
+every rule tried without matching and boosts the one that applied -- no model, no gold, no human,
+using only what the loop finds out for free:
+
+| | moves | matched/move | conclusions |
+|---|---|---|---|
+| off | 161 | 29.6 | 753 |
+| on | 116 | 29.0 | **628** |
+
+It barely moved the number and it lost 125 conclusions, because **tried-and-missed is not evidence a
+rule is unimportant** -- it is evidence the rule was not applicable *in that state*. Damping it
+globally starves the situational rules, which is most of a corpus. The signal has to carry the
+state, and carrying the state is exactly what a postcondition's query does. So the negative result
+argues for the author's design rather than against it: learning must calibrate **when** to boost, not
+how much to weigh a rule in general.
+
+That also makes the training target sharper. `matched/move` is not moved by weights alone; it is
+moved by conditional buffs that put the right rule on top *in the situations where it applies*.
+
+## What is left on this thread
+
+- **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention
+  cannot be written in the surface — the loader refuses it — so only `adopt`/`compose` reach that
+  branch of `_decide_change`. Something should be able to.
+- **`Rule.mentions` is the one input still not in the graph.** `reify` records members, loci and `as`
+  names, not this, so a rule read back out of the graph loses it.
+- Consider whether `_decide_change` should use `_left_open` too, and `_is_mention` retire with it.
+  The gate can measure the difference; it was not attempted here.
+
+## Still on the list, unchanged
+
+Five pure deletions (`Frame.state`, `Step.state`, `_bookkeeping`'s 50-name set, `Rule.connective`'s
+Python copy, `RuleSet.composed_from`), and one definition-plus-gate each for `at_or_after` (smallest,
+start there), `scope_of`, `_recall`, `discharge`, `_forbid`, `_priority`, refraction. Four worked
+gates to copy: `ugm.state`, `ugm.arbitration`, `ugm.agreement`, `ugm.quiescence`.
+
+---
+
+# Handoff — 2026-08-15 (the line between Python and rules)
+
+Branch `restart`. **549 checks, 0 failing**. `ugm.vocabulary` 18/0 with **0 reserved names about a
+world**; `ugm.agreement` 28/0, 7/7 rules exercised.
+
+**Read `docs/observations.md` first.** It is this session's whole record — an audit of what lives only
+in Python, five rounds of design argument with the author, and every experiment run with its result,
+including the ones that came back negative and the three places I was wrong and corrected in place.
+
+## The decision the session ended on
+
+The author drew the line, and it is now the project's rule:
+
+> Python may hold things that make the world **sayable** and **efficiently executable** — the
+> substrate, and semantic-free accelerators over it (find a node labelled `moment`, walk `pred`, count
+> descendants, unify). **Everything else is rules.** No logic, no concept classes. An entry is a graph
+> node too.
+
+There is no middle tier. What looked like one — `resolve`, `at_or_after`, `scope_of` — **splits**:
+tier 1 supplies the walk or the ordering, tier 3 decides what it means.
+
+The circularity that seemed to forbid this is not real. `ugm.agreement`'s rule-level read matches
+against the **raw chain** (`anc`, `in_delta`, `entry_of`, `delta_next`, negation-as-failure on
+structural members), not against the resolved state. So the read as rules runs on tier 1 alone — and
+it already exists, as seven rules that agree with `Chain.resolve` on every comparison and are each
+kill-probed.
+
+## THE NEXT TASK, and it is one thing
+
+**Write quiescence (`_would_change`) as rules.**
+
+It is the smallest of the three aggregate-needing definitions and the most load-bearing — it is what
+stops every loop. The rewrite the author wants (a kernel of ~800–1,200 lines against today's 5,300)
+is blocked on one unknown: several tier-3 definitions may not be expressible today, because
+`_recall`, `_would_change` and `_choose` are all **aggregates over a set of matches**, and a rule sees
+one binding at a time.
+
+- If quiescence can be written with what exists — structural relations, negation as failure, and the
+  locus trick in observations §4.6 — the rewrite target is fully specified and the kernel is a clean
+  job.
+- If it cannot, that is the one primitive the kernel needs, and it gets added once, at the bottom,
+  instead of being discovered at line 900.
+
+Either answer takes an afternoon and makes the rewrite safe. Do not start the rewrite first.
+
+## The work list behind it (observations Part 1, §2.15, Part 5)
+
+**Five violations — concepts with no definition anywhere. Pure deletions:** `Frame.state`
+(`discharged/exhausted/abandoned`, a bare Python string that refraction now keys its scope off),
+`Step.state`, `_bookkeeping`'s 50-name set, `Rule.connective`'s Python copy (`conn(<R>, causes)` is
+already reified and the engine reads its own copy at `machine.py:3141,3176`), `RuleSet.composed_from`.
+
+**Ungated tier-3 concepts, one definition and one gate each:** `at_or_after` (three span cases —
+start here, it is smallest), `scope_of`, `_recall`, `_would_change`, `discharge`, `_forbid`,
+`_priority`, refraction. Three worked gates exist to copy: `ugm.state`, `ugm.arbitration`,
+`ugm.agreement`.
+
+## What was built today (uncommitted: chain, machine, rules, selftest, vocabulary, observations)
+
+- **Refraction**, at the author's direction. An instantiation — rule plus **consumed entries plus
+  bindings** — fires once. `spent(<R>, premises(...))` is deposited so the agent can be asked what it
+  has already run. Frame-scoped, so supposing does not change what the agent believes. Measured: a
+  runaway of 194 acts became 1; the starvation control now reaches quiescence and the referee gets
+  its turn.
+- **`contested(<R>, <what>)`** — the price of refraction, paid rather than accepted. Firing once turns
+  a loud contradiction into a silent one, so when a spent instantiation's conclusion is denied **while
+  its premises still stand**, that is deposited instead of looped.
+- **`licensed_by`, `arrived_on`, `mentioned`** — §5 called licence and source "ordinary facts about
+  the entry" while keeping them in Python. Now skeleton relations a rule can match. `Moment.licence`
+  deleted: assigned once, read nowhere, while §4 claimed it was what said whether a moment was time or
+  derivation.
+- **A cached application can now be retracted.** `_applications` step 0 already dropped the cursor of
+  a rule whose structural relation had grown — and it was useless, because step 2's merge is add-only,
+  so **a full re-match could only ADD**. A negated structural member is evaluated at match time, so a
+  stale application survived and applied. 537 checks passed with it live.
+- **`_stored`'s anchor test** asked `is_var` where it meant *ground*. `loaded(?p)` counted as an
+  anchor, so any corpus writing `rests_on(?e, foo(?p))` got a silent full-history scan.
+- **`_vars_in` did not look at a relation**, while `Graph.has_var` always has. That is what blocked a
+  **generic interpreter**: `ev_at(?verb(?a, ?b), ?t)` was refused at the surface while `match` handled
+  it perfectly. Fixed, and one fixture moved with it — an unbound consequent *relation* is now refused
+  at load like an unbound argument.
+- **`ugm/necessity.py`** — a kill-probe over reserved names, the same shape as `ugm.bundle`.
+  Suppresses each name's deposits and runs the suite. Four names nothing can kill: `computes`,
+  `harmed`, `helped`, `stopped`. Building it found two instrument bugs, both caught by a null control.
+- **A mirror gate** in the suite: every `Entry`, `Moment` and `Span` field is held to its graph
+  counterpart, so the classes cannot silently stop being caches.
+
+## Findings worth not rediscovering
+
+- **Every defect this session found is a silence defect, not a correctness one.** The design's real
+  standard is not correctness — it is: the agent can say what it means, a guess is on the record, and
+  giving up deposits a fact. Heuristic and fallible is fine; silent is not.
+- **The aggregate is the one real gap**, reached by four independent routes: *nothing was told about
+  this*, *held at every moment of this stretch*, *exactly one thing satisfies this description*,
+  *nothing has handled this yet*. All are claims about the **set** of matches. `root`/`blocked` are
+  the shipped precedent — *an aggregate over what the rules produced is the machinery's business*.
+- **But one-shot execution does not need it.** The locus does: place the grant at the moment the need
+  sits at, spend it at the current one, and the denial outranks the re-grant while quiescence holds.
+  Measured, no engine change. Three corpora had hand-built substitutes for this (`may(x, r)`, a round
+  counter), which is business rules compensating for short-term amnesia.
+- **`causes` and `implies` are identical with respect to re-firing** — 100 grants, 99 spends, both.
+  The connective says where a conclusion lands, not that anything happens once. The design has no
+  notion of a rule firing once; refraction is that notion.
+- **A general interpreter is buildable and was built.** Generic over predicates, no lexicon — measured
+  across two different commands with zero new rules. A new predicate costs nothing, a new grammatical
+  role or syntactic form costs one row. The one thing it cannot do is definite reference.
+- **The flood-fill idea has no motivating problem**: three real corpora, 39 own relations, **zero**
+  morphological pairs. `attack`/`hits` are connected by a rule. The corpus's rules ARE the web.
+- **The reserved vocabulary is the engine, not the bundle** — roughly two thirds is written or read by
+  the machinery. But 42 of those names are **occasions**, and nothing gated whether they are
+  load-bearing, which is what `ugm.necessity` now measures.
+
+## Style
+
+The author asked that star and warning markers never be used. 1,152 were removed from `docs/` and
+`CLAUDE.md`; about 500 remain in Python docstrings and comments across 26 modules, and in
+`MEMORY.md`. Do not reintroduce them.
+
+---
+
 # Handoff — 2026-08-14 (spans)
 
 Branch `restart`. **520 checks, 0 failing**; every instrument green — `ugm.dungeon` 17/0,
