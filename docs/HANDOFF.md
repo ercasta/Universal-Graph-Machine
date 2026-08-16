@@ -734,6 +734,54 @@ and not a better learner: the same anti-unification, given something to disagree
 whole of the difference between having played a lot and knowing something, and it is measurable in
 one line of a trigger.
 
+### Norms leave the engine -- §19's carve-out, reversed by the author
+
+> Deciding whether something is forbidden might require understanding the combined effect of various
+> prescriptions. It is a reasoning act, not a mechanical one. The only realistically feasible way is a
+> chain of rules that, where needed, goes through CONSIDERING an action, then EVALUATING ITS
+> LAWFULNESS, then acting.
+>
+> It is an authoring matter, not an engine one. Brain chemistry knows nothing about what is right and
+> what is wrong.
+
+§19 took norms OFF the recall path on the grounds that a prohibition which fails to come to mind is a
+forbidden act nobody notices, and `_forbid` has consulted them on every write ever since. My defence
+of it was that there is no moment between deciding and doing in which a rule could run -- which is a
+fact about a loop with no *considering* step, and the proposal is to introduce one.
+
+**What the chain buys that the veto cannot.** `why unlawful(attack(gob))` gets an ARGUMENT: which
+prescriptions applied, which exception fired, what outranked what. `refused(p, +, <norm>)` names one
+winner and shows no reasoning, which for the one kind of decision people most want explained is the
+wrong way round. Prescriptions also combine, because rules combine, and exceptions are ordinary
+defeasibility rather than a second mechanism.
+
+**The one thing that must not become a score.** The acting rule takes `+lawful(?a)` as a PREMISE, not
+a boost. Acting unlawfully is not *unwise*; it is the row that stays a guard, by the three-way test
+from (1). Then no score can starve the evaluation, because the act is not applicable until the
+verdict exists -- the corpus's own shape gives the guarantee the engine used to.
+
+**And it retires `unifies` completely.** `_forbid` needed unification only because a norm was stored
+as a FACT CONTAINING A DESCRIPTION, so something had to test whether the description covered the act.
+Written as a rule -- `implies( { +considering(doing(harm(?x))) }, { +unlawful(doing(harm(?x))) } )` --
+**the coverage test is the matcher**. The variables are the rule's own, so it can say who would have
+been harmed. The primitive proposed an hour earlier exists to work around a representation now being
+dropped.
+
+**What is lost, and how it comes back.** Today no forbidden entry can exist, not even briefly,
+whatever a corpus does. Afterwards a corpus that writes an acting rule without the `lawful` premise
+simply acts. That is recoverable as an **authoring gate rather than an engine branch**: every rule
+concluding `doing(...)` must have a lawfulness premise, checked over the corpus the way `web` already
+checks that every relation is read and written. Static, cheap, loud at load rather than silent at
+runtime -- an engine guarantee becoming a corpus property with an instrument watching it, which is
+the trade this repo has taken every time.
+
+The other cost is two extra moves per act, which the melee can measure.
+
+**Kernel consequence:** `_forbid` moves from *stays Python* to **delete**, and `refused` with it,
+replaced by a corpus's own `unlawful`. The subtraction list is `at_or_after`, `scope_of`, `discharge`,
+`_priority`, refraction, `_forbid`, plus the five pure deletions -- and no new primitive anywhere on
+it.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention
