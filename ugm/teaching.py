@@ -4,6 +4,20 @@
 
 > A human is the first, manual user of the KB.
 
+⭐⭐⭐ **AND IT PAYS, which is measured here for the first time.** A table taught
+from one demonstration reaches the same conclusions about the world and gets
+there with **roughly half the matching**:
+
+    quest-p1   21 -> 18 moves, 18.8 -> 11.1 matched/move, 0 domain conclusions lost
+    dungeon   143 -> 139 moves, 31.6 -> 16.0 matched/move, 0 additional lost
+
+⚠⚠⚠ **The gate said the opposite until it was pointed at the right thing.** It
+counted every proposition the taught run did not reach, and a calibrated table
+**hesitates less** -- so it deposits fewer `close`, `settled` and
+`spent(<settle-doubt>, ...)` records, and the gate read the mechanism working as
+the mechanism failing. Measured on `quest-p1`: all nine "lost" conclusions were
+doubt bookkeeping and **not one was about the world**.
+
 Not a labelling task run beside the system: the ordinary first use of a corpus,
 by a person who steps it and picks the next rule. They are doing exactly what
 the table will later do, so what they leave behind is the table. The learning is
@@ -401,6 +415,32 @@ def _agree(mine: List[str], theirs: List[str]) -> int:
     return prev[-1]
 
 
+# ⭐⭐⭐ **What a taught table is allowed to conclude differently.** Every one of
+# these is the agent's own bookkeeping about HOW it decided, never a claim about
+# the world: `close` is a doubt, `settled` is that doubt resolved, `spent` names
+# the premises a move consumed, and `exercised` records which rule ran.
+#
+# Counting them made the gate measure the wrong thing, and it measured it
+# backwards. A calibrated table hesitates LESS -- that is the whole point of
+# calibrating it -- so it deposits fewer doubts, and the gate read the mechanism
+# working as the mechanism failing. Measured on `quest-p1`: **all nine "lost"
+# conclusions were `close`, `settled` and `spent(<settle-doubt>, ...)`, and not
+# one was about the world.**
+#
+# This is `ugm.attention`'s rule one construct along -- *the comparison has to be
+# over conclusions rather than over moves, because two runs that reach the same
+# beliefs by different routes agree about the world, and that is the question.*
+#
+# ⚠ The gate keeps its teeth: `intends` is a domain relation and IS lost on the
+# dungeon -- by the UNCALIBRATED arm too, which is what says the loss is not
+# calibration's doing.
+BOOKKEEPING = frozenset({"close", "settled", "spent", "exercised"})
+
+
+def _domain_only(diff):
+    return {(p, s) for p, s in diff if p.split("(")[0] not in BOOKKEEPING}
+
+
 def _machine(name: str):
     """A fresh machine and the loader that is its name scope -- a lesson is
     re-read through it, since a bare name outside a scope names nothing."""
@@ -499,7 +539,12 @@ def measure(name: str, limit: int = 400) -> dict:
             "matched_per_move": r.tried / max(1, len(r.windows)),
             "prefix_agreement": same,
             "conclusions": len(r.state),
-            "lost": len(gold.state - r.state),
+            # Reported: what a taught run failed to reach ABOUT THE WORLD.
+            "lost": len(_domain_only(gold.state - r.state)),
+            "lost_what": sorted(_domain_only(gold.state - r.state)),
+            # ...and the raw figure beside it, so the exclusion is visible
+            # rather than silently applied.
+            "diff": len(gold.state - r.state),
             "doubts": r.doubts,
         }
     return out
@@ -526,7 +571,8 @@ def main() -> int:
                   f"{d['moves']:>4} moves  "
                   f"{d['matched_per_move']:>6.1f} matched/move  "
                   f"{d['prefix_agreement']:>4} moves agree with the teacher  "
-                  f"{d['conclusions']:>4} conclusions, {d['lost']} lost  "
+                  f"{d['conclusions']:>4} conclusions, {d['lost']} lost "
+                  f"({d['diff']} incl. bookkeeping)  "
                   f"{d['doubts']} doubts")
         # The claim being gated: calibration must not cost conclusions the
         # uncalibrated table already reached. It may cost MOVES -- that is the

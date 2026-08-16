@@ -379,3 +379,64 @@ mid-run, and a callback attached inside a hypothesis must wake only there.
 >an attention claim, recoverable, and safe to be wrong about. Defeat is *this
 >rule must not apply here* -- and being wrong about it means the loser
 >re-asserts and quietly undoes the winner. One is recall, the other is a veto.
+
+
+---
+
+## Teaching's gate, and the four checks it retired
+
+Asked whether the old offline learning is superseded by buffs. **Half of it is**,
+and the measurement decided which half.
+
+`learned()` and `induce()` emit **`prefer` rows** -- *in situations like this,
+prefer X*. That is what a table score is, in a second notation. What they also
+emit is **rules** -- anti-unification generalising from examples -- and no
+amount of score-tuning produces a rule the agent did not have. Attention and
+acquisition are different capabilities and only the first was doubled.
+
+### But the replacement had to be shown to work first
+
+`ugm.teaching` was failing its own gate on both corpora, so retiring `prefer`
+rows would have deleted a working mechanism for a worse one.
+
+>⚠⚠⚠ **It was not failing. The gate was pointed at the wrong thing, and it read
+>the mechanism working as the mechanism failing.** It counted every proposition
+>a taught run did not reach -- and a calibrated table **hesitates less**, so it
+>deposits fewer `close`, `settled` and `spent(<settle-doubt>, ...)` records.
+>Measured on `quest-p1`: all nine "lost" conclusions were doubt bookkeeping and
+>**not one was about the world.**
+
+This is `ugm.attention`'s own rule one construct along -- *the comparison has to
+be over conclusions rather than over moves, because two runs that reach the same
+beliefs by different routes agree about the world.* `BOOKKEEPING` now names the
+four relations that are the agent's account of **how** it decided, and the raw
+figure is printed beside the excluded one so the exclusion is visible rather
+than silently applied.
+
+⚠ The gate keeps its teeth: `intends` is a domain relation and **is** lost on the
+dungeon -- by the uncalibrated arm too, which is what says the loss is not
+calibration's doing. Kill-probed: empty `BOOKKEEPING` and 5 failures return.
+
+### And then it pays, which is the result
+
+| | moves | matched/move | domain conclusions lost |
+|---|---|---|---|
+| `quest-p1` uncalibrated | 21 | 18.8 | 0 |
+| **calibrated** | **18** | **11.1** | **0** |
+| `dungeon` uncalibrated | 143 | 31.6 | 3 |
+| **calibrated** | **139** | **16.0** | **3** |
+
+**Roughly half the matching, for the same conclusions** -- the saving the design
+predicted from the table, measured for the first time, and the thing that makes
+`prefer` rows redundant rather than merely duplicated.
+
+| | checks | failing |
+|---|---|---|
+| dormancy | 522 | 12 |
+| **teaching's gate, and the 4 `prefer` checks retired** | **518** | **8** |
+
+**The remaining 8 are acquisition and three singletons.** Anti-unification
+producing a rule that fits a case neither example mentioned; an adopted rule
+applying; a learned rule losing to an authored one; a learned rule concluding
+wrapped. Then a re-ask costing one tick, and *a fact's own history is
+matchable*, still unexplained.

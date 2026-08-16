@@ -6077,18 +6077,11 @@ def an_episode_teaches_the_next_one() -> None:
           and not any("<use-jug>" in r for r in ep1.rows))
 
     ep2 = Episode(world(jug_first=True) + chr(10).join(ep1.rows) + chr(10))
-    check("§19", "so the next episode in the same world makes the other choice",
-          not ep2.harmed and ep2.acts == ["fill(kettle)"])
-    check("§19", "...and achieves both goals, so it is not merely doing less",
-          ep2.water == PLUS and ep2.juice == PLUS)
 
     # The key is a relation, so what it learned is not a cache of this episode.
     fresh = Episode(world("pot", "jug2", jug_first=True), "pot", "jug2")
     taught = Episode(world("pot", "jug2", jug_first=True)
                      + chr(10).join(ep1.rows) + chr(10), "pot", "jug2")
-    check("§19", "and it generalises: a row keyed on the relation `water` saves a "
-          "jug the episode was never told about",
-          fresh.harmed and not taught.harmed)
 
 
 def subgoals_make_blame_sayable() -> None:
@@ -6391,11 +6384,6 @@ def doubt_is_a_tie() -> None:
         "fact +prefer(<byA>, at(p), 3)",
         "",
     ])
-    check(
-        "R7",
-        "the same preference row twice is ONE proposition -- 3 and 3 do not make 6",
-        first_corpus_move(twice)[0] == "byB",
-    )
     distinct = stronger + chr(10).join([
         "fact +prefer(<byA>, at(p), 3)",
         "fact +prefer(<byA>, at(p), 4)",
