@@ -495,6 +495,41 @@ than being summed with it. Ordinal within the chunk, cardinal outside it, which 
 this design has taken before (`doubt-is-a-tie`: a cardinal score beside an ordinal grade, never added
 to it).
 
+### Renormalising the shortlist -- built, and it changes nothing here, for a reason about the corpus
+
+My *let the reranker set the order* was wrong and the author's objection is the right one: a trigger
+that names a POSITION has to know what it is competing against, and then triggers stop being
+independent and stop being separately learnable. `boost`/`damp` on a query is the only thing a
+trigger can honestly say.
+
+So the scale is fixed where the comparison happens instead. Within a shortlist the base scores are
+mapped onto a small range before the nudge is added -- not flattening, since a rule the table
+strongly prefers keeps its lead over one it barely prefers, but enough that habit and situation are
+commensurable and a nudge can move something without any trigger knowing more than its own query.
+
+**Built, and the numbers do not move.** Instrumented: with both kinds of trigger installed the
+rerankers fire 111 times and reorder the shortlist 93 times over 158 moves -- they are doing work --
+and the run scores exactly what the persistent half scores alone.
+
+| dungeon, four fights | moves | matched/move | agrees (LCS) | lost |
+|---|---|---|---|---|
+| untaught | 161 | 29.6 | -- | 0 |
+| persistent, unconditional | 158 | **14.2** | 140 / 149 | 10 |
+| persistent, with a query | 151 | 28.8 | 147 / 149 | 3 |
+| rerankers only | 155 | 39.5 | **148 / 149** | **0** |
+| both | 158 | 19.4 | 140 / 149 | 10 |
+
+**The explanation is the corpus, not the mechanism: a fight is a PIPELINE.** `swing` then `check-ac`
+then `hit` then `harm` then `subtract` -- the predecessor is very nearly a complete predictor of the
+next move, so a bigram already lifts the right rule and there is nothing left for the situation to
+say. The rerankers' 93 reorderings mostly agree with what the bigram had already decided.
+
+So on this corpus the two levers are largely redundant and the choice is an operating point:
+**14.2 and 10 lost**, or **39.5 and nothing lost**, or 28.8 in between. What would separate them is a
+corpus where the same predecessor leads to different right answers depending on the state -- which is
+the shape a reranker exists for, and the dungeon is not it. That is a fixture problem, and the
+recorded rule applies: a fixture that cannot lose cannot measure.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

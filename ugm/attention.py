@@ -89,6 +89,11 @@ WINDOW = 3
 # ran. With it, the worst case is exactly today's cost and the best case is N.
 SHORTLIST = 5
 
+# The range a shortlist's own scores are mapped onto before a reranker's nudge
+# is added to them. Small enough that a nudge can move something, wide enough
+# that a strong preference is not thrown away.
+NORM = 6
+
 # How long a buff lives, and how far a rule may be lifted.
 #
 # **Life.** A buff that never expires is what made the taught table run away:
@@ -527,7 +532,27 @@ def _rerank(m, table, state, chunk, index, tried: int):
                     lift[node] = lift.get(node, 0) + delta
     if not lift:
         return chunk, tried
-    return sorted(chunk, key=lambda r: (-(table.score[r.node] + lift.get(r.node, 0)),
+    # ...and the shortlist is RENORMALISED before the nudge is added.
+    #
+    # A persistent lift runs to the saturation ceiling, so adding a nudge to it
+    # changes nothing: measured, teaching both kinds together scored exactly
+    # what the persistent half scored on its own while paying the reranker's
+    # cost. The alternative I proposed -- let the reranker set the order -- was
+    # wrong, and the author's objection is the right one: a trigger that names
+    # a POSITION has to know what it is competing against, and then triggers
+    # stop being independent and stop being separately learnable.
+    #
+    # So the scale is fixed where the comparison happens instead. Within a
+    # shortlist the base scores are mapped onto [0, NORM], which is not
+    # flattening -- a rule the table strongly prefers keeps its lead over one it
+    # barely prefers -- but it makes habit and situation commensurable, so a
+    # nudge can move something without a trigger knowing anything but its own
+    # query.
+    lo = min(table.score[r.node] for r in chunk)
+    hi = max(table.score[r.node] for r in chunk)
+    span = (hi - lo) or 1
+    based = {r.node: NORM * (table.score[r.node] - lo) / span for r in chunk}
+    return sorted(chunk, key=lambda r: (-(based[r.node] + lift.get(r.node, 0)),
                                         table.rank[r.node])), tried
 
 
