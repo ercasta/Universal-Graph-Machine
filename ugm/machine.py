@@ -462,6 +462,9 @@ class Machine:
         # The skeleton, as members an ordinary rule may write (§6, §12).
         from .rules import structural_relations
         self.rules.structural = structural_relations(self.chain)
+        # How the chain asks about containment. Set here because this is the
+        # only object that has both a chain and a rule set.
+        self.chain.consult = self._reaching
         self.COMPOSE = self.g.atom("compose")
         self.COMPOSED = self.g.atom("composed")
         self.WIDENED = self.g.atom("widened")
@@ -549,6 +552,7 @@ class Machine:
             # endpoints are bound and decomposes when the span is (§11).
             "span_of": self.chain.SPAN_OF, "span": self.chain.SPAN,
             "asking": self.chain.ASKING, "asked": self.chain.ASKED,
+            "reaches": self.chain.REACHES,
             "names": self.NAMES, "computes": self.COMPUTES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
@@ -648,6 +652,9 @@ class Machine:
         # See `_mint_structure`: structure sits in no delta, so this is the only
         # thing that can tell the incremental path a skeleton fact appeared.
         self._structure_touched: set = set()
+        # Answers to *can this locus see that one*, which are stable once
+        # given: ancestry is append-only and a span's endpoints never move.
+        self._reaches: Dict[Tuple[NodeId, NodeId], bool] = {}
         # Refraction (§14). An instantiation -- a rule and the entries it
         # consumed -- fires once. See `_instantiation`, `_spend`, `_contest`.
         self._spent: dict = {}
@@ -1748,6 +1755,54 @@ class Machine:
         with an ordinary rule, because a deliberate precedence is an answer.
         """
         return a[0] == b[0] and abs(a[1] - b[1]) <= self._tolerance()
+
+    def _reaching(self, a: NodeId, b: NodeId) -> bool:
+        """Does any rule say that `a` reaches `b`? (§11's containment, moved.)
+
+        The machinery consulting a corpus's rules, on demand, with both
+        arguments already bound -- the door `_forbid`, `precedence()` and
+        `_recall` already use, given a general name. It is ONE backward step and
+        not a fixpoint: the consequent is unified with the question, those
+        bindings are substituted into the antecedent, and the antecedent is
+        matched. Nothing has to be selected, which is the whole point -- a rule
+        that had to win a move before the read could answer would make a span
+        claim invisible until it did.
+
+        ⚠ The author's line is about logic BURIED in Python, not about the
+        direction of a call. A lookup that argues for nothing is not logic; the
+        three span decisions it looks up are, and they are in `bundle.ugm` where
+        a corpus can argue with them.
+        """
+        key = (a, b)
+        hit = self._reaches.get(key)
+        if hit is not None:
+            return hit
+        want = self.g.rel(self.chain.REACHES, a, b)
+        answer = False
+        for r in self.rules.rules:
+            for m in r.consequent:
+                if self.g.relation_of(m.pattern) is not self.chain.REACHES:
+                    continue
+                bound = unify(self.g, m.pattern, want, {})
+                if bound is None:
+                    continue
+                probe = Rule(
+                    r.node, r.connective,
+                    [Member(x.sign, substitute(self.g, x.pattern, bound),
+                            x.locus, x.binds)
+                     for x in r.antecedent],
+                    [], (r.name or "?") + "-reaches",
+                )
+                if match(self.g, self.chain, probe, self.focus.topic,
+                         self.focus.seat, Situation(self.g, []),
+                         computes=self.rules.computes,
+                         structural=self.rules.skeleton()):
+                    answer = True
+                    break
+            if answer:
+                break
+        self._reaches[key] = answer
+        return answer
 
     def _note(self, proposition: NodeId, licence: Optional[NodeId] = None) -> None:
         """Record that the machinery did something a rule may care about.

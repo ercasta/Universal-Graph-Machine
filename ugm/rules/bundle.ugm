@@ -233,3 +233,32 @@ rule <give-up> = implies(
 # `+open(?w), +blocked(?w) => +doing(ask(?w))` is one line and a corpus writes it,
 # because where a question goes is a fact about a deployment and not about
 # reasoning. What ships is the occasion; §19 argues the split.
+
+
+# -- what one locus can see of another (§11) ---------------------------------
+#
+# Three of the four directions used to be a Python branch inside
+# `Moment.at_or_after`, which is the read's own containment test. Two of them
+# are here now and the third is the absence of a rule.
+#
+# The machinery consults these ON DEMAND, with both loci already bound, the way
+# `_forbid` consults `forbidden` and `precedence()` reads what the graph claims.
+# It is not a fixpoint and nothing has to be selected: a rule that must win a
+# move before the read can answer would make a span claim invisible until it
+# did, which is the failure this design refuses.
+#
+# ⚠ A claim about an INSTANT is not a claim about a stretch, so nothing here
+# concludes `reaches(<span>, <moment>)`. That is the load-bearing one: letting a
+# moment's claim inherit into a span would answer *did it hold throughout* from
+# an entry that says only *it held then*, and a denial in the middle of the
+# stretch is exactly what `resolve` cannot see. Written as a missing rule rather
+# than as a returned False, so a corpus that disagrees adds a row.
+
+# The stretch is over, so the recognition stands and ordinary rules can use it.
+rule <span-complete> = implies( { span_of(?s, ?a, ?e), anc(?m, ?e) },
+                                { reaches(?m, ?s) } )
+
+# A span reaches itself and no other span. Containment between two spans -- a
+# claim over M7..M12 answering about M9..M11 -- is an ordinary fact about
+# endpoints, so `during(?s2, ?s1)` is a corpus's to conclude and to reason from.
+rule <span-itself> = implies( { span_of(?s, ?a, ?e) }, { reaches(?s, ?s) } )

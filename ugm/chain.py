@@ -79,9 +79,11 @@ class Moment:
         self,
         node: NodeId,
         predecessor: Optional["Moment"],
+        chain: Optional["Chain"] = None,
     ) -> None:
         self.node = node
         self.predecessor = predecessor
+        self.chain = chain
         self.delta: List[Entry] = []
         self.depth = 0 if predecessor is None else predecessor.depth + 1
 
@@ -102,14 +104,14 @@ class Moment:
         claim made inside one supposition answer a question asked inside its
         sibling. That is the containment property, so it has to be ancestry.
 
-        ⭐ **A span is at or before this moment once the stretch is COMPLETE**
-        (§11). This is the one direction that has to hold for a shape to be
-        worth recognising: `taking_turns(anna, bo)` recognised over M7..M12 is
-        an ordinary fact from M12 onward, so an ordinary rule can read it, and
-        without this a shape's conclusion would be visible to nothing.
+        ⚠ **The span case is no longer decided here.** *A span is at or before
+        this moment once the stretch is complete* is a decision, not a walk, and
+        it lives in `bundle.ugm` now as `<span-complete>` -- a rule a corpus can
+        argue with, override or delete. What is left in Python is the walk,
+        which the author's line permits, and a lookup that argues for nothing.
         """
         if isinstance(other, Span):
-            return self.at_or_after(other.end)
+            return bool(self.chain and self.chain.consult(self.node, other.node))
         m: Optional["Moment"] = self
         while m is not None:
             if m is other:
@@ -160,17 +162,25 @@ class Span:
     `during(?s2, ?s1)` is a corpus's to conclude and to reason from.
     """
 
-    def __init__(self, node: NodeId, start: "Moment", end: "Moment") -> None:
+    def __init__(self, node: NodeId, start: "Moment", end: "Moment",
+                 chain: Optional["Chain"] = None) -> None:
         self.node = node
         self.start = start
         self.end = end
+        self.chain = chain
         # ⚠ The end, because that is when the stretch is over and the claim is
         # available. Recency in `resolve`'s key is *how recent is the thing this
         # is about*, and for a stretch that is where it finishes.
         self.depth = end.depth
 
     def at_or_after(self, other: "Locus") -> bool:
-        return other is self
+        """Both remaining cases are policy and neither is decided here.
+
+        `<span-itself>` in `bundle.ugm` says a span reaches itself; **nothing
+        says a span reaches a moment**, and that is the honest way to write no
+        -- a rule that does not exist rather than a branch that returns False.
+        """
+        return bool(self.chain and self.chain.consult(self.node, other.node))
 
     def __repr__(self) -> str:
         return f"S{self.start.depth}..{self.end.depth}"
@@ -265,6 +275,22 @@ class Chain:
         # the same five-moment fixture derived 10,638 facts to answer 28
         # questions. Seeded beside the seat, and by the same one caller.
         self.ASKED = g.atom("asked")
+        # Whether one locus can see a claim made at another, WHERE THAT IS A
+        # DECISION rather than a walk. Moment-to-moment is ancestry and stays a
+        # walk; the three span cases are policy, they live in `bundle.ugm`, and
+        # this is the relation they conclude.
+        self.REACHES = g.atom("reaches")
+        # ...and how the machinery asks. Set by the Machine, which is the only
+        # thing that has both a chain and a rule set. `None` means nothing has
+        # been told the policy, and then no span reaches anything -- the honest
+        # default, since the answer comes from rules and there are none.
+        #
+        # Python consulting rules is not the boundary this design polices: the
+        # author's line is about logic BURIED in Python, and a lookup that
+        # argues for nothing is not that. `_forbid` reads `forbidden`,
+        # `precedence()` reads what the graph claims, `_recall` reads `dormant`
+        # -- this is the same door with a general name.
+        self.consult = lambda a, b: False
         self.IS_MOMENT = g.atom("moment_of")
         # A stretch of the chain, as a member a rule may write (§11):
         # `span_of(?s, ?start, ?end)`. Nothing is deposited for it -- the span
@@ -310,7 +336,7 @@ class Chain:
         # `g.atom("+")` would be a different node that no rule could match --
         # the name-identity trap, which has cost this design four silent bugs.
         self.SIGN = {s: g.atom(s) for s in (PLUS, MINUS, UNSURE)}
-        self.root = Moment(g.instance(self.MOMENT), None)
+        self.root = Moment(g.instance(self.MOMENT), None, self)
         g.rel(self.IS_MOMENT, self.root.node)
         self.moments: List[Moment] = [self.root]
         self._moment_by_node: Dict[NodeId, Moment] = {self.root.node: self.root}
@@ -333,7 +359,7 @@ class Chain:
         # nowhere in the repository, while §4 claimed *which of the two this is
         # is said by the licence and by nothing else*. The moment's own
         # succession is `pred`; what a moment is FOR is a fact about it.
-        m = Moment(self.g.instance(self.MOMENT), predecessor)
+        m = Moment(self.g.instance(self.MOMENT), predecessor, self)
         self.g.rel(self.IS_MOMENT, m.node)
         self.g.rel(self.PRED, m.node, predecessor.node)
         self.moments.append(m)
@@ -487,7 +513,7 @@ class Chain:
         node = self.g.rel(self.SPAN, start.node, end.node)
         got = self._span_by_node.get(node)
         if got is None:
-            got = Span(node, start, end)
+            got = Span(node, start, end, self)
             self._span_by_node[node] = got
         return got
 

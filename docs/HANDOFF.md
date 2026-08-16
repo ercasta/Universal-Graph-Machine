@@ -828,6 +828,52 @@ positively per act, or count -- `counted(unlawful(?a), 0)`, §4's aggregate. Not
 today, because spending the consideration sidesteps it, and that is worth knowing before anyone
 builds the aggregate for this reason.
 
+### `at_or_after`: the policy leaves Python, and the door that made it possible
+
+§11's containment test decides what a reader at one locus can see, and it was four rules fused into
+one Python predicate. One is a walk; three are decisions:
+
+```
+moment vs moment   ancestry -- a walk, and it stays (depth is not enough once supposing forks)
+moment vs span     true once the stretch is COMPLETE
+span   vs moment   false -- a claim about an instant is not a claim about a stretch
+span   vs span     only itself
+```
+
+The three now live in `bundle.ugm`:
+
+```
+rule <span-complete> = implies( { span_of(?s, ?a, ?e), anc(?m, ?e) }, { reaches(?m, ?s) } )
+rule <span-itself>   = implies( { span_of(?s, ?a, ?e) },              { reaches(?s, ?s) } )
+```
+
+**and the third is the absence of a rule**, which is the honest way to write no. A corpus that wants
+a moment's claim to inherit into a stretch adds a row, and then it is dated, attributed and deniable
+like everything else -- the trade §12's grade deletion made.
+
+**The blocker, and it was structural.** The obvious plan -- rules conclude `reaches`, the read looks
+it up -- does not work, because **stratum-0 rules are SELECTED, not settled**: in the ordinary loop
+one goes through `_apply` like any other rule and has to win a move (`settle_structure` is called
+only by gates). So the read would depend on a rule that might not have run, and a span claim would be
+invisible until it did. Nor is it fixable by ordering: `at_or_after` is called inside `resolve`, which
+is inside matching, which is what selects rules.
+
+**The door.** `Machine._reaching` consults the corpus's rules ON DEMAND with both arguments already
+bound: unify the consequent with the question, substitute into the antecedent, match. One backward
+step, not a fixpoint, memoised, and only for spans. That is the pattern `_forbid`, `precedence()` and
+`_recall` already use, given a general name -- and the author's ruling on it is the line worth
+keeping:
+
+> Python looking at rules is fine -- in the end everything goes through Python. The issue is when
+> something is buried and hardcoded in Python.
+
+**And it generalises**, which is why it was worth settling once: `scope_of` sits in the same position
+inside the read, and `_priority` is close. The next subtractions do not need a new mechanism.
+
+Suite 549/0 with two checks updated -- both enumerate every stratum-0 rule, and the bundle now ships
+two of its own, so they filter them rather than widening the expected list, which would have blunted
+what they were testing. `ugm.bundle` reports **19 rules, 19 exercised**.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

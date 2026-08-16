@@ -48,7 +48,7 @@ ROLES: Dict[str, List[str]] = {
     # one message before it fired.
     "the chain": ["anc", "sanc", "pred", "in_delta", "delta_next", "entry_of",
                   "span", "span_of", "rests_on", "licensed_by",
-                  "arrived_on", "mentioned", "asking", "asked"],
+                  "arrived_on", "mentioned", "asking", "asked", "reaches"],
     # R3/R4: rules are subjects, and rules are askable.
     "rules as data": ["rule", "ant", "con", "conn", "adopt", "compose",
                       "composed", "computes", "names", "binds", "exercised",

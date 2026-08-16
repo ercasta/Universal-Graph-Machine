@@ -14,6 +14,13 @@ from .rules import (CAUSES, IMPLIES, Member, RuleSet, match,
 _results: List[Tuple[str, str, bool]] = []
 
 
+# The bundle's own stratum-0 rules: §11's containment policy, which left
+# `Moment.at_or_after` for `bundle.ugm` so a corpus can argue with it. Named
+# here because two checks enumerate every stratum-0 rule and are about a
+# corpus's recognisers rather than about the bundle's.
+BUNDLE_STRATUM0 = {"span-complete", "span-itself"}
+
+
 def check(group: str, name: str, value: bool) -> None:
     _results.append((group, name, value))
 
@@ -995,7 +1002,13 @@ def silence_over_a_stretch_is_sayable() -> None:
         now = m.chain.succeed(m.chain.moments[-1], None)
         m.gate.reseat(m.focus, now)
         m.ask_read(now)
-        layers = [[r.name for r in layer] for layer in m.rules.strata()]
+        # ⚠ The BUNDLE now ships stratum-0 rules of its own -- §11's containment
+        # policy, which used to be a Python branch in `Moment.at_or_after`. They
+        # sit in layer 0 and would otherwise appear here, so they are filtered:
+        # this check is about how the CORPUS's recognisers are layered, and
+        # widening the expected list to include them would blunt it.
+        layers = [[r.name for r in layer if r.name not in BUNDLE_STRATUM0]
+                  for layer in m.rules.strata()]
         m.settle_structure()
         m.run(limit=120)
         at = lambda q: m.chain.holds(kb.term(q), m.focus.topic, m.focus.seat)
@@ -1244,7 +1257,8 @@ def a_span_is_a_locus() -> None:
 
     check("§6", "the recogniser is stratum 0 by §6's own test -- every antecedent "
           "member is structural, and nobody assigned it a layer",
-          sorted(r.name for r in m3.rules.rules if m3.rules.is_stratum0(r))
+          sorted(r.name for r in m3.rules.rules
+                 if m3.rules.is_stratum0(r) and r.name not in BUNDLE_STRATUM0)
           == ["tt-base", "tt-step"])
     m3.settle_structure()
     m3.run(limit=300)
