@@ -95,6 +95,12 @@ class Spec(NamedTuple):
     # out, no access to anything. A die is an answerer because it is the world
     # speaking; comparing two numbers the agent already has is not.
     computes: Tuple[Tuple[str, str], ...] = ()  # (name, TOOLS key)
+    # Which loop this agent thinks with: the shipped one, which weighs an
+    # option set, or the table (`ugm.attention`), which works a score down to
+    # the first rule that matches and spends attention afterwards. Per agent,
+    # because that is the interesting comparison -- a DM and a player need not
+    # think the same way.
+    loop: str = "shipped"
 
 
 # Tools by name, so a spec can carry a reference to one across a process
@@ -111,6 +117,7 @@ class Agent:
     def __init__(self, spec: Spec) -> None:
         self.name = spec.name
         self.limit = spec.limit
+        self.loop = spec.loop
         self.m = Machine()
         self.kb = Loader(self.m, scope=spec.name)
         for tool, request, key in spec.tools:
@@ -175,7 +182,11 @@ class Agent:
         repeating itself for ever and is quiescence-proof, because each arrival
         is a fresh entry (§10's two indices).
         """
-        self.m.run(limit=self.limit)
+        if self.loop == "table":
+            from .attention import run as table_run
+            table_run(self.m, limit=self.limit)
+        else:
+            self.m.run(limit=self.limit)
         fresh, self._said = self.m.emitted[self._said:], len(self.m.emitted)
         out = []
         for node in fresh:

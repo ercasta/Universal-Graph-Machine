@@ -613,6 +613,41 @@ that learning is meant to answer.
 Next: (2) hand-written bootstrapping triggers and rerankers, to see what good ones would buy, and
 then (3) whether the learner finds them.
 
+### (2) Hand-written coaching -- what good triggers are worth, and two findings
+
+`table.Spec` gained a `loop` field, so an agent thinks with the shipped loop or with the table one.
+A DM and a player need not think the same way, and that is the interesting comparison.
+
+The coaching, written by hand as the target (3) has to hit:
+
+```
+when { +yours(?n), beats(?n, 5) as yes } => boost(<trade>, 8), damp(<quaff>, 4), damp(<run>, 6)
+when { +yours(?n), beats(4, ?n) as yes } => boost(<quaff>, 8)
+when { +bleeding(?foe) }                 => boost(<press>, 8), damp(<run>, 4)
+after <guard> { +whiffed(p1, ?foe) }     => boost(<trade>, 4)
+```
+
+| | p1's moves | outcome |
+|---|---|---|
+| guarded (before (1)) | attack, defend, attack, attack, attack | goblin fled at 2; p1 at 8 |
+| unguarded, untaught | quaff, flee | p1 fled; goblin untouched |
+| unguarded, coached, shortlist 5 | quaff, attack, defend, attack, attack, attack | goblin fled at 2; p1 at 13 |
+| **unguarded, coached, whole pool** | **attack, attack** | **goblin fled at 3; p1 untouched at 10, potion unused** |
+
+**Coached play beats the guarded original.** The guards encoded one tactic; the scores encode the
+same knowledge and let the situation pick, so the player stops drinking a potion it does not need.
+
+**Finding one: a guard is a condition AND its complement, and a score has to be told both halves.**
+The first draft of the coaching boosted `<quaff>` when nearly dead and said nothing about full
+health -- so with every arm at the floor, declaration order still put `<quaff>` first and the coached
+player drank at 10 hit points exactly like the untaught one. Removing a guard removes two claims.
+
+**Finding two: a reranker can only fix a choice whose rival is in the same shortlist.** At shortlist 5
+the coached player still drank once, because `<trade>` was in the next chunk and a reranker reorders
+what is in front of it. Widening the shortlist to the whole pool removes the mistake entirely. So the
+shortlist knob bounds cost AND bounds how far experience can see -- which is the same speed/accuracy
+trade the dungeon measured, now visible in what an agent actually does rather than in a column.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

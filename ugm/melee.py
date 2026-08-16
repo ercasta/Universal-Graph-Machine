@@ -94,7 +94,30 @@ DM_COMPUTES = (("calc", "calc"), ("beats", "beats"))
 P1_COMPUTES = (("beats", "beats"), ("calc", "calc"))
 
 
-def scenario() -> Tuple[Spec, ...]:
+# What a coach would say, written by hand -- the target (3) has to hit.
+#
+# ⚠ BOTH HALVES of the removed guard have to move into the score, and the first
+# draft of this only had one. Boosting `<quaff>` when nearly dead says nothing
+# about full health: with every arm at the floor, declaration order still put
+# `<quaff>` first and the coached player drank at 10 hit points exactly like the
+# untaught one. A guard was a condition AND its complement; a score has to be
+# told both.
+COACHING = """
+when { +yours(?n), beats(?n, 5) as yes } => boost(<trade>, 8), damp(<quaff>, 4), damp(<run>, 6)
+when { +yours(?n), beats(4, ?n) as yes } => boost(<quaff>, 8)
+when { +bleeding(?foe) } => boost(<press>, 8), damp(<run>, 4)
+after <guard> { +whiffed(p1, ?foe) } => boost(<trade>, 4)
+"""
+
+# The doubt-settling rule the table loop needs: when two candidates are close,
+# the doubt is deposited and this is what answers it.
+SETTLING = """
+rule <settle-doubt> = implies( { +close(?a, ?b) }, { +settled(?a, ?b) } )
+frozen after <settle-doubt> => boost(?a, 1)
+"""
+
+
+def scenario(loop: str = "shipped", coaching: bool = False) -> Tuple[Spec, ...]:
     return (
         # ⚠ A bounded limit, not the default 2000. An agent that loops runs to
         # its limit before the round ends, so a runaway in one corpus stalls the
@@ -102,12 +125,16 @@ def scenario() -> Tuple[Spec, ...]:
         # discipline was applied consistently.
         Spec("dm", _corpus("melee-dm.ugm"), DM_TOOLS, limit=300,
              computes=DM_COMPUTES),
-        Spec("p1", _corpus("melee-p1.ugm"), limit=300, computes=P1_COMPUTES),
+        Spec("p1",
+             _corpus("melee-p1.ugm")
+             + (SETTLING + COACHING if loop == "table" and coaching
+                else SETTLING if loop == "table" else ""),
+             limit=300, computes=P1_COMPUTES, loop=loop),
     )
 
 
-def play(rounds: int = 24):
-    t = Table(scenario())
+def play(rounds: int = 24, loop: str = "shipped", coaching: bool = False):
+    t = Table(scenario(loop, coaching))
     quiet = t.play(rounds=rounds)
     return t, quiet
 
