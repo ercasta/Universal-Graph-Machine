@@ -1,0 +1,112 @@
+site_name: The Universal Graph Machine
+site_description: A machine that reasons — and can always show its work. A tutorial for curious beginners.
+site_url: https://ercasta.github.io/Universal-Graph-Machine/
+repo_url: https://github.com/ercasta/Universal-Graph-Machine
+repo_name: ercasta/Universal-Graph-Machine
+copyright: >
+  Made with care for anyone curious about how machines can reason ·
+  <a href="https://github.com/ercasta/Universal-Graph-Machine">View the project on GitHub</a>
+
+# Simpler, deterministic paths so the live pages can reference the Pyodide
+# wheel with a plain relative URL.
+use_directory_urls: false
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - toc.follow
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      permalink: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/playground.js
+
+nav:
+  - Home: index.md
+  - "Part 1 — What the world is made of":
+      - "0 · A machine that shows its work": basic/00-shows-its-work.md
+      - "1 · Nodes, members, and nothing else": basic/01-the-substrate.md
+      - "2 · A proposition claims nothing": basic/02-propositions-and-entries.md
+      - "3 · Three signs, and silence": basic/03-signs.md
+      - "4 · Moments": basic/04-moments.md
+      - "5 · Reading is a walk": basic/05-the-read.md
+  - "Part 2 — Rules":
+      - "6 · A rule is a fact about two moments": rules/06-a-rule-is-a-fact.md
+      - "7 · Two connectives, and why exactly two": rules/07-connectives.md
+      - "8 · Writing a corpus": rules/08-writing-a-corpus.md
+      - "9 · Because…": rules/09-because.md
+      - "10 · Asking about rules": rules/10-rules-are-subjects.md
+  - "Part 3 — Wanting something":
+      - "11 · Reading a rule backwards": wanting/11-backwards.md
+      - "12 · Plans and subgoals": wanting/12-plans.md
+      - "13 · Blocked, and what silence means": wanting/13-blocked.md
+      - "14 · Acting": wanting/14-acting.md
+  - "Part 4 — Not being sure":
+      - "15 · How strongly": unsure/15-how-strongly.md
+      - "16 · Supposing": unsure/16-supposing.md
+      - "17 · When two rules disagree": unsure/17-disagreement.md
+      - "18 · What it may never do": unsure/18-norms.md
+  - "Part 5 — Out in the world":
+      - "19 · Stretches, not instants": world/19-spans.md
+      - "20 · Shapes": world/20-shapes.md
+      - "21 · Who said it": world/21-channels.md
+      - "22 · Arithmetic is not reasoning": world/22-tools.md
+      - "23 · When things happened": world/23-time.md
+  - "Part 6 — Watching itself":
+      - "24 · The agent's own state": watching/24-own-state.md
+      - "25 · Stopping": watching/25-stopping.md
+      - "26 · What comes to mind": watching/26-recall.md
+      - "27 · Learning": watching/27-learning.md
+  - "Part 7 — The floor":
+      - "28 · What cannot be a convention": floor/28-the-floor.md
+      - "29 · The bootstrap": floor/29-bootstrap.md
+      - "30 · Zero phases": floor/30-zero-phases.md
+  - "Part 8 — Where the line is":
+      - "31 · Meaning is a web": horizon/31-the-web.md
+      - "32 · What is not built": horizon/32-not-built.md
+  - "Playground":
+      - "Run a corpus": playground/corpus.md
+      - "Make it check itself": playground/selftest.md
+  - "Appendix — concepts": appendix/index.md

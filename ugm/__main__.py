@@ -67,7 +67,11 @@ def main(argv=None) -> int:
         last = steps[-1].state if steps else "nothing to do"
         print(f"{path}: {len(steps)} ticks, ended {last}")
         if last == "applied":
-            print(f"  ⚠ stopped at the tick limit ({limit}); it had not finished")
+            # ASCII, deliberately. This is the ONE line a runaway corpus reaches,
+            # and a console whose encoding cannot carry the character turns the
+            # diagnostic into a traceback -- the report about the failure
+            # failing, which is the worst place in the program for it.
+            print(f"  stopped at the tick limit ({limit}); it had not finished")
     print()
     for line in m.report():
         print(line)
