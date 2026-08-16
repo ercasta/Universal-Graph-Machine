@@ -121,7 +121,7 @@ MAX_LIFT = 12
 # dropped by quiescence as having nothing to deposit.
 SETTLE = """
 rule <settle-doubt> = implies( { +close(?a, ?b) }, { +settled(?a, ?b) } )
-  frozen after => boost(?a, 1)
+frozen after <settle-doubt> => boost(?a, 1)
 """
 SETTLING = ("settle-doubt",)
 
@@ -219,9 +219,15 @@ class Table:
         self.age(tick)
         return dropped
 
-    def order(self) -> List[Rule]:
+    def order(self, extra=None) -> List[Rule]:
+        """Highest score first, ties by declaration order. `extra` is the
+        ranking-time nudge, added but never kept: a reranker reorders what is
+        in front of the agent now, and next move it is recomputed."""
+        lift = extra or {}
         return sorted(
-            self.rules, key=lambda r: (-self.score[r.node], self.rank[r.node])
+            self.rules,
+            key=lambda r: (-(self.score[r.node] + lift.get(r.node, 0)),
+                           self.rank[r.node]),
         )
 
     @staticmethod
@@ -340,9 +346,15 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         m.channels.since_last_tick()
         state = m._situation()
         table.age(tick)
+        # Ranking-time triggers: what is in front of the agent, as opposed to
+        # what it was just doing. Ephemeral by construction -- recomputed every
+        # move and kept nowhere -- so there is no decay to tune and no runaway
+        # to guard against, which is the whole difference between the two kinds
+        # of attention.
+        rerank, tried = _rerank(m, table, state, tick, tried)
         window: List[Application] = []
         top = None
-        ordered = table.order()
+        ordered = table.order(rerank)
         cut = 0
         while cut < len(ordered) and not window:
             # One shortlist at a time. Score decides WHO is matched, which is
@@ -458,6 +470,33 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     )
 
 
+def _rerank(m: Machine, table: Table, state: Situation, tick: int, tried: int):
+    """Every `when` trigger, matched against the state, as a nudge for this
+    move only.
+
+    The matches are COUNTED into the same cost column as everything else: a
+    reranker query is a match too, and reporting a saving that was only moved
+    from one column to another is the trap this file has already recorded twice.
+    """
+    lift: Dict[NodeId, int] = {}
+    for query, buffs, _frozen in m.rules.triggers.get(None, ()):
+        probe = Rule(0, "implies", list(query), [], "when")
+        tried += 1
+        hits = match(
+            m.g, m.chain, probe, m.focus.topic, m.focus.seat, state,
+            computes=m.rules.computes, structural=m.rules.skeleton(),
+        ) if query else [None]
+        for hit in hits:
+            bindings = {} if hit is None else hit.bindings
+            for target, delta in buffs:
+                if target is None:
+                    continue  # a reset means nothing to a nudge that is not kept
+                node = table._target(target, bindings)
+                if node is not None and node in table.score:
+                    lift[node] = lift.get(node, 0) + delta
+    return lift, tried
+
+
 def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
                  state: Situation) -> None:
     """Run the applied rule's postconditions and move the table.
@@ -468,7 +507,7 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
     bare `after` has no query and holds always.
     """
     name = chosen.rule.name or "?"
-    for query, buffs, frozen in chosen.rule.posts:
+    for query, buffs, frozen in m.rules.triggers.get(chosen.rule.node, ()):
         if not query:
             table.spend(tick, name, buffs, frozen, chosen.bindings)
             continue
@@ -591,7 +630,7 @@ rule <classify>   = implies( {{ +asked(?x) }},                    {{ +considered
 {post}
 """
 
-CALIBRATED = "  after { +penguin(?x) } => boost(<flightless>, 20)"
+CALIBRATED = "after <classify> { +penguin(?x) } => boost(<flightless>, 20)"
 
 
 def penguin() -> int:

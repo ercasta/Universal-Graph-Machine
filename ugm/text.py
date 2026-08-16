@@ -241,6 +241,12 @@ class Parser:
             raise ParseError(f"line {t.line}: expected `rule`, `fact` or `say`, found {t.text!r}")
         if t.text == "rule":
             return self.rule(t.line)
+        if t.text in ("after", "frozen", "when"):
+            # A trigger, and it stands on its own: what a rule MEANS and what
+            # experience has learned about when to reach for it are different
+            # kinds of claim, kept in different documents. A corpus loads its
+            # experience or does not.
+            return self.trigger(t)
         if t.text == "fact":
             # A fact may be NAMED, and the name goes in the same angle brackets a
             # rule's does, because it is the same namespace: names of
@@ -297,34 +303,42 @@ class Parser:
         con = self.block()
         self.expect(")")
         return Statement("rule", name_tok.text, conn.text, ant, con, None, "",
-                         line, self.posts())
+                         line)
 
-    def posts(self) -> Tuple[PostClause, ...]:
-        """Zero or more `after` clauses following a rule."""
-        out = []
-        while True:
-            t = self.peek()
-            if t is None or t.kind != "name" or t.text not in ("after", "frozen"):
-                break
-            frozen = t.text == "frozen"
+    def trigger(self, t: Tok) -> Statement:
+        """`after <A> { ... } => boost(<R>, 3)`, or `when { ... } => ...`.
+
+        `after` fires when its rule applies and its query holds; `when` fires at
+        ranking time and belongs to no rule. `frozen` marks what a calibration
+        process may not touch.
+        """
+        frozen = t.text == "frozen"
+        if frozen:
+            nxt = self.peek()
+            if nxt is None or nxt.text not in ("after", "when"):
+                raise ParseError(
+                    f"line {t.line}: `frozen` marks a trigger, so it is written "
+                    f"`frozen after <R> ... => ...`"
+                )
+            t = self.next()
+        host = ""
+        if t.text == "after":
+            name = self.next()
+            if name.kind != "rulename":
+                raise ParseError(
+                    f"line {name.line}: `after` says which rule it follows, in "
+                    f"the angle brackets a rule is named in"
+                )
+            host = name.text
+        query = self.block() if self.at("{") else ()
+        self.expect("=")
+        self.expect(">")
+        buffs = [self.buff()]
+        while self.at(","):
             self.next()
-            if frozen:
-                nxt = self.peek()
-                if nxt is None or nxt.text != "after":
-                    raise ParseError(
-                        f"line {t.line}: `frozen` marks a postcondition, so it is "
-                        f"written `frozen after ... => ...`"
-                    )
-                self.next()
-            query = self.block() if self.at("{") else ()
-            self.expect("=")
-            self.expect(">")
-            buffs = [self.buff()]
-            while self.at(","):
-                self.next()
-                buffs.append(self.buff())
-            out.append(PostClause(query, tuple(buffs), frozen))
-        return tuple(out)
+            buffs.append(self.buff())
+        return Statement("trigger", host, "", query, (), None, "", t.line,
+                         (PostClause(query, tuple(buffs), frozen),))
 
     def buff(self) -> Tuple["Term", int]:
         """`boost(<R>, 3)` or `damp(?a, 2)`. The target may be a rule name or a
@@ -680,6 +694,47 @@ class Loader:
         self.rules_by_name[name] = a
         return a
 
+    def _trigger(self, s: Statement) -> None:
+        """A trigger, built in its HOST RULE's variable scope.
+
+        That is the whole of why this can move out of the rule declaration
+        without changing what it means: an inline `after` clause shared the
+        rule's scope because it was parsed inside the same statement, and here
+        the scope is handed to it instead. `?x` in the trigger is the rule's
+        `?x`, so the query still says *this orc* rather than *some orc*.
+
+        A name a rule does not use is an ordinary fresh variable, bound from the
+        state like any other -- which is what a `when` trigger, belonging to no
+        rule, has for all of them.
+        """
+        clause = s.posts[0]
+        host = None
+        scope: Dict[str, NodeId] = {}
+        if s.name:
+            host = self.rules_by_name.get(s.name)
+            if host is None:
+                raise ParseError(
+                    f"line {s.line}: `after <{s.name}>` names a rule that was "
+                    f"not declared -- or one declared after it, which the "
+                    f"loader cannot resolve"
+                )
+            for m in list(host.antecedent) + list(host.consequent):
+                for v in _vars_in(self.m.g, m.pattern):
+                    scope.setdefault(self.m.g.show(v), v)
+        query = tuple(
+            Member(mm.sign, self.build(mm.term, scope),
+                   self.build(mm.at, scope) if mm.at else None,
+                   self.build(mm.binds, scope) if mm.binds else None)
+            for mm in clause.query
+        )
+        buffs = tuple(
+            (None if t is None else self.build(t, scope), delta)
+            for t, delta in clause.buffs
+        )
+        self.m.rules.triggers.setdefault(
+            None if host is None else host.node, []
+        ).append((query, buffs, clause.frozen))
+
     def rule_ref(self, name: str) -> NodeId:
         """What `<n>` denotes: a rule node, or a named fact's proposition.
 
@@ -830,6 +885,11 @@ class Loader:
         for s in named:
             if s.name not in self.rule_nodes:
                 self._name(s)
+        # Triggers last: they name rules, and a rule must exist to be reached
+        # for. Same reason the named facts are split around the rules.
+        for s in statements:
+            if s.kind == "trigger":
+                self._trigger(s)
 
         # Then everything is written, in the order it was authored -- so a
         # corpus that states a norm and then retires it does so in that order.
@@ -882,23 +942,6 @@ class Loader:
                 f"never binds -- the gate would refuse to deposit it (§13)."
             )
         r = self.m.rules.rule(s.connective, ant, con, s.name)
-        # The postconditions, built in the RULE's own scope -- so `?x` in a
-        # query is the same variable node the antecedent bound, and a query is
-        # matched with the application's bindings already in hand rather than
-        # from nothing. That is what makes it a POSTcondition rather than a
-        # second rule.
-        r.posts = tuple(
-            (
-                tuple(Member(mm.sign, self.build(mm.term, scope),
-                             self.build(mm.at, scope) if mm.at else None,
-                             self.build(mm.binds, scope) if mm.binds else None)
-                      for mm in clause.query),
-                tuple((None if t is None else self.build(t, scope), delta)
-                      for t, delta in clause.buffs),
-                clause.frozen,
-            )
-            for clause in s.posts
-        )
         # The same `<...>` marker `_fact` reads, one level up: a rule authored
         # naming a rule is mentioning, and everything it concludes inherits that.
         #

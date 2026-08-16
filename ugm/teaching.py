@@ -220,33 +220,27 @@ class Lesson:
 
 
 def install_recognisers(m: Machine, ldr, learned: dict) -> int:
-    """Author the situation rules in the student's corpus, from text.
+    """The situation-keyed lessons, as RERANKERS.
 
-    A learned rule, not a learned weight: `<when-N>` concludes `noticing(<R>)`
-    -- *this looks like a job for R* -- and hangs the buff off itself. The
-    business rules are untouched, which is the author's separation; what is
-    learned is a recogniser and what it spends.
+    They were learned rules first -- `<when-N>` concluding `noticing(<R>)` --
+    and that failed for a structural reason worth keeping: in a one-move-per-
+    tick loop a rule that recognises a situation has to WIN A MOVE to be heard,
+    and it never does (2 firings out of 16 installed). A ranking-time trigger is
+    heard without winning anything, costs no move, and adds nothing to the pool.
     """
     by_name = {r.name: r for r in m.rules.rules if r.name}
     added = 0
-    for i, (name, (text, weight)) in enumerate(sorted(learned["rules"].items())):
-        target = by_name.get(name)
-        if target is None:
+    for name, (text, weight) in sorted(learned["rules"].items()):
+        if by_name.get(name) is None:
             continue
         try:
             whole = ldr.term(text)
         except ParseError:
             learned["unspeakable"] = learned.get("unspeakable", 0) + 1
             continue
-        members = ", ".join(
-            "+" + m.g.show(x) for x in m.g.members(whole)
-        )
-        src = (
-            "rule <when-%d> = implies( { %s }, { +noticing(<%s>) } )\n"
-            "  after => boost(<%s>, %d)\n" % (i, members, name, name, weight)
-        )
+        members = ", ".join("+" + m.g.show(x) for x in m.g.members(whole))
         try:
-            ldr.load(src)
+            ldr.load(WHEN % (members, name, weight))
         except ParseError:
             learned["unspeakable"] = learned.get("unspeakable", 0) + 1
             continue
@@ -255,15 +249,18 @@ def install_recognisers(m: Machine, ldr, learned: dict) -> int:
 
 
 def install(m: Machine, ldr, lessons: dict) -> int:
-    """Read the lessons back in the student's own scope and hang them on its
-    rules. Nothing here knows how they were learned."""
-    by_name = {r.name: r for r in m.rules.rules if r.name}
+    """Read the lessons back in the student's own scope, as trigger documents.
+
+    Nothing is written into a rule: what a rule MEANS and when it is worth
+    reaching for are different claims, and they now live in different
+    statements. A corpus loads its experience or does not.
+    """
     added = 0
     for (first, then), (text, weight) in lessons["posts"].items():
-        a, r = by_name.get(first), by_name.get(then)
-        if a is None or r is None:
+        names = {r.name for r in m.rules.rules if r.name}
+        if first not in names or then not in names:
             continue
-        query = ()
+        query = ""
         if text:
             try:
                 whole = ldr.term(text)
@@ -271,15 +268,21 @@ def install(m: Machine, ldr, lessons: dict) -> int:
                 # The lesson cannot be WRITTEN DOWN. A sign atom renders as `+`
                 # and `+` opens a member, so a premise that mentions one is a
                 # fact the graph holds and the surface cannot say. Counted
-                # rather than worked around: a calibration that cannot be
-                # written is a calibration nobody can read, argue with or
-                # freeze, which is the whole point of putting it in the corpus.
+                # rather than worked around: a calibration nobody can read
+                # cannot be argued with or frozen, which is why it belongs in
+                # the corpus in the first place.
                 lessons["unspeakable"] = lessons.get("unspeakable", 0) + 1
                 continue
-            query = tuple(Member(PLUS, x, None, None) for x in m.g.members(whole))
-        a.posts = tuple(a.posts) + ((query, ((r.node, weight),), False),)
+            query = " { %s } " % ", ".join(
+                "+" + m.g.show(x) for x in m.g.members(whole))
+        try:
+            ldr.load(AFTER % (first, query or " ", then, weight))
+        except ParseError:
+            lessons["unspeakable"] = lessons.get("unspeakable", 0) + 1
+            continue
         added += 1
     return added
+
 
 def _anchor(m: Machine, prop: NodeId, back: Dict) -> NodeId:
     """Replace anything the previous move bound with the variable it bound it
@@ -338,6 +341,10 @@ def _collides(m: Machine, query, examples, first: str, then: str) -> bool:
                 return True
     return False
 EXTRA_SEEDS = (11, 13, 17)
+
+# The two trigger forms, as text: a lesson is a document.
+WHEN = "when { %s } => boost(<%s>, %d)" + chr(10)
+AFTER = "after <%s>%s => boost(<%s>, %d)" + chr(10)
 
 
 def _agree(mine: List[str], theirs: List[str]) -> int:

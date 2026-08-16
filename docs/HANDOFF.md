@@ -416,6 +416,48 @@ the speed away, because a discriminating query is in force far less often. That 
 between *how often the lift is in place* and *how often it is right*, and it is now measurable on
 both axes.
 
+### Triggers moved out of rules, and rerankers -- with the honest cost accounting
+
+Two changes, both the author's:
+
+**Experience is a separate document.** `after <A> { ... } => boost(<R>, n)` is now a statement of its
+own, not a clause hanging off a rule declaration, and `Rule.posts` is gone -- the triggers live in
+`RuleSet.triggers`, keyed by the rule they follow. What a rule MEANS and when it is worth reaching
+for are different claims; a corpus loads its experience or does not.
+
+**And the trigger still shares the rule's variables**, which is what makes the move a separation of
+concerns rather than a change of meaning: the loader seeds the trigger's scope from the host rule's
+own variables, so `after <swing> { +wounded(?b) }` is *that* `?b`. An inline clause had this for free
+by being parsed inside the same statement; now the scope is handed to it instead. A name the rule
+does not use is an ordinary fresh variable, which is what a `when` trigger has for all of them.
+
+**Rerankers** are the second form: `when { ... } => boost(<R>, n)`, matched at ranking time, belonging
+to no rule, and **ephemeral** -- recomputed every move and kept nowhere, so there is no decay to tune
+and no runaway to guard against. That is the honest difference between the two kinds of attention:
+what I was doing persists and fades, what is in front of me is recomputed.
+
+This is also where the situation-keyed lessons belong, and running them as rules is what proved it: a
+learned recogniser had to WIN A MOVE to be heard and fired twice out of sixteen. As a reranker it is
+heard without winning anything, costs no move, and adds nothing to the pool.
+
+| dungeon, taught from four fights | posts | moves | matched/move | agrees (LCS) | lost | doubts |
+|---|---|---|---|---|---|---|
+| untaught | -- | 161 | 29.6 | -- | 0 | 13 |
+| bigram | 39 | 158 | **14.2** | 140 / 149 | 10 | 10 |
+| bigram + query | 19 | 151 | 28.8 | 147 / 149 | 3 | 3 |
+| situation, as rerankers | 15 | 151 | **42.7** | **148 / 149** | 3 | 3 |
+
+**And the reranker costs more than it saves, which the cost column says because it was made to.** A
+reranker query is a match like any other, so all fifteen are counted: fifteen extra matches per move
+on top of a scan that did not shrink. Reporting a saving that was only moved between columns is the
+trap this file has already recorded twice, and the number is 42.7 precisely because it was not
+allowed to happen here.
+
+The fix is the one `_forbid` already uses for norms: **index the triggers by what they mention and
+consult only those a fresh fact could satisfy** -- delta-driven reranking, so a trigger about wounds
+costs nothing on a move about doors. That is the next thing to build, and the column to watch is the
+same one.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

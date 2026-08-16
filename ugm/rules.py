@@ -127,6 +127,12 @@ class RuleSet:
             s: g.atom(s) for s in ("+", "-", "?")
         }
         self.rules: List[Rule] = []
+        # Experience, kept apart from world knowledge: what to reach for after a
+        # rule applies (keyed by its node) and what to reach for at ranking time
+        # (keyed by None). A rule says what is the case; a trigger says when it
+        # is worth thinking of, and the second is learned while the first is
+        # authored. Read only by a loop that has a table.
+        self.triggers: Dict[Optional[NodeId], List[Tuple]] = {}
         # Authored precedence (§14): the bottom-most arbitrator is a lookup that
         # always returns and never searches.
         # ⭐⭐⭐ **Precedence is READ, not kept.** These were two Python lists,
