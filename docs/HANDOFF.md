@@ -581,6 +581,38 @@ for ever. So an utterance that may recur has to carry an occasion. This is
 as the working one: the player numbers its own turns, and the DM takes the occasion from the speaker
 rather than keeping a clock.
 
+### (1) The policy guards removed -- the agent gets worse, and becomes learnable
+
+The author's point, taken: now that rules have scores, a guard that was never about the world can
+come out of the premises. The test is three-way. A guard stays when the move would be **impossible**
+(`+potion(p1)` -- you cannot drink what you do not have) and when it would be **forbidden** (a norm,
+which must stay a veto, because a score can always be outweighed). It goes when the move would merely
+be **unwise**.
+
+Three came out of `melee-p1.ugm`: *drink only when badly hurt*, *fight only while whole*, *flee only
+when there is nothing left to drink*. The third was a whole strategy hard-coded into a premise.
+
+| | guarded | guards removed |
+|---|---|---|
+| what p1 did | attack, defend, attack, attack, attack | **quaff, flee** |
+| how it ended | goblin bloodied at 2 and fled; p1 at 8 | p1 fled; goblin untouched at 7 |
+| rivals recorded | `close(<trust-dm>, <guard>)`, `close(<trust-dm>, <press>)`, `close(<press>, <gone>)` | `close(<quaff>, <run>)`, `close(<quaff>, <trade>)`, `close(<run>, <trade>)` |
+
+The untaught agent drinks its potion at full health and then runs from an unwounded goblin. That is
+the regression, and it is the price of moving policy out of the premises -- exactly the cost the
+dungeon named once already: *a default is a condition the rule states, not a precedence between two
+rules.*
+
+**And the corpus is now learnable, which it was not before.** A fully-guarded corpus never has a
+choice: if at most one arm can match, the window never holds two candidates, doubt never fires,
+nobody is ever asked, and there is nothing for a lesson to be about. The rival count is the same
+either way -- three -- so the count is not the metric. WHAT is in doubt is: before, a rule pairing
+with `<trust-dm>` by accident; now, fight against drink against run. The corpus poses the question
+that learning is meant to answer.
+
+Next: (2) hand-written bootstrapping triggers and rerankers, to see what good ones would buy, and
+then (3) whether the learner finds them.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

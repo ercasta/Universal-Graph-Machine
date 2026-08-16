@@ -38,17 +38,33 @@ rule <trust-dm> = implies( { +says(dm, ?p, plus) at ?m }, { +?p at ?m } )
 #
 # Each arm spends the report it acted on and advances the turn, so the next
 # utterance is a new claim rather than a repetition nobody can hear.
+#
+# ⚠ THE POLICY GUARDS ARE GONE, at the author's direction, and the test that
+# decides which may go is three-way. A guard stays when the move would be
+# IMPOSSIBLE (`+potion(p1)` -- you cannot drink what you do not have) and when
+# it would be FORBIDDEN (a norm, which must stay a veto because a score can
+# always be outweighed). It goes when the move would merely be UNWISE, because
+# that is what a score is for.
+#
+# The point is not tidiness. A fully-guarded corpus is UNLEARNABLE: if at most
+# one arm can ever match, the window never holds two candidates, doubt never
+# fires, nobody is ever asked, and there is nothing for a lesson to be about.
+# Guards suppress the very signal the teaching loop feeds on.
 
-# Badly hurt, and something to drink about it.
-rule <quaff> = causes( { +yours(?n), beats(4, ?n) as yes, +potion(p1),
+# Drink. ⚠ The guard `beats(4, ?n) as yes` -- *only when badly hurt* -- is GONE:
+# that is a tactic, not a fact about potions, and with a table it belongs in a
+# score. What is left is the world absolute, `+potion(p1)`: you cannot drink
+# what you do not have, and no amount of calibration makes that possible.
+rule <quaff> = causes( { +yours(?n), +potion(p1),
                          +turn(?t), calc(add, ?t, 1) as ?next },
                        { +doing(tell(dm, intends(p1, quaff, ?t))),
                          -potion(p1), -yours(?n),
                          +turn(?next), -turn(?t) } )
 
-# Badly hurt, and nothing left. This is the same premise as <quaff> minus one
-# fact, which is what makes the two genuinely compete.
-rule <run> = causes( { +yours(?n), beats(4, ?n) as yes, -potion(p1),
+# Run. The guard was `-potion(p1)` -- *only when there is nothing left to
+# drink* -- which is a whole strategy hard-coded into a premise. You may flee
+# with a full pack.
+rule <run> = causes( { +yours(?n),
                        +turn(?t), calc(add, ?t, 1) as ?next },
                      { +doing(tell(dm, intends(p1, flee, ?t))), +ran(p1),
                        -yours(?n), +turn(?next), -turn(?t) } )
@@ -59,8 +75,9 @@ rule <press> = causes( { +bleeding(?foe), +foe(p1, ?foe),
                        { +doing(tell(dm, intends(p1, attack(?foe), ?t))),
                          -bleeding(?foe), +turn(?next), -turn(?t) } )
 
-# Whole enough to trade blows.
-rule <trade> = causes( { +yours(?n), beats(?n, 5) as yes, +foe(p1, ?foe),
+# Fight. The guard was `beats(?n, 5) as yes` -- *only while whole* -- the same
+# tactic as <quaff>'s, inverted.
+rule <trade> = causes( { +yours(?n), +foe(p1, ?foe),
                          +turn(?t), calc(add, ?t, 1) as ?next },
                        { +doing(tell(dm, intends(p1, attack(?foe), ?t))),
                          -yours(?n), +turn(?next), -turn(?t) } )
