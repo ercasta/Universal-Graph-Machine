@@ -1,0 +1,57 @@
+# A player, as its own agent. Loaded by `ugm/melee.py`.
+#
+# This corpus exists to be a fixture the dungeon could not be: a fight is a
+# PIPELINE -- swing, to-hit, damage, wound -- so the previous move nearly
+# determines the next one and a lesson keyed on the predecessor is almost
+# enough. A player is not a pipeline. Every rule below is triggered by the same
+# thing, *the DM just told me something*, and which of them is right depends on
+# the state: how hurt I am, whether I still have a potion, whether the goblin is
+# bleeding. That is the shape a ranking-time trigger exists for, and the shape
+# no bigram can express.
+
+fact +goal(alive(p1))
+fact +potion(p1)
+fact +foe(p1, gob)
+
+# What the DM says is so. A player is not entitled to its own dice.
+#
+# ⚠ AT THE ARRIVAL'S OWN LOCUS, which is the measured fix for the trap this
+# corpus would otherwise hit: `says` is standing, so anything derived from it is
+# re-derivable, and an action that consumes a report finds the report back on
+# the next tick -- observations §4.6, where the same shape ran 194 times.
+# Believing it where it arrived means a later denial governs, and re-deriving it
+# at the old locus changes nothing about the current answer.
+rule <trust-dm> = implies( { +says(dm, ?p, plus) at ?m }, { +?p at ?m } )
+
+# -- the branch, and it is one branch with four arms ------------------------
+
+# Badly hurt, and something to drink about it.
+rule <quaff> = causes( { +yours(?n), beats(4, ?n) as yes, +potion(p1) },
+                       { +doing(tell(dm, intends(p1, quaff))), -potion(p1),
+                         -yours(?n) } )
+
+# Badly hurt, and nothing left. This is the same premise as <quaff> minus one
+# fact, which is what makes the two genuinely compete.
+rule <run> = causes( { +yours(?n), beats(4, ?n) as yes, -potion(p1) },
+                     { +doing(tell(dm, intends(p1, flee))), +ran(p1),
+                       -yours(?n) } )
+
+# The foe is bleeding: finish it rather than trade blows.
+rule <press> = causes( { +bleeding(?foe), +foe(p1, ?foe) },
+                       { +doing(tell(dm, intends(p1, attack(?foe)))),
+                         -bleeding(?foe) } )
+
+# Whole enough to trade blows.
+rule <trade> = causes( { +yours(?n), beats(?n, 5) as yes, +foe(p1, ?foe) },
+                       { +doing(tell(dm, intends(p1, attack(?foe)))),
+                         -yours(?n) } )
+
+# Missed: cover up rather than swing wildly again.
+rule <guard> = causes( { +whiffed(p1, ?foe) },
+                       { +doing(tell(dm, intends(p1, defend))),
+                         -whiffed(p1, ?foe) } )
+
+# It is over, one way or the other.
+rule <won> = implies( { +fallen(?foe), +foe(p1, ?foe) }, { +enough(alive(p1)) } )
+rule <away> = implies( { +ran(p1) }, { +enough(alive(p1)) } )
+rule <gone> = implies( { +ran(?foe), +foe(p1, ?foe) }, { +enough(alive(p1)) } )

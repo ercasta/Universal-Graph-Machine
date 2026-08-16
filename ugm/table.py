@@ -91,6 +91,10 @@ class Spec(NamedTuple):
     corpus: str
     tools: Tuple[Tuple[str, str, str], ...] = ()  # (tool name, request, TOOLS key)
     limit: int = 2000
+    # ...and computators, which are the other kind of tool: values in, a value
+    # out, no access to anything. A die is an answerer because it is the world
+    # speaking; comparing two numbers the agent already has is not.
+    computes: Tuple[Tuple[str, str], ...] = ()  # (name, TOOLS key)
 
 
 # Tools by name, so a spec can carry a reference to one across a process
@@ -111,6 +115,8 @@ class Agent:
         self.kb = Loader(self.m, scope=spec.name)
         for tool, request, key in spec.tools:
             self.kb.answerer(tool, request, TOOLS[key])
+        for name, key in spec.computes:
+            self.kb.computator(name, TOOLS[key])
         self.m.actuator(VOICE)
         self.kb.load(spec.corpus)
         self._said = 0  # how much of `m.emitted` has already been shipped

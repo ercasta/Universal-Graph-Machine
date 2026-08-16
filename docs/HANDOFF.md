@@ -530,6 +530,50 @@ corpus where the same predecessor leads to different right answers depending on 
 the shape a reranker exists for, and the dungeon is not it. That is a fixture problem, and the
 recorded rule applies: a fixture that cannot lose cannot measure.
 
+### The multi-agent dungeon -- `python -m ugm.melee`
+
+A DM that adjudicates and a player that decides, two machines, nothing shared, utterances crossing.
+It runs:
+
+```
+round 1  dm -> p1: yours(10)
+round 2  p1 -> dm: intends(p1, attack(gob))
+round 3  dm -> p1: whiffed(p1, gob)
+round 3  dm -> p1: whiffed(gob, p1)
+round 4  p1 -> dm: intends(p1, defend)
+round 5  dm -> p1: yours(9)
+round 6  p1 -> dm: intends(p1, attack(gob))
+```
+
+The player's four arms are the point: `<trade>`, `<guard>`, `<quaff>` and `<run>` are all triggered by
+*the DM just told me something*, and which is right depends on the state -- `<quaff>` and `<run>`
+differ by one fact. That is the fixture `ugm.teaching` was missing, because a fight is a pipeline and
+a player is not.
+
+`table.Spec` gained a `computes` field on the way: a die is an answerer, because it is the world
+speaking, but comparing two numbers the agent already has is a computator. Whose dice they are is the
+whole of a DM's authority, and now it is expressed rather than assumed -- the player is given `beats`
+and `calc` and no `roll`.
+
+**Four runaways were found writing this, and all four are the same defect.** Worth listing, because
+each one looks different in the corpus and they are one thing:
+
+| what it looked like | why |
+|---|---|
+| `<after-miss>` advancing 58 rounds of an empty fight | consumed a standing fact plus the round; a fresh round makes every repeat a new instantiation, so refraction has nothing to bite on |
+| `<swing>` swinging for ever | the intent was re-derived from the standing `says` |
+| six wounds from one damage roll | `<wound>` spent `hits` without READING it, so its own effect on the hit points made each repeat new |
+| ten hits from one roll | `<lands>` re-derived the hit from the standing answer |
+
+Two disciplines fix all four, and both are already in the record. **Believe an arrival at its own
+locus** (§4.6's measured trick): a later denial then governs, and re-deriving at the old locus changes
+nothing. And **a rule that spends something must read the thing it spends** -- if the premise it
+denies is not in its own antecedent, refraction cannot see that the work is done.
+
+⚠ The fight does not yet run to a conclusion: after the second attack the DM goes quiet with the
+goblin still standing. What is built is enough to teach on -- the player branches, and the branch is
+what the reranker experiment needs -- but the scenario is not finished.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

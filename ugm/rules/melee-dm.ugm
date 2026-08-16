@@ -1,0 +1,147 @@
+# The dungeon master, in a fight with players who are their own agents.
+#
+# Loaded by `ugm/melee.py`. What is different from `dungeon.ugm` is not the
+# rules -- adjudication is the same pipeline -- but that the players are not in
+# this machine. The DM hears an intent, resolves it, and tells the player what
+# became of it; it never decides what a player wants.
+#
+# The pipeline is deliberately the same shape as `dungeon.ugm`'s, because the
+# claim being tested is about the PLAYER: a DM's next move is nearly determined
+# by its previous one, and a player's is not.
+
+fact +hp(p1, 10)
+fact +hp(gob, 7)
+fact +ac(gob, 12)
+fact +ac(p1, 13)
+fact +die(p1, d6)
+fact +die(gob, d4)
+fact +standing(gob)
+fact +standing(p1)
+
+# -- hearing the players ----------------------------------------------------
+
+# What a player says it is doing is a claim about the player, not about the
+# world: the DM decides what happens. So an intent is heard, never believed.
+# Same locus discipline as the player's: an intent believed where it was heard
+# can be spent here, and re-deriving it at the old locus changes nothing.
+rule <heard> = implies( { +says(?who, intends(?who, ?act), plus) at ?m },
+                        { +intent(?who, ?act) at ?m } )
+
+# -- resolving an attack ----------------------------------------------------
+#
+# ⚠ The round is IN the request, and it has to be. A request is a fact, and a
+# fact is one node however often it is spoken -- so `roll(d20, hit(p1, gob))`
+# asked twice is the same node, answered once, and every later swing reuses the
+# first roll. `dungeon.ugm` records the same trap.
+
+fact +round(1)
+
+rule <swing> = causes( { +intent(?who, attack(?foe)), +standing(?foe),
+                         +round(?r), calc(add, ?r, 1) as ?next },
+                       { +swung(?who, ?foe, ?next), -intent(?who, attack(?foe)),
+                         +round(?next), -round(?r) } )
+
+rule <to-hit> = implies( { +swung(?who, ?foe, ?r) },
+                         { +roll(d20, hit(?who, ?foe), ?r) } )
+
+# ⚠ AT THE ANSWER'S OWN LOCUS, and this is the third place in this corpus that
+# needs it. An answer is standing, so anything derived from it is re-derivable:
+# `<wound>` spends the hit, `<lands>` derives it again from the same answer, and
+# the goblin lands ten hits from one roll. Concluding where the answer sits
+# means the spending denial is at a later locus and governs.
+rule <lands> = implies( { +answered(<dice>, roll(d20, hit(?who, ?foe), ?r), ?n) at ?m,
+                          +ac(?foe, ?a), beats(?n, ?a) as yes },
+                        { +hits(?who, ?foe) at ?m } )
+
+rule <misses> = implies( { +answered(<dice>, roll(d20, hit(?who, ?foe), ?r), ?n) at ?m,
+                           +ac(?foe, ?a), beats(?n, ?a) as no },
+                         { +missed(?who, ?foe) at ?m } )
+
+rule <damage> = implies( { +hits(?who, ?foe), +die(?who, ?d), +swung(?who, ?foe, ?r) },
+                         { +roll(?d, hurt(?who, ?foe), ?r) } )
+
+# ⚠ `+hits(...)` is in the antecedent so that denying it below ENDS this. Without
+# it the premises were the answer and the hit points -- and every firing changes
+# the hit points, so each repeat was a fresh instantiation and refraction had
+# nothing to bite on: one damage roll, six wounds. A rule that spends something
+# must read the thing it spends.
+rule <wound> = causes( { +hits(?who, ?foe),
+                         +answered(<dice>, roll(?d, hurt(?who, ?foe), ?r), ?n),
+                         +hp(?foe, ?was), calc(sub, ?was, ?n) as ?now },
+                       { +hp(?foe, ?now), -hp(?foe, ?was),
+                         -hits(?who, ?foe) } )
+
+# ⚠ There were two more rules here -- one to end a turn after a miss, one after
+# a hit -- and both were runaways. Each consumed a standing fact (`missed`, or
+# the starting hit points) together with the round, so a fresh round made every
+# repeat a NEW instantiation and refraction had nothing to bite on: 58 rounds of
+# an empty fight. The round is advanced by `<swing>` instead, which happens
+# exactly once per intent, and the turn needs no rule of its own.
+
+# -- the other three things a player may intend --------------------------
+
+rule <defends> = causes( { +intent(?who, defend) },
+                         { +guarding(?who), -intent(?who, defend) } )
+
+rule <quaffs> = causes( { +intent(?who, quaff), +hp(?who, ?was),
+                          calc(add, ?was, 5) as ?now },
+                        { +hp(?who, ?now), -hp(?who, ?was),
+                          -intent(?who, quaff) } )
+
+rule <bolts> = causes( { +intent(?who, flee) },
+                       { +fled(?who), -standing(?who), -intent(?who, flee) } )
+
+# -- the state of a body ----------------------------------------------------
+
+rule <hurt> = implies( { +hp(?who, ?n), beats(3, ?n) as yes, +standing(?who) },
+                       { +bloodied(?who) } )
+
+rule <falls> = causes( { +hp(?who, 0) },
+                       { +down(?who), -standing(?who) } )
+
+# -- telling the players ----------------------------------------------------
+#
+# The DM reports what it resolved. Each of these is what a player will have to
+# decide about, and the decision is the player's own.
+
+# ⚠ Always to `p1`, never to `?who`: the goblin is not an agent, and reporting
+# to the attacker sent `tell(gob, ...)` down a wire with nobody on the end of
+# it. A monster is the DM's to move, and the player is the audience.
+rule <report-hit> = implies( { +hits(?who, ?foe) },
+                             { +doing(tell(p1, landed(?who, ?foe))) } )
+
+rule <report-miss> = implies( { +missed(?who, ?foe) },
+                              { +doing(tell(p1, whiffed(?who, ?foe))) } )
+
+rule <report-blood> = implies( { +bloodied(?who) },
+                               { +doing(tell(p1, bleeding(?who))) } )
+
+rule <report-down> = implies( { +down(?who) },
+                              { +doing(tell(p1, fallen(?who))) } )
+
+rule <report-hp> = implies( { +hp(p1, ?n) },
+                            { +doing(tell(p1, yours(?n))) } )
+
+# -- the goblin, which the DM does play -------------------------------------
+#
+# It has no agent of its own: a monster is the DM's to move, which is the whole
+# asymmetry the multi-agent version is about.
+
+# ⚠ No `-intent(...)` guard: a `-` member says an entry DENIES it, never that
+# it is absent, so the guard would never hold. Refraction is what stops this
+# repeating -- one firing per set of premises -- which is the mechanism that
+# exists for exactly this and the reason the guard is not needed.
+# The goblin answers what the player did, which is what keeps the fight
+# alternating without a clock: one goblin swing per player action, and the
+# round advances in `<swing>` for both of them.
+rule <goblin-answers-swing> = causes( { +swung(p1, gob, ?r), +standing(gob) },
+                                      { +intent(gob, attack(p1)) } )
+
+rule <goblin-answers-guard> = causes( { +guarding(p1), +standing(gob) },
+                                      { +intent(gob, attack(p1)) } )
+
+rule <flees> = causes( { +bloodied(gob), +standing(gob) },
+                       { +fled(gob), -standing(gob) } )
+
+rule <report-flight> = implies( { +fled(?who) },
+                                { +doing(tell(p1, ran(?who))) } )
