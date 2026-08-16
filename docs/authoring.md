@@ -408,6 +408,58 @@ is floor. Do not try to put your rulebook in a fact.)
 
 ---
 
+## 4.5 Defeat without a defeat relation — a marker the superseding rule denies
+
+`overrides` is per rule and per tick, `supersedes` needs a shared consumed entry,
+and §2 says neither carves out cases. There is a third way, it is entirely a
+corpus's, and it is the one to reach for when you want **do this instead, for
+this case**.
+
+Put a **marker** on the case, have the rule that should win **deny** it, and have
+the rule that should lose **require** it:
+
+```
+fact +dormant(<assert-act>)                        retire the bundled default
+
+rule <outcome> = implies( { +did(?a), +achieves(?a, ?y) },
+                          { +?y, -assume(?a) } )   the winner DENIES the marker
+rule <assert>  = implies( { +did(?a), +assume(?a) },
+                          { +?a } )                the loser REQUIRES it
+fact +assume(greet(bo))                            ...and the negative, written
+```
+
+Measured, on *substitute where an outcome is declared, otherwise assume* -- the
+case `supersedes` exists for:
+
+| | `travel(work)` (has an outcome) | `greet(bo)` (has none) |
+|---|---|---|
+| wanted | not asserted | asserted |
+| **this pattern** | **not asserted** | **asserted** |
+
+No precedence relation, no engine defeat, and the marker is an ordinary claim --
+so it is dated, attributable, deniable, and a rule can ask why the act was not
+assumed.
+
+⚠ **And it works exactly as far as your negatives are enumerable**, which is §1
+arriving where it decides a design rather than a rule. Two versions, measured:
+
+| the default | what happens |
+|---|---|
+| `{ +did(?a) } => { +assume(?a) }` | **fails** -- it re-derives the marker the winner just denied, and they alternate |
+| `{ +did(?a), -achieves(?a, ?y) } => { +assume(?a) }` | **inert** -- `-` means *denied*, never *absent*, so it never fires for anything |
+| `fact +assume(greet(bo))`, or a default guarded on a denial you wrote | ✅ |
+
+So: **closed act catalogue, use this.** Open domain -- where you genuinely cannot
+say which acts lack an outcome -- and `supersedes` is still what you want.
+
+⭐ `dormant(<R>)` in the first line is the general form of *disable a rule*, and
+it is a **claim** rather than a mark on the rule: `due(<R>)` wakes it, both are
+ordinary facts, and *which rules is this hypothesis carrying* stays a query. A
+mark authored once would be relative to nothing, which is §12's *achievability is
+not a mark*.
+
+---
+
 ## 5. Why the unsayable things are unsayable
 
 "Unsayable" covers four quite different situations, and confusing them will waste your time in both
