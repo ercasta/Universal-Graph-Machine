@@ -52,6 +52,37 @@ its rules were clock scaffold**, a round counter re-implementing a moment
 ordinal, plus a token threaded through six acting rules and an arithmetic
 operator that existed only to count rounds.
 
+!!! note "Deep dive: and then it did not remove the scaffold"
+    The obvious next step was that `at ?m` would collapse that scaffold, since a
+    round integer is a moment ordinal re-implemented in a corpus. That was
+    proposed in writing, and it is **wrong** — which is worth showing, because
+    the reason is a property of the read you already know.
+
+    A request is a fact. Asking `roll(d20, hit(a, b))` twice is one node, so the
+    second ask restates what the chain already says and quiescence drops it —
+    which is why the corpus put the round in the request in the first place.
+
+    Deposit that request at a *later locus* instead, and nothing changes: **the
+    read inherits**, so the chain already answers `+` there, the application
+    changes nothing, and quiescence drops it again. Measured on a three-beat
+    fixture: one ask, not three.
+
+    > **A locus cannot make a proposition fresh, because silence means
+    > unchanged.** Chapter 3, arriving somewhere nobody expected it.
+
+    What does work is Chapter 7's law, which the corpus was applying to
+    everything *except* its requests: **an occasion is consumed, and a fact is
+    not.** Deny the request and its answer in the same breath as consuming them
+    and the next ask is a genuine change — three asks, no argument and no locus.
+
+    So the round was never carrying the occasion. The **denial** was missing.
+    Collapsing it took the corpus from 21 rules to 19, from 65 member positions
+    carrying a round to 6, and removed the arithmetic operator entirely.
+
+    What survives is one job: `?r` on the *player's declaration*, because an
+    agent cannot utter a moment (Chapter 24). A round label is the only
+    vocabulary a channel carries.
+
 ### It is ancestry, never depth
 
 Unrelated moments get no answer rather than a false one. That's Chapter 5's

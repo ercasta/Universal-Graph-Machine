@@ -34,10 +34,18 @@ rule <heard> = implies( { +says(?who, intends(?who, ?act, ?t), plus) at ?m },
 
 # -- resolving an attack ----------------------------------------------------
 #
-# ⚠ The round is IN the request, and it has to be. A request is a fact, and a
-# fact is one node however often it is spoken -- so `roll(d20, hit(p1, gob))`
-# asked twice is the same node, answered once, and every later swing reuses the
-# first roll. `dungeon.ugm` records the same trap.
+# ⚠ The round is IN the request. A request is a fact, and a fact is one node
+# however often it is spoken -- so `roll(d20, hit(p1, gob))` asked twice is the
+# same node, answered once, and every later swing reuses the first roll.
+#
+# ⚠⚠ **"and it has to be" is what this comment used to say, and that is now
+# measured false.** `dungeon.ugm` carries the correction: the other way to make
+# a request askable again is to SPEND it -- deny the request and its answer with
+# the same rule that consumes them -- which is §0's own law and needs no
+# argument on the request at all. Here the round is already in `swung` for its
+# own reasons, so it costs nothing to carry and the corpus keeps it; there it
+# was threaded through 65 member positions and paid for a round counter.
+# Which way round to write it is a choice, not a requirement.
 
 rule <swing> = causes( { +intent(?who, attack(?foe), ?t), +standing(?foe) },
                        { +swung(?who, ?foe, ?t),

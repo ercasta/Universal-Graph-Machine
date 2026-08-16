@@ -14,7 +14,7 @@ What is a rule and what is a tool is decided by one question, and the same one
 fleeing and victory are searches over what is claimed, so they are rules. Three
 things are not, and each becomes an answerer:
 
-    <dice>     roll(die, what, when)   the world; we do not control it
+    <dice>     roll(die, what)         the world; we do not control it
     <arith>    calc(op, a, b)          the surface has no arithmetic
     <compare>  beats(a, b)             ...and no ordering either
 
@@ -31,12 +31,30 @@ findings rather than defects of the demo:
      first standing. There is no notion of a key in this design, so `<wound>`
      writes the denial and the assertion as an authored pair.
 
-  2. **The occasion is in the request.** A request is a fact, and quiescence
-     drops an application that restates what the chain already says -- so
-     `roll(d20, hit(goblin1, hero))` in round 2 is the node it already was in
-     round 1, and the goblin swings once and then stands still for the rest of
-     the fight. Every roll carries the round. This is `again(req, occ)`'s
-     finding arriving from the corpus side.
+  2. **The occasion is the request being SPENT** -- and this row said something
+     else for a long time, so the correction is the more useful half of it.
+
+     A request is a fact, and quiescence drops an application that restates what
+     the chain already says. So `roll(d20, hit(goblin1, hero))` asked twice is
+     one node, and the goblin swings once and then stands still for the rest of
+     the fight. The corpus's first answer was to put the ROUND in every request,
+     which worked and cost a round counter threaded through 65 member positions.
+
+     `docs/dungeon-reply.md` proposed that `at ?m` would collapse that, since a
+     round integer is a moment ordinal re-implemented in the corpus.
+     ⚠⚠⚠ **Probed, and it does not**: the read INHERITS, so depositing the same
+     request at a later moment changes nothing the chain answers and quiescence
+     drops it -- correctly. Measured on a three-beat fixture: one ask, not three.
+
+     What does work is this corpus's own first law, which it was already
+     applying to everything except its requests: **an occasion is consumed, and
+     a fact is not.** Deny the request and its answer in the same breath as
+     consuming them, and the next ask is a genuine change. Same fixture: three
+     asks, no round argument and no locus.
+
+     So the round was never carrying the occasion -- the DENIAL was missing --
+     and what is left of `?r` is a label the player utters, because an agent
+     cannot utter a moment.
 
 **Kill-probed seven ways, one mutation at a time against one seed-7 fight.** Each
 lands in its own column, which is what says the checks are measuring different
@@ -44,14 +62,29 @@ things rather than the same thing seven times:
 
 | break | finished | entries | turns after the end | acted while down | two hp totals |
 |---|---|---|---|---|---|
-| baseline | yes | 736 | 0 | 0 | -- |
+| baseline | yes | 872 | 0 | 0 | -- |
 | `<halt>` writes `+done` | yes | 8,127 | **1,008** | 0 | -- |
 | `<hero-holds>` ungated on `present(hero)` | **no** | 12,495 | 0 | **1** | -- |
 | `<wound>` keeps the attack | **no** | 11,508 | 0 | 0 | -- |
 | `<wound>` keeps the hit | **no** | 15,236 | 0 | 0 | -- |
-| the roll drops its round | **no** | 313 | 0 | 0 | -- |
+| **`<miss>` keeps its dice request** | **no** | **17,293** | 0 | 0 | -- |
+| **`<wound>` keeps its dice requests** | yes | **530** | 0 | 0 | -- |
 | `hp` asserted without denying the old | yes | 753 | 0 | 0 | **hero, goblin1** |
 | no `overrides(<gob-flees>, <gob-acts>)` | yes | 735 | 0 | 0 | -- |
+
+⚠ **Rows 2–5 and 8–9 were measured against the previous corpus**, the one with
+the round counter, and are carried rather than re-run. The baseline and the two
+dice-request rows are today's.
+
+⭐⭐ **The two new rows are the round's replacement, kill-probed -- and they land
+in DIFFERENT columns, which is what says spending is doing two jobs rather than
+one.** Take the spend out of `<miss>` and the fight never finishes: the stale
+roll re-answers the miss for ever, 17,293 entries against the limit. Take it out
+of `<wound>` and the fight finishes and is WRONG: 530 entries, 9 rolls, because
+`<hit>` re-fires on a to-hit roll nobody re-asked for and a goblin is beaten to
+death by one d20. The second is the more dangerous shape, and it is the same one
+this corpus already records for `-hits` -- a run that ends, with a verdict, and
+nothing about the outcome to say it is nonsense.
 
 ⚠ **The last row is the honest one.** At seed 7 no goblin ever reaches 1 hp, so
 that fight cannot measure preemption at all and the mutation moves one entry.
@@ -126,7 +159,11 @@ def fight(seed: Optional[int] = 7, limit: int = 4000, extra: str = "",
     asked: List[str] = []
 
     def dice(mach, frame, e):
-        die, _what, _when = mach.g.members(e.proposition)
+        # Two members, not three. The third used to be the round, carried so
+        # that the round-2 ask was a different node from the round-1 one -- and
+        # the corpus now spends the request instead, which is its own first law
+        # rather than an extra argument. See the corpus header.
+        die, _what = mach.g.members(e.proposition)
         sides = DICE.get(mach.g.show(die))
         if sides is None:
             return None
@@ -144,8 +181,12 @@ def fight(seed: Optional[int] = 7, limit: int = 4000, extra: str = "",
         # sign, printed as `calc(-, 5, 2)`, and the tool declined a request it
         # should have answered. The twin trap from the far side: not two nodes
         # with one name, but one node with two meanings.
-        if op == "add":
-            return kb.atom(str(int(a) + int(b)))
+        # ⭐ **`add` is gone, and its absence is the measurement.**
+        # `docs/dungeon-feedback.md` reported the operator as existing SOLELY to
+        # count rounds, and asked whether collapsing the clock would remove its
+        # only customer. It did: over four seeds the fight asks this tool for
+        # `sub` and nothing else. Adding is not arithmetic the game needs; it was
+        # arithmetic the SCAFFOLD needed.
         if op == "sub":
             # ⚠ THE CLAMP. A rule of the game, stated in Python, because the
             # surface cannot write a negative numeral. See the module docstring.
@@ -197,9 +238,19 @@ def narrate(m, kb) -> List[str]:
         kb.atom(n) for n in
         ("attack", "hits", "missed", "dead", "fled", "over", "answered")
     }
+    # ⭐ The round is COUNTED HERE, by an observer, and no longer computed by the
+    # corpus. `follows` is a cycle, so the baton returning to the hero is the
+    # next round -- which is the same event the corpus used to notice with
+    # `wraps`, `<tick>`, `<wrap>` and an `add` operator on the arithmetic tool.
+    # A reader wanting a number can count; nothing in the fight needs one.
+    turn, hero = kb.atom("turn"), kb.atom("hero")
+    rnd = 0
     for mo in m.chain.moments:
         for e in mo.delta:
             rel = g.relation_of(e.proposition)
+            if (rel is turn and e.sign == PLUS
+                    and g.member(e.proposition, 0) is hero):
+                rnd += 1
             if rel not in watch or e.sign != PLUS:
                 continue
             if rel is kb.atom("answered"):
@@ -207,11 +258,11 @@ def narrate(m, kb) -> List[str]:
                 if who is not kb.rule_nodes["dice"]:
                     continue
                 req, said = g.member(e.proposition, 1), g.member(e.proposition, 2)
-                die, what, when = g.members(req)
-                out.append(f"    round {g.show(when):<2} {g.show(what):<22}"
+                die, what = g.members(req)
+                out.append(f"    round {rnd:<2} {g.show(what):<22}"
                            f" {g.show(die)} -> {g.show(said)}")
                 continue
-            out.append(f"    round --  {g.show(e.proposition)}")
+            out.append(f"    round {rnd:<2} {g.show(e.proposition)}")
     return out
 
 
@@ -263,8 +314,13 @@ def main() -> int:
     # -- did it run at all -------------------------------------------------
     gate("the fight ended, and the corpus said how",
          holds(m, kb, "over(hero_wins)") or holds(m, kb, "over(hero_falls)"))
-    gate("the clock turned: the fight reached a round it did not start in",
-         any(m.holds(kb.term(f"turn(hero, {r})")) is not None for r in (2, 3, 4)))
+    # ⭐ **The baton came back.** This used to ask for `turn(hero, 2)` -- a round
+    # integer the corpus computed with an `add` operator that existed for nothing
+    # else. `follows` is a cycle now, so the clock turning IS the hero being
+    # handed the turn a second time, and that is what the check observes:
+    # several `+turn(hero)` entries, one per round, with nothing counted.
+    gate("the clock turned: the baton came back round to the hero",
+         _times_granted(m, kb, "hero") > 1)
     gate("every combatant swung at least once -- the monsters are not scenery",
          all(any(f"hit({who}," in a for a in asked)
              for who in ("hero", "goblin1", "goblin2")))
@@ -419,6 +475,22 @@ def _exercised(m) -> set:
             if e.sign == PLUS and shown.startswith("exercised(<"):
                 out.add(shown[len("exercised(<"):-2])
     return out
+
+
+def _times_granted(m, kb, who: str) -> int:
+    """How many times this combatant was handed the turn.
+
+    ⭐ The round counter's replacement, and it is a COUNT OVER THE TRAIL rather
+    than a new relation -- which is this repo's standing check before adding
+    one. `follows` closes into a cycle, so the baton returning is the next
+    round; nothing in the corpus computes a number, and anything that wants one
+    counts these.
+    """
+    turn, actor = kb.atom("turn"), kb.atom(who)
+    return sum(1 for mo in m.chain.moments for e in mo.delta
+               if e.sign == PLUS
+               and m.g.relation_of(e.proposition) is turn
+               and m.g.member(e.proposition, 0) is actor)
 
 
 def _acted_after_falling(m) -> List[str]:

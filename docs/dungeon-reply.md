@@ -16,7 +16,7 @@ is the most useful thing in this reply — §4.
 | your section | where it stands |
 |---|---|
 | §1 the census | used, and it has now paid a second time — from the *conflict* side |
-| §2 sequencing, 24% clock scaffold | `at ?m` shipped; **and a round is now expressible as a span**, so the scaffold can shrink again |
+| §2 sequencing, 24% clock scaffold | **collapsed, and not by the route we proposed** — `at ?m` cannot do it; spending the request can. 21 rules → 19, `?r` in 65 positions → 6, `add` gone. See the correction in §2 |
 | §3 an occasion is consumed | **you asked us to promote it and we did not.** Now `docs/authoring.md` §0, above §1, with your ordering argument |
 | §4 the open-domain default | **closed** — and not by the feature you asked for |
 | §5 overrides is survivable when transient | **also not done until now.** Added to §2 |
@@ -104,6 +104,56 @@ We have **not** rewritten your corpus to prove it, and we should not — the
 measurement is yours to make and the number that matters is whether `add`
 disappears. If it does, the arithmetic tool loses its only round-counting
 customer.
+
+### CORRECTION, after running it on our own copy
+
+**The two paragraphs above are wrong about the mechanism and right about the
+outcome.** We collapsed the clock in `ugm/rules/dungeon.ugm` and measured, and
+you should not spend time on the route we recommended.
+
+**`at ?m` cannot do it, and neither can a span.** A locus does not make a
+request fresh, because the read INHERITS: deposit `roll(d20, hit(a, b))` at a
+later moment and the chain already answers `+` there, so the application changes
+nothing and quiescence drops it — correctly, and silently. Measured on a
+three-beat fixture: **one ask, not three.** The round was never standing in for a
+moment ordinal in the requests; it was standing in for something else.
+
+**What works is your own §3, which you sent us.** *An occasion is consumed, and
+a fact is not.* A request is a fact. Deny the request and its answer in the same
+breath as consuming them, and the next ask is a genuine change — **three asks,
+no argument and no locus.** So the missing thing was never a locus pattern; it
+was a denial, and the round argument was hiding it.
+
+**What it bought, on our copy:**
+
+| | before | after |
+|---|---|---|
+| rules | 21 | **19** — `<tick>` and `<wrap>` gone |
+| member positions carrying `?r` | 65 | **6** |
+| `add` asked, over four seeds | yes | **never** — the tool no longer implements it |
+| entries (`implies`, seed 7) | 895 | **873** |
+| checks | 17/17 | 17/17 |
+
+`follows` closing into a **cycle** is what removed the counting: the baton coming
+back to the hero *is* the next round, so `wraps`, `<tick>`, `<wrap>` and `add`
+all existed to notice that wrap and put a number on it, and nothing ever read the
+number except the things that produced it. Anything wanting a number counts
+`+turn(hero)` off the trail, which is an observer's job.
+
+**What survives, and it is a real ceiling rather than a leftover.** `?r` stays in
+`declares(?act, ?r)` and `intends(hero, ?act, ?r)` — the player's declarations —
+because **an agent cannot utter a moment**. Every moment renders identically, so
+a round label is the only vocabulary a channel carries. That is the same wall
+`ugm/table.py` hits from the multi-agent side: two agents can never refer to the
+same time.
+
+**And the trade is honest**: spending costs denials. `<wound>` grew from four to
+eight consequent members. Kill-probed, and the two spends land in **different**
+columns — take `<miss>`'s out and the fight never finishes (17,293 entries
+against the limit); take `<wound>`'s out and it finishes **wrong** (530 entries,
+9 rolls, a goblin beaten to death by one d20 that nobody re-asked for). The
+second is the shape you warned us about: a run that ends, with a verdict, and
+nothing about the outcome to say it is nonsense.
 
 ---
 

@@ -8,12 +8,43 @@
 # Three things the surface cannot do, and each is a TOOL rather than a rule,
 # because each is a request answered by a function rather than by a search:
 #
-#     <dice>     roll(die, what, when)   the world, which we do not control
+#     <dice>     roll(die, what)         the world, which we do not control
 #     <arith>    calc(op, a, b)          there is no arithmetic in the surface
 #     <compare>  beats(a, b)             ...and no ordering either
 #
 # ⚠ A tool PROPOSES. Every one of them lands `answered(...)`, a record, and it
 # is a rule below that turns it into a claim about the fight.
+#
+# -- THE ROUND COUNTER IS GONE, and what replaced it is this corpus's own law --
+#
+# An earlier version of this corpus threaded a round integer `?r` through 65
+# member positions: through the turn, the right to act, every attack, and every
+# request. `docs/dungeon-feedback.md` measured it at **5 of 21 rules -- 24% of
+# the corpus -- as clock scaffold**, plus a `may` token, plus `follows`/`wraps`,
+# plus an `add` operator on the arithmetic tool that existed SOLELY to count
+# rounds. The reply's proposal was that `at ?m` and spans would collapse it,
+# since a round integer is a moment ordinal re-implemented in the corpus.
+#
+# ⚠⚠⚠ **That proposal is wrong, and probing it is what found the right answer.**
+# A locus cannot make a request fresh, because THE READ INHERITS: deposit
+# `roll(d20, hit(a, b))` at a later moment and the chain already answers `+`
+# there, so the application changes nothing and quiescence drops it -- correctly.
+# Measured: one ask, not three.
+#
+# What DOES make it fresh is the corpus's own first law (`docs/authoring.md` §0):
+#
+#     **an occasion is consumed, and a fact is not.**
+#
+# A request is a fact. Spend it -- deny the request and the answer in the same
+# breath as consuming them -- and the next ask is a genuine change. Measured on
+# the probe: three asks, no argument, no locus. So the round was never carrying
+# the occasion; the DENIAL was missing.
+#
+# What the round is still for, and it is one job rather than three: it is a
+# LABEL THE PLAYER UTTERS. An agent cannot utter a moment, so a declaration
+# arriving from outside has to name its round in the only vocabulary a channel
+# carries. It is never computed, never incremented and never compared -- and
+# `add` is gone with the counting.
 
 # -- the world ---------------------------------------------------------------
 
@@ -36,21 +67,27 @@ fact +die(hero, d6)
 fact +die(goblin1, d4)
 fact +die(goblin2, d4)
 
-# Initiative, as a cycle of ordinary facts. `wraps` marks the last actor, and
-# the round only advances there -- which is the one place the fight needs to
-# count, and therefore the one place it needs the arithmetic tool.
+# Initiative, as a CYCLE of ordinary facts. `follows` closes on itself, so
+# there is no last actor and nothing to count: the baton coming back to the
+# hero IS the new round. `wraps`, `<tick>`, `<wrap>` and the `add` operator all
+# existed to notice that wrap and give it a number, and nothing ever read the
+# number except the things that produced it.
 fact +follows(goblin1, hero)
 fact +follows(goblin2, goblin1)
-fact +wraps(goblin2)
+fact +follows(hero, goblin2)
 
-fact +turn(hero, 1)
-fact +may(hero, 1)
+fact +turn(hero)
+fact +may(hero)
 
 # -- the player --------------------------------------------------------------
 #
 # §13's shape, unchanged: the channel says what it says, and it is a RULE that
 # turns that into an intention. Delete `<trust-player>` and the declarations sit
 # on the record, believed by nobody, and the hero never swings.
+#
+# ⚠ The round survives HERE and nowhere else, because this is the one place a
+# claim crosses a boundary. Two agents cannot refer to the same moment, so a
+# declaration names its round the way a person would.
 
 rule <trust-player> = implies(
     { +says(player, declares(?act, ?r), plus) },
@@ -61,18 +98,24 @@ rule <trust-player> = implies(
 # mechanics could resolve it -- the fight ran for ever inside round one. A turn
 # is an occasion, an occasion is used up, and *used up* has to be written down
 # because nothing in the design consumes a premise on your behalf.
+#
+# ⭐ **And the intention is spent too**, which is what makes the declarations
+# arrive in order. Three declarations sit on the record from the start; the
+# hero consumes one per turn, and arbitration takes them in the order they were
+# uttered. That is what the round argument used to do by matching, and spending
+# does it without anything having to know what round it is.
 rule <hero-acts> = causes(
-    { +turn(hero, ?r), +may(hero, ?r), +present(hero),
+    { +turn(hero), +may(hero), +present(hero),
       +intends(hero, attack(?d), ?r), +present(?d) },
-    { -may(hero, ?r), +attack(hero, ?d, ?r) } )
+    { -may(hero), -intends(hero, attack(?d), ?r), +attack(hero, ?d) } )
 
 # ...and what to do when the declared target is already down. The player named
 # a goblin, not a policy, so this is the corpus's judgement and not the engine's.
 rule <hero-switch> = causes(
-    { +turn(hero, ?r), +may(hero, ?r), +present(hero),
+    { +turn(hero), +may(hero), +present(hero),
       +intends(hero, attack(?d), ?r), -present(?d),
       +monster(?e), +present(?e) },
-    { -may(hero, ?r), +attack(hero, ?e, ?r) } )
+    { -may(hero), -intends(hero, attack(?d), ?r), +attack(hero, ?e) } )
 
 # ⭐ What the hero does when the player has declared nothing for this round.
 # There is no negation-as-failure in an antecedent -- a `-` member matches an
@@ -82,9 +125,9 @@ rule <hero-switch> = causes(
 # policy applies exactly when no declaration did. §18's per-step `overrides` is
 # the right one here, because these are rival answers to one situation.
 rule <hero-holds> = causes(
-    { +turn(hero, ?r), +may(hero, ?r), +present(hero),
+    { +turn(hero), +may(hero), +present(hero),
       +monster(?e), +present(?e) },
-    { -may(hero, ?r), +attack(hero, ?e, ?r) } )
+    { -may(hero), +attack(hero, ?e) } )
 
 fact overrides(<hero-acts>, <hero-holds>)
 fact overrides(<hero-switch>, <hero-holds>)
@@ -95,55 +138,58 @@ fact overrides(<hero-switch>, <hero-holds>)
 # it competes for the tick exactly as the mechanics do.
 
 rule <gob-acts> = causes(
-    { +turn(?x, ?r), +may(?x, ?r), +monster(?x), +present(?x), +present(hero) },
-    { -may(?x, ?r), +attack(?x, hero, ?r) } )
+    { +turn(?x), +may(?x), +monster(?x), +present(?x), +present(hero) },
+    { -may(?x), +attack(?x, hero) } )
 
 # ⭐ Preemption, and the whole of it is one authored fact below. A goblin down
 # to its last point runs rather than swings -- and `overrides` is what makes
 # that DEFEAT the attack rather than merely follow it, which matters because the
 # loser would otherwise re-assert on the next tick and quietly undo the winner.
 rule <gob-flees> = causes(
-    { +turn(?x, ?r), +may(?x, ?r), +monster(?x), +present(?x), +hp(?x, 1) },
-    { -may(?x, ?r), -present(?x), +fled(?x), +done(?x, ?r) } )
+    { +turn(?x), +may(?x), +monster(?x), +present(?x), +hp(?x, 1) },
+    { -may(?x), -present(?x), +fled(?x), +done(?x) } )
 
 fact overrides(<gob-flees>, <gob-acts>)
 
 # -- the mechanics -----------------------------------------------------------
 
 rule <swing> = implies(
-    { +attack(?a, ?d, ?r) },
-    { +roll(d20, hit(?a, ?d), ?r) } )
+    { +attack(?a, ?d) },
+    { +roll(d20, hit(?a, ?d)) } )
 
-# ⚠⚠⚠ **The round is IN the request, and it has to be.** A request is a fact,
-# and quiescence drops a rule application that restates what the chain already
-# says -- so `roll(d20, hit(goblin1, hero))` asked in round 2 is the same node
-# it was in round 1, and the goblin would swing once and then stand there for
-# the rest of the fight. The occasion is what makes the second ask a step.
+# ⚠ **Only the DICE are spent, and the other two tools are not.** A die is the
+# world speaking, so asking twice is two questions and the second must be a
+# genuine change to the chain. `beats(14, 11)` and `calc(sub, 5, 2)` are pure
+# functions: the same question has the same answer for ever, so their records
+# are ordinary standing facts and re-deriving one changes nothing. Spending
+# those would be work with nothing to buy.
 rule <check-ac> = implies(
-    { +answered(<dice>, roll(d20, hit(?a, ?d), ?r), ?n), +ac(?d, ?c) },
+    { +answered(<dice>, roll(d20, hit(?a, ?d)), ?n), +ac(?d, ?c) },
     { +beats(?n, ?c) } )
 
 rule <hit> = implies(
-    { +attack(?a, ?d, ?r),
-      +answered(<dice>, roll(d20, hit(?a, ?d), ?r), ?n),
+    { +attack(?a, ?d),
+      +answered(<dice>, roll(d20, hit(?a, ?d)), ?n),
       +ac(?d, ?c),
       +answered(<compare>, beats(?n, ?c), yes) },
-    { +hits(?a, ?d, ?r) } )
+    { +hits(?a, ?d) } )
 
 rule <miss> = causes(
-    { +attack(?a, ?d, ?r),
-      +answered(<dice>, roll(d20, hit(?a, ?d), ?r), ?n),
+    { +attack(?a, ?d),
+      +answered(<dice>, roll(d20, hit(?a, ?d)), ?n),
       +ac(?d, ?c),
       +answered(<compare>, beats(?n, ?c), no) },
-    { -attack(?a, ?d, ?r), +missed(?a, ?d, ?r), +done(?a, ?r) } )
+    { -attack(?a, ?d), +missed(?a, ?d), +done(?a),
+      -roll(d20, hit(?a, ?d)),
+      -answered(<dice>, roll(d20, hit(?a, ?d)), ?n) } )
 
 rule <harm> = implies(
-    { +hits(?a, ?d, ?r), +die(?a, ?dd) },
-    { +roll(?dd, hurt(?a, ?d), ?r) } )
+    { +hits(?a, ?d), +die(?a, ?dd) },
+    { +roll(?dd, hurt(?a, ?d)) } )
 
 rule <subtract> = implies(
-    { +hits(?a, ?d, ?r),
-      +answered(<dice>, roll(?dd, hurt(?a, ?d), ?r), ?n),
+    { +hits(?a, ?d),
+      +answered(<dice>, roll(?dd, hurt(?a, ?d)), ?n),
       +hp(?d, ?h) },
     { +calc(sub, ?h, ?n) } )
 
@@ -168,39 +214,47 @@ rule <subtract> = implies(
 #                     they are not rivals, they are a cycle.
 #
 # Quiescence cannot see either, because each pass genuinely says something new.
-# The rule is: **whatever a rule consumes, it must deny in the same breath.**
+# The rule is: **whatever a rule consumes, it must deny in the same breath** --
+# and since the round counter went, the two dice requests are on that list too.
+# ⚠ **The to-hit roll is a PREMISE here, and it is here to be spent.** It is
+# what established the hit, so `<wound>` genuinely consumes it -- and it has to
+# be named in the antecedent to be denied in the consequent, because a rule may
+# conclude only about variables its antecedent bound. The gate refuses the
+# alternative outright, which is the one place in this rewrite where the engine
+# said no and was right: an unbound `?hitroll` names no particular roll.
 rule <wound> = causes(
-    { +hits(?a, ?d, ?r),
-      +answered(<dice>, roll(?dd, hurt(?a, ?d), ?r), ?n),
+    { +hits(?a, ?d),
+      +answered(<dice>, roll(d20, hit(?a, ?d)), ?hitroll),
+      +answered(<dice>, roll(?dd, hurt(?a, ?d)), ?n),
       +hp(?d, ?h),
       +answered(<arith>, calc(sub, ?h, ?n), ?new) },
-    { -attack(?a, ?d, ?r), -hits(?a, ?d, ?r),
-      -hp(?d, ?h), +hp(?d, ?new), +done(?a, ?r) } )
+    { -attack(?a, ?d), -hits(?a, ?d),
+      -hp(?d, ?h), +hp(?d, ?new), +done(?a),
+      -roll(d20, hit(?a, ?d)),
+      -answered(<dice>, roll(d20, hit(?a, ?d)), ?hitroll),
+      -roll(?dd, hurt(?a, ?d)),
+      -answered(<dice>, roll(?dd, hurt(?a, ?d)), ?n) } )
 
 rule <falls> = causes(
     { +hp(?x, 0), +present(?x) },
     { -present(?x), +dead(?x) } )
 
 # -- the clock ---------------------------------------------------------------
+#
+# Two rules, where there were four. `<tick>` and `<wrap>` are gone with the
+# round integer they existed to compute.
 
 rule <skip> = causes(
-    { +turn(?x, ?r), +may(?x, ?r), -present(?x) },
-    { -may(?x, ?r), +done(?x, ?r) } )
+    { +turn(?x), +may(?x), -present(?x) },
+    { -may(?x), +done(?x) } )
 
 # The baton, and everything it carries: the turn moves, the old turn and the old
-# `done` are spent, and the next actor is handed a fresh right to act.
+# `done` are spent, and the next actor is handed a fresh right to act. Because
+# `follows` is a closed cycle, this one rule also does what `<wrap>` did -- the
+# hero's turn coming round again is the next round, with nothing counted.
 rule <pass> = causes(
-    { +done(?x, ?r), +turn(?x, ?r), +follows(?y, ?x) },
-    { -turn(?x, ?r), -done(?x, ?r), +turn(?y, ?r), +may(?y, ?r) } )
-
-rule <tick> = implies(
-    { +turn(?x, ?r), +wraps(?x) },
-    { +calc(add, ?r, 1) } )
-
-rule <wrap> = causes(
-    { +done(?x, ?r), +turn(?x, ?r), +wraps(?x),
-      +answered(<arith>, calc(add, ?r, 1), ?r2) },
-    { -turn(?x, ?r), -done(?x, ?r), +turn(hero, ?r2), +may(hero, ?r2) } )
+    { +done(?x), +turn(?x), +follows(?y, ?x) },
+    { -turn(?x), -done(?x), +turn(?y), +may(?y) } )
 
 # -- the end -----------------------------------------------------------------
 
@@ -216,19 +270,19 @@ rule <defeat> = implies(
 # than as a condition on every acting rule: *the fight is finished* is a rival
 # answer to the whole situation, which is what `overrides` is for.
 # ⚠⚠⚠ **`<halt>` DENIES the right to act; it does not mark the actor done.**
-# Written the obvious way -- `{ +done(?x, ?r) }`, the same thing `<skip>` writes
-# for an absent combatant -- it fed `<pass>`, which moved the baton, which let
-# `<wrap>` count the round, and the three of them turned an empty room over for
-# ever: **round 417**, 8,072 entries, with the fight correctly decided and every
-# check about the outcome still green. The clock was gated on nothing because
-# the clock is not an actor and did not look like one.
+# Written the obvious way -- `{ +done(?x) }`, the same thing `<skip>` writes
+# for an absent combatant -- it fed `<pass>`, which moved the baton, and the two
+# of them turned an empty room over for ever: **round 417**, 8,072 entries, with
+# the fight correctly decided and every check about the outcome still green. The
+# clock was gated on nothing because the clock is not an actor and did not look
+# like one.
 #
 # Denying `may` stops it dead, because `<skip>` needs `may` too. Kill-probed:
-# put `+done` back and `_turns_after_the_end` reports 1,223 turns after the
-# verdict, which is the only check here that can see it.
+# put `+done` back and `_turns_after_the_end` reports the room still turning,
+# which is the only check here that can see it.
 rule <halt> = causes(
-    { +turn(?x, ?r), +may(?x, ?r), +over(?w) },
-    { -may(?x, ?r) } )
+    { +turn(?x), +may(?x), +over(?w) },
+    { -may(?x) } )
 
 fact overrides(<halt>, <gob-acts>)
 fact overrides(<halt>, <hero-acts>)
