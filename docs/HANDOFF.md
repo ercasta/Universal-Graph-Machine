@@ -242,6 +242,49 @@ how much to weigh a rule in general.
 That also makes the training target sharper. `matched/move` is not moved by weights alone; it is
 moved by conditional buffs that put the right rule on top *in the situations where it applies*.
 
+### Teaching from use -- `python -m ugm.teaching`
+
+The author's framing: *a human is the first, manual user of the KB*. Not a labelling task beside the
+system -- the ordinary first use, by a person stepping the corpus and picking the next rule. They are
+doing what the table will later do, so what they leave behind IS the table. Two signals come out of
+that use and only one is calibration: **the wrong order** (a buff) and **none of these fits** (a
+missing rule, which no calibration supplies).
+
+The mechanism is validated without a human, because the shipped loop's arbitration is a teacher that
+is right by construction: it chooses over the full option set at every step, deterministically. If
+bootstrapping cannot imitate that, it will not learn from a person either.
+
+| | teacher took the table's top | moves | matched/move | agree with teacher | conclusions lost |
+|---|---|---|---|---|---|
+| `quest-p1` uncalibrated | **21/21** | 21 | 17.7 | 21 | 0 |
+| `quest-p1` after teaching | | 18 | 8.1 | 12 | **9** |
+| `dungeon` uncalibrated | **5/149** | 161 | 29.6 | 7 | 0 |
+| `dungeon` after teaching | | **400 (the limit)** | **6.2** | 50 | **84** |
+
+**The cost claim moved for the first time: 29.6 to 6.2 matched per move**, and agreement with the
+teacher went 7 to 50. So a taught table does put the right rules on top, which is the whole
+performance argument.
+
+**And unconditional bigrams are unsafe.** The dungeon ran away to the tick limit and lost 84
+conclusions; `quest-p1`, which already agreed with the teacher on every move, was made worse by being
+taught. A boost with no query never stops applying, so `A` lifts `R`, `R` lifts `A`, and the loop
+finds work for ever.
+
+That is the **third** independent result pointing at one conclusion. The reflex damped what missed
+and lost 125 conclusions; the reflex barely moved the cost; the bigram moves the cost and breaks the
+behaviour. All three fail in the same place: they say how much and never **when**. The query in
+`after { ... } => boost(...)` is not an elaboration of the design, it is the part that makes it
+work -- and anti-unification over the situations a choice was taught in is how a query gets written.
+
+⚠ `quest-p1` is not a teaching corpus: the uncalibrated table already reproduces the teacher's
+sequence exactly, and a fixture that cannot lose cannot measure. The dungeon is the one to work on.
+
+Two measurement bugs were found and fixed while building this, both of the recorded kind: agreement
+compared **application identity** where it meant the rule, and reported 0/149 -- which reads as *the
+table is never right* and meant *the comparison cannot be right*; and the watcher ran at the CHOICE
+rather than after the move, so a tick that deposited a doubt and applied nothing still taught a
+bigram for a move that never happened.
+
 ## What is left on this thread
 
 - **`<silent>` is blind and should stay printed as blind.** A conclusion generic and *not* a mention

@@ -253,7 +253,7 @@ def _queries(m: Machine, posts: Sequence[Post]) -> set:
 
 
 def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
-        reflex: bool = False) -> Report:
+        reflex: bool = False, chooser=None, watch=None) -> Report:
     """The loop, in full. Everything else in this file is bookkeeping.
 
     `reflex` is the cheapest calibration imaginable and it is here to answer one
@@ -348,7 +348,14 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 continue
             break
         windows.append(len(window))
-        chosen = window[0]
+        # Who picks. The table picks by default -- that is System 1 -- but a
+        # human stepping the corpus by hand, or the shipped arbitration acting
+        # as a gold teacher, is the same signature and the same loop. The first
+        # user of a KB is a person choosing moves; the table is what that use
+        # leaves behind.
+        chosen = window[0] if chooser is None else chooser(m, table, window, state)
+        if chosen is None:
+            break
         if len(window) > 1:
             # The doubt is DEPOSITED, not recorded: an entry a rule can match,
             # so a corpus reacts to it -- tiebreaking, or asking. The machinery
@@ -373,6 +380,12 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         wrote = m._apply(chosen)
         m._spend(chosen, wrote)
         applied.append(chosen.rule.name or "?")
+        if watch is not None:
+            # AFTER the move, not at the choice: a tick that deposits a doubt
+            # chooses and then does not apply, so watching at the choice
+            # recorded a rule that never ran -- and a lesson built from that
+            # sequence teaches a move that never happened.
+            watch(m, table, window, chosen, tick)
         if reflex:
             table.score[chosen.rule.node] = table.score[chosen.rule.node] + 1
             table.trace.append(Spend(tick, "reflex", chosen.rule.name, 1, False))
