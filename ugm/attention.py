@@ -409,6 +409,41 @@ def _is_defeated(m: Machine, rule: Rule, state) -> bool:
     return False
 
 
+def _rivals(m: Machine, chosen: Application, state) -> List[Application]:
+    """The other ways of getting what this move is getting.
+
+    ⭐⭐⭐ **Complete forgoing looked like it needed the option set, and it does
+    not.** *What else could have served this want* ranges over every rule only if
+    you ask it that way round. `_wants` reads what an application CONSUMED -- an
+    application that consumed `goal(w)` is a response to wanting `w` -- so a
+    rival is a rule that could consume `goal(w)` too, and **only a rule whose
+    antecedent reads `goal` can.** That is a lookup over the rule set, and it is
+    usually a handful.
+
+    So the prefix scan keeps its window for CHOOSING and asks a second, narrow
+    question for passing up: the same join-not-scan that recovered `overrides`
+    and `supersedes`, and the third time it has turned an apparent aggregate into
+    an index.
+
+    ⚠ Only when the move serves a want at all, which is the common case being
+    cheap rather than an optimisation: most moves consume no goal and pay
+    nothing.
+    """
+    if not m._wants(chosen):
+        return []
+    out: List[Application] = []
+    for r in m.rules.rules:
+        if r is chosen.rule:
+            continue
+        if not any(m.g.relation_of(mm.pattern) is m.GOAL for mm in r.antecedent):
+            continue
+        out.extend(match(
+            m.g, m.chain, r, m.focus.topic, m.focus.seat, state,
+            computes=m.rules.computes, structural=m.rules.skeleton(),
+        ))
+    return out
+
+
 def _dormant(m: Machine, r: Rule) -> bool:
     """Claimed `dormant` and not yet claimed `due`.
 
@@ -736,7 +771,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # ⚠ `forgone` stays out of `ACCEPTED_LOSSES` for the corpus gate all the
         # same: the two loops weigh different sets, so they legitimately pass up
         # different things.
-        m._forgo(window, chosen)
+        m._forgo(window + _rivals(m, chosen, state), chosen)
         m._widened = False
         wrote = m._apply(chosen)
         m._spend(chosen, wrote)
@@ -912,6 +947,25 @@ def _holds(m: Machine, table: Table, query: str, state: Situation):
     )
 
 
+def _option_set_run(m: Machine, limit: int = 400) -> int:
+    """The loop this one replaced, driven directly.
+
+    ⚠⚠⚠ **`Machine.run` IS this loop now, so the comparison below was comparing
+    the table loop with itself and could not fail.** It reported `0 / 143` ticks
+    on the dungeon -- one arm not running at all -- which is what a gate looks
+    like the moment its other arm is taken away. The option-set loop survives as
+    `Machine.tick`, so the comparison drives that, and the gate goes on being a
+    gate rather than an echo.
+    """
+    n = 0
+    for _ in range(limit):
+        st = m.tick()
+        n += 1
+        if st.state not in ("applied", "supposed", "expanded", "quiet", "widened"):
+            break
+    return n
+
+
 def _state(m: Machine) -> set:
     """What the agent ends up holding, as (proposition, sign). The comparison
     has to be over conclusions rather than over moves: two loops that reach the
@@ -978,8 +1032,9 @@ def compare(name: str) -> dict:
     """Both loops on one corpus, from the same text."""
     if name == "dungeon":
         t0 = time.time()
-        a = _fight(True)
-        shipped = {"ticks": a.selections, "seconds": time.time() - t0,
+        a = _fight(False)
+        ticks = _option_set_run(a)
+        shipped = {"ticks": ticks, "seconds": time.time() - t0,
                    "state": _state(a), "applied": []}
         b = _fight(False)
         load(b, SETTLE)
@@ -991,12 +1046,12 @@ def compare(name: str) -> dict:
             "widenings": r.widenings}}
     a = _load(name)
     t0 = time.time()
-    steps = a.run(limit=400)
+    ticks = _option_set_run(a)
     shipped = {
-        "ticks": len(steps),
+        "ticks": ticks,
         "seconds": time.time() - t0,
         "state": _state(a),
-        "applied": [s.applied.rule.name for s in steps if s.applied is not None],
+        "applied": [],
     }
     b = _load(name, settling=True)
     r = run(b)

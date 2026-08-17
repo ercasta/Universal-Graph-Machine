@@ -493,3 +493,54 @@ alone**, which may be affordable: rules are already indexed by what they
 conclude, so *which other rules could serve this want* is a lookup rather than a
 materialisation. The same join-not-scan move that brought back `overrides` and
 `supersedes`.
+
+
+---
+
+## Complete forgoing, via an index — the third aggregate that wasn't one
+
+*What else could have served this want* looked like it ranged over every rule.
+It does, **if you ask it that way round.** `_wants` reads what an application
+**consumed** -- one that consumed `goal(w)` is a response to wanting `w` -- so a
+rival is a rule that could consume `goal(w)` too, and **only a rule whose
+antecedent reads `goal` can**. That is a lookup, and it is usually a handful.
+
+So the prefix scan keeps its window for **choosing** and asks a second, narrow
+question for **passing up**. Same join-not-scan that recovered `overrides` and
+`supersedes`, and the third time an apparent aggregate has turned into an index.
+
+⚠ Paid only when the move serves a want at all -- most moves consume no goal and
+cost nothing.
+
+| | before | after |
+|---|---|---|
+| `ugm.learning` | 5 of 8 failing | **3** -- and forgoing itself passes |
+| `ugm.practice` | 4 of 8 failing | **1 of 8** |
+
+### ...and the gate had gone vacuous, which is the lesson of the day repeated
+
+`Machine.run` **is** the table loop now, so `ugm.attention` was comparing the
+table loop with itself. It reported `dungeon 0 / 143` -- one arm not running at
+all -- and still exited 0.
+
+>⚠⚠⚠ **A gate loses its other arm the moment the thing it gated becomes the
+>default.** Nothing announces it; the comparison goes on printing. The option-set
+>loop survives as `Machine.tick`, so the comparison drives that directly and the
+>gate is a gate again: 11/16, 12/11, 18/21, 141/143.
+
+### What remains red, and it is now one thing
+
+`ugm.learning` (3) and `ugm.practice` (1) fail on the **`prefer`-row mechanism**
+and nothing else -- an episode teaching the next one. That is the half already
+established as superseded: `learned()` emits `fact prefer(<R>, key, score)`, and
+the table's preference is its **score**, so the rows are written and never read.
+
+The endpoint is the design's own sentence -- *the rules stay fixed; the
+postconditions are what a learning process calibrates.* `learned()` should emit
+**buffs** rather than `prefer` rows:
+
+    fact prefer(<R>, water, 3)   ->   when { +water(?x) } => boost(<R>, 3)
+
+Then offline learning writes what the loop actually obeys, and the two mechanisms
+become one. `ugm.quiescence` stays red and is **pre-existing** -- its `<silent>`
+rule is blind on either loop.
