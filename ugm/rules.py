@@ -1507,11 +1507,27 @@ def _narrowed(g, rel, want, bindings):
     structure written in the pattern -- or a variable this match has bound.
     With none bound the answer is what it always was, every instance, and
     `_stored`'s anchor rule refuses that case before it is reached.
+
+    A STRUCTURE THAT STILL CARRIES A VARIABLE IS NOT A VALUE, and reading it as
+    one is the interning trap wearing an index. `said(implies(?a, ?c))` asks the
+    bucket for the pattern node `implies(?a, ?c)` itself -- a node the graph
+    minted when the rule was authored, which nothing was ever an instance
+    against -- so the bucket is empty and the member matches NOTHING. No error,
+    no scan, no candidate: the rule is well formed, every other member is fine,
+    and it silently never applies. Found while writing an interpreter for
+    rules-as-facts, where every member has this shape; a corpus that only ever
+    writes atoms in argument positions cannot reach it, which is why 549 checks
+    could not.
+
+    Skipping it falls back to `instances_of`, which is the answer this function
+    already gives when nothing is bound -- so the cost is the scan the docstring
+    above already sanctions, paid only by a member that could not be indexed
+    anyway.
     """
     best = None
     for i, a in enumerate(g.members(want.pattern)):
         node = walk(g, a, bindings) if g.is_var(a) else a
-        if g.is_var(node):
+        if g.is_var(node) or g.has_var(node):
             continue
         bucket = g.instances_with(rel, i, node)
         if best is None or len(bucket) < len(best):
