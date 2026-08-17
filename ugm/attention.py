@@ -75,6 +75,7 @@ import os
 import time
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
+from .chain import PLUS
 from .graph import NodeId
 from .machine import Machine, Step
 from .rules import (STOP, Application, Member, Rule, Situation, _superseded,
@@ -606,7 +607,28 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # ⚠ Read every tick and at the register's own position, never once when
         # the pool is built: `due` can be concluded mid-run, and a callback
         # attached inside a hypothesis must wake only there.
-        ordered = [r for r in table.order() if not _dormant(m, r)]
+        # ⭐⭐⭐ **`prefer` IS a buff, so the table reads it as one.** Offline
+        # learning writes `prefer(<R>, key, score)` -- *when this is in play,
+        # think of R* -- which is exactly what a buff says, in the notation that
+        # existed before there was a table. Rather than translating the notation
+        # the table absorbs the claim, so the two mechanisms become one and a
+        # learned preference steers the loop that is actually running.
+        #
+        # ⚠ Not translated to a `when` trigger, and three things say why. A
+        # `when` trigger is a RERANKER -- ephemeral, shortlist-only, and it
+        # cannot lift a rule off the floor -- so a learned preference written
+        # that way could never bring a rule into consideration. A key is not a
+        # query: `prefer(<R>, water, 3)` keys on a relation being IN PLAY, which
+        # includes keys derived from goals, and rebuilding it as `{ +water(?x) }`
+        # needs an arity nobody recorded and means something narrower. And buffs
+        # FADE and SATURATE by design, where a learned preference is meant to
+        # stay taught.
+        lift = None
+        if any(m.holds(n) == PLUS for n in m.g.instances_of(m.PREFER)):
+            keys = m._in_play()
+            lift = {r.node: m._priority(r, keys) for r in table.rules}
+            lift = {k: v for k, v in lift.items() if v}
+        ordered = [r for r in table.order(lift) if not _dormant(m, r)]
         cut = 0
         while cut < len(ordered) and not window:
             # One shortlist at a time. Score decides WHO is matched, which is

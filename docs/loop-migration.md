@@ -544,3 +544,49 @@ postconditions are what a learning process calibrates.* `learned()` should emit
 Then offline learning writes what the loop actually obeys, and the two mechanisms
 become one. `ugm.quiescence` stays red and is **pre-existing** -- its `<silent>`
 rule is blind on either loop.
+
+
+---
+
+## `prefer` and buffs are one mechanism — and the table reads the claim
+
+The migration is done. **518 checks, 0 failing, and 23 of 24 instruments green**;
+the one that is not was already red before any of this.
+
+`prefer(<R>, key, score)` says *when this is in play, think of R*. That is what a
+buff says, in the notation that existed before there was a table. So the table
+**absorbs the claim** rather than the notation being rewritten, and offline
+learning steers the loop that is actually running.
+
+### Three reasons not to translate it to a `when` trigger
+
+Worth writing down, because translating the notation is the obvious move and
+each of these would have bitten after the work was done.
+
+**A `when` trigger is a RERANKER.** Ephemeral, shortlist-only, and it *cannot
+lift a rule off the floor* -- so a learned preference written that way could
+never bring a rule into consideration, which is half of what a preference is
+for.
+
+**A key is not a query.** `prefer(<R>, water, 3)` keys on a relation being **in
+play**, and what is in play includes keys derived from goals -- nothing is
+required to *hold*. Rebuilding it as `{ +water(?x) }` needs an arity nobody
+recorded, and means something strictly narrower.
+
+**Buffs fade and saturate, by design.** A lift is about what is going on now, so
+it decays; a learned preference is meant to **stay taught**, and one of the
+checks says so in as many words.
+
+Reading the claim avoids all three, and it keeps what `prefer` already had:
+askable, deniable, attributable, and summed as cardinals.
+
+| | |
+|---|---|
+| `ugm.learning` | 8 of 8 |
+| `ugm.practice` | 8 of 8 |
+
+### The one still red, and it is not this
+
+`ugm.quiescence`: its `<silent>` rule is **BLIND** -- suppressing it changes
+nothing, so the fixture never exercises it. Fails identically on the option-set
+loop, and did before this work started.
