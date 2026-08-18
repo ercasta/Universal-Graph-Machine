@@ -106,6 +106,8 @@ in the engine if it **ends in a deposit** and the deposit is one fact with no
 interpretation; it belongs in rules if it ends in a choice. By that test:
 
 - recording a seat move — engine, and it is owed;
-- driving a simulation — engine, since only the loop can mute the boundary;
+- driving a simulation — engine, since only the loop can mute the boundary,
+  but it belongs to the OFFLINE half: online is best-effort with what is
+  currently learned, and rolling the model forward is consolidation work;
 - deciding *when* to simulate, or what a deviation means, or what to do about
   it — rules, every time.
