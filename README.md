@@ -11,7 +11,7 @@ built into the engine.**
 UGM is a self-contained Python library with no dependencies.
 
 ```bash
-python -m ugm.selftest              # 549 checks, 0 failing
+python -m ugm.selftest              # 523 checks, 0 failing
 python -m ugm ugm/rules/delay.ugm --why "owed(ana,money)"
 ```
 
@@ -64,7 +64,7 @@ fact +booked(ana, bl204)
 
 ```
 $ python -m ugm delay.ugm --why "owed(ana,money)"
-delay.ugm: 11 ticks, ended quiescent
+delay.ugm: 15 ticks, ended quiescent
 
 why owed(ana,money)?
   +owed(ana, money) @M0, via kb, licensed by applied(<compensate>)
@@ -123,7 +123,7 @@ failure, plus a set of gates that each hold a fast path to a slow definition on 
 every fixture**:
 
 ```bash
-python -m ugm.selftest        # 549 checks, 0 failing
+python -m ugm.selftest        # 523 checks, 0 failing
 python -m ugm.agreement       # the kept resolution against the raw walk
 python -m ugm.state           # the maintained state and its indices against the walk
 python -m ugm.arbitration     # the fast chooser against the slow one
@@ -155,6 +155,9 @@ python -m ugm.experts         # several experts over ONE graph, consulting each 
 - **[`docs/rules-design.md`](docs/rules-design.md)** — the design, and the only design doc.
   Self-contained, argued from seven requirements, with every representation decision scored in a
   table before it is taken.
+- **[`docs/code-walkthrough.md`](docs/code-walkthrough.md)** — a map of the code for a developer
+  about to change it: what each file owns, one tick end to end, where the caches are and what holds
+  them honest, and the traps that have cost time here.
 - **[`docs/authoring.md`](docs/authoring.md)** — the shorter, meaner document: what actually bites
   when you sit down and write a corpus, ordered by how much time it costs before you find it.
 - **[`docs/HANDOFF.md`](docs/HANDOFF.md)** and **[`docs/observations.md`](docs/observations.md)** —
