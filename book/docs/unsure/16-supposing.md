@@ -67,25 +67,111 @@ the objection returns intact.
 > **The first branch is free and every branch after it is exponential.** Which is
 > exactly why the second must be earned.
 
-## Containment is free rather than enforced
+## Containment is free rather than enforced — for entries
 
 Nothing prevents your imaginings from being mistaken for the world. Nothing
-needs to.
+needs to, as long as what you imagined is an **entry**.
 
 The frame's seat is a **successor** of the caller's moment. So the caller's walk
 — which goes backwards, towards the root — cannot reach it. Chapter 5's
 at-or-before test is doing the work, and this is exactly why it has to be a real
 ancestry test rather than a depth comparison: supposing forks by construction.
 
-Measured on a chain forking 31 times: 129 structural conclusions, none of them
-off its own walk. Nothing is refused to achieve it. A pattern that reaches
-downward loads fine and finds nothing, exactly as a rule matching an entry
-nobody wrote matches nothing.
+Measured on a chain forking 31 times: a structural member walking the chain from
+an anchored moment made 129 conclusions, none of them off its own walk. Nothing
+is refused to achieve it. A pattern that reaches downward loads fine and finds
+nothing, exactly as a rule matching an entry nobody wrote matches nothing.
 
 > Nothing is prohibited; everything is stamped.
 
-The one thing that is *not* in the chain, and therefore needs an explicit rule,
-is **acting** — Chapter 14. Supposing something must not bring it about.
+Two things fall outside that, and they are outside it for the same reason —
+neither is in the chain.
+
+The first was designed for: **acting**, which needs an explicit rule, Chapter 14.
+Supposing something must not bring it about.
+
+The second was not, and the next section is the correction to what this chapter
+used to claim.
+
+## Structure is not contained at all
+
+Containment holds for entries and fails for **structure** — the layer Chapter 31
+calls stratum 0, where a conclusion is an interned relation instance rather than
+an assertion: undated, unattributed, deniable by nothing, and belonging to no
+moment.
+
+Probed. `<said>` is stratum 0 — it lifts every claim anyone ever made into
+structure, which is what buys a `−` member the meaning *for no `?x`* instead of
+*somebody denied it* (Chapter 26). `<alarm>` reads that structure from
+**outside** the hypothesis:
+
+```
+rule <said>  = implies( { asking(?s), anc(?s, ?d), in_delta(?d, ?e),
+                          entry_of(?e, ?l, ?p, ?sg) },
+                        { said(?p, ?sg) } )
+rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )
+rule <leak>  = implies( { +rumour(?x) }, { +secret(?x) } )
+rule <alarm> = implies( { said(secret(?x), plus), +awake(guard) },
+                        { +alarm(?x) } )
+
+fact +awake(guard)
+fact +likely(rumour(a))
+```
+
+Run twice, identical but for whether `<cross>` is present — that is, whether the
+agent ever supposes anything:
+
+| | `secret(a)` at the root | `said(secret(a))` | `alarm(a)` at the root |
+|---|---|---|---|
+| no supposition | `None` | absent | `None` |
+| supposing | `None` | **present** | **`+`** |
+
+The first column is containment working: the hypothesis stayed a hypothesis, and
+what came back out was `likely(secret(a))`. The third is the defect. Nobody
+believed `secret(a)` and the guard was raised anyway.
+
+> **A frame contains what it says. It does not contain what it derives about
+> what it says.**
+
+Ancestry cannot fix this, and that is the part worth understanding: the leak is
+not in the read. The at-or-before test — `at_or_after` in the code — is consulted
+when an **entry** is resolved. A structural fact is never resolved: it is
+enumerated straight out of the argument index, which no more knows about moments
+than a dictionary knows what time it is.
+
+And it is worse than a wrong answer, because the wrong answer cannot be traced:
+
+```
+why alarm(a)?
+  +alarm(a) @M0, licensed by applied(<alarm>)
+    because +awake(guard) @M0, licensed by loaded(awake(guard))
+```
+
+`said(secret(a))` is the premise that made the difference and it is not in the
+trail, because structure carries no licence — Chapter 9's whole apparatus is
+about entries.
+
+> **A leak with no licence cannot be found by asking why.** The trail names the
+> one premise that was true anyway.
+
+This is not a corner of the design. Negation as failure, counting, and reading
+rules as facts all run on that layer, so the defect is under exactly the
+constructions the rest of the book recommends.
+
+**The same shape, refused elsewhere.** Adopting a rule inside a supposition is
+refused (Chapter 29) because the rule set is one list shared by every frame, and
+a rule adopted while supposing would apply after it. That is this defect with a
+guard in front of it. The stratum-0 index is the same global table with no guard,
+and the difference between the two is that somebody noticed the first one.
+
+**The proposed answer is *situations*** — a design, not a build, and Chapter 34
+files it where it belongs. Its move is to stop asking a read to keep hypotheses
+apart and make them apart: a situation is a branch and a moment is a commit,
+interning is per-situation, and a situation is materialised from its deltas when
+a rule asks about it. A structural conclusion is not an entry, so it is not in a
+delta, so it is never replayed — containment falls out rather than being enforced
+on every read, and it covers structure because it never treated structure
+specially in the first place.
 
 ## Two things this costs, both found by building
 

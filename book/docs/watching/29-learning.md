@@ -86,6 +86,11 @@ believes**, which is the one thing supposing must not do.
 holds answers nothing however well it worked. Containment caught the check
 before the check caught anything.)
 
+The refusal is worth reading beside Chapter 16's defect, because they are one
+situation with two outcomes. A rule set shared by every frame was noticed, and is
+guarded. The **stratum-0 index** is shared by every frame in exactly the same way
+and is not, so there supposing does change what the agent believes.
+
 **The adopted rule must be the node the graph describes.** Minting a fresh one
 makes the live rule a **twin** of the described one: everything a corpus said
 about the described rule goes to a node that is not a rule, and everything the

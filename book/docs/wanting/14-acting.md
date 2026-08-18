@@ -107,11 +107,16 @@ Chapter 34 records it as an open defect, because it is one.
 One more boundary rule, and it's the one that would be a genuine safety problem
 if it were wrong.
 
-Chapter 16's containment says nothing leaves a frame. That is a claim about the
-**chain** — a walk from the real world can't reach into a hypothesis.
+Chapter 16's containment says no *entry* leaves a frame. That is a claim about
+the **chain** — a walk from the real world can't reach into a hypothesis.
 
 **Effects are not in the chain.** An intent concluded inside a supposition would
 otherwise be carried out for real, and imagining would become doing.
+
+Structure isn't in the chain either, and there the same argument has no muting
+rule behind it: a stratum-0 conclusion drawn inside a hypothesis is visible from
+everywhere. Chapter 16 measures it. Acting is the case somebody thought about;
+it is worth knowing that it was the only one.
 
 So the boundary is muted inside a supposition. The general form:
 

@@ -170,8 +170,10 @@ the bootstrap circle. [Chapter 31](../floor/31-bootstrap.md)
 
 **supposing** — entering a hypothesis. **Unwrap on the way in, re-wrap on the way
 out**: inside the frame the assumption is an ordinary fact, and no rule needs a
-hedged twin. Containment is free — the frame's seat is a *successor*, so the
-caller's walk can't reach it. [Chapter 16](../unsure/16-supposing.md)
+hedged twin. Containment is free *for entries* — the frame's seat is a
+*successor*, so the caller's walk can't reach it. It does not hold for
+**structure**, which no walk resolves.
+[Chapter 16](../unsure/16-supposing.md)
 
 **tool** — a request answered by a function rather than by a search. Its answer
 lands a tick later, and it **proposes; it never concludes**.

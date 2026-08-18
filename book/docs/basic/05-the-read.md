@@ -62,11 +62,14 @@ different branches aren't comparable at all — neither is before the other.
 
 This is the cheapest place in the design to introduce a bug that only appears
 once you start using hypotheticals. It's also what makes containment (Chapter
-16) free rather than enforced: your imaginings can't leak into the real world,
-not because something forbids it, but because the walk from the real world
-cannot reach them.
+16) free rather than enforced: your imagined **claims** can't leak into the real
+world, not because something forbids it, but because the walk from the real
+world cannot reach them.
 
-The two stand or fall together.
+The two stand or fall together — and the emphasis on *claims* is load-bearing.
+This walk is what an **entry** is resolved by. A structural fact is never
+resolved at all, so nothing here is protecting it, and Chapter 16 has the probe
+that shows what that costs.
 
 ## One order throughout
 

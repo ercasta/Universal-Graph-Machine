@@ -91,6 +91,11 @@ is secret(a) BELIEVED at the root?     None      the entry is contained
 is said(secret(a)) in the graph?       True      the structure is not
 ```
 
+And the leaked structure is readable: add a rule outside the hypothesis that
+matches it, and the agent ends up believing something *at the root* that it only
+ever supposed. Chapter 16 runs that second half, with the `why` trail that cannot
+show which premise did it — structure carries no licence.
+
 Ancestry cannot fix it, because the leak is not in the read: `at_or_after` is
 checked when an **entry** is resolved, and a structural fact is never resolved —
 it is enumerated straight out of the argument index. This is not a corner: the
