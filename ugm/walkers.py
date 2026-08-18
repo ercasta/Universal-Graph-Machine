@@ -71,6 +71,39 @@ makes learning worth attempting.
 it is the route: r1, then r2, then r4. Provenance falls out of minting identity
 from bound variables, and nothing records it.
 
+## What goes in the identity term is the deduplication policy
+
+Two routes into one room. `child(?w, ?y)` names a walker by the PATH it took, so
+two arrivals at the same node are two walkers -- and each explores the subtree
+below it again. Chained diamonds, measured:
+
+    1 diamond(s),  4 rooms:  by-path    5   by-node    4
+    2 diamond(s),  7 rooms:  by-path   13   by-node    7
+    3 diamond(s), 10 rooms:  by-path   29   by-node   10
+
+`2^(n+2) - 3` against `3n + 1`. Nothing errors, the treasure is still found, and
+the run simply does exponentially more of the same work: the third case for
+running out of everything before anything says so.
+
+`walker(?y)` fixes it in one word, and the fix is INTERNING rather than a guard:
+`g.rel` returns the same node for the same relation and members, so two arrivals
+at `r4` mint one walker and the second is not a new fact at all. No visited set,
+no negation -- which matters, because the negation a visited set wants is over
+entries, where `-` means DENIED rather than absent, and the first draft of this
+file matched nothing for exactly that reason.
+
+The general term is `walker(<node>, <purpose>)`, and both designs are its special
+cases: drop the purpose and arrivals merge, make the purpose the path and they
+never do. So the identity term IS the policy, stated where a reader can see it.
+
+**And deduplicating is not forgetting.** Identity is WHERE a walker is;
+provenance is HOW it got there, and provenance is plural. One walker at `r4`,
+both routes recorded:
+
+    at(walker(r4), r4)
+    came(walker(r4), via(walker(r2), r2))
+    came(walker(r4), via(walker(r3), r3))
+
 ## What this does not do
 
 **Cycles are unbounded.** `child(child(child(...)))` grows without limit on a
@@ -123,6 +156,53 @@ rule <fork> = causes( { +at(?w, ?x), +door(?x, ?y) },
 """
 
 ORDERED = MOVE + "\nfact overrides(<fork>, <step>)\n"
+
+
+# Two routes into one room, and n of them in series. The walker count is the
+# whole measurement, so the maze is generated rather than written out: a fixture
+# with one diamond cannot show a growth rate.
+def _diamonds(n: int) -> str:
+    lines, node = [], "r0"
+    for i in range(n):
+        a, b, j = f"a{i}", f"b{i}", f"j{i}"
+        lines += [f"fact +door({node}, {a})", f"fact +door({node}, {b})",
+                  f"fact +door({a}, {j})", f"fact +door({b}, {j})"]
+        node = j
+    lines += ["fact +at(w1, r0)", f"fact +treasure({node})"]
+    return chr(10).join(lines) + chr(10)
+
+
+BY_PATH = """
+rule <spread> = implies( { +at(?w, ?x), +door(?x, ?y) },
+                         { +at(child(?w, ?y), ?y) } )
+"""
+
+BY_NODE = """
+rule <spread> = implies( { +at(?w, ?x), +door(?x, ?y) },
+                         { +at(walker(?y), ?y) } )
+"""
+
+# ...and the same, keeping the routes. `came` is plural by construction: two
+# arrivals are two entries about one walker, which is the honest record.
+BY_NODE_TRACKED = """
+rule <spread> = implies( { +at(?w, ?x), +door(?x, ?y) },
+                         { +at(walker(?y), ?y), +came(walker(?y), via(?w, ?x)) } )
+"""
+
+
+def _population(src: str, limit: int = 2000) -> Dict[str, List[str]]:
+    m = Machine()
+    load(m, src, None, None)
+    loop(m, limit=limit)
+    seen: Dict[str, str] = {}
+    for mo in m.chain.moments:
+        for e in mo.delta:
+            seen[m.g.show(e.proposition)] = e.sign
+    return {
+        "at": sorted(k for k in seen if k.startswith("at(") and seen[k] == "+"),
+        "came": sorted(k for k in seen if k.startswith("came(") and seen[k] == "+"),
+        "found": sorted(k for k in seen if k.startswith("found(") and seen[k] == "+"),
+    }
 
 
 def _run(extra: str, limit: int = 300) -> Dict[str, object]:
@@ -207,6 +287,44 @@ def main() -> int:
          "`<step>` never applied once, and the extra work is a rule that cannot "
          f"fire ({order['tried']} vs {spawn['tried']} tried)",
          order["at"] == spawn["at"] and order["tried"] > spawn["tried"])
+
+    # -- what the identity term decides ------------------------------------
+    print("\n  two routes into one room, n diamonds in series:\n")
+    growth = []
+    for n in (1, 2, 3):
+        by_path = _population(_diamonds(n) + BY_PATH)
+        by_node = _population(_diamonds(n) + BY_NODE)
+        growth.append((n, 1 + 3 * n, len(by_path["at"]), len(by_node["at"])))
+        print(f"    {n} diamond(s), {1 + 3 * n:2} rooms:   "
+              f"by-path {len(by_path['at']):4}   by-node {len(by_node['at']):4}")
+    print()
+
+    gate("naming a walker by its PATH duplicates it wherever routes converge, "
+         "and each duplicate explores the subtree below AGAIN -- exponential "
+         f"against linear ({[g[2] for g in growth]} vs {[g[3] for g in growth]})",
+         [g[2] for g in growth] == [5, 13, 29]
+         and [g[3] for g in growth] == [4, 7, 10])
+    gate("...and it is SILENT: nothing errors and the treasure is still found, "
+         "so the only symptom is doing exponentially more of the same work",
+         len(_population(_diamonds(2) + BY_PATH)["at"])
+         > len(_population(_diamonds(2) + BY_NODE)["at"]))
+    gate("naming it by the NODE deduplicates by INTERNING rather than by a "
+         "guard: two arrivals mint one walker, so there is no visited set and "
+         "no negation to get wrong",
+         [g[3] for g in growth] == [g[1] for g in growth])
+
+    tracked = _population(_diamonds(1) + BY_NODE_TRACKED)
+    print("  deduplicating is not forgetting:\n")
+    for k in tracked["came"]:
+        print(f"    {k}")
+    print()
+    joins = [k for k in tracked["came"] if k.startswith("came(walker(j0)")]
+    gate("one walker per room, and BOTH routes into the join recorded -- "
+         "identity is WHERE it is, provenance is HOW it got there, and "
+         f"provenance is plural ({len(tracked['at'])} walkers, "
+         f"{len(joins)} routes into the join)",
+         len(tracked["at"]) == 4 and len(joins) == 2)
+
 
     print(f"\n{ran} checks, {failing} failing")
     return 1 if failing else 0
