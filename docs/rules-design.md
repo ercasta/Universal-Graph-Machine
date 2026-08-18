@@ -1738,7 +1738,8 @@ The candidacy test walks the predecessor relation. It cannot be a comparison of 
 supposing forks the chain by construction (§16) and two moments at the same depth on different
 branches are not comparable at all. This is the cheapest place in the design to introduce a bug that
 only appears once hypotheticals are used — and it is also what makes §17's containment free rather
-than enforced, so the two stand or fall together.
+than enforced, so the two stand or fall together. The emphasis on *entries* is load-bearing: this walk
+is what resolves one, and a structural fact is never resolved by it at all (§16's correction).
 
 ### What this costs, and what it is worth
 
@@ -2114,12 +2115,16 @@ one and is written without either keyword, using the short form above.
 >what the matcher was given, while **stratum 0 matched the very same nodes with a second matcher** —
 >the branch §5's *one interpreter* forbids and §6 explicitly disclaims.
 >
->**Containment survives with nothing enforced.** A structural member walks from an ANCHORED
->moment toward the root, and §11 makes that direction single-valued, so it cannot reach a sibling
->branch — measured on a forking chain, 129 structural conclusions, none off its own walk. Nothing is
->refused to achieve it: a downward pattern loads and finds nothing, exactly as a rule matching an
->entry nobody wrote matches nothing. §4's *nothing is prohibited* holds, and §17's door stays open for
->the deliberate case — *inspecting is matching*, with an explicit anchor.
+>**Containment survives with nothing enforced, for a structural member that walks the CHAIN.** Such a
+>member starts from an ANCHORED moment and goes toward the root, and §11 makes that direction
+>single-valued, so it cannot reach a sibling branch — measured on a forking chain, 129 structural
+>conclusions, none off its own walk. **Scope, added later:** this is a property of the chain being a
+>tree, and it does not extend to structural conclusions in general — one that relates no moments is
+>reachable from every branch, which is §16's correction.
+>
+>Nothing is refused to achieve it: a downward pattern loads and finds nothing, exactly as a rule
+>matching an entry nobody wrote matches nothing. §4's *nothing is prohibited* holds, and §17's door
+>stays open for the deliberate case — *inspecting is matching*, with an explicit anchor.
 >
 >**And it exposed an undeclared tie-break.** `arbitrate` picks the first application among those of
 >one rule, and nothing said which that was — the heap ordered by consumed entries then insertion, the
@@ -2841,10 +2846,49 @@ rule connects them.
 <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )
 ```
 
-**Containment is free rather than enforced.** The frame's seat is a *successor* of the caller's, so
-the caller's walk cannot reach it. That is §21's containment gate, and it is §10's ancestry doing the
-work — which is why at-or-before must be a real ancestry test and not a depth comparison, since
-supposing forks by construction.
+**Containment is free rather than enforced, for entries.** The frame's seat is a *successor* of the
+caller's, so the caller's walk cannot reach it. That is §21's containment gate, and it is §10's
+ancestry doing the work — which is why at-or-before must be a real ancestry test and not a depth
+comparison, since supposing forks by construction.
+
+>**CORRECTION, PROBED: it does not hold for STRUCTURE, and this document claimed it did.** A
+>stratum-0 conclusion is an interned relation instance — undated, unattributed, deniable by nothing,
+>and belonging to no moment — so there is nothing for ancestry to be checked against. Two runs of one
+>corpus, identical but for whether a `<cross>` rule is present, with `<said>` lifting claims into
+>structure (§6) and a rule OUTSIDE the frame reading that structure:
+>
+>```
+>rule <said>  = implies( { asking(?s), anc(?s, ?d), in_delta(?d, ?e),
+>                          entry_of(?e, ?l, ?p, ?sg) },
+>                        { said(?p, ?sg) } )
+>rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )
+>rule <leak>  = implies( { +rumour(?x) }, { +secret(?x) } )
+>rule <alarm> = implies( { said(secret(?x), plus), +awake(guard) }, { +alarm(?x) } )
+>
+>fact +awake(guard)
+>fact +likely(rumour(a))
+>```
+>
+>```
+>                  secret(a) at the root   said(secret(a))   alarm(a) at the root
+>no supposition    None                    absent            None
+>supposing         None                    present           +
+>```
+>
+>The entry is contained and the structure is not, so **supposing changed what the agent believes at the
+>root** — the one thing supposing must not do. Ancestry cannot fix it, because the leak is not in the
+>read: `at_or_after` is consulted when an ENTRY is resolved, and a structural fact is never resolved,
+>it is enumerated out of the argument index. Not a corner — the universal, counting, and the
+>rules-as-facts interpreter all run on §6's layer.
+>
+>**And it is untraceable.** `why alarm(a)?` names `+awake(guard)` and stops: the premise that made
+>the difference carries no licence, because §17's apparatus is about entries.
+>
+>The refusal at §20's adoption door is the same defect with a guard in front of it — one rule set
+>shared by every frame, noticed and closed. The stratum-0 index is the same global table, and nobody
+>noticed. `docs/situations.md` is the proposed answer: a situation is a branch, a moment is a commit,
+>interning is per-situation, and a materialised situation's structural conclusions die with it — so
+>containment covers structure by never having treated it specially.
 
 ### The cost is a frame per derivation, which is linear
 
@@ -3238,6 +3282,10 @@ here.
 Two properties fall out rather than being enforced. **Hypothetical containment is structural** — a
 conclusion drawn inside a supposition cannot land outside it, because the locus was never the rule's to
 give. And **forgery stops being a category**: nothing is prohibited, everything is stamped.
+
+The first of those is exactly as wide as its own argument, which was not noticed when it was written:
+it holds where there IS a locus, and a stratum-0 conclusion has none. §16 carries the probe and the
+proposed repair.
 
 ### Entering and inspecting
 
@@ -4580,6 +4628,10 @@ the record, naming the supposition.
 And the refusal is written *inside* the frame, so asking the root whether it holds answers nothing
 however well it worked — containment caught the check before the check caught anything.
 
+Worth reading beside §16's correction, because they are one situation with two outcomes. A table
+shared by every frame was noticed here and is guarded. The **stratum-0 index** is shared in exactly
+the same way and is not, so there supposing does change what the agent believes.
+
 **The adopted rule must be the node the graph describes.** Minting a fresh one makes the live rule
 a **twin** of the described one: everything a corpus had said about the described rule goes to a node
 that is not a rule, and everything the machinery says about the live one names a node no corpus can
@@ -5011,10 +5063,13 @@ The three a first implementation is most likely to get wrong:
 
 * **Two indices.** After revising a belief about an earlier moment, *what do I now think about `M7`?*
   and *what did I think at `M7`?* both answer, and answer differently.
-* **Containment.** Nothing concluded inside a supposition is readable as current belief, **and nothing
+* **Containment.** No ENTRY concluded inside a supposition is readable as current belief, **and nothing
   supposed reaches the world**: no act is emitted and no rule is adopted from inside a frame. The
   first is structural (§10's ancestry); the second and third are conditions at the doors, because
-  effects and rule sets are not in the chain.
+  effects and rule sets are not in the chain. **This gate is currently FAILING for the fourth case,
+  which is neither of those**: structure is not in the chain either, nothing guards that door, and a
+  rule outside the frame can read what was derived inside it (§16). Stated here rather than in §22
+  because a gate that is not met should say so where it is claimed.
 * **No laundering.** A conclusion drawn from an uncertain premise crosses out wrapped, and nothing
   reaches the bare claim except a rule a corpus wrote. This replaces an earlier gate that compared
   ordinal grades along the trail; the structural version is stronger, because the nest records *which*
@@ -5404,6 +5459,13 @@ New with §20, and the first two are the reason it is a section rather than a pa
 
 ### On what the representation allows
 
+* **Containment for structure** (§16, §21). The one item on this list that is a **defect** rather than
+  an undecided question: an entry concluded inside a supposition is contained and a stratum-0
+  conclusion is not, so a rule outside the frame can read what was derived inside it and the trail
+  cannot show that it did. Probed, with the run in §16. The proposed answer is `docs/situations.md`,
+  staged so nothing is removed before its replacement holds: atom ids inert first, then per-situation
+  interning with one situation, then situation-keyed indices, then materialise-on-demand — and
+  **ancestry goes last**, because it cannot be retired until situations close the leak.
 * **The use/mention wall at the boundary** (§15, §20). An intent naming a rule never leaves the agent,
   because a rule node is generic and the boundary refuses a description — so every clarification
   request about a rule is decided on and never emitted. The entry already carries what is needed to
