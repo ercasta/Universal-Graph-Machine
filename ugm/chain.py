@@ -15,6 +15,7 @@ something about a time that has already passed, which is what makes belief
 revision ordinary rather than a second mechanism.
 """
 
+import time as _wallclock
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from .graph import Graph, NodeId
@@ -224,8 +225,25 @@ def scope_of(locus: Locus) -> Optional[NodeId]:
 class Chain:
     """The history, and the reads over it."""
 
-    def __init__(self, g: Graph) -> None:
+    def __init__(self, g: Graph, clock: bool = False) -> None:
         self.g = g
+        # ⭐ **The wall clock, off by default, and the reason is measured
+        # rather than assumed.** A stamp is STRUCTURAL, like `pred` -- not an
+        # entry -- so switching the clock on leaves the entries of two runs
+        # byte-identical and only the stamps differ. `ugm.dungeon`'s *the same
+        # seed replays the same fight, entry for entry* is untouched.
+        #
+        # What does diverge is a corpus that READS the clock: its conclusions
+        # are entries, and they carry a number that was different last time. So
+        # the clock is inert until asked for, and off by default because a
+        # source of nondeterminism should be requested rather than inherited.
+        #
+        # ⚠ What it is NOT: a way to order moments. `pred` and `anc` already do
+        # that, and they are exact where a clock is only monotone-ish. The stamp
+        # answers *how long ago*, which the chain could not answer at all --
+        # moments are ORDERED, not MEASURED, and `depth` is a position rather
+        # than a duration.
+        self.clock = clock
         self.ENTRY = g.atom("entry")
         self.MOMENT = g.atom("moment")
         # The structural mirror (§6). `pred` and `in_delta` are plain relation
@@ -292,6 +310,11 @@ class Chain:
         # -- this is the same door with a general name.
         self.consult = lambda a, b: False
         self.IS_MOMENT = g.atom("moment_of")
+        # `time(<moment>, <millis>)` -- structural, like `pred`, because nobody
+        # asserted it and nothing can deny it. Deposited only when the clock is
+        # on, so a corpus asking for it on a clockless run finds nothing, which
+        # is the honest answer rather than a zero.
+        self.TIME = g.atom("time")
         # A stretch of the chain, as a member a rule may write (§11):
         # `span_of(?s, ?start, ?end)`. Nothing is deposited for it -- the span
         # node already IS `span(start, end)` -- so this is `entry_of`'s shape
@@ -338,6 +361,7 @@ class Chain:
         self.SIGN = {s: g.atom(s) for s in (PLUS, MINUS, UNSURE)}
         self.root = Moment(g.instance(self.MOMENT), None, self)
         g.rel(self.IS_MOMENT, self.root.node)
+        self._stamp(self.root)
         self.moments: List[Moment] = [self.root]
         self._moment_by_node: Dict[NodeId, Moment] = {self.root.node: self.root}
         self._span_by_node: Dict[NodeId, Span] = {}
@@ -362,6 +386,7 @@ class Chain:
         m = Moment(self.g.instance(self.MOMENT), predecessor, self)
         self.g.rel(self.IS_MOMENT, m.node)
         self.g.rel(self.PRED, m.node, predecessor.node)
+        self._stamp(m)
         self.moments.append(m)
         # ...and by node, because a rule can now name a moment (§12's `at`) and
         # something has to get from the name back to the thing. Maintained here,
@@ -369,6 +394,22 @@ class Chain:
         # is read off a state is maintained where the state is.
         self._moment_by_node[m.node] = m
         return m
+
+    def _stamp(self, m: Moment) -> None:
+        """When this moment was made, in milliseconds since the epoch.
+
+        One place, because a moment is born in exactly two -- the root and
+        `succeed` -- and a stamp applied in one of them would be a chain whose
+        clock has a hole in it that nothing reports.
+
+        ⚠ Milliseconds as an ATOM whose name reads as a number, which is how
+        every other numeral works here: nothing in the graph learns about
+        arithmetic, and the one reader that wants it does the conversion.
+        """
+        if not self.clock:
+            return
+        self.g.rel(self.TIME, m.node,
+                   self.g.atom(str(int(_wallclock.time() * 1000))))
 
     def deposit(
         self,

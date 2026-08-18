@@ -1762,6 +1762,10 @@ def structural_relations(chain) -> Dict[NodeId, Callable]:
         chain.SPAN_OF: _span_of,
         chain.ASKING: _bounded,
         chain.ASKED: _bounded,
+        # `time(?m, ?t)` -- stored, so it refuses an unbound moment for
+        # `_stored`'s reason: it is a fact about the whole history, and an
+        # unanchored read would walk all of it.
+        chain.TIME: _stored,
     }
 
 

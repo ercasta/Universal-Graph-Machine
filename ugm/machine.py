@@ -79,9 +79,11 @@ class Answerer(NamedTuple):
 
 
 class Machine:
-    def __init__(self) -> None:
+    def __init__(self, clock: bool = False) -> None:
         self.g = Graph()
-        self.chain = Chain(self.g)
+        # Off by default: a stamp per moment makes two runs differ, and
+        # §3's determinism is measured byte for byte. See `Chain.__init__`.
+        self.chain = Chain(self.g, clock=clock)
         self.gate = Gate(self.g, self.chain)
         self.rules = RuleSet(self.g, self.chain)
         self.channels = Channels(self.g)
@@ -552,6 +554,12 @@ class Machine:
             # endpoints are bound and decomposes when the span is (§11).
             "span_of": self.chain.SPAN_OF, "span": self.chain.SPAN,
             "asking": self.chain.ASKING, "asked": self.chain.ASKED,
+            # ⚠ Without this line `time(?m, ?t)` in a corpus is a FRESH
+            # atom -- `g.atom` does not intern -- so the rule is well
+            # formed, `is_stratum0` says no, the member matches nothing,
+            # and nothing raises. The name-identity trap, caught here on
+            # its fifth outing.
+            "time": self.chain.TIME,
             "reaches": self.chain.REACHES,
             "names": self.NAMES, "computes": self.COMPUTES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
