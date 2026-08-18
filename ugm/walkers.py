@@ -104,6 +104,75 @@ both routes recorded:
     came(walker(r4), via(walker(r2), r2))
     came(walker(r4), via(walker(r3), r3))
 
+## An expert is a PREMISE, not a pool
+
+`ugm.experts` gives a rule set read off the graph -- `knows(<e>, <r>)`,
+`extends(<e>, <f>)`, inheritance as one ordinary rule -- and hands it to a run as
+`pool`. That is one rule set for a whole run, so it cannot say *this rule applies
+to walkers running E*, which is what a swarm needs.
+
+Scoping by PREMISE can, and costs nothing:
+
+    fact +knows(scout, moving)         fact +extends(raider, scout)
+    fact +knows(looter, grabbing)      fact +extends(raider, looter)
+
+    rule <extend> = implies( { +extends(?e,?f), +knows(?f,?c) }, { +knows(?e,?c) } )
+    rule <equip>  = implies( { +runs(?w,?e),    +knows(?e,?c) }, { +can(?w,?c)   } )
+
+    rule <grab>   = implies( { +at(?w,?x), +can(?w, grabbing), +treasure(?x) },
+                             { +found(?w,?x) } )
+
+Multiple inheritance falls out: two `extends` facts both match, so `raider` has
+`moving` from one parent and `grabbing` from the other, through one rule and no
+resolution order. And a SPAWNING rule chooses the child's expert, which is what
+*spawn an expert at a node* means here -- pass `?e` down and the child inherits
+the role, name another and it does not. Measured: with children spawned as
+`scout`, the treasure is never taken, because a scout cannot loot.
+
+## Termination is a DENIAL, and it is not retroactive
+
+Every walker-relative rule needs `at(?w, ?x)`, so denying that one fact removes
+the walker from all of them at once:
+
+    rule <done> = implies( { +found(?w,?x) }, { -at(?w,?x) } )
+
+No scheduler, no registry, no removal step -- there is nothing holding the walker
+except the fact that it is somewhere.
+
+What it does NOT do is undo. The looted walker spread to the next room BEFORE it
+was terminated, and which of the two happened first was decided by arbitration
+with nothing saying so.
+
+## Precedence only bites when the loser's PREMISE CAN BE DESTROYED
+
+Four attempts to order rules in this file behaved four different ways, and the
+rule behind all of them is one sentence.
+
+    <fork> vs <step>        the loser's premise is DENIED by the winner
+                            -> ordering decides the outcome, silently
+    <spread> vs <done>      same, and the ordering that decides it is the
+                            order the rules were DECLARED IN: spread first and
+                            the walker reaches the next room, spread last and
+                            it never does
+    overrides(fork, step)   the winner matches wherever the loser does
+                            -> the loser never gets a tick at all
+    overrides(grab, spread) the winner matches only where treasure is
+                            -> the loser is suppressed there and nowhere else
+    two corridors           monotone rules, nothing destroyed
+                            -> B is fully explored either way, 17 ticks vs 21
+
+`overrides` suppresses per TICK and per RULE, whenever the defeater matches
+anywhere. Because the loop runs to quiescence, a merely-deferred rule applies on
+some later tick and the final state is the same -- *ordering is not
+defeasibility*, this design's own line, arriving from a fourth direction. The
+only time order changes what is CONCLUDED is when the winner destroys what the
+loser needed.
+
+So the spawn design does more than keep branches: **nothing is consumed, so
+ordering is irrelevant, so the per-position precedence a moving walker wanted is
+not needed at all.** The missing mechanism was missing because of the other
+design.
+
 ## What this does not do
 
 **Cycles are unbounded.** `child(child(child(...)))` grows without limit on a
@@ -202,6 +271,95 @@ def _population(src: str, limit: int = 2000) -> Dict[str, List[str]]:
         "at": sorted(k for k in seen if k.startswith("at(") and seen[k] == "+"),
         "came": sorted(k for k in seen if k.startswith("came(") and seen[k] == "+"),
         "found": sorted(k for k in seen if k.startswith("found(") and seen[k] == "+"),
+    }
+
+
+# Experts scoped by premise. `raider` inherits from two parents, so the
+# inheritance rule has to cope with multiple `extends` facts -- which it does by
+# matching both, with no resolution order to declare.
+EXPERTS = """
+fact +knows(scout,  moving)
+fact +knows(looter, grabbing)
+fact +extends(raider, scout)
+fact +extends(raider, looter)
+
+rule <extend> = implies( { +extends(?e, ?f), +knows(?f, ?c) }, { +knows(?e, ?c) } )
+rule <equip>  = implies( { +runs(?w, ?e), +knows(?e, ?c) },    { +can(?w, ?c) } )
+
+rule <grab>   = implies( { +at(?w, ?x), +can(?w, grabbing), +treasure(?x) },
+                         { +found(?w, ?x) } )
+rule <done>   = implies( { +found(?w, ?x) }, { -at(?w, ?x) } )
+"""
+
+# The spawning rule CHOOSES the child's expert. `?e` passes the parent's role
+# down; a literal would hand the child a different one.
+INHERIT_ROLE = """
+rule <spread> = implies( { +at(?w, ?x), +runs(?w, ?e), +can(?w, moving),
+                           +door(?x, ?y) },
+                         { +at(walker(?y), ?y), +runs(walker(?y), ?e) } )
+"""
+
+AS_SCOUTS = """
+rule <spread> = implies( { +at(?w, ?x), +can(?w, moving), +door(?x, ?y) },
+                         { +at(walker(?y), ?y), +runs(walker(?y), scout) } )
+"""
+
+# A raider with both capabilities directly, so the DECLARATION-ORDER fixture
+# varies only the thing it is about. Written out rather than reusing `EXPERTS`,
+# which would drag the inheritance rules into the comparison.
+FLAT_EQUIP = """
+fact +knows(raider, moving)
+fact +knows(raider, grabbing)
+rule <equip> = implies( { +runs(?w, ?e), +knows(?e, ?c) }, { +can(?w, ?c) } )
+"""
+
+FLAT_GRAB = """
+rule <grab> = implies( { +at(?w, ?x), +can(?w, grabbing), +treasure(?x) },
+                       { +found(?w, ?x) } )
+rule <done> = implies( { +found(?w, ?x) }, { -at(?w, ?x) } )
+"""
+
+
+CORRIDOR = """
+fact +door(r1, r2)
+fact +door(r2, r3)
+fact +treasure(r2)
+fact +at(w1, r1)
+fact +runs(w1, raider)
+"""
+
+# Two disconnected corridors, treasure in one. A single-corridor fixture cannot
+# show whether suppressing a rule stalls an UNRELATED walker.
+TWO_CORRIDORS = """
+fact +door(a1, a2)
+fact +door(a2, a3)
+fact +door(b1, b2)
+fact +door(b2, b3)
+fact +treasure(a2)
+fact +at(wa, a1)
+fact +runs(wa, raider)
+fact +at(wb, b1)
+fact +runs(wb, raider)
+fact +knows(raider, moving)
+fact +knows(raider, grabbing)
+"""
+
+
+def _walk(src: str, limit: int = 800) -> Dict[str, object]:
+    m = Machine()
+    load(m, src, None, None)
+    rep = loop(m, limit=limit)
+    seen: Dict[str, str] = {}
+    for mo in m.chain.moments:
+        for e in mo.delta:
+            seen[m.g.show(e.proposition)] = e.sign
+    return {
+        "live": sorted(k for k in seen if k.startswith("at(") and seen[k] == "+"),
+        "dead": sorted(k for k in seen if k.startswith("at(") and seen[k] == "-"),
+        "found": sorted(k for k in seen if k.startswith("found(") and seen[k] == "+"),
+        "knows": sorted(k for k in seen if k.startswith("knows(raider")
+                        and seen[k] == "+"),
+        "ticks": len(rep.steps),
     }
 
 
@@ -324,6 +482,68 @@ def main() -> int:
          f"provenance is plural ({len(tracked['at'])} walkers, "
          f"{len(joins)} routes into the join)",
          len(tracked["at"]) == 4 and len(joins) == 2)
+
+
+    # -- experts as premises, and termination ------------------------------
+    role = _walk(CORRIDOR + EXPERTS + INHERIT_ROLE)
+    scouts = _walk(CORRIDOR + EXPERTS + AS_SCOUTS)
+    print("\n  a raider that inherits from two experts:\n")
+    for k in role["knows"]:
+        print(f"    {k}")
+    print(f"\n    live {role['live']}\n    dead {role['dead']}\n"
+          f"    found {role['found']}\n")
+
+    gate("MULTIPLE INHERITANCE through one ordinary rule: `raider` extends two "
+         "experts and has a capability from each, with no resolution order to "
+         f"declare ({role['knows']})",
+         role["knows"] == ["knows(raider, grabbing)", "knows(raider, moving)"])
+    gate("the SPAWNING rule chooses the child's expert -- pass `?e` down and "
+         "the child loots, spawn it as a `scout` and the treasure is never "
+         "taken, because a scout cannot",
+         len(role["found"]) == 1 and len(scouts["found"]) == 0)
+    gate("TERMINATION IS A DENIAL: one `-at(?w, ?x)` removes the walker from "
+         "every relative rule at once, because they all need it -- no "
+         "scheduler, no registry, nothing else holding it",
+         role["dead"] == ["at(walker(r2), r2)"])
+    # ...and the sharper form of the same finding. `<done>` DENIES the
+    # position, so it can destroy what `<spread>` needed -- and which of them
+    # gets there first is decided by the order the rules were DECLARED IN.
+    # Same rules, same facts, different conclusion, no diagnostic.
+    first = _walk(CORRIDOR + FLAT_EQUIP + INHERIT_ROLE + FLAT_GRAB)
+    last = _walk(CORRIDOR + FLAT_EQUIP + FLAT_GRAB + INHERIT_ROLE)
+    print(f"  the same rules, declared in two orders:\n\n"
+          f"    spread declared FIRST   live {first['live']}\n"
+          f"    spread declared LAST    live {last['live']}\n")
+
+    gate("...and TERMINATION IS NOT RETROACTIVE, which shows up as the authored "
+         "ORDER OF RULES changing what is concluded: declare `<spread>` before "
+         "`<done>` and the walker reaches the next room before it is "
+         "terminated, declare it after and it never does -- same rules, same "
+         "facts, no diagnostic",
+         "at(walker(r3), r3)" in first["live"]
+         and "at(walker(r3), r3)" not in last["live"])
+
+    # -- what precedence actually does -------------------------------------
+    plain = _walk(TWO_CORRIDORS + EXPERTS.replace(
+        "fact +knows(scout,  moving)\nfact +knows(looter, grabbing)\n"
+        "fact +extends(raider, scout)\nfact +extends(raider, looter)\n", "")
+        + INHERIT_ROLE)
+    ordered = _walk(TWO_CORRIDORS + EXPERTS.replace(
+        "fact +knows(scout,  moving)\nfact +knows(looter, grabbing)\n"
+        "fact +extends(raider, scout)\nfact +extends(raider, looter)\n", "")
+        + INHERIT_ROLE + "\nfact overrides(<grab>, <spread>)\n")
+    b_plain = [k for k in plain["live"] if "(b" in k]
+    b_order = [k for k in ordered["live"] if "(b" in k]
+    print(f"  two corridors, treasure in one:\n\n"
+          f"    no precedence      ticks {plain['ticks']:3}  B reached {len(b_plain)}\n"
+          f"    grab over spread   ticks {ordered['ticks']:3}  B reached {len(b_order)}\n")
+
+    gate("PRECEDENCE ONLY BITES WHEN THE LOSER'S PREMISE CAN BE DESTROYED: with "
+         "monotone rules the unrelated corridor is explored either way, so "
+         f"ordering changed WHEN and not WHAT ({plain['ticks']} ticks vs "
+         f"{ordered['ticks']}, both reaching {len(b_plain)} rooms in B)",
+         b_plain == b_order and len(b_plain) == 2
+         and ordered["ticks"] != plain["ticks"])
 
 
     print(f"\n{ran} checks, {failing} failing")
