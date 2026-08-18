@@ -87,6 +87,16 @@ class Moment:
         self.chain = chain
         self.delta: List[Entry] = []
         self.depth = 0 if predecessor is None else predecessor.depth + 1
+        # ⭐ Where the structural world stood when this moment was made -- the
+        # node counter, which is the only monotone thing the graph has and
+        # therefore the only thing a situation's cut can be expressed in
+        # (`docs/situations.md`). A moment is a commit; this is what makes
+        # *branch from that commit* a thing a caller can ask for rather than a
+        # thing the design merely claims. Nothing in the loop reads it; it is
+        # here because the moment is the only place it can be recorded, and
+        # recording it in one of the two sites a moment is born would be a chain
+        # whose watermarks have a hole in them that nothing reports.
+        self.watermark = 0 if chain is None else chain.g.count()
 
     def ancestors(self) -> List["Moment"]:
         """This moment and its predecessors, newest first."""

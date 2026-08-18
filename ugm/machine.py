@@ -497,6 +497,15 @@ class Machine:
         # The one register (§10): which node the machinery is currently reasoning
         # in. The frame itself is an ordinary node; only the pointer is
         # privileged.
+        #
+        # ⭐⭐⭐ **And it now moves TWO registers, which is the whole of stage
+        # three** (`docs/situations.md`). The graph has a situation register for
+        # the same reason the machine has a frame one -- minting requires
+        # somewhere to stand -- and the two must never disagree, because a rule
+        # matching inside a supposition reads the indices and the indices are
+        # keyed by situation. Making this a property is what stops them: there
+        # are five assignments to `focus` in the repository, and an engine that
+        # kept them in step by remembering to would be one line from a leak.
         self.focus: Frame = self.gate.frame(self.chain.root)
 
         # Every name the machinery coins, in one place. The surface seeds its
@@ -978,6 +987,25 @@ class Machine:
         for r in self.rules.rules:
             self.reify(r)
 
+    # -- the register -----------------------------------------------------
+
+    @property
+    def focus(self) -> Frame:
+        return self._focus
+
+    @focus.setter
+    def focus(self, frame: Frame) -> None:
+        """Move the register -- and the graph's, which is the same move.
+
+        §4 item 3: finding where to write requires a read, and a read requires
+        somewhere to stand. That was always true of the chain; situations make
+        it true of the graph as well, because *what structure exists* is now a
+        question with a standpoint. One assignment, two registers, and no caller
+        that has to know.
+        """
+        self._focus = frame
+        self.g.situation = frame.situation
+
     # -- supposing --------------------------------------------------------
 
     def suppose(
@@ -996,10 +1024,31 @@ class Machine:
         *successor* of the caller's, so the caller's walk never reaches it. What
         was concluded under the supposition is unreadable from outside until
         something deliberately carries a claim out.
+
+        ⭐⭐⭐ **And that was true of entries and false of structure, which is
+        what the situation fixes** (`docs/situations.md`). Probed before it
+        existed, on a supposition concluding an ordinary stratum-0 fact inside
+        itself:
+
+            is secret(a) BELIEVED at the root?     None      contained
+            is said(secret(a)) in the graph?       True      not contained
+
+        The seat could not close that, and no amount of ancestry could: the leak
+        was never in the read. `at_or_after` is consulted when an ENTRY is
+        resolved, and a structural fact is never resolved -- it is enumerated
+        out of the argument index, which spanned everything. So a supposition
+        cuts a **branch of the graph** as well as a successor of the chain, and
+        the index keyed by that branch is what makes `said(secret(a))` die with
+        the hypothesis that built it.
         """
         licence = self.g.rel(self.SUPPOSING, assumption)
         seat = self.chain.succeed(self.focus.seat, licence)
-        child = self.gate.frame(seat, parent=self.focus, purpose=licence, wrap=wrap)
+        # Cut before the frame is built and after the licence and the seat are,
+        # so both of those are the caller's nodes: the caller has to be able to
+        # name what it supposed and where it stood to suppose it.
+        situation = self.g.branch(self.focus.situation)
+        child = self.gate.frame(seat, parent=self.focus, purpose=licence, wrap=wrap,
+                                situation=situation)
         # Moving the register. This is the irreducible part, and it is the ONLY
         # irreducible part -- §4 item 3: finding where to write requires a read,
         # and a read requires somewhere to stand. Everything else about supposing
@@ -2767,13 +2816,24 @@ class Machine:
                     # crosses guards then crosses -- the machinery supposing its
                     # own bookkeeping, forever.
                     continue
-                # The sign has to go INSIDE the wrapper, and only a term can be
-                # inside a wrapper. `-b` concluded here means *likely, not-b* --
-                # so it crosses as `+likely(not(b))`, never as `-likely(b)`.
-                inner = e.proposition
+                # ⭐⭐⭐ **Carried across the situation boundary, by atom.**
+                # This is the one place a node built inside a hypothesis becomes
+                # something the caller says, and before situations there was
+                # nothing to do here because there was no boundary -- which is
+                # exactly the defect. `e.proposition` is a node of the
+                # hypothesis's branch; re-stating it at the caller's seat has to
+                # re-state it in the caller's branch, or the caller's own
+                # indices would end up holding a reference to structure it
+                # cannot see, and the leak would come back through the door
+                # marked *conclusions*.
+                #
+                # `carry` re-interns in the target and records where the thing
+                # landed, so the caller's `likely(q)` is about the caller's `q`
+                # -- the one it already had, if it had one.
+                inner = self.g.carry(e.proposition, parent.situation)
                 sign = e.sign
                 if sign == MINUS:
-                    inner, sign = self.g.rel(self.NOT, e.proposition), PLUS
+                    inner, sign = self.g.rel(self.NOT, inner), PLUS
                 crossed = self.g.rel(wrap, inner)
                 out.append(
                     self.gate.write(
@@ -3200,6 +3260,23 @@ class Machine:
         moment, so a report is a signed delta.
         """
         own = self._own_frame()
+        # ⭐⭐⭐ **And the same argument one layer down, which situations made
+        # visible.** The comment below says the report belongs to the agent
+        # rather than to what the agent happens to be supposing, and that was
+        # true of the SEAT and false of everything else on this path: the
+        # register is inside the hypothesis, so the successor moment, the
+        # utterance and `arrived(...)` itself were all being minted into the
+        # hypothesis's branch and then deposited into the agent's own delta.
+        # The entry was the agent's and its proposition was not, so a rule at
+        # the root asking what a channel said would have found nothing
+        # structurally -- the world's own testimony, contained inside a guess
+        # about it. `reseat` is not enough on its own for the same reason a
+        # successor seat was never enough on its own.
+        with self.g.standing_in(own.situation):
+            self._report(own, a)
+
+    def _report(self, own: Frame, a: Arrival) -> None:
+        """The body of `_deliver`, standing in the agent's own situation."""
         if own is not self.focus:
             # The register is inside a hypothesis and the world has spoken. The
             # report belongs to the AGENT, not to what the agent happens to be

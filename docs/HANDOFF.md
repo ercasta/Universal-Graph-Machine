@@ -1,3 +1,129 @@
+# Handoff — 2026-08-18 (situations: stages 1–3 of 4, and stage 4 is the next task)
+
+Branch `worktree-bridge-cse_01LVd7SsM3vjpDAF2sNDeBT6`, off `main` at `907e6c9`.
+**`docs/situations.md` was a design and is now three quarters an implementation.**
+
+    selftest    546/0  (was 523/0 — 23 added, none changed, none removed)
+    35 modules  run against the branch point. 26 byte-identical; 8 differ only
+                in things that were already run-to-run unstable or that SHOULD
+                have moved — two report the suite's own check count (523 → 546),
+                three print wall-clock timings, one prints pids, and
+                `attention`'s "only table" line was already set-ordered before
+                this branch (verified by running the branch point twice).
+                ⚠ `necessity` differs and was NOT triaged — the run takes >10
+                minutes a side and the session ended first. Check it.
+    quiescence  still exits 1 — PRE-EXISTING, identical output to the branch
+                point, `<silent>` is still BLIND.
+
+The question that started it: *does the engine use atom ids besides node ids to
+represent the same entity under different situations?* It did not. It does now.
+
+## What was built
+
+**Stage 1 — two identities.** Every node carries an atom id as well as a node id
+(`Graph._atom`, `atom_of`, `node_of`), and `(atom id, situation) -> node id` is
+an index rather than a search. Atoms are **minted, never derived from the
+members' atoms** — deriving them would force two situations that happened to
+build the same shape to agree it is one relationship, with nothing holding the
+correspondence a rule could deny.
+
+**Stage 2 — both indices keyed by situation.** `_interned`, `_by_rel` and
+`_by_arg` all carry the situation in their key, and `Graph._bucket` merges a
+bucket across the visibility walk. This is the half that matters: distinct nodes
+alone would not have closed anything, because the structural walkers enumerate
+straight out of these indices.
+
+**Stage 3 — a supposition cuts a branch of the graph.** `Machine.suppose`
+branches; `Machine.focus` is now a property, so one assignment moves both
+registers and no caller has to remember; `Machine.discharge` transports a
+crossing conclusion by atom through `Graph.carry`.
+
+**Not in the design, and cheap once the rest existed:** `Moment.watermark` plus
+`Graph.branch(born=…)` gives **branching from an arbitrary past commit**, which
+the design lists among what it buys and which was simply absent.
+
+## Capped ancestor visibility, instead of replay
+
+A situation is not rebuilt from its deltas. It reads **through** to its
+ancestors, each step capped at the node counter as it stood at the cut. Same
+answer for the structural layer, computed on the way past, no copy at any point,
+and the suite runs in the same 7 seconds it did before. So the design's *the
+number to get first is N walkers in N situations against N in one* stopped being
+a question that decides anything.
+
+**What that gives up, and it is the whole of stage 4's motivation:** the graph is
+not reconstructible from the deltas, so **a materialisation cannot be discarded**.
+Nodes minted inside a hypothesis live as long as the graph does. That is a leak
+of memory and not of containment — nothing can see them — but a long-running
+agent that supposes constantly accumulates them.
+
+## Two live defects this found, both invisible to the resolved state
+
+**The agent's own timeline was being minted inside its guesses.** When a channel
+speaks while the register is in a supposition, `_deliver` re-seats the agent's
+own frame — and the successor moment, `pred`, `moved`, the utterance and
+`arrived(...)` itself were all built at the register, which was the hypothesis.
+The entry landed in the agent's delta and its proposition did not. `pred` is
+skeleton, so a stratum-0 rule walking the agent's own chain would have walked off
+the end of it. Fixed with `Graph.standing_in`; checked as an invariant over every
+entry on the agent's walk, because a check naming one proposition would have
+missed it.
+
+**`discharge` re-wrapped the raw proposition, not the carried one.** `inner,
+sign = self.g.rel(self.NOT, e.proposition), PLUS` ignored the line above it. Now
+latent-turned-live: without situations both expressions named the same node.
+
+## THE NEXT TASK: stage 4
+
+In this order, because each step makes the next one checkable.
+
+**1. Deltas reference atoms.** `Chain.deposit` records node ids. The design's
+whole reason for atoms is that *a delta must reference atoms, not node ids*, and
+with no replay there is nothing yet to fail — so this is currently an assertion
+with no test behind it. Do this first and the rest has a floor.
+
+**2. Materialise from deltas.** Replace capped visibility with replay: a
+situation points at a commit, and asking about it replays the deltas, minting a
+node per atom as it is referenced. Keep the cap as the fast path — it is what
+replay would produce, so the two must agree, and holding an index to a
+re-implementation of what it indexes is this repo's own rule (`_has_var` /
+`_has_var_slow`, `state`).
+
+⚠ **The number to get before committing to it** is the one the design named and
+capped visibility made moot: rebuild is O(the deltas replayed), so it is cheap
+for a situation branched recently and expensive for one branched near the root
+and asked about late. Measure N walkers in N situations against N in one, and if
+replay loses, the honest outcome is a materialisation *policy* rather than a
+retreat — the caches are discardable, which is the point.
+
+**3. Then the reading half, which is where the user-visible gap is.**
+`?x@S` as a surface form; `reality(S)` and `current(S)` as ordinary facts, so a
+rule can name the situation it is in; and **which locus to resolve at**, which
+is the genuine gap and is untouched. `Chain.resolve(p, locus, seat)` already
+answers the question. `at ?m` binds the locus of the entry that satisfied the
+member, not the moment to evaluate at — so *p held then and does not now*
+remains unwritable, and a rule bound to a real past moment where `ill(paul)`
+held still does not match `+ill(?x) at ?then`.
+
+## Two hazards for whoever picks this up
+
+**The correspondence is many-to-one at a landing site.** `carry` re-interns in
+the target, because *within a situation the same relationship is one node* is the
+design's own rule and minting unconditionally would split the target's identity
+for anything it already had. So a carried thing may land on a node whose own atom
+differs. Replay will have to make the same choice and should make it the same
+way.
+
+**Two things cross that containment does not stop, and both are consequences
+rather than holes.** Whatever was deliberately carried out — `likely(q)` names
+`q`, so the caller has `q`, freshly minted there. And provenance:
+`rests_on(<crossed>, <inside>)` names an entry inside the discharged hypothesis,
+because `trail()` has to reach it and §12 makes that load-bearing for soundness.
+Support crosses where belief does not. Deliberate, and the one asymmetry in the
+containment claim.
+
+---
+
 # Handoff — 2026-08-18 (interpretation: rules as facts, walkers, learning from surprise)
 
 Branch `interpretation`, off `main` at `044bfa9`, pushed. **Everything green except one
@@ -15,7 +141,8 @@ pre-existing failure, which is `quiescence` reporting its own coverage hole.**
                    80% of the runtime is the kill-probe's 13 suppression runs.
 
 Design notes written this session: `docs/representation.md` (the reference),
-`docs/situations.md` (a design, not built), `docs/deposit-dont-decide.md`.
+`docs/situations.md` (**since built, stages 1-3 of 4** — see the section added at its
+foot), `docs/deposit-dont-decide.md`.
 Book chapters 23 and 34 updated, every example run before it was written.
 
 ## Four engine changes, all small

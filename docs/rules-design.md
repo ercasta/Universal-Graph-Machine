@@ -2886,9 +2886,12 @@ comparison, since supposing forks by construction.
 >
 >The refusal at §20's adoption door is the same defect with a guard in front of it — one rule set
 >shared by every frame, noticed and closed. The stratum-0 index is the same global table, and nobody
->noticed. `docs/situations.md` is the proposed answer: a situation is a branch, a moment is a commit,
->interning is per-situation, and a materialised situation's structural conclusions die with it — so
->containment covers structure by never having treated it specially.
+>noticed. `docs/situations.md` is the answer, and three of its four stages are now built: a situation
+>is a branch, a moment is a commit, interning and both indices are per-situation, and a supposition's
+>structural conclusions die with it — so containment covers structure by never having treated it
+>specially. Measured on the three-rule fixture in `supposing()`: 106 nodes minted inside the
+>hypothesis, 0 of them visible to the caller. What is not built is materialising a situation by
+>replaying its deltas, and `docs/situations.md` says what stands in for it meanwhile.
 
 ### The cost is a frame per derivation, which is linear
 

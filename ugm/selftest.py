@@ -40,6 +40,114 @@ def substrate() -> None:
     check("§3", "a ground proposition is not", not g.has_var(p1))
 
 
+def situations() -> None:
+    """`docs/situations.md`, stages one and two: two identities per node, and
+    both indices keyed by the branch that minted into them.
+
+    The defect this closes was not in the read. Containment held for entries --
+    an entry carries a locus, so it is situation-relative by construction -- and
+    failed for structure, because a stratum-0 conclusion is an interned relation
+    instance that belongs to no situation and is enumerated straight out of the
+    argument index. No ancestry test was ever consulted on that path, so no
+    amount of ancestry could have fixed it.
+
+    ⚠ **The cap is what makes a situation a branch rather than a window.** A
+    child sees its parent *as the parent stood when the child was cut*; what the
+    parent mints afterwards is a later commit on another branch. Without it a
+    hypothesis would watch the world change under it while it reasoned.
+    """
+    g = Graph()
+    on, a, b, c = g.atom("on"), g.atom("a"), g.atom("b"), g.atom("c")
+    shared = g.rel(on, a, b)
+
+    s1 = g.branch()
+    g.situation = s1
+    check("situations", "a branch sees what its ancestor had at the cut",
+          g.find_rel(on, a, b) == shared and shared in g.instances_of(on))
+    inside = g.rel(on, b, c)
+    check("situations", "and mints its own into itself",
+          g.situation_of(inside) == s1)
+
+    g.situation = 0
+    check("situations", "⭐⭐⭐ the ancestor does not see the branch's -- which is "
+                        "the whole defect, and it is the INDEX that closes it",
+          g.find_rel(on, b, c) is None and inside not in g.instances_of(on))
+    check("situations", "...nor by argument position, which is the other index "
+                        "and the one the structural walkers actually enumerate",
+          inside not in g.instances_with(on, 0, b))
+
+    # The cap. Minted in the ancestor AFTER s1 was cut, so it is not in s1.
+    later = g.rel(on, c, a)
+    g.situation = s1
+    check("situations", "⚠ a branch is a branch, not a window: what the ancestor "
+                        "mints after the cut is a later commit elsewhere",
+          later not in g.instances_of(on) and g.find_rel(on, c, a) is None)
+
+    # Siblings. Both cut from the root, neither on the other's walk.
+    g.situation = 0
+    s2 = g.branch()
+    g.situation = s2
+    twin = g.rel(on, b, c)
+    check("situations", "two situations that build the same shape are two nodes, "
+                        "and nothing forces them to agree it is one relationship",
+          twin != inside)
+    check("situations", "siblings do not see each other",
+          inside not in g.instances_of(on) and not g.visible(inside, s2))
+
+    # Mint order survives the merge, because it is what every tie-break rests on.
+    g.situation = s1
+    order = g.instances_of(on)
+    check("situations", "a merged bucket is still in mint order, so a derivation "
+                        "that ends in a tie breaks it the same way every run",
+          order == sorted(order))
+
+    # -- atoms ----------------------------------------------------------
+    check("situations", "every node has an atom, compounds included -- a delta "
+                        "names `healthy(paul)` as much as it names `paul`",
+          all(isinstance(g.atom_of(n), int) for n in (a, shared, inside)))
+    check("situations", "an atom is minted, never derived from the members' -- "
+                        "so a shape two situations both built is not one thing",
+          g.atom_of(twin) != g.atom_of(inside))
+    check("situations", "a node answers `?x@S` in its own situation",
+          g.node_of(g.atom_of(inside), s1) == inside)
+    check("situations", "and nowhere it has not been",
+          g.node_of(g.atom_of(inside), s2) is None)
+
+    landed = g.carry(inside, s2)
+    check("situations", "⭐ carrying establishes the correspondence -- an ACT, "
+                        "which is the only thing that ever establishes one",
+          g.node_of(g.atom_of(inside), s2) == landed)
+    check("situations", "...and it lands on what the target already had, because "
+                        "within a situation the same relationship is one node",
+          landed == twin)
+
+    g.situation = 0
+    check("situations", "carrying into a sibling changed nothing here",
+          g.find_rel(on, b, c) is None)
+
+    # ⭐ **Branching from an arbitrary past commit**, which the design lists
+    # among what this buys and which was absent rather than merely hard. A
+    # moment is a commit, so a moment is what a cut is expressed in: the node
+    # counter as it stood when that moment was made.
+    m = Machine()
+    r = m.g.atom("r")
+    then = m.chain.succeed(m.chain.root, None)
+    early = m.g.rel(r, m.g.atom("e"))
+    now = m.chain.succeed(then, None)
+    late = m.g.rel(r, m.g.atom("l"))
+
+    at_now = m.g.branch(m.g.situation, born=now.watermark)
+    at_then = m.g.branch(m.g.situation, born=then.watermark)
+    m.g.situation = at_now
+    check("situations", "a situation cut at a past moment sees the world as of "
+                        "then -- a moment is a commit, and this is the checkout",
+          early in m.g.instances_of(r) and late not in m.g.instances_of(r))
+    m.g.situation = at_then
+    check("situations", "...and one cut earlier sees less, which is the only "
+                        "thing that makes the first check about the moment",
+          early not in m.g.instances_of(r))
+
+
 # -- §4, §5, §6 moments, entries, signs -------------------------------------
 
 
@@ -1394,9 +1502,17 @@ def supposing() -> None:
     ])
     m = Machine()
     kb = load(m, src)
+    low_water = m.g.count()
     f = m.suppose(kb.term("reading(pump7, low)"), wrap=kb.term("likely"))
     check("§13", "supposing seats the frame in a successor", f.seat.predecessor is f.parent.seat)
     check("§13", "and the frame is a child of the caller", f.parent is not None)
+    check("situations", "supposing cuts a branch of the GRAPH as well as a "
+                        "successor of the chain",
+          f.situation != f.parent.situation
+          and m.g.situation_parent(f.situation) == f.parent.situation)
+    check("situations", "...and the frame's own node stays where the CALLER can "
+                        "name it, or `left(?f, ?a)` would match nothing",
+          m.g.visible(f.node, f.parent.situation))
 
     # No nested run: reasoning inside a supposition is ordinary ticks of the
     # ordinary loop, and the frame is left when the loop runs out of work there.
@@ -1413,6 +1529,41 @@ def supposing() -> None:
         "containment: nothing concluded inside is readable as current belief",
         m.holds(kb.term("symptom(pump7, restricted)")) is None
         and m.holds(kb.term("action(replace, pump7)")) is None,
+    )
+
+    # ⭐⭐⭐ **And containment now covers STRUCTURE, which is what
+    # `docs/situations.md` was written about.** The check above was already
+    # passing before situations existed and was never the whole story: it asks
+    # the resolved state, which walks ancestry, and the leak was in the layer no
+    # walk is consulted for. Probed then:
+    #
+    #     is symptom(pump7, restricted) BELIEVED at the root?   None
+    #     is it in the graph?                                   True
+    #
+    # So negation as failure, counting, and the rules-as-facts interpreter --
+    # every reader that enumerates instead of resolving -- could see straight
+    # into a hypothesis. Counted rather than asserted, because the number is the
+    # argument: a supposition of three rules mints scores of nodes, and the
+    # claim is about all of them and not about the two anyone thought to name.
+    inside = [n for n in range(low_water, m.g.count())
+              if m.g.situation_of(n) == f.situation]
+    check(
+        "situations",
+        f"⭐⭐⭐ ...and over STRUCTURE: {len(inside)} nodes were minted inside the "
+        "hypothesis and the caller can see none of them",
+        len(inside) > 20 and not any(m.g.visible(n, f.parent.situation) for n in inside),
+    )
+    # ⚠ The honest limit, and it is a consequence of §16's re-wrap rather than a
+    # hole. `likely(q)` names `q`, so a caller that carried a conclusion out has
+    # `q` in its own situation -- freshly minted there by `carry`, not the
+    # hypothesis's node leaking. What is contained is everything the caller did
+    # NOT deliberately take; what it took, it is talking about.
+    crossed = m.g.member(f.carried[0].proposition, 0)
+    check(
+        "situations",
+        "⚠ what the caller carried out, it can see -- as its OWN node, minted "
+        "in its own situation, never the hypothesis's",
+        m.g.situation_of(crossed) == f.parent.situation and crossed not in inside,
     )
     check("§13", "the caller is back in its own frame", m.focus.seat is f.parent.seat)
     check("§13", "and the frame reports how it ended", f.state == "discharged")
@@ -1479,6 +1630,40 @@ def supposing() -> None:
         "§16",
         "while the supposition itself still concludes, on its own branch",
         m4.holds(m4.g.rel(kb4.term("likely"), kb4.term("q(x)"))) == PLUS,
+    )
+    # ⭐⭐⭐ **And the same argument structurally, which situations found.** The
+    # two checks above ask the resolved state, and they were passing while the
+    # agent's own next MOMENT -- the seat it re-seated itself to, so that the
+    # report would not read as older than everything concluded since -- was
+    # being minted into the hypothesis's branch, because it is built as an
+    # argument to `reseat` and the register was inside the supposition at the
+    # time. Nothing could see it: `pred` is skeleton, so a stratum-0 rule
+    # walking the agent's own chain would have walked off the end of it. A
+    # successor seat was never enough on its own, and this is that sentence one
+    # layer down.
+    own4 = m4._own_frame()
+    check(
+        "situations",
+        "the agent's own seat after a mid-supposition report is a node the "
+        "agent can SEE -- its timeline is not inside its guess about the world",
+        m4.g.situation_of(own4.seat.node) == own4.situation
+        and m4.g.visible(own4.seat.node, own4.situation),
+    )
+    # The general form, and the invariant worth stating once: an entry the agent
+    # deposited is no use to it if the thing the entry is ABOUT lives somewhere
+    # it cannot look. Checked over every moment on the agent's own walk, because
+    # the bug above put the entry in one situation and its proposition in
+    # another, and a check that named one proposition would have missed it.
+    stranded = [
+        e for mo in own4.seat.ancestors() for e in mo.delta
+        if not m4.g.visible(e.proposition, own4.situation)
+    ]
+    check(
+        "situations",
+        "⭐⭐⭐ ...and every entry on the agent's own walk is about something "
+        "the agent can see -- an entry whose proposition is elsewhere is a "
+        "belief it cannot match on",
+        not stranded,
     )
 
 
@@ -7363,6 +7548,7 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     substrate()
+    situations()
     chain_reads()
     two_indices()
     gate()
