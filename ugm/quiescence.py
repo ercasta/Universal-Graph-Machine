@@ -82,10 +82,45 @@ this one reaches it in a four-line corpus. Such candidates are counted as
 a defect is worse than not finding it -- and it is why the read's five ordering
 rules come out blind below.
 
+## `<silent>` is blind, and the fixture is not what is wrong with it
+
+`<silent>` says *this conclusion contains a variable and is not about rules, so
+there is nothing to deposit*. Suppress it and nothing disagrees, which reads as
+a fixture that never got round to the case. Measured, it is not:
+
+  * **0 ground derivations at all twelve corpus@stop points.** Its raw instance
+    count is 2 everywhere, which is the interning trap again -- a rule's own
+    consequent member is interned among the instances of its relation -- and
+    counting without filtering `has_var` is what made it look exercised.
+  * **21,477 to 0 across the whole of `ugm.selftest`.** The native branch it
+    mirrors is `has_var(grounded) and not _is_mention(app)`; instrumented at that
+    call site, the guard was reached 21,477 times and `_is_mention` answered True
+    **every** time. Its `return False` has never executed. So the dead thing is
+    the branch, not the fixture for it.
+
+Why it looks unreachable by construction rather than merely unreached:
+
+  1. a free consequent variable is refused at AUTHORING (§13), so the variable
+     has to arrive through a binding;
+  2. var-carrying bindings come only from reified rule structure, and every
+     entry carrying one is deposited `mention=True` -- reification, `_expert_fact`,
+     and an ordinary `fact` that names a rule alike;
+  3. the one mention-free route left is a STRUCTURAL premise, which consumes no
+     entry and so can inherit nothing. But an all-structural rule is stratum 0,
+     which `_admissible` excludes by design; and a mixed rule cannot anchor onto
+     a var-carrying entry, because `_stored` refuses the unanchored pattern and
+     the surface has no name for a moment -- `<root>` interns a FRESH node, which
+     is the trap's sixth outing.
+
+⚠ This is recorded rather than acted on. Exempting `<silent>` from the blindness
+count would be a gate agreeing it cannot be tested, and deleting it and its
+native twin is a claim about reachability that wants the author, not a session.
+
     python -m ugm.quiescence
 """
 
 import os
+import time
 from typing import Dict, List, Optional, Tuple
 
 from .agreement import READ
@@ -308,90 +343,158 @@ def _ruled(m: Machine, ldr, names: Dict[int, int]) -> Dict[int, Tuple[bool, bool
     return {k: (a in changing, a in settled) for k, a in names.items()}
 
 
-def _compare(drop: Tuple[str, ...] = (), stops: Tuple[int, ...] = STOPS) -> dict:
+def _work(stops: Tuple[int, ...]) -> List[Tuple[str, int]]:
+    """Every (corpus, stopping point) the comparison runs over, flattened, so the
+    kill-probe can prune and reorder it instead of always running all of it."""
+    return [(c, s) for c in CORPORA + ("shapes",) for s in stops]
+
+
+_CONCLUDES: Optional[Dict[str, set]] = None
+
+
+def _concludes() -> Dict[str, set]:
+    """Rule name -> the relations it concludes.
+
+    Read off the LOADED rules rather than parsed out of the source text. The
+    prune in `run` is only sound if this is what the matcher actually holds, and
+    a regex over `rule <...> = implies(...)` would go stale the first time a
+    rule grew a second consequent member -- silently, and in the direction that
+    skips work rather than the direction that does too much.
+    """
+    global _CONCLUDES
+    if _CONCLUDES is None:
+        m = Machine()
+        load(m, READ + QUIET)
+        # Only these two rule sets: a Machine arrives with its own rules already
+        # loaded, and one of them concludes a BARE VARIABLE (§13's channel rule),
+        # which has no relation to be named. Filtering by name rather than
+        # guarding `relation_of` keeps the map to rules the probe can suppress.
+        wanted = set(_names(QUIET)) | set(_names(READ))
+        _CONCLUDES = {
+            r.name: {m.g.show(m.g.relation_of(mem.pattern)) for mem in r.consequent
+                     if m.g.relation_of(mem.pattern) is not None}
+            for r in m.rules.rules if r.name in wanted
+        }
+    return _CONCLUDES
+
+
+def _relations() -> set:
+    return {x for s in _concludes().values() for x in s}
+
+
+def _compare(drop: Tuple[str, ...] = (), stops: Tuple[int, ...] = STOPS,
+             work: Optional[List[Tuple[str, int]]] = None,
+             first_only: bool = False) -> dict:
+    """`work` is the (corpus, stop) list to run, defaulting to all of them;
+    `first_only` stops at the first disagreement. Both exist for the kill-probe
+    -- see `run` -- and neither changes what is compared, only how much of the
+    fixture is reached before the answer is known."""
     tally = {
         "compared": 0, "changing": 0, "quiet": 0,
         "disagreed": [], "unsettled": [], "skipped": {"stratum0": 0, "forbidden": 0, "span": 0, "generic": 0},
         "corpora": 0, "ambiguous": 0,
+        # What each run cost and what it DERIVED, so the probe can plan itself
+        # off the baseline pass rather than off a guess.
+        "cost": {}, "derived": {}, "noticed": None,
     }
-    for corpus in CORPORA + ("shapes",):
-        for stop in stops:
-            m = Machine()
-            if corpus == "shapes":
-                load(m, SHAPES)
-            else:
-                load_file(m, os.path.join(os.path.dirname(__file__), "rules", corpus))
-            for _ in range(stop):
-                if m.tick().state in ("stopped", "quiescent"):
-                    break
-            h = _harvest(m)
-            admitted = []
-            for app in h.apps:
-                conclusions = _admissible(m, h, app)
-                if conclusions is not None:
-                    admitted.append((app, conclusions))
-            for k, v in h.skipped.items():
-                tally["skipped"][k] += v
-            if not admitted:
-                continue
-            tally["corpora"] += 1
+    for corpus, stop in (_work(stops) if work is None else list(work)):
+        started = time.time()
+        tally["derived"][(corpus, stop)] = set()
+        m = Machine()
+        if corpus == "shapes":
+            load(m, SHAPES)
+        else:
+            load_file(m, os.path.join(os.path.dirname(__file__), "rules", corpus))
+        for _ in range(stop):
+            if m.tick().state in ("stopped", "quiescent"):
+                break
+        h = _harvest(m)
+        admitted = []
+        for app in h.apps:
+            conclusions = _admissible(m, h, app)
+            if conclusions is not None:
+                admitted.append((app, conclusions))
+        for k, v in h.skipped.items():
+            tally["skipped"][k] += v
+        if not admitted:
+            tally["cost"][(corpus, stop)] = time.time() - started
+            continue
+        tally["corpora"] += 1
 
-            # The rules go in AFTER the harvest, and the machine is not ticked
-            # again: this is an observer, and a gate that added rules to a
-            # running loop would be a second agent (`arbitration`'s own note).
-            ldr = load(m, READ + QUIET)
-            for name in SUPPLIED:
-                m.rules.structural[ldr.term(name)] = _bounded
+        # The rules go in AFTER the harvest, and the machine is not ticked
+        # again: this is an observer, and a gate that added rules to a
+        # running loop would be a second agent (`arbitration`'s own note).
+        ldr = load(m, READ + QUIET)
+        for name in SUPPLIED:
+            m.rules.structural[ldr.term(name)] = _bounded
+        m.rules._skeleton = None
+        if drop:
+            # GENERIC, and the first version was ground -- which minted
+            # `candidate(never-satisfied)` and thereby created the very
+            # instance it was supposed to be unable to find. Every rule of
+            # the read then read as exercised-by-nothing, 0/10, which is the
+            # interning trap wearing the probe's own clothes. A pattern with
+            # a variable in it is skipped by `_bounded` as a pattern rather
+            # than a fact (§7), so nothing can ever satisfy it.
+            dead = m.g.rel(m.g.atom(NEVER), m.g.var("z"))
+            m.rules.structural[m.g.relation_of(dead)] = _bounded
             m.rules._skeleton = None
-            if drop:
-                # GENERIC, and the first version was ground -- which minted
-                # `candidate(never-satisfied)` and thereby created the very
-                # instance it was supposed to be unable to find. Every rule of
-                # the read then read as exercised-by-nothing, 0/10, which is the
-                # interning trap wearing the probe's own clothes. A pattern with
-                # a variable in it is skipped by `_bounded` as a pattern rather
-                # than a fact (§7), so nothing can ever satisfy it.
-                dead = m.g.rel(m.g.atom(NEVER), m.g.var("z"))
-                m.rules.structural[m.g.relation_of(dead)] = _bounded
-                m.rules._skeleton = None
-                impossible = Member("+", dead)
-                for r in m.rules.rules:
-                    if r.name in drop:
-                        r.antecedent = list(r.antecedent) + [impossible]
+            impossible = Member("+", dead)
+            for r in m.rules.rules:
+                if r.name in drop:
+                    r.antecedent = list(r.antecedent) + [impossible]
 
-            names = _describe(m, ldr, h, admitted)
-            # ...and about WHAT. The read is a fixpoint, so without this it
-            # derives candidates, beatings and a winner for every proposition
-            # the chain mentions, to answer a question about the handful this
-            # gate is comparing. Measured on `agreement`'s own fixture once §7
-            # stopped hiding the reified entries: 10,638 derived facts and 90
-            # seconds, against 61 facts and 0.3 seconds asked this way.
-            m.ask_read(m.focus.seat, about=[p for _, cs in admitted
-                                            for _, p, _ in cs])
-            m.settle_structure()
-            verdicts = _ruled(m, ldr, names)
-            ambiguous = _ambiguous(m, ldr, admitted)
+        names = _describe(m, ldr, h, admitted)
+        # ...and about WHAT. The read is a fixpoint, so without this it
+        # derives candidates, beatings and a winner for every proposition
+        # the chain mentions, to answer a question about the handful this
+        # gate is comparing. Measured on `agreement`'s own fixture once §7
+        # stopped hiding the reified entries: 10,638 derived facts and 90
+        # seconds, against 61 facts and 0.3 seconds asked this way.
+        m.ask_read(m.focus.seat, about=[p for _, cs in admitted
+                                        for _, p, _ in cs])
+        m.settle_structure()
+        verdicts = _ruled(m, ldr, names)
+        ambiguous = _ambiguous(m, ldr, admitted)
+        # What the two rule sets actually DERIVED here -- ground instances only.
+        # A rule's own consequent member is interned among the instances of its
+        # relation (the interning trap, yet again), so counting instances
+        # without this reports `silent` firing twice in every corpus when it has
+        # never fired anywhere at all. That miscount is exactly what would make
+        # the prune below unsound, so it is the one line it rests on.
+        tally["derived"][(corpus, stop)] = {
+            nm for nm in _relations()
+            if any(not m.g.has_var(n) for n in m.g.instances_of(ldr.term(nm)))
+        }
 
-            for app, _ in admitted:
-                if id(app) in ambiguous:
-                    tally["ambiguous"] += 1
-                    continue
-                native = h.native[id(app)]
-                ruled, settled = verdicts[id(app)]
-                tally["compared"] += 1
-                tally["changing" if native else "quiet"] += 1
-                if native != ruled:
-                    tally["disagreed"].append(
-                        f"{corpus}@{stop} {app.rule.name}: native={native} rules={ruled}"
-                    )
-                if settled == ruled:
-                    # <quiet> is the universal, and it must be the complement of
-                    # <changes> on every candidate. Equal means one of them
-                    # derived nothing at all.
-                    tally["unsettled"].append(
-                        f"{corpus}@{stop} {app.rule.name}: "
-                        f"would_change={ruled} settled={settled}"
-                    )
+        for app, _ in admitted:
+            if id(app) in ambiguous:
+                tally["ambiguous"] += 1
+                continue
+            native = h.native[id(app)]
+            ruled, settled = verdicts[id(app)]
+            tally["compared"] += 1
+            tally["changing" if native else "quiet"] += 1
+            if native != ruled:
+                tally["disagreed"].append(
+                    f"{corpus}@{stop} {app.rule.name}: native={native} rules={ruled}"
+                )
+            if settled == ruled:
+                # <quiet> is the universal, and it must be the complement of
+                # <changes> on every candidate. Equal means one of them
+                # derived nothing at all.
+                tally["unsettled"].append(
+                    f"{corpus}@{stop} {app.rule.name}: "
+                    f"would_change={ruled} settled={settled}"
+                )
+        tally["cost"][(corpus, stop)] = time.time() - started
+        if first_only and (tally["disagreed"] or tally["unsettled"]):
+            # The probe's question is *can suppressing this rule be noticed at
+            # all*, and one disagreement answers it. Running the other eleven
+            # fixtures to raise the count is work nothing reads -- the verdict
+            # is `n == 0`, never how large n is.
+            tally["noticed"] = f"{corpus}@{stop}"
+            break
     return tally
 
 
@@ -423,11 +526,44 @@ def run() -> int:
 
     print()
     print("  can this fixture fail? -- one rule suppressed at a time")
+    # ⭐⭐⭐ **The probe used to re-run the whole fixture for every rule, and
+    # four fifths of the gate's 16 minutes were spent doing it.** Profiled
+    # before changing anything, because the obvious suspect was wrong: setting
+    # up the machines, ticking them and harvesting the candidates is 0.14s of a
+    # 41s pass, and `ask_read` + `settle_structure` -- the rule-level read's own
+    # fixpoint -- is the other 99.7%. Caching the harvest, which is what *a
+    # smaller corpus first* sounded like it meant, would have bought 0.3%.
+    #
+    # So the fixpoint is not made cheaper; it is run fewer times, two ways, and
+    # neither changes a verdict:
+    #
+    #   * **Prune.** A rule that derived nothing in the baseline pass cannot be
+    #     noticed by suppressing it there -- suppression only removes
+    #     conclusions, and it had none to remove, so the fixpoint is identical
+    #     by construction. Pruning is by CONCLUSION RELATION, which is coarse
+    #     where two rules share one (`beaten`, `dep_after`, `mentioning`): that
+    #     errs towards running a fixture that cannot matter, never towards
+    #     skipping one that can.
+    #   * **Cheapest first, then stop at the first disagreement.** The question
+    #     is *can this be noticed at all*, and the verdict below is `n == 0`.
+    #     The order is the baseline pass's own measured cost, so it tunes itself
+    #     to the corpora rather than to a constant somebody has to maintain.
+    #
+    # ⚠ And the count it used to print is gone deliberately, because with an
+    # early exit it would mean *how far we got*, not *how wrong it is*. What
+    # replaces it says more: WHERE a rule was noticed, and -- for one that was
+    # not -- whether the fixture ran and disagreed nowhere, or never gave the
+    # rule anything to do in the first place. `<silent>` is the second, and that
+    # is a stronger statement than the count ever made.
+    concl = _concludes()
+    order = sorted(_work(PROBE_STOPS), key=lambda w: t["cost"].get(w, 0.0))
     quiet_names = _names(QUIET)
     blind = []
     for name in quiet_names + _names(READ):
-        d = _compare((name,), PROBE_STOPS)
-        n = len(d["disagreed"]) + len(d["unsettled"])
+        rels = concl.get(name, set())
+        items = [w for w in order if rels & t["derived"].get(w, set())]
+        d = _compare((name,), work=items, first_only=True) if items else None
+        n = 0 if d is None else len(d["disagreed"]) + len(d["unsettled"])
         note = ""
         if name not in quiet_names:
             # The imported read's own rules. Their gate is `ugm.agreement`,
@@ -440,7 +576,13 @@ def run() -> int:
         elif not n:
             blind.append(name)
             note = "   <-- BLIND"
-        print(f"    {name:18} {n:>4} disagree{note}")
+        if d is not None and d["noticed"]:
+            where = f"noticed at {d['noticed']}"
+        elif not items:
+            where = f"derived nothing in any of {len(order)} fixtures"
+        else:
+            where = f"survived {len(items)} suppressions"
+        print(f"    {name:18} {where:38}{note}")
 
     print()
     bad = len(t["disagreed"]) + len(t["unsettled"])
