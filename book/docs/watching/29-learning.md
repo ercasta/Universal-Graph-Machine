@@ -147,6 +147,126 @@ Composing a rule is a function, and a request answered by a function is a
 **tool** (Chapter 22). Learning from examples shares the same seam, for the same
 reason.
 
+## The other input: a prediction that failed
+
+Composition needs a derivation and anti-unification needs two examples. Both
+start from something that went **right**. The third input is the one an agent
+produces by itself, for nothing, every time its model of the world is wrong.
+
+The apparatus is already there. A `causes` rule deposits what it predicts —
+`expects(p, +)` — and four bundled rules turn a contradicted prediction into
+`deviates(p)` (Chapter 25). `dungeon` runs it **392 times and finds nothing**,
+because a game's rules are never wrong, which is why the fixture for this is a
+world where the model *is* wrong:
+
+```
+fact +heating(k1)     fact +contains(k1, water)
+fact +heating(k2)     fact +contains(k2, sand)
+rule <boils> = causes( { +heating(?k) }, { +boiling(?k) } )
+say world: -boiling(k2)
+```
+
+```
+why deviates(boiling(k2))?
+  +deviates(boiling(k2)) @M2, licensed by applied(<deviation-+-contradicted>)
+    because +expects(boiling(k2), +) @M1, licensed by applied(<boils>)
+    because -boiling(k2) @M2, licensed by applied(<trust>)
+    because +says(world, boiling(k2), -) @M0, licensed by applied(<intake>)
+    because +arrived(world, boiling(k2), -) @M0, via world
+```
+
+Everything a learner needs is on that trail, and none of it was instrumented to
+put it there:
+
+```
+which prediction failed      deviates(p)
+which rule made it           the expects entry's licence, applied(<R>)
+about what                   the members of p
+and what did NOT fail        the same relation, holding, about something else
+```
+
+> **A trail kept for explaining is a training set nobody had to collect.**
+
+### A discriminator, not a repair
+
+Abstract every fact about the failing subject by replacing the subject with a
+hole, do the same for the subjects the rule got **right**, and subtract:
+
+```
+k2 (failed)      heating(_), contains(_, sand)
+k1 (succeeded)   heating(_), contains(_, water)
+difference       contains(_, sand)
+```
+
+The negative half is the half worth checking. `heating(_)` is true of the failure
+and of the success, so it discriminates nothing — and it is the premise `<boils>`
+already has. **A learner that proposes the rule's own premise is proposing
+noise.**
+
+And with nothing to contrast against it declines, which is not politeness:
+
+> **A difference against the empty set is not a difference.**
+
+Given one kettle and no success, *every* fact about the failure reads as an
+explanation of it — so the learner would be most confident exactly where it knew
+least. Two kettles that both hold sand, only one of which failed, are refused for
+the same reason from the other side.
+
+What it emits is one line:
+
+```
+fact +likely(prevents(contains(_, sand), <boils>))
+```
+
+Ground, because a fact may not contain a variable — so the candidate names the
+distinguishing **argument** rather than a pattern. And wrapped, which is the
+section below.
+
+### The ontology is what turns a value into a kind
+
+One lesson from one failure is not learning, because it does not survive a
+second example. Two kettles fail, one of sand and one of gravel, and the raw
+contrast gives two answers with nothing in common:
+
+```
+raw     boiling(k2)  ['contains(_, sand)']
+raw     boiling(k3)  ['contains(_, gravel)']
+raw     COMMON  ->   []
+```
+
+An agent learning this way memorises a value, then another value, for ever. With
+the corpus's own world model consulted — `is_a(sand, solid)`, `is_a(gravel,
+solid)` — every feature is offered abstracted as well as raw, and the two
+failures share exactly one thing:
+
+```
+lifted  boiling(k2)  ['contains(_, :solid)', 'contains(_, sand)']
+lifted  boiling(k3)  ['contains(_, :solid)', 'contains(_, gravel)']
+lifted  COMMON  ->   ['contains(_, :solid)']
+```
+
+> **The ontology is not decoration. It is the difference between a lesson about a
+> thing and a lesson about a kind** — and therefore between memorising and
+> generalising.
+
+The claim is testable in one lookup, on a case that was never part of the
+evidence. `k5` holds pebbles and was never heated, so it is neither a success nor
+a failure and contributed nothing. The lesson **covers it anyway**, and does not
+cover `k6`, which holds juice.
+
+And the kill-probe is what says who is doing the work. Delete a single `is_a`
+fact — gravel stops being known as a solid — and the common lesson collapses to
+nothing with everything else unchanged. **The generalising is done by what the
+corpus knows, not by the learner being clever**; a learner that generalised
+without the ontology would be inventing the kind.
+
+Two limits, stated rather than discovered. The lift is **one level and one
+argument** at a time — a corpus rule making `is_a` transitive widens it with no
+change here, which is the right place for that decision. And nothing here
+**promotes** anything: whether `contains(_, :solid)` should become a premise of
+`<boils>` is an authoring act, and adoption is a door somebody walks through on
+purpose.
+
 ## What a learned rule may conclude
 
 This turned out to need nothing new.

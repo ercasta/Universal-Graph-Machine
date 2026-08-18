@@ -190,6 +190,21 @@ and everything the machinery says about the live one names a node nobody can
 reach. Found seven separate times here.
 [Chapter 29](../watching/29-learning.md)
 
+**marker** — the third part of an action, after the rule and its bindings: free
+structure carried alongside a declared act, **read** by rules and never
+**followed** by machinery. What makes the agent's context sayable, and therefore
+what a learned policy would key on. [Chapter 14](../wanting/14-acting.md)
+
+**walker** — a position in the **structure**, held as the ordinary fact
+`at(<w>, <node>)`. It spawns rather than moves, its identity term *is* its
+deduplication policy, and it ends when that one fact is denied.
+[Chapter 24](../world/24-several-agents.md)
+
+**discriminator** — what a failed prediction teaches: the feature true of the
+case the rule got wrong and false of the cases it got right. Abstracted through
+the corpus's own `is_a` facts, it becomes a claim about a **kind** rather than
+about a thing. [Chapter 29](../watching/29-learning.md)
+
 ---
 
 ## Four criteria, used everywhere

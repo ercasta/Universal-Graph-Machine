@@ -94,7 +94,7 @@ nav:
       - "21 · Who said it": world/21-channels.md
       - "22 · Arithmetic is not reasoning": world/22-tools.md
       - "23 · When things happened": world/23-time.md
-      - "24 · Several agents, and experts": world/24-several-agents.md
+      - "24 · Several agents, experts, and walkers": world/24-several-agents.md
   - "Part 6 — Watching itself":
       - "25 · The agent's own state": watching/25-own-state.md
       - "26 · Stopping": watching/26-stopping.md

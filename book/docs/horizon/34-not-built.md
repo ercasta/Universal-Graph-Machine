@@ -104,6 +104,12 @@ proposed answer is *situations* — a design, not a build — in which a structu
 conclusion lives in a materialisation and dies with it, so containment falls out
 rather than being enforced on every read.
 
+**A walker cannot avoid where it has been.** Position is a fact and termination is
+a denial (Chapter 24), but *do not go where you have been* is a negation over
+**entries**, where `−` means *denied* rather than *absent* — so a maze with a
+cycle spawns without limit. The honest fix is the same stratum-0 bridge the
+universal uses, and it is unbuilt rather than refused.
+
 **No vocabulary for incompatibility.** You can deny a proposition. You cannot
 say that two propositions **cannot both hold**. That's a real gap, noticed when
 an older engine's `refutes` had nothing to port to.

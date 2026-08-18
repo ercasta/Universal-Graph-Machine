@@ -157,6 +157,55 @@ Measured: the runaway table fired **0 doubts against 13** for the untaught one,
 because nothing was ever *close* to anything again. A table with no ties has
 stopped being able to notice it is unsure.
 
+## Five levers, and what each can actually do
+
+There are five ways to make one rule win, they are not variants of each other,
+and the difference that matters is the last column:
+
+| lever | lifetime | can it bring a rule *into consideration*? |
+|---|---|---|
+| `standing(<R>)` | permanent | **yes** — it raises the floor |
+| `overrides(A, B)` | per tick | not ranking at all; it is **defeat** |
+| `after <R> { q } => boost` | fades, and saturates | **yes** |
+| `when { q } => boost` | ephemeral, one shortlist | **no** |
+| `prefer(<R>, key, score)` | permanent, summed | yes — but a key is not a query |
+
+Run against one another on the same fight, all five trying to make the agent take
+the target named by the action's marker (Chapter 14):
+
+```
+overrides          -> goblin2   spends 0   final score 1
+standing           -> goblin2   spends 0   final score 10
+after-buff         -> goblin2   spends 1   final score 1
+after-buff, blind  -> goblin1   spends 0   final score 1
+when-reranker      -> goblin1   spends 0   final score 1
+```
+
+The third row is the one that matters, because a **buff is what a calibration
+process writes**. It fires once, saturates — a boost of 20 spends 12 — steers the
+choice, and is back at the floor by the end of the fight. That is the whole
+learnable path working end to end: a marker carried by the action, a postcondition
+keyed on it, a lift that decides which rule applies, and a trail that rebuilds the
+table afterwards.
+
+The last two rows are the ones to remember, because neither of them raises
+anything.
+
+> **A postcondition cannot see what its own rule just concluded.**
+
+Its query is matched against the state as of the **start** of the tick. A buff
+keyed on the very fact its rule writes asks a question whose answer is always no:
+the buff never fires, the table never moves, nothing is logged and nothing raises.
+It cost four probes, and the near-miss was reporting *buffs do not steer* — which
+would have been wrong. Key a postcondition on what held **before** the decision.
+
+> **A reranker cannot lift a rule off the floor.**
+
+A `when` trigger is ephemeral and shortlist-only, so a rule sitting at the floor is
+never in a shortlist for it to reorder. That is the documented limit arriving in
+practice, and it has a consequence for learning: a preference written that way can
+only reorder what attention had **already** selected.
+
 ## Doubt is a move, not a pause
 
 When two rules in the window score within the tolerance, that's a **doubt**. The

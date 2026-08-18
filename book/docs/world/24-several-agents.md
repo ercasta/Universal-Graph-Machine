@@ -241,6 +241,166 @@ geometry <- area(plot1)
 concludes nonsense has concluded it for everybody. That's the price of sharing
 beliefs, and it's precisely why the agents above exist for the other case.
 
+## A third axis: walkers
+
+There is a third way to have more than one of something, and it took an hour to
+find only because a fourth thing looked like it. Laid out together:
+
+| | differs in | mechanism |
+|---|---|---|
+| **agents** | what they **believe** | separate graphs |
+| **experts** | what they **know how to do** | which rules they have |
+| **frames** | **when**, and under what supposition | a seat and a topic, both moments |
+| **walkers** | **where in the structure** they are | `at(<w>, <node>)` |
+
+A frame is not the missing one. `frame(seat, topic)` is a position in the
+**chain** — both members are moments — so it answers *as of when* and never
+*about what*. A walker needs no frame, no register and no engine change, because
+its whole state is a fact:
+
+```
+at(<walker>, <node>)        where it stands
+child(<walker>, <node>)     one it spawned
+```
+
+`child(?w, ?y)` is a compound term over **bound** variables, and that is legal in
+a consequent: a rule may introduce an individual as long as it is **denoted**.
+What a rule may not do is conclude about a variable nothing binds. That is the
+whole of spawning.
+
+### A walker spawns rather than moves, and that is a measurement
+
+The obvious design has a walker step and deny where it was:
+
+```
+<step> = causes( { +at(?w,?x), +door(?x,?y) }, { -at(?w,?x), +at(?w,?y) } )
+<fork> = causes( { +at(?w,?x), +door(?x,?y) }, { +at(child(?w,?y), ?y) } )
+```
+
+Both want `at(w, r2)`. Whichever applies first **denies** it, and the other is
+not refused — it is deferred (Chapter 17) until its premise no longer exists. On
+a maze whose treasure is behind the second door out of one room:
+
+```
+spawn (no move)        ticks 7  max window 1  tried 146  walkers 5  found 1
+move + fork            ticks 4  max window 2  tried  88  walkers 1  found 0
+move + fork, ordered   ticks 7  max window 1  tried 152  walkers 5  found 1
+```
+
+> **The run that fails is the one that looks efficient.** Fewer ticks, less work,
+> no error and no diagnostic.
+
+Which is why the check asserts the **absence** of a find rather than the presence
+of one. The third row is the repair that is not one: `overrides(<fork>, <step>)`
+makes `<step>` undead — it never applies at all, and the extra six `tried` is
+what it costs to carry a rule that cannot fire.
+
+There is also a quieter payoff. Every window in the spawn run has **size 1**: a
+walker never weighs two moves, because the branching lives in the walker
+*population* rather than in any walker's choice. *Which move was good* is
+answerable when there is one option and hopeless when there are forty, so this is
+the property that makes a policy over walkers learnable at all.
+
+### What goes in the identity term is the deduplication policy
+
+Two routes into one room. Name a walker by the **path** it took and two arrivals
+are two walkers, each re-exploring everything below. Chained diamonds, measured:
+
+```
+1 diamond,   4 rooms:   by-path   5   by-node   4
+2 diamonds,  7 rooms:   by-path  13   by-node   7
+3 diamonds, 10 rooms:   by-path  29   by-node  10
+```
+
+`2^(n+2) − 3` against `3n + 1`. Nothing errors and the treasure is still found;
+the run simply does exponentially more of the same work.
+
+`walker(?y)` fixes it in one word, and the fix is **interning** rather than a
+guard: the same relation over the same members is the same node, so two arrivals
+mint one walker and the second is not a new fact at all. No visited set and no
+negation — which matters, because the negation a visited set wants is over
+**entries**, where `−` means *denied* rather than *absent*, and the first draft
+of this fixture matched nothing for exactly that reason.
+
+> **The identity term is the deduplication policy.** `walker(<node>, <purpose>)`
+> is the general form: drop the purpose and arrivals merge, make the purpose the
+> path and they never do.
+
+**And deduplicating is not forgetting.** Identity is *where* a walker is;
+provenance is *how it got there*, and provenance is plural. One walker at the
+join, both routes on the record:
+
+```
+came(walker(j0), via(walker(a0), a0))
+came(walker(j0), via(walker(b0), b0))
+```
+
+### An expert can be a premise rather than a pool
+
+Consulting an expert hands a whole request to one rule set, which is the right
+grain for a question and the wrong one for a swarm: it cannot say *this rule
+applies to the walkers running E*. Scoping expertise by **premise** can, and it
+costs nothing beyond the `knows` and `extends` facts already above:
+
+```
+rule <extend> = implies( { +extends(?e,?f), +knows(?f,?c) }, { +knows(?e,?c) } )
+rule <equip>  = implies( { +runs(?w,?e),    +knows(?e,?c) }, { +can(?w,?c)   } )
+rule <grab>   = implies( { +at(?w,?x), +can(?w, grabbing), +treasure(?x) },
+                         { +found(?w,?x) } )
+```
+
+Multiple inheritance falls out: a `raider` that extends a `scout` and a `looter`
+has `moving` from one and `grabbing` from the other, through one ordinary rule
+with no resolution order to declare. And the **spawning** rule chooses the
+child's expert — pass `?e` down and the child loots, spawn it as a `scout` and
+the treasure is never taken, because a scout cannot.
+
+### Termination is a denial, and it is not retroactive
+
+Every walker-relative rule needs `at(?w, ?x)`. So one denial removes the walker
+from all of them at once:
+
+```
+rule <done> = implies( { +found(?w,?x) }, { -at(?w,?x) } )
+```
+
+No scheduler, no registry, no removal step — there is nothing holding a walker
+except the fact that it is somewhere.
+
+What it does not do is undo. The looted walker had already spread to the next
+room, and which of the two happened first was decided by arbitration with nothing
+saying so — visible as the **authored order of the rules** changing what is
+concluded:
+
+```
+spread declared FIRST   live  at(w1, r1), at(walker(r3), r3)
+spread declared LAST    live  at(w1, r1)
+```
+
+Same rules, same facts, no diagnostic. Which is the general rule this fixture
+found from a fourth direction:
+
+> **Precedence only bites when the loser's premise can be destroyed.**
+
+With monotone rules the loop runs to quiescence and a merely-deferred rule
+applies on some later tick, so the state is the same either way — measured on two
+corridors, 21 ticks against 19 and both fully explored. *Ordering is not
+defeasibility.* And spawning consumes nothing, so the per-position precedence the
+moving design needed does not exist as a problem: **the missing mechanism was
+missing because of the other design.**
+
+### What this does not do
+
+**Cycles are unbounded.** A maze with a loop grows `child(child(child(…)))`
+without limit, and *do not go where you have been* is a negation over entries
+again. The honest fix is the stratum-0 bridge that Chapter 26 uses to get a real
+universal — and it is left undone deliberately, because this is about position
+and that is about negation.
+
+**Nothing is scheduled.** Walkers run under the ordinary loop in whatever order
+arbitration picks. Only walkers at different **seats** would need more, because
+only those have separate materialised states.
+
 ## Why this is the natural home for `blocked`
 
 Chapter 13 introduced `blocked` — the agent's report that it has exhausted what
