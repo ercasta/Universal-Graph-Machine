@@ -130,29 +130,79 @@ class Found(object):
         return f"fact +likely(prevents({self.discriminators[0]}, <{self.rule}>))"
 
 
-def learn(m: Machine, kb) -> List[Found]:
-    g = m.g
-    DEVIATES = kb.atoms.get("deviates") or m.g.atom("deviates")
-    state: Dict[int, object] = {}
+def _state(m: Machine) -> Dict[int, object]:
+    """The newest claim about each proposition, which is all a contrast needs."""
+    out: Dict[int, object] = {}
     for mo in m.chain.moments:
         for e in mo.delta:
-            state[e.proposition] = e
+            out[e.proposition] = e
+    return out
 
-    def about(x) -> Dict[str, str]:
-        """Every current claim mentioning this node, abstracted: the subject is
-        replaced by a hole, so `contains(k2, sand)` and `contains(k1, sand)`
-        are the same feature and `contains(k1, water)` is not."""
-        out = {}
-        for e in state.values():
-            members = g.members(e.proposition)
-            if x not in members:
+
+def features(m: Machine, kb, x, lift: bool = False,
+             state: Optional[Dict[int, object]] = None) -> Dict[str, str]:
+    """Every current claim mentioning `x`, abstracted: `x` is replaced by a
+    hole, so `contains(k2, sand)` and `contains(k1, sand)` are the same feature
+    and `contains(k1, water)` is not.
+
+    With `lift`, each feature is ALSO offered with one argument replaced by a
+    kind the world model gives it -- `contains(_, :solid)` beside
+    `contains(_, sand)`. One argument at a time, so nothing combinatorial.
+
+    ⚠ Module level rather than a closure inside `learn`, because the held-out
+    test has to ask *does this lesson cover that case* with the SAME function
+    that produced the lesson. A second copy would degrade with the first and
+    agree with it while both were wrong.
+    """
+    g = m.g
+    state = _state(m) if state is None else state
+    IS_A = kb.atoms.get("is_a")
+
+    def kinds_of(n) -> List[int]:
+        """What the world model says this is. Read off the state, so a corpus
+        rule making `is_a` transitive widens the lift with no change here."""
+        if IS_A is None:
+            return []
+        return [g.member(e.proposition, 1) for e in state.values()
+                if g.relation_of(e.proposition) is IS_A and e.sign == "+"
+                and len(g.members(e.proposition)) == 2
+                and g.member(e.proposition, 0) is n]
+
+    out: Dict[str, str] = {}
+    for e in state.values():
+        members = g.members(e.proposition)
+        if x not in members:
+            continue
+        rel = g.relation_of(e.proposition)
+        if rel is None:
+            continue
+        shown = ", ".join("_" if mm is x else g.show(mm) for mm in members)
+        out[f"{g.show(rel)}({shown})"] = e.sign
+        if not lift:
+            continue
+        for k, mm in enumerate(members):
+            if mm is x:
                 continue
-            rel = g.relation_of(e.proposition)
-            if rel is None:
-                continue
-            shown = ", ".join("_" if mm is x else g.show(mm) for mm in members)
-            out[f"{g.show(rel)}({shown})"] = e.sign
-        return out
+            for kind in kinds_of(mm):
+                parts = ["_" if q is x else (f":{g.show(kind)}" if jj == k
+                                             else g.show(q))
+                         for jj, q in enumerate(members)]
+                out[f"{g.show(rel)}({', '.join(parts)})"] = e.sign
+    return out
+
+
+def learn(m: Machine, kb, lift: bool = False) -> List[Found]:
+    """What each failed prediction taught, one contrast at a time.
+
+    `lift` abstracts features through the world model. Without it a second
+    failure teaches a second VALUE and nothing transfers -- measured: sand and
+    gravel share no raw discriminator at all. The ontology is what makes a
+    lesson about a KIND rather than about a thing.
+    """
+    g = m.g
+    DEVIATES = kb.atoms.get("deviates") or g.atom("deviates")
+    state = _state(m)
+    about = lambda n: features(m, kb, n, lift=lift, state=state)
 
     out: List[Found] = []
     for e in list(state.values()):
@@ -181,10 +231,10 @@ def learn(m: Machine, kb) -> List[Found]:
                   if g.relation_of(p) is rel and x.sign == "+"
                   and g.members(p) and g.member(p, 0) is not subject]
 
-        mine = {k for k, s in about(subject).items() if s == "+"}
+        mine = {k for k, sg in about(subject).items() if sg == "+"}
         theirs: Set[str] = set()
         for o in others:
-            theirs |= {k for k, s in about(o).items() if s == "+"}
+            theirs |= {k for k, sg in about(o).items() if sg == "+"}
         # the predicted relation itself is not evidence about why it failed
         drop = lambda ks: {k for k in ks if not k.startswith(g.show(rel) + "(")}
         mine, theirs = drop(mine), drop(theirs)
@@ -207,6 +257,23 @@ def learn(m: Machine, kb) -> List[Found]:
             contrasts=sorted(g.show(o) for o in others),
         ))
     return out
+
+
+def common(founds: List[Found]) -> List[str]:
+    """What discriminates EVERY failure, not merely one.
+
+    A feature that explains one failure and not another is not the lesson --
+    it is the value that happened to be there. Intersecting is what turns
+    several contrasts into one claim, and it is also what makes the answer
+    empty when the failures have nothing in common, which is the honest result
+    rather than a shortfall."""
+    live = [f for f in founds if f.discriminators]
+    if not live:
+        return []
+    out = set(live[0].discriminators)
+    for f in live[1:]:
+        out &= set(f.discriminators)
+    return sorted(out)
 
 
 def _run(src: str) -> Tuple[Machine, object, List[Found]]:
