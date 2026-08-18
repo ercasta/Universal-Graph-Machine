@@ -1431,6 +1431,63 @@ def _stored(g, chain, want, bindings):
             yield b
 
 
+
+def _holds_at(g, chain, want, bindings):
+    """`holds_at(?p, ?m, ?sign)` -- what a proposition RESOLVED TO at a moment.
+
+    §12's `at ?m` binds the LOCUS OF THE ENTRY THAT SATISFIED a member, and the
+    resolved state keeps one entry per proposition -- the winner. So a corpus
+    can say *the goblin acted after the hero* (two propositions, two loci) and
+    cannot say *p held then and does not now* (one proposition, two times): the
+    earlier claim is not in the state to be matched against. Probed: `?then`
+    bound to a real moment where `ill(paul)` held, and `+ill(?x) at ?then` still
+    matched nothing.
+
+    `Chain.resolve` has always answered the question. What was missing was any
+    way for a rule to say WHICH LOCUS TO RESOLVE AT, and this is it.
+
+    **The seat is the moment itself**, so the answer is *as believed AT that
+    moment* rather than *as believed now about that moment*. That is the
+    situation reading -- what the world looked like from there -- and it is the
+    only one available, because a structural walker is handed no seat. The other
+    question is a different relation and should say so in its name rather than
+    quietly meaning something else.
+
+    Containment holds compositionally, as it does for `_stored`: `?m` can only
+    be bound by a walk the frame could make, so a moment on a sibling branch is
+    unreachable to bind in the first place.
+
+    ⚠ Nothing is minted. Building the answer as a node and unifying against it
+    would intern it, and the harness's question would then be findable as its
+    own answer -- the interning trap's fourth face. Only the sign slot can need
+    binding, so it is bound by hand.
+    """
+    args = g.members(want.pattern)
+    if len(args) != 3:
+        return
+    prop = substitute(g, args[0], bindings)
+    if g.has_var(prop):
+        return  # the proposition is not yet ground: nothing to resolve
+    mnode = walk(g, args[1], bindings) if g.is_var(args[1]) else args[1]
+    if g.is_var(mnode):
+        return  # unanchored: this would ask about every moment there is
+    moment = chain.moment_of(mnode)
+    if moment is None:
+        return
+    entry = chain.resolve(prop, moment, moment)
+    if entry is None:
+        return  # nothing was ever claimed about it there, which is not a denial
+    sign = chain.SIGN[entry.sign]
+    slot = args[2]
+    current = walk(g, slot, bindings) if g.is_var(slot) else slot
+    if g.is_var(current):
+        out = dict(bindings)
+        out[current] = sign
+        yield out
+    elif current is sign:
+        yield dict(bindings)
+
+
 def _components(deps: Dict[NodeId, set]) -> Dict[int, set]:
     """Strongly connected components of a dependency graph, iteratively.
 
@@ -1766,6 +1823,7 @@ def structural_relations(chain) -> Dict[NodeId, Callable]:
         # `_stored`'s reason: it is a fact about the whole history, and an
         # unanchored read would walk all of it.
         chain.TIME: _stored,
+        chain.HOLDS_AT: _holds_at,
     }
 
 

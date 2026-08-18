@@ -560,6 +560,7 @@ class Machine:
             # and nothing raises. The name-identity trap, caught here on
             # its fifth outing.
             "time": self.chain.TIME,
+            "holds_at": self.chain.HOLDS_AT,
             "reaches": self.chain.REACHES,
             "names": self.NAMES, "computes": self.COMPUTES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,

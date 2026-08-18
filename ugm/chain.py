@@ -315,6 +315,10 @@ class Chain:
         # on, so a corpus asking for it on a clockless run finds nothing, which
         # is the honest answer rather than a zero.
         self.TIME = g.atom("time")
+        # `holds_at(<proposition>, <moment>, <sign>)` -- what a proposition
+        # RESOLVED TO at a moment. Not stored and not walked: computed, like
+        # `entry_of`, by asking `resolve` the question it already answers.
+        self.HOLDS_AT = g.atom("holds_at")
         # A stretch of the chain, as a member a rule may write (§11):
         # `span_of(?s, ?start, ?end)`. Nothing is deposited for it -- the span
         # node already IS `span(start, end)` -- so this is `entry_of`'s shape
@@ -394,6 +398,12 @@ class Chain:
         # is read off a state is maintained where the state is.
         self._moment_by_node[m.node] = m
         return m
+
+    def moment_of(self, node: NodeId) -> Optional[Moment]:
+        """The moment a node names, or None. Public because a structural walker
+        needs it and reaching into `_moment_by_node` from another module would
+        make the index's one maintainer two."""
+        return self._moment_by_node.get(node)
 
     def _stamp(self, m: Moment) -> None:
         """When this moment was made, in milliseconds since the epoch.
