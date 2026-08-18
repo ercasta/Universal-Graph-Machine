@@ -6989,6 +6989,49 @@ def a_cause_moves_the_register() -> None:
         and m2.holds(kb2.term("likely(r(x))")) == PLUS,
     )
 
+    # §17's *every seat move is a write*, which §21 carried as owed for as long
+    # as it has existed. This fixture is the one that found the move; these are
+    # the record of it.
+    #
+    # ⭐ **Position was always readable and the seat never was.** `at(?w, ?x)`
+    # is an ordinary fact, which is the whole reason walkers needed no engine
+    # support -- while the register advanced on every `causes` application and
+    # left nothing behind but a re-minted frame node, which no rule can read.
+    # And it is not recoverable from the chain: `pred` says the moment follows,
+    # not that the REGISTER went there, because moments are minted for spans,
+    # predictions and suppositions too.
+    m3 = Machine()
+    kb3 = load(m3, chr(10).join([
+        "rule <a> = causes( { +p(?x) }, { +q(?x) } )",
+        "rule <watch> = implies( { +moved(?from, ?to) }, { +shifted(?to) } )",
+        "fact p(x)",
+        "",
+    ]))
+    began = m3.focus.seat
+    m3.run(limit=60)
+    moves = [e for mo in m3.chain.moments for e in mo.delta
+             if m3.g.relation_of(e.proposition) is m3.gate.MOVED]
+    check("§17", "a `causes` application records the seat move as an entry",
+          len(moves) == 1)
+    check("§17", "...from the seat it left, to the seat it took",
+          bool(moves) and tuple(m3.g.members(moves[0].proposition))
+          == (began.node, m3.focus.seat.node))
+    check("§17", "...licensed by the rule that moved it",
+          bool(moves) and moves[0].licence is not None
+          and m3.g.relation_of(moves[0].licence) is m3.APPLIED)
+    check("§12", "...and an ordinary rule can read the move, which is the point",
+          len([e for mo in m3.chain.moments for e in mo.delta
+               if m3.g.relation_of(e.proposition) is kb3.term("shifted")]) == 1)
+
+    # ...and it is bookkeeping, not a claim about the supposed world, so a
+    # wrapper has nothing to qualify. Without this the `causes` frame above
+    # carried `likely(moved(...))` out -- the agent hedging about where it had
+    # been standing -- and it is the one thing adding the write broke.
+    supposing = out["causes"][0]
+    check("§16", "a seat move does not cross out of a hypothesis wrapped",
+          all(m3.g.relation_of(m3.g.member(e.proposition, 0)) is not m3.gate.MOVED
+              for e in supposing.carried))
+
 
 def _frames(m) -> list:
     out, seen = [], []

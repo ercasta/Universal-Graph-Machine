@@ -537,7 +537,7 @@ class Machine:
             "spent": self.SPENT, "premises": self.PREMISES,
             "contested": self.CONTESTED,
             "compose": self.COMPOSE, "composed": self.COMPOSED,
-            "at": self.AT,
+            "at": self.AT, "moved": self.gate.MOVED,
             # The skeleton, as names a corpus may write (§6, §12). `pred` is the
             # stored immediate predecessor; `anc`/`sanc` are the reflexive and
             # strict walks; the rest are what the chain deposits as it builds.
@@ -705,7 +705,17 @@ class Machine:
                              self.TOLERANCE, self.BUDGET, self.DEPTH,
                              self.HYPOTHESES, self.WIDENED, self.REACHED,
                              self.BOUNDED, self.DEFEATED, self.ADOPT,
-                             self.SPENT, self.PREMISES, self.CONTESTED}
+                             self.SPENT, self.PREMISES, self.CONTESTED,
+                             # A seat move is the machinery's record of its own
+                             # advance, not a claim about the supposed world, so
+                             # a wrapper has nothing to qualify: without this a
+                             # `causes` rule applied under a hypothesis carried
+                             # `likely(moved(...))` out of it -- the agent
+                             # hedging about where it had been standing. Caught
+                             # by `a_cause_moves_the_register`, which is the
+                             # fixture that asked for the seat move in the first
+                             # place.
+                             self.gate.MOVED}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -3203,7 +3213,8 @@ class Machine:
             # would land inside the supposition and leave it wrapped, which is
             # what it did: the agent's only record of what a channel said became
             # `likely(says(...))` -- the world's own testimony, hedged.
-            self.gate.reseat(own, self.chain.succeed(own.seat, self.KB))
+            self.gate.reseat(own, self.chain.succeed(own.seat, self.KB),
+                             licence=self.KB, source=a.channel)
         utterance = self.g.instance(self.UTTERANCE, a.channel, a.proposition)
         report = self.g.rel(
             self.ARRIVED, a.channel, a.proposition, self.rules.SIGN[a.sign]
@@ -3254,7 +3265,8 @@ class Machine:
             # never fire, and everything concluded under that hypothesis stayed
             # inside it with nothing saying so. §4 allows one register; advancing
             # it is a seat move, and §17 says a seat move is what `reseat` is for.
-            self.gate.reseat(self.focus, self.chain.succeed(self.focus.seat, licence))
+            self.gate.reseat(self.focus, self.chain.succeed(self.focus.seat, licence),
+                             licence=licence, source=self.KB)
         frame = self.focus
         mention = self._is_mention(app)
 

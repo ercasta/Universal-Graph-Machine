@@ -23,7 +23,7 @@ be asked about, rather than by a hard-wired intake nobody can argue with.
 
 from typing import Callable, List, Optional, Tuple
 
-from .chain import Chain, Entry, Moment
+from .chain import PLUS, Chain, Entry, Moment
 from .graph import Graph, NodeId
 
 
@@ -93,6 +93,9 @@ class Gate:
         self.chain = chain
         self.FRAME = g.atom("frame")
         self.PROCESS = g.atom("process")
+        # §17's *every seat move is a write*, which §21 listed as owed. See
+        # `reseat`.
+        self.MOVED = g.atom("moved")
         self.writes = 0
         # Effects leave the agent HERE, not in a phase of the loop. §16 already
         # places action dispatch at the write -- *the one place effects leave the
@@ -148,23 +151,47 @@ class Gate:
         node = self.g.instance(self.FRAME, seat.node, topic.node)
         return Frame(node, seat, topic, parent, purpose, wrap)
 
-    def reseat(self, frame: Frame, seat: Moment) -> None:
-        """Move a frame to a later seat.
-
-        §17 says every seat move is a write, and this one is not yet recorded as
-        an entry -- noted in §21 rather than hidden. What it is for: the agent's
+    def reseat(self, frame: Frame, seat: Moment,
+               licence: Optional[NodeId] = None,
+               source: Optional[NodeId] = None) -> None:
+        """Move a frame to a later seat, and SAY SO. What it is for: the agent's
         own frame must be able to advance while the register is pointing
         somewhere else, because the world does not stop talking while the agent
         is reasoning under a hypothesis.
 
         The frame node is re-minted, so `frame(seat, topic)` keeps saying where
         the frame is rather than where it began.
+
+        ⭐⭐⭐ **`+moved(<from>, <to>)`, which is §17's *every seat move is a
+        write* and was §21's oldest owed item.** Position is where, and it was
+        always recorded -- `at(?w, ?x)` is an ordinary fact, which is the whole
+        reason walkers needed no engine support. The seat is WHEN, and it was
+        not recorded at all: the register advanced on every `causes` application
+        and the only trace was a frame node being re-minted, which no rule can
+        read.
+
+        ⚠ **And it is not derivable from the chain, which is why a fact about a
+        moment is the only place it can live.** `pred` says the new moment
+        follows the old one; it does not say the REGISTER went there, because
+        moments are minted for spans, predictions and suppositions too. `succeed`
+        makes that explicit -- it stopped carrying a licence precisely because
+        *what a moment is FOR is a fact about it*, and this is that fact. So the
+        licence is passed in rather than invented here: `applied(<R>)` when a
+        `causes` rule advanced the register, the channel when the world did.
+
+        The write happens AFTER the move, so the entry is seated where the agent
+        now is and reads as *I am here, and I came from there* -- a trail, which
+        is what §17 asks for, rather than a state that would need the previous
+        one denied to stay true.
         """
         follow_topic = frame.topic is frame.seat
+        was = frame.seat
         frame.seat = seat
         if follow_topic:
             frame.topic = seat
         frame.node = self.g.instance(self.FRAME, frame.seat.node, frame.topic.node)
+        self.write(frame, self.g.rel(self.MOVED, was.node, seat.node), PLUS,
+                   licence=licence, source=source)
 
     def write(
         self,

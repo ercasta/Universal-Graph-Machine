@@ -46,9 +46,13 @@ ROLES: Dict[str, List[str]] = {
     # about any world. ⚠ It arrived unclassified and this census is what caught
     # it -- see docs/observations.md §2.14, where the invariant was written down
     # one message before it fired.
+    # `moved` sits here for `asking`'s reason rather than under deliberation:
+    # both are about WHICH SEAT, which is a fact about the agent's place in the
+    # history and not about what it is trying to do there.
     "the chain": ["anc", "sanc", "pred", "in_delta", "delta_next", "entry_of",
                   "span", "span_of", "rests_on", "licensed_by",
-                  "arrived_on", "mentioned", "asking", "asked", "reaches"],
+                  "arrived_on", "mentioned", "asking", "asked", "reaches",
+                  "moved"],
     # R3/R4: rules are subjects, and rules are askable.
     "rules as data": ["rule", "ant", "con", "conn", "adopt", "compose",
                       "composed", "computes", "names", "binds", "exercised",
