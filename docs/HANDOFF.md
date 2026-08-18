@@ -1,3 +1,159 @@
+# Handoff — 2026-08-18 (interpretation: rules as facts, walkers, learning from surprise)
+
+Branch `interpretation`, off `main` at `044bfa9`, pushed. **Everything green except one
+pre-existing failure, which is `quiescence` reporting its own coverage hole.**
+
+    selftest    518/0        walkers    16/0        clock       8/0
+    dungeon      17/0        acting     11/0        hindsight   8/0
+    agreement    28/0 (7/7)  interpret   6/0        surprise    7/0
+    state         0 disagreements        lifting     7/0
+
+    quiescence  145 candidates, 0 disagreeing, 5/6 of its own rules exercised
+                -> exits 1, takes 16m24s. PRE-EXISTING: identical at the branch
+                   point, verified in a worktree. `<silent>` is BLIND -- suppress
+                   it and nothing disagrees, so the fixture cannot test it. About
+                   80% of the runtime is the kill-probe's 13 suppression runs.
+
+Design notes written this session: `docs/representation.md` (the reference),
+`docs/situations.md` (a design, not built), `docs/deposit-dont-decide.md`.
+Book chapters 23 and 34 updated, every example run before it was written.
+
+## Four engine changes, all small
+
+**`_narrowed` treated a variable-bearing structure as a bound index pivot.**
+`said(implies(?a, ?c))` asked the argument index for the bucket of the pattern node
+itself — which nothing is ever an instance against — so the member matched **nothing**.
+No error, no scan, rule well formed, silently never applies. The suite was **518/0 with
+the fix and 518/0 without it**: a corpus that only writes atoms in argument positions
+cannot reach it, and `ugm.interpret` reverts the fix as a kill-probe so it is covered
+rather than merely made.
+
+**A wall clock** — `time(<moment>, <ms>)`, structural, stamped where a moment is born,
+**off by default**. `Machine(clock=True)`.
+
+**`holds_at(<proposition>, <moment>, <sign>)`** — resolve at a named moment. Computed,
+like `entry_of`; no new member kind, so `reify`/`compose`/`adopt` have nothing new to
+drop.
+
+**Two reserved-name registrations**, and they are the load-bearing part of the other two:
+`atom` does not intern, so without them a corpus's `time` and `holds_at` are fresh nodes,
+`is_stratum0` quietly answers no, the member matches nothing, and nothing raises. Fifth
+occurrence of that trap on record.
+
+## Positions that CHANGED during the session
+
+Recorded because each was argued for at length before turning out wrong.
+
+**Aggregates do not need quiescence.** I argued *an aggregate premise makes a rule a
+post-quiescence rule*. Wrong three ways: it makes aggregates unusable mid-reasoning, so no
+plan can contain one; it demands a guarantee no other read here has, since every read is
+*what I currently hold*; and it is circular for walkers, because per-walker exhaustion is
+itself an aggregate. **An aggregate answers from the current view and is defeasible like
+anything else. Whether the view is good enough is competence, not semantics.** Corrected
+in `representation.md`.
+
+**The clock does not break determinism.** I claimed a stamp per moment makes two runs
+differ by construction. Measured: entries are byte-identical with the clock on, because a
+stamp is structural, not an entry. What diverges is a corpus that *reads* it. Off by
+default because nondeterminism should be requested, not because the stamp costs anything.
+
+**A rule CAN introduce an individual**, provided it is denoted — a compound term over
+bound variables. Only a free variable is refused, and at authoring with a good message.
+
+**Position-relativity bounds nothing.** `{+at(?w, _), +treasure(?y)}` is relative and still
+binds anywhere. What bounds a candidate feature space is **linkage** — every variable
+connected to the anchor through a chain of premises, with a depth limit. That is ILP's mode
+declarations plus i-depth, and it should be borrowed rather than reinvented.
+
+## Findings worth not rediscovering
+
+**A rule can read rules as facts.** `+ant(?r, all(?c, ?p), ?s, ?i)` matches a term nested
+inside a reified antecedent, **once**, on the right rule only. Reification entries arrive at
+authoring, so delta matching fires a helper exactly once — and it covers rules the agent
+`adopt`s later, which is why such expansion belongs at run time, not load time.
+
+**`ugm.interpret`: a rule written as facts, applied by five rules.** `<said>` is the trick:
+stratum 0, so its conclusion lands in the skeleton and `-said(?p, ?sg)` is negation as
+failure, where over entries `-` would only mean *denied*. `<fire>`/`<deny>` each carry ONE
+entry-level member deliberately — a wholly structural rule concludes structure, which has
+no sign, so it could not deposit a belief at all.
+
+**Walkers need no engine support.** `at(<w>, <node>)` is an ordinary fact; spawning is a
+compound term over bound variables. A frame is *not* the missing mechanism — `frame(seat,
+topic)` is a position in the CHAIN, both members moments, so it answers *as of when*, never
+*about what*.
+
+- **A walker SPAWNS rather than MOVES**, decided by measurement. Moving denies the position
+  both rules needed and the branch is lost *silently* — in fewer ticks and less work than
+  the run that succeeds. The check asserts the absence.
+- **What goes in the identity term IS the deduplication policy**, enforced by interning
+  rather than by a guard. `2^(n+2) − 3` walkers by path against `3n + 1` by node.
+- **`overrides` deleted a rule rather than ordering it** in one case and changed nothing in
+  another. The rule behind all four attempts: **precedence only bites when the loser's
+  premise can be destroyed** — and with a denial in play, the deciding order can be *the
+  order the rules were declared in*.
+- **Termination is a denial**: every position-relative rule needs `at(?w, ?x)`, so one
+  denial removes the walker from all of them. Not retroactive.
+
+**An expert should be a premise, not a pool.** `pool` is one rule set per run, so it cannot
+say *this rule applies to walkers running E*.
+
+**`ugm.acting`: dungeon already had the action shape.** `declares(<act with bindings>,
+<marker>)` — the corpus calls the third slot *a label the player utters* and interprets it
+never. A marker-keyed rule selects a different **binding** for the same declared act.
+
+- A marker nothing matches is **not an error** — the policy quietly stops steering.
+- **A postcondition cannot see what its own rule just concluded**: its query is matched
+  against the state as of the *start* of the tick. Cost four probes; I nearly reported
+  "buffs do not steer", which was wrong.
+- **A `when` reranker cannot lift a rule off the floor**, so a learned preference written
+  that way can only reorder what attention already selected. Only an `after` buff lifts.
+
+**`ugm.surprise` + `ugm.lifting`: the learning loop runs, and the ontology is what makes it
+generalise.** Everything a learner needs is already on the trail — which prediction failed
+(`deviates`), which rule made it (the `expects` entry's licence), about what, and what did
+*not* fail. Raw contrast gives `contains(_, sand)` and `contains(_, gravel)` with **nothing
+in common**; lifted through `is_a` both share `contains(_, :solid)`, which covers a held-out
+case that contributed nothing to the evidence. Kill-probe: delete one `is_a` fact and the
+common lesson collapses, so **the corpus is doing the generalising, not the learner**.
+
+**And a difference against the empty set is not a difference.** With no success to contrast
+against, every fact about a failure reads as an explanation of it — the learner looked most
+confident exactly where it knew least. Caught by the one-case fixture.
+
+## The defect the situations design exists to fix
+
+**Containment holds for entries and fails for structure.** Probed:
+
+    is secret(a) BELIEVED at the root?   None    the entry is contained
+    is said(secret(a)) in the graph?     True    the structure is not
+
+Ancestry cannot fix it, because the leak is not in the read — a structural fact is never
+resolved, it is enumerated out of the argument index. Not a corner: the universal, counting
+and the rules-as-facts interpreter all run on that layer.
+
+`docs/situations.md` is the proposed answer — situations as branches, moments as commits,
+**every node carrying an atom id** because a delta must reference atoms rather than node ids
+or it cannot be replayed elsewhere, per-situation interning, and materialise-on-demand with
+no copy-on-write. Containment then falls out: a structural conclusion is not an entry, so it
+is never replayed, so it dies with its materialisation.
+
+## Where to start
+
+1. **`<silent>` needs a fixture that can kill it**, and the kill-probe wants a smaller
+   corpus first, or a 16-minute loop makes it unworkable.
+2. **The maze test is now computable.** With `lifting` in place, *how far does a lesson
+   transfer* is a number per region — and the theory predicts the **variance**, not the
+   mean. Hold out **terms**, not only relations, or a memorising learner scores as a
+   generalising one.
+3. **Situations**, staged: atom ids inert first, then per-situation interning with one
+   situation, then situation-keyed indices, then materialise-on-demand — and remove ancestry
+   last, because it cannot be retired until situations close the leak.
+4. **Record a seat move.** `_apply` reseats on every `causes` application and nothing says
+   the register moved. Position is where and it is recorded; the seat is when and it is not.
+
+---
+
 # Handoff — 2026-08-15 (quiescence as rules, and §7's test)
 
 Branch `restart`. **549 checks, 0 failing.** New gate `python -m ugm.quiescence`: **137 candidates
