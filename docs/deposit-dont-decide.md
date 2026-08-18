@@ -32,8 +32,19 @@ Each is one fact and no interpretation.
 
 **The gap, already recorded as debt rather than hidden.** `gate.reseat` moves a
 frame to a later seat, and §17 says every seat move is a write — this one is not
-yet an entry. So a walker or a `causes` rule advancing the register leaves no
-record of the advance itself.
+yet an entry. The new moment is real and carries its delta, so the history is
+reconstructible from `anc` and `pred`; what is missing is a record that *the
+register moved*, which is why no rule can react to a seat move and `why` cannot
+answer why the register is where it is.
+
+It is the common case rather than an exotic one: `_apply` reseats the focus on
+**every `causes` application**.
+
+And it is not about walkers. A walker's position is a fact — `at(<w>, <node>)`,
+moved by an ordinary deposit and denial — so every move is already on the record
+with a licence, and `why` answers it. That is a real advantage of the fact over
+the register, and it narrows the debt to the seat axis alone: position is where,
+and it is recorded; the seat is when, and it is not.
 
 ## 2. Simulation — the apparatus exists, the driver does not
 
