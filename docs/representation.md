@@ -192,12 +192,38 @@ leaves the loop and phases are back. Author atoms until an atom stops being
 enough; the engine treats atoms and compounds alike, so nothing has to change
 when it does.
 
-**Aggregates split three ways.** *Some* is free — an ordinary antecedent already
-is an existential. *All* is a negated counterexample, and it must be asked where
-the search is finished, so **an aggregate premise makes a rule a post-quiescence
-rule**: you cannot know *all* until you have stopped looking. *How many* is the
-only real leaf; bounded comparisons (*more than three*) are a join over a strict
-order, not a count.
+**An aggregate answers from the current view, and is defeasible like anything
+else.** *Some* is free — an ordinary antecedent already is an existential. *All*
+is a negated counterexample. *How many* is the only real leaf; bounded
+comparisons (*more than three*) are a join over a strict order, not a count.
+
+An earlier draft of this said an aggregate premise makes a rule a
+**post-quiescence** rule — that you cannot know *all* until you have stopped
+looking. **That was wrong**, and three things say so. It made aggregates
+unusable mid-reasoning, so no plan could contain one, because plans are made
+before quiescence. It demanded a guarantee no other read here has: every read is
+*what I currently hold*, silence inherits, and beliefs are partial by
+construction. And it was circular for walkers — per-walker exhaustion is itself
+an aggregate over that walker's matches, so an aggregate that needed exhaustion
+could never be computed for one.
+
+> **What the current view says about *all* is one question. Whether the view is
+> good enough to act on is another, and it is competence, not semantics.**
+
+The second question already has vocabulary: `quiet` (the search finished),
+`blocked` (nothing could conclude it), an empty frontier, `enough`. A rule
+decides how much looking is enough *before* asking, and the asking itself is
+immediate.
+
+**Index the aggregate by the moment it was computed at.** The obvious bridge
+does not work: a structural fact lifted from the chain (`said(p)`) survives the
+denial of `p`, because structure cannot be taken back — probed — so negating it
+answers *ever mentioned* rather than *currently holds*. Resolving per moment
+(`holds_at`) and carrying the moment in the conclusion makes the answer
+permanently true **of that moment**, which is the same move `agreement.py` makes
+with `cand(?seat, ...)`, and it makes irrevocable structure harmless. Two
+moments give two answers, and choosing between them is the competence question
+above, made visible.
 
 **Reading the past needs `holds_at`, not `at ?m`.** `at ?m` binds the locus of
 the entry that *satisfied* a member, and the state keeps only the winner — so
