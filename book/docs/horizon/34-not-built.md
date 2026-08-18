@@ -78,6 +78,27 @@ Chapter 29.
 
 ## Genuinely absent
 
+**Containment holds for entries and fails for structure.** A conclusion drawn
+inside a supposition is not believed outside it — Chapter 16, and it is
+structural rather than promised. A **stratum-0** conclusion drawn inside the
+same supposition is in the graph and visible everywhere, because it is an
+interned relation instance: undated, unattributed, deniable by nothing, and
+belonging to no moment. Probed on a corpus that supposes something and derives
+one ordinary structural fact about it:
+
+```
+is secret(a) BELIEVED at the root?     None      the entry is contained
+is said(secret(a)) in the graph?       True      the structure is not
+```
+
+Ancestry cannot fix it, because the leak is not in the read: `at_or_after` is
+checked when an **entry** is resolved, and a structural fact is never resolved —
+it is enumerated straight out of the argument index. This is not a corner: the
+universal, counting, and reading rules as facts all run on that layer. The
+proposed answer is *situations* — a design, not a build — in which a structural
+conclusion lives in a materialisation and dies with it, so containment falls out
+rather than being enforced on every read.
+
 **No vocabulary for incompatibility.** You can deny a proposition. You cannot
 say that two propositions **cannot both hold**. That's a real gap, noticed when
 an older engine's `refutes` had nothing to port to.

@@ -98,19 +98,129 @@ Measured on a chain forking 31 times: 145 orderings requested, **every pair
 related**. Containment was already guaranteeing the thing that makes ordering
 well defined.
 
-### What it does not buy — and the limit is exact
+### What `at ?m` does not buy — and it is not what it looks like
 
 A matcher sees the **resolved** state: one entry per proposition. So two
 *different* facts at different moments are relatable, and **a single fact's own
 history is not**.
 
-*It was on, then it was not* finds nothing, because the superseded entry isn't
-in the state.
+*It was on, then it was not* finds nothing through `at ?m`. The reason is worth
+getting exactly right, because the obvious explanation is the wrong one.
 
-Reaching it means matching over the **raw chain**, which is what the structural
-stratum is for (Chapter 31), and it takes two rules: one to see it, one to say
-it. The corpus that asked for moment ordering needed only the first half and
-never once wanted the second.
+`at ?m` is **not** *evaluate this member at m*. It binds **the locus of the
+entry that satisfied the member** — and the entry that satisfies `+ill(?x)` is
+the one the state kept, which is the denial. So naming a moment at which the
+fact did hold changes nothing at all:
+
+```
+fact +ill(paul)
+rule <heal> = causes( { +ill(?x) }, { -ill(?x), +healthy(?x) } )
+
+rule <recovered> = implies(
+    { +healthy(?x) at ?now, anc(?now, ?then), +ill(?x) at ?then },
+    { +recovered(?x) } )
+```
+
+```
++ill(?x) at ?then                -> recovered(paul) = None
+```
+
+`?then` really is a moment at which Paul was ill. The member still matches
+nothing, and nothing anywhere says so.
+
+### `holds_at` asks the other question
+
+```
+rule <recovered> = implies(
+    { +healthy(?x) at ?now, anc(?now, ?then), holds_at(ill(?x), ?then, plus) },
+    { +recovered(?x) } )
+```
+
+```
+holds_at(ill(?x), ?then, plus)   -> recovered(paul) = +
+```
+
+`holds_at(p, m, sign)` **resolves p at m** — the question Chapter 5's walk has
+always answered and no rule could ask, because the locus it resolved at was
+always the frame's own. The seat is the moment itself, so the answer is *as
+believed at that moment*: what the world looked like from there, not what the
+agent thinks now about back then. Those are different questions and a relation
+that meant one while being named for the other would be worse than an absent
+one.
+
+Three things it declines, each for a reason you already know. An **unbound**
+moment finds nothing, because asking about every moment there is would walk the
+whole history (Chapter 5's anchoring discipline). A **generic** proposition
+finds nothing, because there is nothing to resolve and answering would be
+inventing a subject. And it **mints nothing** — building its answer as a node
+would intern it, and the question would afterwards be findable as its own
+answer.
+
+And the trail shows what was confusing all along:
+
+```
+why recovered(paul)?
+  +recovered(paul) @M1, via kb, licensed by applied(<recovered>)
+    because +healthy(paul) @M1, via kb, licensed by applied(<heal>)
+    because +ill(paul) @M0, via kb, licensed by loaded(ill(paul))
+```
+
+> **The superseded claim was never lost. It was never in the *state*** — which
+> is a different thing, and `at ?m` reads the state.
+
+## Moments are ordered, not measured
+
+Everything so far is **ordering**. `pred` and `anc` say which came first, and
+they say it exactly. What none of them says is *how long ago* — `depth` is a
+position in the chain, not a duration — so until a clock exists, the chapter's
+own title is only two-thirds honest.
+
+The clock is one structural relation, stamped where a moment is born:
+
+    time(<moment>, <milliseconds since the epoch>)
+
+Structural, like `pred`: nobody asserted it, and nothing can deny it. A rule
+reads it by anchoring at the seat.
+
+```
+fact +kettle(k1)
+fact +heating(k1)
+rule <boil>  = causes(  { +heating(?k) }, { -heating(?k), +boiling(?k) } )
+rule <began> = implies( { asking(?s), time(?s, ?t), +kettle(?k) },
+                        { +seen_at(?k, ?t) } )
+```
+
+```
+clock=False -> (nothing: the chain was never stamped)
+clock=True  -> ['seen_at(k1, 1787077545120)', 'seen_at(k1, 1787077545131)']
+```
+
+Two readings, because there are two seats: the stamp is per **moment**, and
+`asking` is minted wherever the register stands. A clockless run finds nothing
+at all, which is the honest answer rather than a zero.
+
+### Off by default, and the reason is measured
+
+Determinism here is byte-for-byte — Chapter 21's fight replays entry for entry
+on the same seed. So the first version of this section said a stamp per moment
+makes two runs differ by construction. **That is false**, and the correction is
+the more useful half:
+
+| | clock off | clock on |
+|---|---|---|
+| entries identical across two runs | yes | **yes** |
+| stamps identical across two runs | — | **no** |
+
+A stamp is not an entry, so it disturbs nothing that was reproducible before.
+What *does* diverge is a corpus that **reads** the clock: its conclusions are
+ordinary entries carrying a number that was different last time.
+
+> **The clock is inert until asked for**, and off by default because a source of
+> nondeterminism should be requested rather than inherited.
+
+It also does not replace ordering, and should not be asked to. `pred` and `anc`
+are exact; a wall clock is monotone if nothing adjusts it. Two moments are
+ordered by succession, and *how far apart* is what the stamps are for.
 
 ## Saying *five minutes later*
 
