@@ -68,6 +68,44 @@ baton. The result was zero rounds with every combatant alive -- which reads as a
 peaceful encounter rather than a stall, and passed the check it was written for.
 The check below asserts the stall, so the shape stays visible.
 
+## Which lever actually steers, measured
+
+`overrides` is authored defeat. The point of the marker is that a LEARNED
+policy could steer instead, so the four levers were run against one another on
+the same fight, all trying to make the hero take the marker's target:
+
+    overrides(<focus>, <hero-acts>)                   goblin2   authored defeat
+    standing(<focus>)                                 goblin2   authored floor-raise
+    after <trust-player> { ...pre-tick query... }      goblin2   a BUFF, and it fades
+    after <trust-player> { ...its own conclusion... }  goblin1   never fires, silently
+    when { ... } => boost(<focus>, 8)                  goblin1   cannot lift off the floor
+
+The third row is the one that matters, because a buff is what a calibration
+process writes. It fires once, saturates from 20 to `MAX_LIFT`, steers the
+choice, and is back at the floor by the end of the fight:
+
+    Spend(tick=4, by='trust-player', target='focus', delta=12, frozen=False)
+    final score <focus>: 1
+
+That is the whole learnable path working end to end: a marker carried by the
+action, a postcondition keyed on it, a lift that decides which rule applies, and
+a trace that rebuilds the table afterwards.
+
+**The fourth row cost four probes and is the finding to keep.** A
+postcondition's query is matched against the state as of the START of the tick,
+so **it cannot see what its own rule just concluded**. `after <trust-player>
+{ +intends(hero, ?act, focus(?e)) }` asks about the very fact `<trust-player>`
+writes, and the answer is always no -- the buff never fires, the table never
+moves, nothing is logged and nothing raises. `_spend_posts` says the query is
+matched with *the application's own bindings substituted in*, which is true and
+is about BINDINGS; its EFFECTS are a tick away.
+
+**And the fifth is the documented limit arriving in practice.** A `when` trigger
+is ephemeral and shortlist-only, so it cannot bring a rule into consideration --
+`<focus>` sits at `FLOOR` and is never in a shortlist for a reranker to reorder.
+A learned preference written as a reranker can only reorder what attention had
+already selected.
+
 ## What this does not do
 
 **Nothing is learned.** The marker is authored here. What it establishes is that
@@ -89,13 +127,14 @@ DENY = "".join(
 # Reads the marker, and concludes what `<hero-acts>` concludes -- an attack --
 # so the clock keeps turning. See the stall note above for the version that did
 # not.
-FOCUS = """
+FOCUS_RULE = """
 rule <focus> = causes(
     { +turn(hero), +may(hero), +present(hero),
       +intends(hero, attack(?d), focus(?e)), +present(?e) },
     { -may(hero), -intends(hero, attack(?d), focus(?e)), +attack(hero, ?e) } )
-fact overrides(<focus>, <hero-acts>)
 """
+
+FOCUS = FOCUS_RULE + "fact overrides(<focus>, <hero-acts>)" + chr(10)
 
 # The one that freezes the fight, kept as a fixture rather than as a warning.
 HOLD = """
@@ -124,6 +163,58 @@ def _fight(policy: str, marker: str, seed: int = 7) -> Dict[str, object]:
         "held": sorted(k for k in seen if k.startswith("held(")),
         "hero": seen.get("present(hero)"),
     }
+
+
+# The four levers, each trying to make the marker's target the one attacked.
+BY_OVERRIDE = "fact overrides(<focus>, <hero-acts>)\n"
+BY_STANDING = "fact standing(<focus>)\n"
+
+# Keyed on what held BEFORE the tick -- the arrival, not the intention the rule
+# concludes from it. See the docstring: the other way round never fires.
+BY_BUFF = ("after <trust-player> { +says(player, declares(?act, focus(?e)), plus) }"
+           " => boost(<focus>, 20)\n")
+
+# The same buff, asking about its own rule's conclusion. Kept as a fixture
+# because it fails in complete silence.
+BY_BUFF_BLIND = ("after <trust-player> { +intends(hero, ?act, focus(?e)) }"
+                 " => boost(<focus>, 20)\n")
+
+BY_RERANK = "when { +intends(hero, attack(?d), focus(?e)) } => boost(<focus>, 8)\n"
+
+
+def _traced(policy: str, marker: str, seed: int = 7):
+    """A fight, plus the attention table's trace.
+
+    `Machine.run` returns only the steps, so the Report -- and with it the
+    trace that says whether a buff was ever spent -- is discarded. Swapped for
+    the duration and restored in a `finally`, because a module-level patch that
+    leaked would make every later run in this process report someone else's
+    table.
+    """
+    from . import attention as A
+    from . import machine as MM
+
+    reps = []
+    live_run, live_method = A.run, MM.Machine.run
+
+    def capture(m, *a, **k):
+        rep = live_run(m, *a, **k)
+        reps.append((m, rep))
+        return rep
+
+    try:
+        A.run = capture
+        MM.Machine.run = lambda self, limit=100: capture(self, limit=limit).steps
+        got = _fight(policy, marker, seed=seed)
+    finally:
+        A.run, MM.Machine.run = live_run, live_method
+    mach, rep = reps[-1] if reps else (None, None)
+    got["spends"] = list(rep.table.trace) if rep else []
+    got["score"] = (
+        {mach.g.show(k): v for k, v in rep.table.score.items()
+         if "focus" in mach.g.show(k)} if rep else {}
+    )
+    return got
 
 
 def main() -> int:
@@ -186,6 +277,51 @@ def main() -> int:
          f"held {stalled['held']})",
          stalled["rounds"] == 0 and stalled["hero"] == "+"
          and stalled["held"] == ["held(hero, goblin1)"])
+
+    # -- which lever steers ------------------------------------------------
+    levers = (
+        ("overrides", BY_OVERRIDE), ("standing", BY_STANDING),
+        ("after-buff", BY_BUFF), ("after-buff blind", BY_BUFF_BLIND),
+        ("when-reranker", BY_RERANK),
+    )
+    got = {name: _traced(FOCUS_RULE + lever, "focus(goblin2)")
+           for name, lever in levers}
+    print("  five levers, one fight, all trying to take the marker's target:\n")
+    for name, _ in levers:
+        r = got[name]
+        target = "goblin2" if r["first"] and "goblin2" in r["first"] else "goblin1"
+        print(f"    {name:18} -> {target:8} spends {len(r['spends'])}  "
+              f"final score {r['score']}")
+    print()
+
+    gate("a BUFF steers the choice, which is the whole learnable path: a marker "
+         "carried by the action, a postcondition keyed on it, and a lift that "
+         f"decides which rule applies ({got['after-buff']['spends']})",
+         "goblin2" in (got["after-buff"]["first"] or "")
+         and len(got["after-buff"]["spends"]) == 1)
+    gate("...and the lift SATURATES and FADES -- a boost of 20 spends 12, and "
+         "the rule is back at the floor by the end, because a lift is about "
+         f"what is going on now ({got['after-buff']['score']})",
+         got["after-buff"]["spends"][0].delta == 12
+         and list(got["after-buff"]["score"].values()) == [1])
+
+    gate("A POSTCONDITION CANNOT SEE WHAT ITS OWN RULE JUST CONCLUDED: the same "
+         "buff, keyed on the intention `<trust-player>` writes instead of on "
+         "the arrival it read, never fires -- no spend, no lift, no steering, "
+         "and nothing anywhere raises",
+         got["after-buff blind"]["spends"] == []
+         and "goblin1" in (got["after-buff blind"]["first"] or ""))
+    gate("A RERANKER CANNOT LIFT A RULE OFF THE FLOOR, which is the documented "
+         "limit arriving in practice: `<focus>` is never in a shortlist for a "
+         "`when` trigger to reorder, so a learned preference written that way "
+         "can only reorder what attention had already selected",
+         got["when-reranker"]["spends"] == []
+         and "goblin1" in (got["when-reranker"]["first"] or ""))
+    gate("...while both AUTHORED levers work, so the fixture can tell a lever "
+         "that fails from a fight that cannot be steered at all",
+         "goblin2" in (got["overrides"]["first"] or "")
+         and "goblin2" in (got["standing"]["first"] or ""))
+
 
     print(f"\n{ran} checks, {failing} failing")
     return 1 if failing else 0
