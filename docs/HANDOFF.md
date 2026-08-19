@@ -1,3 +1,147 @@
+# Handoff — 2026-08-19 (interpretation-feedback: all four asks, and `count` is a new primitive)
+
+Branch `worktree-bridge-cse_01T6yy6UUrtPYckwgiG14nA2`, off `main` at `907e6c9`.
+Commits `5c5802b` (counting) and `f714e23` (reply), on top of `91973c5`
+(situations) — **so this branch carries the previous session's work as well, and
+the handoff below this one is still live.**
+
+    selftest    570/0  (was 546 — 24 added, none changed, none removed)
+    modules     dungeon 17/0, quest 9/0, table 16/0, interpret 6/0, sexpr 7/0,
+                compose 9/0, forest 24/0, learning 31/0, practice 21/0,
+                atlas 0 problems. All exit 0.
+    vocabulary  still 18/2 — `holds_at` and `time` unclassified. PRE-EXISTING and
+                byte-identical to the branch point (verified by stashing and
+                re-running). `count`/`counted` were classified so as not to add.
+    necessity   RUNS CLEAN on this branch — exit 0, "6 of 80 reachable names
+                unkillable". ⚠ That is not the open item below, which is a
+                BYTE COMPARISON against the branch point: the previous session
+                saw its output differ and could not triage it, and this session
+                did not run the other side either. So *it works* is now known
+                and *what moved* is still not.
+
+⚠⚠⚠ **STAGE 4 OF `situations.md` WAS NOT TOUCHED.** The handoff below this one
+names it as the next task and it still is. A feature request arrived
+(`docs/interpretation-feedback.md`, from the harness at `harneskills@a9b1e6d`)
+and was done instead. Nothing about stage 4 changed, was learned, or was
+invalidated.
+
+## What was built
+
+`docs/interpretation-feedback.md` asked four things. Three are built, one was
+measured and deliberately not built. `docs/interpretation-reply.md` is the answer
+sent back, section by section.
+
+**§1 — `count` / `counted`, and it is a new floor primitive.** A corpus writes
+`count(<description>)`; the machinery runs the ordinary matcher and deposits
+`counted(<ask>, n)`. Registered on the answerer table beside `fit`, `verdict`,
+`root` and `support`, so **it is answered at the write and not at quiescence** —
+the author's own requirement, and the opposite of `unsupported`, which is a claim
+about a finished search.
+
+It is the GENERAL case of `rooted`, `unsupported` and `blocked` rather than a
+fourth of them: each of those is a threshold on this number and each answers only
+*yes* because each is a negative existential. `count` answers with the number and
+the comparison is a corpus's rule — `docs/observations.md` §4.3's *one request,
+four uses*.
+
+**§3 — the scan counter.** `_narrowed`'s fallback to `instances_of` was
+sanctioned by its own docstring and invisible. It now records, on the graph, both
+how often each member fell off the index and how many nodes those scans walked;
+`Report.scans`, `Report.scanned`, `Report.scanned_nodes`, printed beside
+`widenings`. **The size was not asked for and is the number that ranks them** —
+`asking(?s)` falls back 170 times over a relation with almost nothing in it while
+`met(?a)` walks a bucket that grows.
+
+**§4 — both standing asks.** `watch` is handed the `Step` the loop just appended,
+so a watcher gets `wrote` before `_spend`'s refraction bookkeeping. And
+`run(..., table=…)` takes a caller's table, continuing the tick count from
+`table.now`.
+
+## Three design corrections `count` forced, and they are the interesting part
+
+`docs/observations.md` §4 had already argued the shape. Two of its four
+constraints survived contact and two did not.
+
+**The answer is keyed on the ASK, not on the pattern.** §4 writes
+`counted(<pattern>, 2)` and that is unreadable: a statement's variables are
+scoped to it, so two rules writing `goblin(?x)` build two nodes and a corpus
+cannot name the thing it just asked about. Keyed on the ask it can, by naming the
+statement — `fact <goblins> = count(goblin(?x))`. This caught the checks in this
+repository before it could catch a corpus: `kb.term("count(goblin(?x))")` mints a
+fresh `?x` and asks about something else, so four checks failed while the three
+corpus-facing rules passed.
+
+**A count is a functional attribute and the machinery owes the denial.**
+`counted(p, 2)` and `counted(p, 3)` are different propositions, so the second
+leaves the first standing and the agent believes there are two goblins and three
+— `hp(g1, 5)`/`hp(g1, 2)` one layer down. An authored corpus writes the pair;
+nobody can write it here because nobody but the machinery knows the previous
+count.
+
+**A twin trap at ten.** `NUMERAL` shares the small numerals and `reserved` seeds
+every loader from it, **but that snapshot stops at nine.** Nothing had ever
+COMPUTED a numeral, so nothing had noticed `12` falling through to `g.atom` and
+minting one node per document. `Loader.atom` now routes every digit string
+through `Machine._numeral`. Seventh time for this trap and the first one a
+feature walked into rather than an author.
+
+## §2 was measured and NOT built, and the decision is the harness's
+
+The ask was a scoped widening — *this line of work found nothing* rather than
+*the machine found nothing* — marked checkable and unchecked, with the note that
+if the window goes empty often enough the request evaporates. Measured, two lines
+of work in one agent:
+
+    ticks 10   empty windows 0   shortlist widenings 31
+
+**The window went empty 0 times in 10 ticks**, so `widened(<seat>)` and
+`reached(<seat>)` are unreachable for an agent with any other work. The request
+stands.
+
+⭐ **But their diagnosis is wrong in the direction that makes it smaller.** They
+reason that the repair tiers are never reached; the shortlist `cut` loop walks
+the whole table and `<repair>` applied. **What is missing is the record, not the
+reaching** — the loop counts widenings in a `Report` field no rule can read. So
+this may need no scope-carrier at all, just the shortlist widening depositing what
+the global one already does. Not built, because choosing between those two is a
+design call that belongs to whoever is building the ladder.
+
+⚠ **One residual defect the measurement did find**, and it survives the
+correction: `<repair>` ran on tick 10, after upkeep exhausted itself. A score
+prefix cuts everything more than `TOLERANCE` (2) below the top match, and a
+corpus's two authorable tiers — `STANDING` 10 and `FLOOR` 1 — are 9 apart. So a
+floor repair rule cannot run while any standing rule matches, and the agent
+answers the utterance after the room has gone quiet.
+
+## Four hazards for whoever picks this up
+
+**The `watch` protocol is a BREAKING CHANGE.** `step` is a sixth positional
+argument. Any external watcher with five parameters raises `TypeError`. Done
+deliberately rather than by sniffing the callable's arity, which would have been
+a branch that never came out again — but it is a wire the harness has to move to.
+
+**Numeral interning changed for every corpus, not just for counts.**
+`Loader.atom` now sends digit strings to `Machine._numeral`. Before, numerals past
+nine were per-document nodes. Nothing in the suite depended on that and
+`ugm.dungeon` (which is full of numbers) is unchanged at 17/0 — but it is a
+change to name identity and it is worth knowing about before debugging something
+strange.
+
+**`count` pays the matcher per ask and nothing caches it.** `docs/observations.md`
+§4.4's fourth constraint — cost is the matcher, bounded by the state, paid per
+ask — is respected in that no corpus that never counts pays anything. What is NOT
+known is what a corpus that counts constantly costs. The reply asks the harness to
+measure how many readings a real span has; **if that number is routinely large,
+the cost model needs revisiting before anything is built on top.**
+
+**`DESCRIBES` is a two-name tuple in `text.py` and it is load-bearing.**
+`forbidden` and `count` are the heads whose argument is a description rather than
+a proposition. `docs/quest-feedback.md` §6 recorded how sharp that edge is — a
+foreign corpus declined a parser refactor because moving that head one level down
+would have *retired every norm in the suite silently*. It is now read from one
+named tuple in three places rather than compared as a literal in two, which is
+better, and it is still exactly as sharp.
+
 # Handoff — 2026-08-18 (situations: stages 1–3 of 4, and stage 4 is the next task)
 
 Branch `worktree-bridge-cse_01LVd7SsM3vjpDAF2sNDeBT6`, off `main` at `907e6c9`.
