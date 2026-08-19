@@ -1,3 +1,120 @@
+# Handoff — 2026-08-19c (learning: the action space, settled in conversation)
+
+⚠⚠⚠ **NOTHING WAS BUILT IN THIS SESSION.** The suite is unchanged at **590/0**
+and `HEAD` is still `ba11dfd`. Everything below was probed with throwaway
+scripts and none of it is in the repository. It is recorded because the
+conclusions are load-bearing for the learning work and would otherwise be lost.
+Where a claim was run, it says so.
+
+## The question
+
+*How does an agent learn the best actions?* — with the constraint that its
+actions are not free, or it risks corrupting a subgraph representing the world.
+
+## What was settled
+
+**1. Every action kind is already "apply a rule".** Applying an inference rule,
+calling a tool, saying *done*, bailing out, setting a goal, setting a
+continuation — each is a rule's consequent (`stop`/`enough`, `<give-up>`,
+`+goal(...)`, `resume(?h, <cb>)`, and a tool is a rule concluding a request with
+`expects`/`deviates` for the world model's side). So there is one action type.
+
+**2. But the action is (rule, BINDINGS), not the rule.** The author's
+correction, and it is right. Measured in the code: `table.score` is keyed by
+`r.node`, the loop builds `window: List[Application]` and takes `top =
+table.score[r.node]`, and among a rule's applications it takes the first
+survivor and breaks. **So which binding wins is decided by walk order —
+newest-first, therefore authoring order.** `backward.py` already files this as
+§21's backtracking item. `prefer(<R>, key, n)`, `_rerank` and `teaching.py`'s
+learned reranker all key on CONTEXT, never on the binding.
+
+⚠ The measured tension: the loop is fast because it does *not* materialise the
+option set (`_choose`: *60 facts weighed 1,950 candidates, 120 weighed 7,500*).
+Scoring bindings means seeing them.
+
+**3. A multi-tick plan is a NODE, not a string.** Run: an agent mints a plan
+with `+plan`, hangs ordered steps off it, and walks it one tick at a time; the
+plan node is the parameter carried across ticks, and two goals give two
+non-interfering plans. Carrying state between ticks needs nothing new — the
+chain is the carry, and the dungeon is the existence proof. Backward reading
+already materialises `plan(...)` with `expands` and **`binds(plan, ?var,
+?value)`**, which is literally a parameter carried between steps.
+
+⚠ `compose.py` compiles a chain of `implies` into one rule but **refuses to
+compose across a `causes`** — measured, it would demand the second rule's
+premises a moment early. So an action sequence cannot be collapsed into one
+move; it stays multi-tick.
+
+**4. Reuse-vs-invent is two rules, not a new construct.** `<reuse>` simply not
+matching IS *there is nothing to reuse* — no negation-as-failure needed, which
+matters because a `-` member means *an entry denies this*, never *for no ?p*.
+
+**5. The mint mark belongs in the rule text, not in the application.** Refraction
+keys on `_instantiation(app)`, i.e. the premises. Make mint/no-mint a choice at
+application time and one set of premises has two actions: either refraction
+blocks the second, or it does not and the runaway returns. Keeping `+word` in
+the consequent is what lets *an instantiation fires once for a given set of
+premises* stay true — the only thing bounding minting.
+
+**6. ⭐⭐⭐ THE ACTION PALETTE BOUNDS LEARNING BY CONSTRUCTION.** The author's
+proposal, and it is better than the `bounded(<mints>)` budget proposed earlier
+in the session, which is hereby withdrawn.
+
+    competence   rule <act-take> = implies( { +do(take, ?who, ?p) }, { ... } )
+    policy       rule <p1>       = implies( { precondition }, { +do(take, ?who, ?p) } )
+
+Run: a policy concluding `do(teleport, ann, pet)` deposits it and **nothing
+happens**, because no action rule matches. A learned policy can only REQUEST;
+only authored competence ACTS. **So a learned rule can never mint** — it can only
+ask for an action that mints, and only ones an author declared. No knob, no
+budget, and it needs no engine change.
+
+**7. Precedence is the WRONG selector between policies, and `count` is the right
+one.** Run, three ways:
+
+    overrides(<p1>, <p2>)   only ann served    -- `overrides` is per RULE per
+                                                  TICK, so <p1> matching for ann
+                                                  suppressed <p2> for bob
+    no precedence           ann served TWICE   -- both policies fired for her
+    count guard             both served right  -- counted(count(is(?p,hat)),0)
+                                                  vs (...,pet),1)
+
+So mutual exclusion **per binding** is expressible by counting candidates, which
+precedence cannot do. `what_a_learned_rule_may_conclude` had already measured
+`overrides` as too broad in a different setting; this is the same defect met
+from the policy side.
+
+## What is still open
+
+**Learning WHEN is expressible; learning WHICH is not.** An author can make two
+policies mutually exclusive per binding with a count guard, and the agent can
+learn preconditions. What the agent cannot do is learn which of two policies
+that BOTH apply on the same binding is better — that is item 2 above, and it is
+the same gap from a new direction.
+
+**RLHF has a trap already named in the code.** `attention.run(chooser=…)` is the
+manual-pilot seam and `teaching.py` drives it. ⚠ But its teacher deliberately
+ignores `window` and calls `_materialise` over the full rule set, *"so it is a
+genuine teacher and not a re-ranking of what the table already liked."* A human
+piloting from the shortlist only ranks what the current policy surfaced — the
+signal is on-policy and circular. Off-policy piloting costs the full option set.
+
+**Minting is additive, not corrupting — but only until `merge` is
+rule-reachable.** A minted node has no name, no relation and no members: it is
+joined to nothing and cannot change what any existing proposition says. The
+failure mode is exhaustion, not corruption. ⚠⚠⚠ **The dangerous combination is
+minting + merge**, because merge repoints indices and is lossy — and merge is
+not rule-reachable today (debt item 2). **Wiring `same(a, b)` is what would
+create that risk**, so it should not be wired without deciding this first.
+
+## A note on the last exchange
+
+The reuse/invent example given at the end of the session was muddled and the
+author said so: `is(?p, ?k)` was doing double duty as *rex is a pet* and as *the
+invented thing is of kind k*, so the two paths read as if they concerned one
+relation when they did not. If this is picked up, write the two relations
+separately before trusting the shape.
+
 # Handoff — 2026-08-19b (stage 4 replay, identity, minting — and the debt list)
 
 Branch `worktree-bridge-cse_01T6yy6UUrtPYckwgiG14nA2`, off `main` at `907e6c9`.
