@@ -47,9 +47,21 @@ the machinery answers it and the corpus decides what the number means: one is a
 reference, two is an ambiguity to report, zero is a description that fits
 nothing. No notion of a definite article anywhere in Python.
 
-⚠ **Asked at `quiet`**, because a count is true of a moment. Counting a reading
-still being derived answers about a half-finished search -- the same reason
-`unsupported` waits for `quiet` and is a lie before it.
+⚠ **Asked at `quiet`**, because a count is true of a moment -- the same reason
+`unsupported` waits for it.
+
+⚠⚠ **But `quiet` means *nothing more applies to the mind I currently have*, not
+*the search is complete*.** With `<bare>` dormant this corpus counts **0** where
+it counted 2, and says `fits_nothing(m3)` -- benign, because nothing is left to
+read m3 with. On a variant carrying a second denoting rule the same narrowing
+counts **1** and the agent *resolves* m3 rather than reporting the ambiguity:
+not less certain, **confidently wrong**. Which happens is the corpus's business.
+
+⭐ That is the honest meaning of an aggregate rather than a hole to be patched.
+`counted(..., 1)` is *one, among what I decided to consider*, and there is no
+unnarrowed view to compare it with. The engine must not annotate it -- the
+narrowing is a judgement the agent made, and `dormant(<r>)` is already an
+ordinary dated claim, so *what was in mind* is answerable without any help.
 """
 
 import sys

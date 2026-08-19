@@ -89,11 +89,37 @@ rule <bare> = implies(
 # a rule sees one binding at a time, so only the machinery can answer it.
 #
 # ⚠ **Asked at `quiet`, and that is not a detail.** A count is true of a moment
-# and the next entry can falsify it, so counting a reading that is still being
-# derived answers about a half-finished search. `quiet` is the engine's own
-# record that there is nothing further to do -- the same occasion `unsupported`
-# waits for, and for the same reason: an aggregate over a finished search is
-# legitimate, and over an unfinished one it is a lie.
+# and the next entry can falsify it, so counting a reading still being derived
+# answers about a half-finished search. `quiet` is the engine's own record that
+# nothing further applies -- the same occasion `unsupported` waits for.
+#
+# ⚠⚠⚠ **And `quiet` means NOTHING MORE APPLIES TO THE MIND I CURRENTLY HAVE,
+# which is weaker than *the search is complete*.** Take a rule out of mind and
+# the count changes under you. Measured on THIS corpus, `<bare>` dormant:
+#
+#     everything in mind    counted(count(denotes(m3, ?g)), 2)   unclear(m3)
+#     <bare> dormant        counted(count(denotes(m3, ?g)), 0)   fits_nothing(m3)
+#
+# Here the narrowing is benign: with nothing left to read m3 with, the corpus
+# says so. ⚠ It is NOT benign when another rule still supplies ONE reading --
+# measured on a variant carrying a second denoting rule, `<bare>` dormant gives
+# `counted(..., 1)` and the agent RESOLVES m3 instead of reporting the
+# ambiguity. Not less certain: **confidently wrong**. Which of the two happens
+# depends on the corpus, not on the engine.
+#
+# ⭐ **That is not a defect, and the engine must not annotate it.** An aggregate
+# is always relative to what was looked at: `counted(..., 1)` means *one, among
+# what I decided to consider*, exactly as `all` means *all of what I checked*.
+# There is no view from nowhere to compare it against, and a machinery that
+# flagged the narrowing would be second-guessing a judgement the agent made --
+# which is the one thing `docs/deposit-dont-decide.md` says it may not do.
+#
+# ⭐⭐ **And the record already exists**, so nothing needs adding: `dormant(<r>)`
+# is an ordinary claim, dated and attributable and deniable, so *what was in
+# mind when this was counted* is an ordinary query. This comment previously
+# said an aggregate over an unfinished search "is a lie", which overclaimed:
+# it is legitimate over the search THE AGENT CHOSE TO RUN, and choosing is the
+# agent's business.
 rule <ask> = implies(
     { +quiet(?s), +mention(?m, ?d) },
     { +count(denotes(?m, ?g)) } )
