@@ -121,6 +121,10 @@ class Machine:
         # One request, four uses, and the meaning is the corpus's own rule
         # rather than four bundled ones. That is *rows, not branches* at the
         # level of the feature itself.
+        # ⭐ The marker a consequent writes to introduce a thing: `new(person)`.
+        # See `_apply`. Reserved, so a corpus cannot mean something else by it
+        # without knowing -- and so the loader resolves it to THIS node.
+        self.NEW = self.g.atom("new")
         self.COUNT = self.g.atom("count")      # ask
         self.COUNTED = self.g.atom("counted")  # ...and the answer, always
 
@@ -557,7 +561,7 @@ class Machine:
             "forgone": self.FORGONE, "exercised": self.EXERCISED,
             "concluded": self.CONCLUDED,
             "root": self.ROOT, "rooted": self.ROOTED,
-            "count": self.COUNT, "counted": self.COUNTED,
+            "count": self.COUNT, "counted": self.COUNTED, "new": self.NEW,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "scoped": self.SCOPED, "loaded": self.LOADED,
             "again": self.AGAIN,
@@ -683,6 +687,8 @@ class Machine:
         self.considered = 0
         # The resolved state, kept rather than rebuilt. See `_state`.
         self._state_cache: dict = {}
+        # `new(...)` terms per rule -- see `_markers`.
+        self._marker_cache: dict = {}
         # ...and what the seat has mentioned, accumulated over the same delta.
         self._play_cache: dict = {}
         self._stopped: set = set()
@@ -731,7 +737,7 @@ class Machine:
                              self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED, self.HARMED,
                              self.FORGONE, self.EXERCISED, self.CONCLUDED,
                              self.ROOT, self.ROOTED,
-                             self.COUNT, self.COUNTED,
+                             self.COUNT, self.COUNTED, self.NEW,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
                              self.FORBIDDEN, self.STANDING,
@@ -3506,6 +3512,32 @@ class Machine:
             return ()
 
         wrote: List[Entry] = []
+        # ⭐⭐⭐ **A rule may introduce a thing that did not exist.** Everything a
+        # consequent could name until now came from a binding or was written
+        # literally, so *there is some new person here* was unsayable -- the
+        # binding check refuses `+named(?p, ?x)` with `?p` unbound, correctly,
+        # because the gate cannot deposit a variable. `new(person)` says it
+        # instead: a marker term the application replaces with a node it mints.
+        #
+        # ⚠ **One node per distinct marker per APPLICATION**, so `+a(new(p))`
+        # and `+b(new(p))` in one consequent are about the same new thing, and
+        # two firings are about two things. That is what keeps two people called
+        # Paul apart: the mint is per occasion, not per name.
+        #
+        # ⚠⚠ **Refraction is what stops this running away**, and it already
+        # exists: an instantiation fires once for a given set of premises
+        # (`_survives` -> `_spent`), so a minting rule cannot re-fire on the
+        # bindings it already used. What refraction does NOT stop is a
+        # generative CHAIN -- mint, conclude about the new node, mint again --
+        # because those are different bindings every time. Quiescence cannot see
+        # it either: a fresh node always changes something. `bounded(ticks)` is
+        # the backstop, and it reports after the fact.
+        marks = self._markers(app.rule)
+        if marks:
+            app = app._replace(bindings={
+                **app.bindings,
+                **{mk: self.g._mint(None, (), None) for mk in marks},
+            })
         for m in app.rule.consequent:
             grounded = substitute(self.g, m.pattern, app.bindings)
             if app.rule.connective == "causes":
@@ -4381,6 +4413,31 @@ class Machine:
                 bucket = self._spent_by_prop.get(p)
                 if bucket is not None:
                     bucket.discard(k)
+
+    def _markers(self, rule) -> Tuple[NodeId, ...]:
+        """The `new(...)` terms in a rule's consequent, cached on the rule node.
+
+        Scanned rather than declared, so a corpus writes `new(person)` where it
+        wants one and nothing else changes. Cached because the answer depends
+        only on the rule, and `_apply` asks on every firing.
+        """
+        got = self._marker_cache.get(rule.node)
+        if got is None:
+            found: List[NodeId] = []
+
+            def walk(n: NodeId) -> None:
+                if self.g.relation_of(n) is self.NEW:
+                    if n not in found:
+                        found.append(n)
+                    return
+                for mm in self.g.members(n):
+                    walk(mm)
+
+            for m in rule.consequent:
+                walk(m.pattern)
+            got = tuple(found)
+            self._marker_cache[rule.node] = got
+        return got
 
     def _survives(self, app: Application) -> bool:
         """The three per-candidate filters, in `tick`'s order. Defeat is not

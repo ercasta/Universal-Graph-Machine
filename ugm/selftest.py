@@ -8124,6 +8124,75 @@ def two_things_can_turn_out_to_be_one() -> None:
           and v.holds(kbv.term("chase(acme)")) == PLUS)
 
 
+def a_rule_can_introduce_a_thing() -> None:
+    """`new(k)`: a consequent may name something that did not exist.
+
+    Everything a consequent could name came from a binding or was written
+    literally, so *there is some new person here* was unsayable. The binding
+    check refuses `+named(?p, ?x)` with `?p` unbound, and refuses it correctly --
+    the gate cannot deposit a variable. `new(person)` says it instead: a marker
+    the application replaces with a node it mints.
+
+    ⭐⭐⭐ **One node per marker per APPLICATION**, which is what keeps two people
+    called Paul apart. The mint is per occasion, not per name -- so it is the
+    ANTECEDENT that individuates, and a corpus that reads the occasion gets two
+    while one that reads only the name gets one. That is not a defect to fix; it
+    is what the corpus asked for.
+
+    ⚠⚠⚠ **Refraction is what stops it running away, and it already existed.**
+    An instantiation fires once for a given set of premises, so a minting rule
+    cannot re-fire on bindings it has used. Quiescence could never have caught
+    this -- a fresh node always changes something, so a minting rule looks
+    applicable for ever.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "fact +said(u1, paul)",
+        "fact +said(u2, paul)",
+        "fact +said(u3, mary)",
+        "rule <name> = implies( { +said(?u, ?x) },",
+        "                       { +named(new(person), ?x),",
+        "                         +is(new(person), person) } )", ""]))
+    m.run(limit=200)
+    g = m.g
+    named = [n for n in g.instances_of(kb.atoms["named"]) if m.holds(n) == PLUS]
+    people = {g.member(n, 0) for n in named}
+    pauls = [n for n in named if g.member(n, 1) == kb.atom("paul")]
+
+    check("§4", "⭐⭐⭐ a rule introduces a thing that did not exist -- which the "
+          "binding check refuses to let a bare variable do, and rightly",
+          len(named) == 3 and all(g.relation_of(p) is None for p in people))
+    check("§4", "⭐⭐⭐ ...and TWO utterances of one name are two things, because "
+          "the mint is per occasion and not per name",
+          len(pauls) == 2 and g.member(pauls[0], 0) != g.member(pauls[1], 0))
+    check("§4", "⭐ ...and one marker used twice in ONE consequent is one thing, "
+          "so a rule can say several things about what it just introduced",
+          all(m.holds(g.rel(kb.atoms["is"], p, kb.atom("person"))) == PLUS
+              for p in people))
+    check("§4", "⚠⚠⚠ ...and REFRACTION is what bounds it: three premises, three "
+          "firings, three nodes -- a minting rule never re-fires on bindings it "
+          "has already used, which quiescence could not have caught because a "
+          "fresh node always changes something",
+          len(people) == 3)
+
+    # ⚠ The honest limit, stated because it is the failure mode this invites.
+    # Refraction bounds re-firing on ONE set of premises. It cannot bound a
+    # generative CHAIN -- mint, conclude about the new node, mint again -- since
+    # those are different bindings every time. `bounded(ticks)` is the backstop
+    # and it reports after the fact, which is exactly the static check
+    # `docs/quest-feedback.md` §0 asked for and nobody has built.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "fact +thing(a)",
+        "rule <spawn> = implies( { +thing(?x) }, { +thing(new(thing)) } )", ""]))
+    m2.run(limit=40)
+    check("§21", "⚠⚠⚠ ...but a GENERATIVE CHAIN is not bounded by refraction, and "
+          "the run says so through the one record that can: `bounded(ticks)`",
+          m2.holds(kb2.term("bounded(ticks)")) == PLUS)
+
+
 def main() -> int:
     import sys
 
@@ -8226,6 +8295,7 @@ def main() -> int:
     a_computed_numeral_is_not_a_twin()
     a_situation_is_materialised_from_its_deltas()
     two_things_can_turn_out_to_be_one()
+    a_rule_can_introduce_a_thing()
 
     failed = 0
     group = None

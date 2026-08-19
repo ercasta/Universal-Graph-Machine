@@ -868,6 +868,12 @@ def substitute(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> Nod
     """
     if g.is_var(pattern):
         return bindings.get(pattern, pattern)
+    # ⭐ A whole TERM may be bound, not only a variable -- which is how `new(k)`
+    # becomes the node this application minted. Nothing else binds a compound,
+    # so this costs one dict get on a path that runs per consequent member.
+    got = bindings.get(pattern)
+    if got is not None:
+        return got
     members = g.members(pattern)
     if not members:
         return pattern
