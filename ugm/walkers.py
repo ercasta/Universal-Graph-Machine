@@ -36,9 +36,9 @@ refused -- it is DEFERRED until its premise no longer exists. Arbitration
 decided the shape of the search, and nothing said so. On the maze below that run
 finds nothing at all, and it is the cheapest-looking of the three:
 
-    spawn (no move)        ticks   7   max window 1   tried 146   found 1
-    move + fork            ticks   4   max window 2   tried  88   found 0
-    move + fork, ordered   ticks   7   max window 1   tried 152   found 1
+    spawn (no move)        ticks   8   per walker 1   tried 192   found 1
+    move + fork            ticks   4   per walker 2   tried 100   found 0
+    move + fork, ordered   ticks   8   per walker 1   tried 200   found 1
 
 **The run that fails is the one that looks efficient.** Fewer ticks, less work,
 no error, no diagnostic. That is this repository's standing failure mode
@@ -59,13 +59,25 @@ rather than being solved.
 
 ## What the spawn design buys, stated as numbers
 
-**The option set per move is ONE.** Every window in the spawn run has size 1 --
-a walker never weighs two moves, because the branching lives in the walker
-POPULATION rather than in any walker's choice. That is the whole argument for a
-walker having a small action space: *which move was good* is answerable when
-there is one option and hopeless when there are forty, so credit assignment
-becomes possible at all. Nothing here learns yet; this is the property that
-makes learning worth attempting.
+**The option set per WALKER is ONE.** No walker in the spawn run ever has two
+applications weighed about it -- the branching lives in the walker POPULATION
+rather than in any walker's choice. That is the whole argument for a walker
+having a small action space: *which move was good* is answerable when there is
+one option and hopeless when there are forty, so credit assignment becomes
+possible at all. Nothing here learns yet; this is the property that makes
+learning worth attempting.
+
+⚠⚠⚠ **Per walker, and it used to be measured per WINDOW, which is not the same
+claim and broke the day something unrelated moved.** A window holds every
+application the agent weighed across ALL walkers, so two walkers with one option
+each make a window of two while nothing about any walker's choice has changed.
+It read 1 by luck: scores are equal at the floor, so which rules reach a
+shortlist is decided by declaration rank, and adding three rules to the bundle --
+rules that never match in this file at all -- shifted every corpus rule by three
+and made it 2. The measurement was of the table's layout, not of this design.
+The distinction it now draws is sharper as well as sounder: `move + fork` weighs
+two options ABOUT ONE WALKER, which is exactly the contention this file is
+about.
 
 **A walker's identity is its path.** `child(child(w1, r2), r4)` is not a label,
 it is the route: r1, then r2, then r4. Provenance falls out of minting identity
@@ -366,7 +378,32 @@ def _walk(src: str, limit: int = 800) -> Dict[str, object]:
 def _run(extra: str, limit: int = 300) -> Dict[str, object]:
     m = Machine()
     kb = load(m, MAZE + extra, None, None)
-    rep = loop(m, limit=limit)
+    # ⚠⚠⚠ **Per WALKER, not per window, and the difference is the whole claim.**
+    # This read `max(rep.windows)` and called it *one option is weighed per
+    # move*. It is not the same measurement: a window holds every application
+    # the agent weighed, across ALL walkers, so two walkers with one option each
+    # make a window of two and nothing about any walker's choice has changed.
+    #
+    # It read 1 for a long time by luck. Scores are equal at the floor, so which
+    # rules reach a shortlist is decided by declaration RANK -- and adding three
+    # rules to the bundle, which never match here at all, shifted every corpus
+    # rule by three and made it 2. A check that an unrelated change can break
+    # was measuring the table's layout, not this file's design.
+    #
+    # The claim is *the branching lives in the walker POPULATION rather than in
+    # any walker's choice*, so the measurement is: group each window by the
+    # walker its applications are about, and take the largest group.
+    per_walker = []
+
+    def watch(mm, table, window, chosen, tick, step=None):
+        by: Dict[object, int] = {}
+        for a in window:
+            for var, val in a.bindings.items():
+                if mm.g.show(var) == "?w":
+                    by[val] = by.get(val, 0) + 1
+        per_walker.append(max(by.values()) if by else 1)
+
+    rep = loop(m, limit=limit, watch=watch)
     seen: Dict[str, str] = {}
     for mo in m.chain.moments:
         for e in mo.delta:
@@ -375,7 +412,8 @@ def _run(extra: str, limit: int = 300) -> Dict[str, object]:
         "at": sorted(k for k in seen if k.startswith("at(") and seen[k] == "+"),
         "found": sorted(k for k in seen if k.startswith("found(") and seen[k] == "+"),
         "ticks": len(rep.steps),
-        "window": max(rep.windows or [0]),
+        "window": max(per_walker or [0]),
+        "weighed": max(rep.windows or [0]),
         "tried": rep.tried,
     }
 

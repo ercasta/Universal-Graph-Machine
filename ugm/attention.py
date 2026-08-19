@@ -107,9 +107,14 @@ attention on the one already chosen changes nothing.
 
 Measured, on a twelve-rule table of which three rules can match: a rule twelfth
 in the table applies FIRST when the thing it is about is attended, and the run
-costs **143 matches against 183** because the shortlist stopped widening past
-it. Attending to all three narrows less (157) than attending to one -- attention
-that names everything narrows nothing, and the cost column is what says so.
+costs **195 matches against 238** because the shortlist stopped widening past it.
+
+⚠ Attending to all three costs 193 -- indistinguishable. An earlier version of
+this paragraph read a 157-against-143 gap as *attention that names everything
+narrows nothing*, and growing the bundle by three rules turned it into 193
+against 195, pointing the other way. The cost was the wrong column: what
+attention that names everything loses is DISCRIMINATION, and that is checkable
+-- it moves no rule ahead of any other, so the first move is the untaught one.
 
 ## ...and where a lesson about it lives: a postcondition, never a rule
 

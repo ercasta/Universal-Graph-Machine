@@ -401,6 +401,42 @@ class Machine:
         # is a FACT, so a learned rule that sets it can redirect what the agent
         # considers and can never act. A learned rule still cannot mint.
         self.ATTENTION = self.g.atom("attention")
+        # §18's call stack, as facts -- the plumbing under a recursive plan, and
+        # deliberately NOT a strategy for making one.
+        #
+        #     call(?c, ?args)      a call, its parameters as ONE node
+        #     stage(?c, ?s)        which step of it we are on
+        #     spawn(?c, ?a, ?s)    ask for a sub-call, starting at stage ?s
+        #     awaits(?c, ?k)       ?c cannot go on until ?k returns
+        #     returned(?c)         it has
+        #     advances(?p, ?q)     from ?p, go to ?q when the child returns
+        #     closes(?p)           ...or return, if ?p was the last step
+        #
+        # ⭐⭐⭐ **The parameters are one NODE, and that is the whole of what
+        # makes this parametric.** Written as `call(?c, ?d, ?f, ?t, ?s)` the
+        # arity is Hanoi's and no other domain can use it; written as
+        # `call(?c, tower(?d, ?f, ?t, ?s))` the arity is the domain's business
+        # and the plumbing never sees it. Measured on two domains that share
+        # nothing else -- Hanoi and a countdown -- over the same three rules.
+        #
+        # ⚠ **`advances`/`closes` are DATA, not rules.** The phase order is what
+        # differs between one recursive plan and the next, so it is a fact a
+        # corpus deposits rather than a rule anybody writes. That is what stops
+        # this being a second planner: the bundle supplies the stack, and the
+        # corpus supplies the strategy.
+        #
+        # ⚠⚠ Spelled `awaits`/`returned`/`advances` rather than the obvious
+        # `child`/`done`/`then`, and the reason is the census: `child` and `done`
+        # are words a WORLD uses, and reserving one takes it from every corpus
+        # that has a family or a task in it. These are deliberation words and
+        # nothing else.
+        self.CALL = self.g.atom("call")
+        self.STAGE = self.g.atom("stage")
+        self.SPAWN = self.g.atom("spawn")
+        self.AWAITS = self.g.atom("awaits")
+        self.RETURNED = self.g.atom("returned")
+        self.ADVANCES = self.g.atom("advances")
+        self.CLOSES = self.g.atom("closes")
         # Numerals as shared nodes for the small ones, so a score written in a
         # corpus and a score written by a rule are the same node. Everything
         # that READS a numeral reads its name, so an unshared one still works --
@@ -594,6 +630,9 @@ class Machine:
             "again": self.AGAIN,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "attention": self.ATTENTION,
+            "call": self.CALL, "stage": self.STAGE, "spawn": self.SPAWN,
+            "awaits": self.AWAITS, "returned": self.RETURNED,
+            "advances": self.ADVANCES, "closes": self.CLOSES,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
@@ -768,6 +807,9 @@ class Machine:
                              self.COUNT, self.COUNTED, self.NEW,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.ATTENTION,
+                             self.CALL, self.STAGE, self.SPAWN,
+                             self.AWAITS, self.RETURNED,
+                             self.ADVANCES, self.CLOSES,
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
@@ -940,6 +982,15 @@ class Machine:
         nothing anywhere saying so.
         """
         known = set(self.reserved.values())
+        # ⚠⚠⚠ **The mint marker is the one relation that is surface-reachable
+        # WITHOUT being a reserved name**, and it has to be, or bundling a rule
+        # that introduces something is impossible. `+k` is written as a mark and
+        # the parser builds this node directly, so a corpus never names it and
+        # can never build a second one -- which is exactly the failure this
+        # check exists to prevent, arriving already prevented. Reserving `new`
+        # instead would take the word from every corpus, which
+        # `a_rule_can_introduce_a_thing` refused on purpose.
+        known.add(self.NEW)
         missing = []
 
         def visit(n: NodeId) -> None:

@@ -39,6 +39,26 @@ principle: `solve(d1, x, z, y)` occurs TWICE in a three-disk solution, so a call
 node keyed on its arguments would collide with itself and refraction would block
 the second. `+call` mints one node per application, which is exactly right.
 
+## The stack is the bundle's; the strategy is Hanoi's
+
+⭐⭐⭐ **The plumbing is three bundled rules and mentions no domain at all**:
+`<call-spawn>`, `<call-advance>`, `<call-return>`. What makes them shareable is
+that a call carries its parameters as ONE node -- `call(?c, tower(?d,?f,?t,?s))`
+rather than five arguments -- so the arity is the domain's business and the
+stack never sees it. The stage ORDER is data a corpus deposits
+(`advances(unstacking, placing)`, `closes(waiting)`), because the order of the
+steps is exactly what differs between one recursive plan and the next.
+
+⚠ **One domain cannot show that a mechanism is general**, so there are two.
+`COUNTDOWN` below shares nothing with Hanoi -- no disks, no pegs, no `want`, no
+action -- and runs on the same three rules. Before the split, `<unstacked>` and
+`<restacked>` were rules in this file; they are now the bundle's `<call-advance>`
+and `<call-return>` plus two facts.
+
+⚠ And this is NOT a second planner. `<expand>` in the bundle is a STRATEGY --
+means-ends, decompose a goal by some rule's antecedents -- and it stays exactly
+what it was. What is shared here is what any strategy needs underneath it.
+
 ## What it establishes
 
     disks   optimal   moves made        rules naming a disk or peg
@@ -69,49 +89,43 @@ PEGS = ("x", "y", "z")
 # The knowledge. Nothing here mentions a disk, a peg, or a size -- `main`
 # checks that rather than trusting it, because it is the whole experiment.
 RULES = """
+fact +advances(unstacking, placing)
+fact +closes(waiting)
+
 rule <bigger> = implies( { +smaller(?a,?b), +smaller(?b,?c) }, { +smaller(?a,?c) } )
 rule <fits-peg>  = implies( { +disk(?d), +peg(?p) }, { +fits(?d, ?p) } )
 rule <fits-disk> = implies( { +smaller(?d, ?e) }, { +fits(?d, ?e) } )
 
-# -- a call, as a state machine over one minted node ------------------------
+# -- the strategy. The STACK is the bundle's; this is what is Hanoi's ---------
 
 # A call on the smallest disk has nothing to unstack: place it.
-rule <base> = implies( { +phase(?c, start), +call(?c, ?d, ?f, ?t, ?s),
+rule <base> = implies( { +stage(?c, start), +call(?c, tower(?d, ?f, ?t, ?s)),
                          +smallest(?d) },
-                       { -phase(?c, start), +phase(?c, placing) } )
+                       { -stage(?c, start), +stage(?c, placing) } )
 
-# Otherwise a CHILD call moves the sub-tower to the spare peg, and the pegs
+# Otherwise a sub-call moves the sub-tower to the spare peg, and the pegs
 # rotate exactly as the recursive definition rotates them.
-rule <descend> = implies( { +phase(?c, start), +call(?c, ?d, ?f, ?t, ?s),
+rule <descend> = implies( { +stage(?c, start), +call(?c, tower(?d, ?f, ?t, ?s)),
                             +next(?e, ?d) },
-                          { -phase(?c, start), +phase(?c, unstacking),
-                            +call(+k, ?e, ?f, ?s, ?t), +phase(+k, start),
-                            +child(?c, +k) } )
+                          { -stage(?c, start), +stage(?c, unstacking),
+                            +spawn(?c, tower(?e, ?f, ?s, ?t), start) } )
 
-rule <unstacked> = implies( { +phase(?c, unstacking), +child(?c, ?k), +done(?k) },
-                            { -phase(?c, unstacking), +phase(?c, placing),
-                              -child(?c, ?k) } )
-
-# Placing is the only phase that asks for an action.
-rule <ask> = implies( { +phase(?c, placing), +call(?c, ?d, ?f, ?t, ?s) },
+# Placing is the only stage that asks for an action.
+rule <ask> = implies( { +stage(?c, placing), +call(?c, tower(?d, ?f, ?t, ?s)) },
                       { +want(on(?d, ?t)) } )
 
-rule <placed> = implies( { +phase(?c, placing), +call(?c, ?d, ?f, ?t, ?s),
+rule <placed> = implies( { +stage(?c, placing), +call(?c, tower(?d, ?f, ?t, ?s)),
                            +at(?d, ?t) },
-                         { -phase(?c, placing), +phase(?c, restacking) } )
+                         { -stage(?c, placing), +stage(?c, restacking) } )
 
-rule <ascend> = implies( { +phase(?c, restacking), +call(?c, ?d, ?f, ?t, ?s),
+rule <ascend> = implies( { +stage(?c, restacking), +call(?c, tower(?d, ?f, ?t, ?s)),
                            +next(?e, ?d) },
-                         { -phase(?c, restacking), +phase(?c, waiting),
-                           +call(+k, ?e, ?s, ?t, ?f), +phase(+k, start),
-                           +child(?c, +k) } )
+                         { -stage(?c, restacking), +stage(?c, waiting),
+                           +spawn(?c, tower(?e, ?s, ?t, ?f), start) } )
 
-rule <leaf> = implies( { +phase(?c, restacking), +call(?c, ?d, ?f, ?t, ?s),
+rule <leaf> = implies( { +stage(?c, restacking), +call(?c, tower(?d, ?f, ?t, ?s)),
                           +smallest(?d) },
-                        { -phase(?c, restacking), +done(?c) } )
-
-rule <restacked> = implies( { +phase(?c, waiting), +child(?c, ?k), +done(?k) },
-                            { -phase(?c, waiting), +done(?c) } )
+                        { -stage(?c, restacking), +returned(?c) } )
 
 # -- the action. Licensed by a want, never free-standing, and it keeps `at`
 # true -- which is cheap because only a CLEAR disk ever moves, so nothing
@@ -131,8 +145,57 @@ rule <move-bare> = causes( { +want(on(?d, ?p)), +peg(?p), +clear(?p),
                               -clear(?p), -want(on(?d, ?p)),
                               +at(?d, ?p), -at(?d, ?was) } )
 
-rule <finished> = implies( { +done(whole) }, { +enough(solved) } )
+rule <finished> = implies( { +returned(whole) }, { +enough(solved) } )
 """
+
+
+# A SECOND domain over the same stack, and it is here rather than in a file of
+# its own because the claim it settles is about `ugm.hanoi`: that
+# `<call-spawn>`, `<call-advance>` and `<call-return>` are the bundle's and not
+# Hanoi's. Two domains sharing them is the only thing that shows it -- one
+# domain cannot tell a general mechanism from a specific one.
+#
+# It shares NOTHING with Hanoi: no disks, no pegs, no `want`, no action at all.
+COUNTDOWN = """
+fact +advances(waiting, resuming)
+fact +closes(resuming)
+
+rule <bottom> = implies( { +stage(?c, start), +call(?c, count(0)) },
+                        { -stage(?c, start), +returned(?c) } )
+rule <step> = implies( { +stage(?c, start), +call(?c, count(?n)), +pred(?n, ?m) },
+                      { -stage(?c, start), +stage(?c, waiting),
+                        +spawn(?c, count(?m), start) } )
+rule <resumed> = implies( { +stage(?c, resuming) },
+                         { -stage(?c, resuming), +returned(?c) } )
+rule <counted-down> = implies( { +returned(whole) }, { +enough(counted) } )
+"""
+
+
+def countdown(n: int) -> str:
+    L = ["fact +pred(%d, %d)" % (i, i - 1) for i in range(1, n + 1)]
+    L.append("fact +call(whole, count(%d))" % n)
+    L.append("fact +stage(whole, start)")
+    return chr(10).join(L) + chr(10) + COUNTDOWN
+
+
+def count(n: int, limit: int = 3000) -> dict:
+    """Run the second domain. Same three bundled rules, nothing else in common."""
+    from .attention import run
+    from .chain import PLUS
+    from .machine import Machine
+    from .text import load
+
+    m = Machine()
+    kb = load(m, countdown(n))
+    depth = []
+
+    def watch(mm, table, window, chosen, tick, step=None):
+        if chosen.rule.name == "step":
+            depth.append(tick)
+
+    report = run(m, limit=limit, watch=watch)
+    return {"depth": len(depth), "done": m.holds(kb.term("enough(counted)")) == PLUS,
+            "ticks": report.ticks}
 
 
 def facts(n: int, pegs: Tuple[str, ...] = PEGS, target: str = "z") -> str:
@@ -160,8 +223,8 @@ def facts(n: int, pegs: Tuple[str, ...] = PEGS, target: str = "z") -> str:
     # `whole` rather than `root`: `root` is a RESERVED name, so an argument
     # written with it is the machine's own node and not a fresh atom of ours.
     # The load-time census says so, and it is the twin trap in its cheapest form.
-    L.append("fact +call(whole, d%d, %s, %s, %s)" % (n, pegs[0], target, spare))
-    L.append("fact +phase(whole, start)")
+    L.append("fact +call(whole, tower(d%d, %s, %s, %s))" % (n, pegs[0], target, spare))
+    L.append("fact +stage(whole, start)")
     return chr(10).join(L) + chr(10)
 
 
@@ -250,6 +313,18 @@ def main() -> int:
     # checks in this project reported success while unable to fail, and this is
     # what caught them each time. A rule the puzzle solves without is a rule
     # this fixture is not measuring.
+    # ⭐⭐⭐ The claim that the stack is the BUNDLE's and not Hanoi's, which one
+    # domain cannot show. This one shares no relation with Hanoi at all.
+    print()
+    print("  a second domain over the same three bundled rules:")
+    for k in (3, 5, 8):
+        c = count(k)
+        print("      countdown from %d: returned=%-5s depth %d, %d ticks"
+              % (k, c["done"], c["depth"], c["ticks"]))
+        if not c["done"] or c["depth"] != k:
+            print("    FAIL  the countdown did not recurse to the bottom")
+            bad += 1
+
     print()
     print("  the ablation -- each rule removed in turn, on 4 disks:")
     survivors = []

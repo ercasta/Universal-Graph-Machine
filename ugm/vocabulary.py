@@ -75,6 +75,12 @@ ROLES: Dict[str, List[str]] = {
         # NODE rather than about a rule -- *think about this one* -- and it is
         # the agent's own deliberation for the same reason `prefer` is.
         "prefer", "attention", "excluded", "ticks",
+        # §18's call stack: the plumbing under a recursive plan, and not a way
+        # of making one. Deliberation words, chosen so they are not words a
+        # WORLD uses -- `awaits`/`returned`/`advances` rather than the obvious
+        # `child`/`done`/`then`, because reserving `child` takes it from every
+        # corpus that has a family in it.
+        "call", "stage", "spawn", "awaits", "returned", "advances", "closes",
         # Refraction (§14): what has already run, on what, and the
         # contradiction that stopping a loop would otherwise hide.
         "spent", "premises", "contested",

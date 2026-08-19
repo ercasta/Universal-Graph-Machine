@@ -1,3 +1,80 @@
+# Handoff — 2026-08-19g (the call stack leaves Hanoi and enters the bundle)
+
+Built on top of `f3514c4`.
+
+    selftest    618/0
+    bundle      22 bundled rules, 22 exercised, 0 anomalies (was 19)
+    hanoi       exit 0 — optimal at 3..7, plus a second domain
+    walkers     16/0 — one check REWRITTEN, see below
+    state       0 disagreements, four columns
+    vocabulary  18/2 — `holds_at`, `time`. Unchanged.
+    quiescence  still exits 1 — PRE-EXISTING.
+
+## What moved
+
+Three rules left `ugm/hanoi.py` and entered `ugm/rules/bundle.ugm`:
+
+    <call-spawn>    +spawn(?c, ?args, ?stage)  ->  mint a call, await it
+    <call-advance>  the child returned, and there is more to do
+    <call-return>   ...or there is not, and this call returns
+
+⭐⭐⭐ **A call carries its parameters as ONE node**, and that is the whole of
+what makes it parametric. `call(?c, tower(?d,?f,?t,?s))` puts the arity in the
+domain's hands; `call(?c, ?d, ?f, ?t, ?s)` would have made it Hanoi's for ever.
+The stage ORDER is data — `advances(unstacking, placing)`, `closes(waiting)` —
+because the order of the steps is exactly what differs between one recursive
+plan and the next.
+
+⚠ **Not a second planner.** `<expand>` is a STRATEGY (means-ends, decompose a
+goal by a rule's antecedents) and is untouched. What is shared is what any
+strategy needs underneath it.
+
+**Two domains, because one cannot show a mechanism is general.** Hanoi is still
+optimal at 3..7 with the identical move sequence; `COUNTDOWN` in the same file
+shares no relation with it at all and recurses to the bottom at 3, 5 and 8. All
+three bundled rules are load-bearing — `ugm.bundle` breaks 3 checks per rule.
+
+## ⚠⚠⚠ Three things this broke, and each is a finding
+
+**1. The bundle could not MINT.** `_vocabulary_is_surface_nameable` requires
+every relation the bundle uses to be reserved, and `new` is deliberately not —
+reserving it would take the word from every corpus. But the mint marker IS
+surface-reachable, as `+k` rather than as a relation name, so a corpus can never
+build a second one. The check now knows about that one exception. Without it,
+**no bundled rule could ever introduce anything.**
+
+**2. Rule names are one table.** `<spawn>` collided with a selftest fixture's own
+rule. The bundled ones are `<call-*>` now.
+
+**3. ⭐ `ugm.walkers` was measuring the table's layout and calling it a design
+property.** It asserted *one option is weighed per move* by reading
+`max(rep.windows)`. That is not the same claim: a window holds every application
+weighed across ALL walkers, so two walkers with one option each make a window of
+two while no walker's choice has changed. It read 1 by luck — scores are equal at
+the floor, so which rules reach a shortlist is decided by declaration RANK, and
+adding three rules that never match in that file shifted every corpus rule by
+three and made it 2.
+
+Rewritten to group each window by the walker it is about. The distinction it now
+draws is sharper as well as sounder: `move + fork` weighs two options ABOUT ONE
+WALKER, which is exactly the contention that file exists to describe.
+Its recorded numbers moved with the bundle: 7 ticks/146 tried -> 8/192.
+
+**And a check of my own went the same way.** `attention that names everything
+narrows nothing` asserted the COST column — 157 against 143 — and the bigger
+bundle turned it into 193 against 195, pointing the other way. The cost was a
+weak proxy; what such attention actually loses is DISCRIMINATION, so it now
+asserts that the first move is the untaught one. Same error, two files, one
+session: **a check that an unrelated change can flip was measuring the table.**
+
+## The vocabulary this cost
+
+Seven reserved names: `call`, `stage`, `spawn`, `awaits`, `returned`,
+`advances`, `closes`. Chosen as deliberation words rather than the obvious
+`child`/`done`/`then`, because reserving `child` takes it from every corpus with
+a family in it — `ugm.walkers` uses exactly that relation. Checked against every
+shipped corpus before landing.
+
 # Handoff — 2026-08-19f (Hanoi: a recursion is a node with a PHASE)
 
 Built on top of `7776439`. `ugm.hanoi` is new; `teaching.py` gained conditional

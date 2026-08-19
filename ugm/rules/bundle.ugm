@@ -262,3 +262,47 @@ rule <span-complete> = implies( { span_of(?s, ?a, ?e), anc(?m, ?e) },
 # claim over M7..M12 answering about M9..M11 -- is an ordinary fact about
 # endpoints, so `during(?s2, ?s1)` is a corpus's to conclude and to reason from.
 rule <span-itself> = implies( { span_of(?s, ?a, ?e) }, { reaches(?s, ?s) } )
+
+
+# -- the call stack (§18) ----------------------------------------------------
+#
+# The plumbing under a recursive plan, and deliberately NOT a way of making one.
+# `<expand>` above is a STRATEGY -- means-ends, decompose a goal by some rule's
+# antecedents -- and it is one strategy among several. These three rules are
+# what any strategy needs underneath it: spawn a sub-call, wait, propagate the
+# return.
+#
+# ⭐⭐⭐ **A call carries its parameters as ONE node**, which is the whole of what
+# makes this parametric. `call(?c, tower(?d, ?f, ?t, ?s))` puts the arity in the
+# domain's hands, so nothing here knows how many parameters a plan has or what
+# they mean. Exercised by two domains that share nothing else -- `ugm.hanoi` and
+# the countdown beside it.
+#
+# ⚠ The stage ORDER is data, not rules: `advances(?p, ?q)` and `closes(?p)` are
+# facts a corpus deposits, because what differs between one recursive plan and
+# the next is exactly the order of its steps. The bundle supplies the stack; the
+# corpus supplies the strategy.
+#
+# ⚠⚠ And a stage cannot be read off the WORLD, which is why this exists at all.
+# `ugm.hanoi` records four corpora that failed first, and the fourth is the
+# argument: Hanoi's recursion is depth-first and ordered, and `at(d1, x)` is
+# equally true on the way out and on the way back. A guard read off the state is
+# ambiguous by construction. The stage is the disambiguation, and it has to be a
+# fact of its own.
+
+# One node per application, so two calls with the same parameters are two calls.
+# That is not a nicety: `solve(d1, x, z, y)` occurs TWICE in a three-disk Hanoi,
+# and a call keyed on its arguments would collide with itself.
+rule <call-spawn> = implies( { +spawn(?c, ?args, ?stage) },
+                        { +call(+k, ?args), +stage(+k, ?stage),
+                          +awaits(?c, +k), -spawn(?c, ?args, ?stage) } )
+
+# The child returned, and this call has more to do.
+rule <call-advance> = implies( { +stage(?c, ?p), +awaits(?c, ?k), +returned(?k),
+                            +advances(?p, ?q) },
+                          { -stage(?c, ?p), +stage(?c, ?q), -awaits(?c, ?k) } )
+
+# ...or it does not, and the call returns in its turn.
+rule <call-return> = implies( { +stage(?c, ?p), +awaits(?c, ?k), +returned(?k),
+                           +closes(?p) },
+                         { -stage(?c, ?p), +returned(?c) } )

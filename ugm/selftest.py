@@ -7772,10 +7772,20 @@ def attention_is_about_a_node_not_a_rule() -> None:
           f"stopped widening past it ({bare.tried} rules matched over the run, "
           f"{lifted.tried} with attention)",
           lifted.tried < bare.tried and lifted.widenings < bare.widenings)
-    check("§19", "⚠ attention that names everything narrows nothing, and the "
-          "cost column is what says so",
-          run(["fact +attention(thing9)", "fact +attention(thing10)",
-               "fact +attention(thing11)"]).tried > lifted.tried)
+    # ⚠⚠⚠ **This asserted the COST and the cost was the wrong column.** It read
+    # `tried` -- attending to all three cost 157 against 143 for one -- and that
+    # gap was an accident of how much apparatus happened to sit in the table:
+    # growing the bundle by three rules turned it into 193 against 195, a 1%
+    # difference pointing the other way, and the check failed while nothing it
+    # was about had changed. What attention that names everything actually
+    # loses is DISCRIMINATION, and that is what is asserted now: it cannot bring
+    # any one thing forward, so the move is the untaught one.
+    everything = run(["fact +attention(thing9)", "fact +attention(thing10)",
+                      "fact +attention(thing11)"])
+    check("§19", "⚠ attention that names everything discriminates nothing: it "
+          "moves no rule ahead of any other, so the first move is the one the "
+          "untaught table would have made",
+          everything.applied[0] == bare.applied[0] != lifted.applied[0])
     check("§19", "⚠ and the STATE is what the lift is read through, not the "
           "graph: attending to a node the agent holds nothing about lifts "
           "nothing at all",
