@@ -3794,7 +3794,11 @@ class Machine:
         # would otherwise read as `blocked`.
         hidden = self._out_of_mind()
         topic, seat = self.focus.topic, self.focus.seat
-        key = (topic.node, seat.node, hidden)
+        # ⚠ `_merges` is part of the key: a merge changes which entries answer
+        # which member, and the kept state is MAINTAINED rather than rebuilt --
+        # so without this the state keeps answering with the index it had
+        # before two things became one.
+        key = (topic.node, seat.node, hidden, self.g._merges)
         cache = self._state_cache.get(key)
         if cache is None:
             props: dict = {}

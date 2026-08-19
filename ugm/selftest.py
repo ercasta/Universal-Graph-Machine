@@ -8094,6 +8094,35 @@ def two_things_can_turn_out_to_be_one() -> None:
           "corefers pays for this",
           plain.g._key(1, (2, 3)) == (1, (2, 3)) and not plain.g._merges)
 
+    # ⭐⭐⭐ **TWO VOCABULARIES, AND NO RULE MENTIONS A DENOTATION.** This is what
+    # the identity layer is FOR, and it is the answer to *must every rule be
+    # full of `denoted by`*. `denotes` is right while a reading is uncertain and
+    # it belongs at the boundary -- `ugm/rules/dungeon.ugm` has 19 rules and
+    # zero of them. Once the agent COMMITS that two words name one relationship,
+    # merging compiles that commitment into identity, and every rule written in
+    # either vocabulary reads the other's facts unchanged.
+    #
+    # ⚠⚠⚠ It took three layers to be true, and each was silent on its own:
+    # interning and the argument index (the candidate is filed), `unify` (the
+    # candidate is not thrown away for having the wrong relation node), and the
+    # STATE index plus its cache (the candidate is offered at all). With any one
+    # missing the rule matches nothing, reports nothing, and reads as a corpus
+    # bug -- which is exactly how it was found.
+    v = Machine()
+    kbv = load(v, chr(10).join([
+        "fact +owes(acme, 500)",
+        "fact +debt(zeta, 900)",
+        "rule <chase> = implies( { +owes(?who, ?amt) }, { +chase(?who) } )", ""]))
+    v.run(limit=60)
+    before = v.holds(kbv.term("chase(zeta)"))
+    v.g.merge(kbv.atom("owes"), kbv.atom("debt"))
+    v.run(limit=60)
+    check("§3", "⭐⭐⭐ ...and once two WORDS are committed to one relationship, a "
+          "rule written in one vocabulary reads the other's facts -- with no "
+          "denotation anywhere in the rule",
+          before is None and v.holds(kbv.term("chase(zeta)")) == PLUS
+          and v.holds(kbv.term("chase(acme)")) == PLUS)
+
 
 def main() -> int:
     import sys

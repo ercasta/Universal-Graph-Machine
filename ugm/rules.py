@@ -612,12 +612,32 @@ def unify(
             out = dict(bindings)
             out[pattern] = node
             return out
-        return bindings if bound == node else None
+        return bindings if bound == node or (
+            g._merges and g.identity_of(bound) == g.identity_of(node)) else None
     if pattern == node:
+        return bindings
+    # ⭐⭐⭐ **Identity, at BIND TIME** -- and without this the rest of the
+    # identity layer is half a feature. `merge` repoints the indices, so after
+    # merging `debt` into `owes` a rule reading `+owes(?x, ?y)` is OFFERED
+    # `debt(zeta, 900)` by the argument index and then rejects it here, because
+    # a node's own `_rel` field still says `debt`. Candidates found and thrown
+    # away: the rule matches nothing, reports nothing, and looks like a corpus
+    # bug. Measured exactly that way before this line existed.
+    #
+    # ⚠ Guarded on `_merges`, so a corpus that never corefers compares two ints
+    # as it always did. `identity_of` is called on the hottest path in the
+    # engine and it has to cost nothing until something has merged.
+    if g._merges and g.identity_of(pattern) == g.identity_of(node):
         return bindings
     prel, nrel = g.relation_of(pattern), g.relation_of(node)
     if prel is None or nrel is None:
         return None
+    if prel != nrel and g._merges:
+        # The relation slot, through identity: two vocabularies that have been
+        # committed to being one relationship match each other's facts, and no
+        # rule mentions a denotation to do it.
+        if g.identity_of(prel) == g.identity_of(nrel):
+            prel = nrel
     if prel != nrel:
         # ⭐ **A variable in the RELATION slot.** The substrate has always been
         # able to build `?p(?x)` -- it is a node whose relation happens to be a
@@ -1039,7 +1059,13 @@ class Situation:
             self.add(e)
 
     def _keys(self, e: Entry) -> List[Tuple]:
+        # ⭐ Through identity, so a fact written with one vocabulary is offered
+        # to a member written with another once the two have been merged. The
+        # reading half of `Graph.merge`: without it the index repoints, the
+        # candidate is never OFFERED, and the rule silently matches nothing.
         rel = self.g.relation_of(e.proposition)
+        if rel is not None and self.g._merges:
+            rel = self.g.identity_of(rel)
         keys = [(e.sign, rel), (e.sign, self.ANY)]
         if rel is not None:
             # ⚠ Atoms here too, and for the same reason read from the other end:
@@ -1086,6 +1112,8 @@ class Situation:
         self, g: Graph, want: Member, bindings: Optional[Dict[NodeId, NodeId]] = None
     ) -> List[Entry]:
         rel = None if g.is_var(want.pattern) else g.relation_of(want.pattern)
+        if rel is not None and g._merges:
+            rel = g.identity_of(rel)
         # ⚠ A pattern whose RELATION is a variable has no bucket either: nothing
         # is known about what it names until it matches. It takes the same ANY
         # bucket a bare variable does, which is the index cost of allowing one
