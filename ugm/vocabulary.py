@@ -67,6 +67,10 @@ ROLES: Dict[str, List[str]] = {
         "tolerance", "close", "forgone", "helped", "harmed", "concluded",
         "reached", "bounded", "widened", "support", "unsupported", "root",
         "rooted", "scoped", "loaded", "kb", "dormant", "due", "standing",
+        # The aggregate over bindings, which is what `blocked`, `rooted` and
+        # `unsupported` above are each a threshold on: a rule sees one binding
+        # at a time, so *how many* is the machinery's to answer.
+        "count", "counted",
         "prefer", "excluded", "ticks",
         # Refraction (§14): what has already run, on what, and the
         # contradiction that stopping a loop would otherwise hide.

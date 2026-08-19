@@ -794,7 +794,19 @@ class Loader:
 
     def atom(self, name: str) -> NodeId:
         if name not in self.atoms:
-            self.atoms[name] = self.m.g.atom(name)
+            # ⚠⚠⚠ **A NUMERAL is not this document's name for something.** Two
+            # corpora may be about different kettles and are never about
+            # different 2s. `Machine.NUMERAL` already says so and `reserved`
+            # already seeds this table from it -- but `reserved` is a snapshot
+            # taken at boot and it stops at nine, so `12` fell through to
+            # `g.atom` and minted a node per document. Nothing had computed a
+            # numeral before, so nothing had noticed; `_count` computes one, and
+            # a count of twelve would have been a twin of every authored 12.
+            # The twin trap, seventh time, and the same answer as the other six.
+            self.atoms[name] = (
+                self.m._numeral(int(name)) if name.isdigit()
+                else self.m.g.atom(name)
+            )
         return self.atoms[name]
 
     def var(self, name: str, scope: Dict[str, NodeId]) -> NodeId:
@@ -985,6 +997,7 @@ class Loader:
             m
             for m, written in zip(con, s.consequent)
             if (self.m.g.has_var(m.pattern)
+                and not _describes(written.term)
                 and not self._covered(m.pattern, ant,
                                       self._named_rule_vars(written.term)))
             or (m.locus is not None and self.m.g.has_var(m.locus)
@@ -1003,7 +1016,8 @@ class Loader:
         # matches an entry that was already written as a mention, and §14's
         # propagation carries it. Flagging that case too would be broader than
         # the evidence for it.
-        r.mentions = any(_mentions_a_rule(m.term) for m in s.consequent)
+        r.mentions = any(_mentions_a_rule(m.term) or _describes(m.term)
+                         for m in s.consequent)
         self.rules_by_name[s.name] = r
         self.rule_nodes[s.name] = r.node
         # ...and so it PRINTS as its name. A rule is minted as
@@ -1062,7 +1076,7 @@ class Loader:
         # useless, and a norm expressed as a rule is a competitor in recall.
         mentions = (
             _mentions_a_rule(s.member.term)
-            or s.member.term.head == "forbidden"
+            or _describes(s.member.term)
             or bool(s.name)  # a named statement is one you can be about
         )
         if not mentions and self.m.g.has_var(prop):
@@ -1124,6 +1138,28 @@ class Loader:
         if self.m.g.has_var(prop):
             raise ParseError(f"line {s.line}: an arrival may not contain a variable")
         self.m.channels.deliver(self.channels[s.channel], prop, s.member.sign)
+
+
+#: Heads whose ARGUMENT is a description rather than a proposition, so a
+#: variable inside one is a class and not an unbound conclusion.
+#:
+#: ⚠⚠⚠ **A tuple rather than a third scattered string comparison.** `_fact` read
+#: `term.head == "forbidden"` in one place and the consequent check knew nothing
+#: about it, and `docs/quest-feedback.md` §6 reported how sharp that edge is: a
+#: foreign corpus declined the tidier parser refactor precisely because moving
+#: that head one level down would have *retired every norm in the suite
+#: silently*. Adding `count` as a second literal in two more places is how that
+#: happens again, so the set is named once and read everywhere.
+#:
+#: `forbidden(doing(harm(?x)))` names a class of acts; `count(goblin(?x))` names
+#: a class of things to be counted. Same shape, same price, same reason §13
+#: allows it: what tells a description from a generic claim is who is writing.
+DESCRIBES = ("forbidden", "count")
+
+
+def _describes(t: Term) -> bool:
+    """Is this term an ask whose argument is a description? See `DESCRIBES`."""
+    return t.head in DESCRIBES
 
 
 def _mentions_a_rule(t: Term) -> bool:

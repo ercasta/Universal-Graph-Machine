@@ -112,7 +112,8 @@ class Lesson:
         self.last_bindings: Dict = {}
         self.last_example: Optional[Tuple] = None
 
-    def watching(self, m: Machine, table: Table, window, chosen, tick: int):
+    def watching(self, m: Machine, table: Table, window, chosen, tick: int,
+                 step=None):
         self.moves += 1
         # By RULE, not by application identity: the teacher builds its own
         # `Application` objects from `_materialise`, so `is` compares two

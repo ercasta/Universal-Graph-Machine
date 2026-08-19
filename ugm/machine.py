@@ -101,6 +101,29 @@ class Machine:
         # rules produced is the machinery's business and not a rule's.
         self.ROOT = self.g.atom("root")        # ask
         self.ROOTED = self.g.atom("rooted")    # ...and the answer, when it is one
+        # ⭐⭐⭐ **The aggregate over bindings, and it is the GENERAL case of
+        # `rooted`, `unsupported` and `blocked` rather than a fourth of them.**
+        # A rule's antecedent is existential -- each member matches *an entry*,
+        # so a rule says *there is an entry such that*, and a `-` member says
+        # *an entry denies this*, never *for no `?x`*. A rule therefore sees one
+        # binding at a time, and *there are two matches* exists only inside
+        # `match`, which is the floor.
+        #
+        # `docs/observations.md` §4 reaches this from four directions and they
+        # collapse to one question -- *how many ground matches does this pattern
+        # have here?* -- with the comparison left to a corpus:
+        #
+        #     nothing was told about it        0
+        #     it held throughout        counterexamples 0
+        #     ***the*** goblin                 1
+        #     nothing has handled this yet     0
+        #
+        # One request, four uses, and the meaning is the corpus's own rule
+        # rather than four bundled ones. That is *rows, not branches* at the
+        # level of the feature itself.
+        self.COUNT = self.g.atom("count")      # ask
+        self.COUNTED = self.g.atom("counted")  # ...and the answer, always
+
         self.ARRIVED = self.g.atom("arrived")
         self.EMITTED = self.g.atom("emitted")
         # The same record, for an act that was decided on but not taken --
@@ -534,6 +557,7 @@ class Machine:
             "forgone": self.FORGONE, "exercised": self.EXERCISED,
             "concluded": self.CONCLUDED,
             "root": self.ROOT, "rooted": self.ROOTED,
+            "count": self.COUNT, "counted": self.COUNTED,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "scoped": self.SCOPED, "loaded": self.LOADED,
             "again": self.AGAIN,
@@ -707,6 +731,7 @@ class Machine:
                              self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED, self.HARMED,
                              self.FORGONE, self.EXERCISED, self.CONCLUDED,
                              self.ROOT, self.ROOTED,
+                             self.COUNT, self.COUNTED,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
                              self.FORBIDDEN, self.STANDING,
@@ -804,6 +829,11 @@ class Machine:
             # chose to ask. The status quo ante is its absence, which is §20's
             # own test for a capability that is safe to retire.
             ("supported", "support", self._supported, False),
+            # NOT `standing`, by the same test the two above use:
+            # nothing in the apparatus counts, so a corpus that
+            # retires it loses only what it chose to ask, and the
+            # status quo ante is its absence.
+            ("counter", "count", self._count, False),
             # NOT `standing`, by the same test: deny it and the agent is exactly
             # what it was before composition had a trigger, which is sound.
             ("composer", "compose", self._compose, False),
@@ -1323,6 +1353,113 @@ class Machine:
         self.gate.write(
             frame, self.g.rel(self.ROOTED, wanted), PLUS,
             licence=self.g.rel(self.GOAL, wanted), source=self.KB, mention=True,
+        )
+
+    def _count(self, frame: Frame, e: Entry) -> None:
+        """Answer *how many ground matches does this pattern have here?*
+
+            count(goblin(?x))         a REQUEST, asked by a corpus rule
+            counted(goblin(?x), 2)    the answer, and it always answers
+
+        ⭐⭐⭐ **The general case of the three asks above it**, and the reason it
+        is worth having is that they are three special cases of one question.
+        `rooted`, `unsupported` and `blocked` each enumerate something the rules
+        produced and each answers only *yes*, because each is a negative
+        existential and §17 says deposit the smallest unarguable record. A count
+        is not a negative existential -- it is the measurement all three are
+        thresholds on -- so it answers with a number and lets a corpus write the
+        comparison:
+
+            { +counted(?p, 0) }  =>  nothing was told about it
+            { +counted(?p, 1) }  =>  ***the*** one that satisfies it
+            { +counted(?p, 2) }  =>  ambiguous, and what to do about it is mine
+
+        ⚠⚠⚠ **The matcher does the counting, and that is the whole of why this
+        is admissible.** `deposit-dont-decide.md`: the engine may compute
+        anything whose result is a fact the rules can read, deny and argue with;
+        what it may not do is decide. So the count is not a second enumeration
+        written beside `match` -- it builds a one-member probe rule and runs the
+        ordinary matcher, which means the number is *the same enumeration a rule
+        would have got*, and a corpus can never be told a count that disagrees
+        with what it could match for itself.
+
+        ⚠⚠ **Answered at the ask, not at quiescence.** It is on the write path
+        with the other answerers, so `count(...)` is answered the moment it is
+        written. That is the opposite of `unsupported` -- which is a claim about
+        a FINISHED search and a lie before `quiet` -- and it is right here for
+        the reason the whole aggregate exists: a reading with two candidates is
+        ambiguous *now*, and a corpus that had to wait for quiescence to find
+        out would have acted on one of them already.
+
+        ⚠ **A count is not monotone, and nothing pretends otherwise.** It is
+        true of a moment and the next entry can falsify it. The answer is an
+        ordinary dated fact, so the ordinary read supersedes it when the count
+        changes -- but only if it is ASKED again, because the machinery does not
+        volunteer. A corpus holding a stale count is holding a fact about the
+        moment it asked, which is what it is.
+        """
+        if self.g.relation_of(e.proposition) is not self.COUNT or e.sign != PLUS:
+            return
+        (pattern,) = self.g.members(e.proposition)
+        # A one-member probe, matched by the ordinary matcher at this frame --
+        # `_spend_posts` builds one the same way for a postcondition's query.
+        probe = Rule(e.proposition, IMPLIES,
+                     [Member(PLUS, pattern)], [], "<count>")
+        # ⚠ Distinct PROPOSITIONS, not applications, and this is a GUARD rather
+        # than a repair -- said plainly because the difference matters. The
+        # question is *how many things*, and an application is per surviving
+        # entry; those coincide today, and probed on a proposition denied and
+        # re-asserted they still coincide (2 applications, 2 propositions). So
+        # nothing here has been seen to need it. It is kept because the two are
+        # different questions and only one of them is the one being asked, and
+        # the day `resolve` keeps two live entries for one proposition the count
+        # should not quietly start answering the other.
+        seen = set()
+        for hit in match(
+            self.g, self.chain, probe, frame.topic, frame.seat,
+            self._situation(), computes=self.rules.computes,
+            structural=self.rules.skeleton(),
+        ):
+            seen.add(substitute(self.g, pattern, hit.bindings))
+        # ⚠⚠⚠ **Keyed on the ASK, not on the pattern, and that is what makes the
+        # answer readable at all.** A statement's variables are scoped to it
+        # (§8), so the `?x` in one rule's `goblin(?x)` is not the `?x` in
+        # another's -- two rules writing the same description build two nodes,
+        # and a corpus had no way to name the thing it had just asked about.
+        # Keyed on `count(goblin(?x))` it does, by the route the surface already
+        # gives a description: name the statement.
+        #
+        #     fact <goblins> = count(goblin(?x))
+        #     rule <ambiguous> = implies( { +counted(<goblins>, 2) }, { ... } )
+        #
+        # Read back the pattern with an ordinary structural member if you want
+        # it; the count is about the question that was asked.
+        answer = self.g.rel(self.COUNTED, e.proposition, self._numeral(len(seen)))
+        # ⚠⚠⚠ **A COUNT IS A FUNCTIONAL ATTRIBUTE, so the old one is denied in
+        # the same breath.** `counted(p, 2)` and `counted(p, 3)` are different
+        # propositions, so asserting the second leaves the first standing and
+        # the corpus has two answers to one question -- which is the dungeon's
+        # `hp(g1, 5)` and `hp(g1, 2)` defect exactly, one layer down, and the
+        # design's own second constraint on this feature: *not monotone, by
+        # construction; a count is true of a moment and can be falsified by the
+        # next entry.*
+        #
+        # Authored corpora pay this by writing the denial and the assertion as a
+        # pair. Nobody can write it here, because nobody but the machinery knows
+        # what the previous count was -- so the machinery owes it, and the
+        # alternative is an agent that believes there are two goblins and three.
+        for old in self.g.instances_of(self.COUNTED):
+            if old == answer or self.g.member(old, 0) != e.proposition:
+                continue
+            if self.chain.resolve(old, frame.topic, frame.seat) is None:
+                continue
+            self.gate.write(
+                frame, old, MINUS, licence=e.proposition, source=self.KB,
+                mention=True,
+            )
+        self.gate.write(
+            frame, answer, PLUS,
+            licence=e.proposition, source=self.KB, mention=True,
         )
 
     def _supported(self, frame: Frame, e: Entry) -> None:

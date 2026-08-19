@@ -7541,6 +7541,354 @@ def quiescence_is_an_occasion() -> None:
           steps[-1].state == "quiescent")
 
 
+# -- docs/interpretation-feedback.md ----------------------------------------
+
+
+def an_unindexed_member_says_so() -> None:
+    """§3: a member that fell off the index and was answered by a scan.
+
+    `_narrowed` cannot key a bucket on a structure that still carries a
+    variable, so it falls back to every instance of the relation. That is
+    correct, its own docstring sanctions the cost, and it was **silent** -- and
+    a grammar is the corpus that changes the stakes, because its members are
+    pattern-heavy by construction and hundreds of rules are the difference
+    between a parse and a hang. The information existed at the point where it
+    was discarded.
+
+    ⚠ **Both numbers, because the count alone does not rank them.** Measured on
+    `ugm.interpret` below: the member that falls back most often is not the one
+    that costs most, because the relation it scans has almost nothing in it.
+    """
+    from .text import load
+    from .attention import run as table_run
+    from . import interpret as I
+
+    m = Machine()
+    load(m, I.SYSTEM + I.AS_FACTS, None, None)
+    r = table_run(m, limit=600)
+    check("§3", "a corpus whose members are pattern-heavy reports the scans it "
+          "paid for -- previously silent, and the whole of the ask",
+          r.scans > 0 and r.scanned_nodes > 0)
+    check("§3", "...and NAMES the member, which is what an author has to go and "
+          "change",
+          any("(" in k or "?" in k for k in r.scanned))
+
+    native = Machine()
+    load(native, I.NATIVE, None, None)
+    rn = table_run(native, limit=600)
+    # ⭐ The gate: the same content authored the way the engine already reads it.
+    # A counter that reported scans on ANY corpus would be noise rather than an
+    # instrument -- this is the `unwebbed` direction, quiet on healthy input.
+    check("§3", "...and the same content authored natively reports none, so the "
+          "counter is an instrument and not a constant",
+          rn.scans == 0)
+
+    print()
+    print(f"        interpreted  {r.scans:5} scans  {r.scanned_nodes:6} nodes walked")
+    for k, (n, nodes) in sorted(r.scanned.items(), key=lambda kv: -kv[1][1]):
+        print(f"          {n:5} x {nodes:7} nodes   {k}")
+    print(f"        native       {rn.scans:5} scans  {rn.scanned_nodes:6} nodes walked")
+    print("        The count and the size disagree about which member matters,")
+    print("        which is why both are reported.")
+    print()
+
+
+def a_line_of_work_can_run_dry_unnoticed() -> None:
+    """§2: widening is global, and the record of it is bound to the wrong event.
+
+    The harness asked for a **scoped** widening -- *this line of work found
+    nothing* rather than *the machine found nothing* -- and marked the request
+    checkable and unchecked, with the honest note that if the window goes empty
+    often enough in practice the request evaporates. This is that measurement.
+
+    Two lines of work in one agent, which is the shape a dungeon with a parser
+    in it actually has: upkeep that always has something to do, and a reading
+    that fails. The reading's floor tier is `<repair>` -- what to do with input
+    nothing else understood.
+
+    ⭐⭐⭐ **The request does not evaporate, and the mechanism is not the one the
+    document names.** `m._widen()` -- the call that deposits `widened(<seat>)`
+    and `reached(<seat>)` -- fires only when the window is empty after the walk
+    down the whole table, and the window is never empty while upkeep has work.
+    But the shortlist DOES widen, many times per run, and the floor tier IS
+    eventually reached: what is missing is not the reaching, it is the RECORD.
+    The loop counts its widenings in a `Report` field no rule can read.
+
+    ⚠ And the tier is reached only once the other line of work is exhausted, so
+    the agent answers the utterance after the room goes quiet rather than while
+    it is being spoken to.
+    """
+    from .text import load
+    from .attention import run as table_run
+
+    CORPUS = chr(10).join([
+        "fact +tick(t0)",
+        "fact +next(t0, t1)", "fact +next(t1, t2)", "fact +next(t2, t3)",
+        "fact +next(t3, t4)", "fact +next(t4, t5)",
+        "rule <upkeep> = causes( { +tick(?a), +next(?a, ?b) },",
+        "                        { -tick(?a), +tick(?b) } )",
+        "rule <parse>  = implies( { +heard(?w), +word(?w) }, { +read(?w) } )",
+        "rule <repair> = implies( { +heard(?w) }, { +guessed(?w) } )",
+        "fact standing(<upkeep>)",
+        "fact standing(<parse>)",
+        "fact +heard(gobln)", ""])
+
+    m = Machine()
+    kb = load(m, CORPUS)
+    r = table_run(m, limit=40)
+    empty = sum(1 for w in r.windows if w == 0)
+    first_repair = next((i for i, n in enumerate(r.applied) if n == "repair"),
+                        None)
+    upkeep_left = sum(1 for n in r.applied[first_repair:] if n == "upkeep") \
+        if first_repair is not None else 0
+
+    check("§2", "the window is NEVER empty while another line of work has "
+          "something to do, so the deposit that says *I had to go and get "
+          "that* never fires -- the request does not evaporate",
+          empty == 0)
+    check("§2", "...while the shortlist widened repeatedly, which is the same "
+          "event and is counted only in a Report field no rule can read",
+          r.widenings > 0)
+    check("§2", "...and the floor tier IS reached, so the ladder works and it "
+          "is the record that is missing, not the reaching",
+          m.holds(kb.term("guessed(gobln)")) == PLUS)
+    check("§2", "...but only after the other line of work ran out, so the "
+          "agent answers once the room has gone quiet",
+          first_repair is not None and upkeep_left == 0)
+
+    print()
+    print(f"        ticks {len(r.windows)}   empty windows {empty}   "
+          f"shortlist widenings {r.widenings}")
+    print(f"        applied: {r.applied}")
+    print("        `_widen` deposits on an empty window; the window is never")
+    print("        empty; so `widened(<seat>)` and `reached(<seat>)` are")
+    print("        unreachable for an agent that has any other work at all.")
+    print()
+
+
+def the_watcher_is_handed_the_move() -> None:
+    """§4: hand `watch` the `Step` the loop has just appended.
+
+    A watcher runs after the move, deliberately -- watching at the choice
+    records a rule that never ran. The cost was that `_spend` has appended its
+    refraction bookkeeping by then, so a watcher asking the chain *what did that
+    move write* over-reports by a `spent(...)` term, and the harness was
+    wrapping `Machine._apply` on the instance to get the honest answer. The
+    `Step` already carries `wrote`.
+    """
+    from .text import load
+    from .attention import run as table_run
+
+    seen = []
+
+    def watching(m, table, window, chosen, tick, step=None):
+        seen.append((chosen, step))
+
+    m = Machine()
+    load(m, chr(10).join([
+        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "fact +p(x)", ""]))
+    table_run(m, limit=20, watch=watching)
+
+    check("§4", "a watcher is handed the step the loop just appended",
+          bool(seen) and all(s is not None for _c, s in seen))
+    check("§4", "...and it is the step for THAT move, not the one before",
+          all(s.applied is c for c, s in seen))
+    check("§4", "...carrying what the application itself wrote, which is the "
+          "number the harness was reaching inside the engine for",
+          all(isinstance(s.wrote, tuple) for _c, s in seen))
+    # ⚠ The point of the ask: `wrote` is the application's own deposit, so it
+    # cannot contain the refraction bookkeeping `_spend` adds after it.
+    check("§4", "...and it does NOT contain `_spend`'s refraction bookkeeping, "
+          "which is what over-reported before",
+          all(not any(m.g.show(e.proposition).startswith("spent(")
+                      for e in s.wrote) for _c, s in seen))
+
+
+def a_table_can_outlive_a_run() -> None:
+    """§4: let a caller pass its table in.
+
+    A host driving the agent one tick at a time rebuilds the table per step, and
+    that is free EXACTLY while nothing has moved it -- with no postconditions a
+    table is its defaults plus a `prefer` lift recomputed every tick, so a
+    rebuilt table is the same table. Supply real postconditions and the rebuild
+    silently discards every spend, on the day something else changes.
+
+    ⚠ **The ticks continue rather than restarting**, or a lift born on tick 39
+    of the last call is younger than one born on tick 2 of this one, and
+    `rebuilt` -- asserted on every run -- is what would catch it.
+    """
+    from .text import load
+    from .attention import Table, run as table_run, _standing
+
+    src = chr(10).join([
+        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "fact +p(x)", ""])
+
+    m = Machine()
+    load(m, src)
+    table = Table(m.g, [r for r in m.rules.rules], _standing(m))
+    first = table_run(m, limit=3, table=table)
+    check("§4", "a caller may hand its own table in, and gets it back",
+          first.table is table)
+    ticked = table.ticked
+    second = table_run(m, limit=3, table=table)
+    check("§4", "...and a second run continues the same table rather than a "
+          "fresh one",
+          second.table is table and table.ticked > ticked)
+    check("§4", "...continuing the tick count, so a lift's age is not reset "
+          "under it -- the assertion inside `run` is the one that holds this",
+          table.now >= ticked)
+    # A table nobody supplied is still built here, so the default path is
+    # untouched -- the whole suite is the check for that, and this names it.
+    plain = Machine()
+    load(plain, src)
+    check("§4", "...and a caller that supplies nothing still gets a table built "
+          "for it, so the default path is unchanged",
+          table_run(plain, limit=3).table is not None)
+
+
+def the_aggregate_over_bindings_is_one_primitive() -> None:
+    """§1: *how many ground matches does this pattern have here?*
+
+    `docs/observations.md` §4 reaches this from four directions -- *nothing was
+    told about this*, *it held throughout*, ***the*** goblin, *nothing has
+    handled this yet* -- and they collapse to one question with an ordinary
+    comparison on the answer. The three shipped asks (`rooted`, `unsupported`,
+    `blocked`) are each a threshold on it, and each answers only *yes* because
+    each is a negative existential. This answers with the number.
+
+    ⭐ **The corpus writes the meaning.** Nothing below is a bundled sense of
+    *the* or *ambiguous* -- they are three ordinary rules over 0, 1 and 2, which
+    is *rows, not branches* at the level of the feature itself.
+    """
+    from .text import load
+
+    SRC = chr(10).join([
+        "fact +goblin(gob_a)",
+        "fact +goblin(gob_b)",
+        "fact +elf(elf_e)",
+        "fact <goblins> = count(goblin(?x))",
+        "fact <elves>   = count(elf(?x))",
+        "fact <trolls>  = count(troll(?x))",
+        "rule <ambiguous> = implies( { +counted(<goblins>, 2) }, { +ambiguous(g) } )",
+        "rule <definite>  = implies( { +counted(<elves>, 1) },   { +definite(e) } )",
+        "rule <untold>    = implies( { +counted(<trolls>, 0) },  { +untold(t) } )",
+        ""])
+    m = Machine()
+    kb = load(m, SRC)
+    m.run(limit=60)
+
+    # ⚠ Named through `rule_nodes`, not rebuilt with `kb.term`: a statement's
+    # variables are scoped to it, so re-parsing `count(goblin(?x))` mints a
+    # fresh `?x` and asks about a different description. That is exactly what
+    # forced the answer to be keyed on the ask, and it catches a test author
+    # the same way it catches a corpus author.
+    def counted(name, n):
+        return m.holds(m.g.rel(m.COUNTED, kb.rule_nodes[name], m._numeral(n)))
+
+    check("§1", "⭐⭐⭐ the machinery answers *how many things satisfy this "
+          "description*, which no rule can ask -- a rule sees one binding at a "
+          "time and the set lives only inside `match`",
+          counted("goblins", 2) == PLUS)
+    check("§1", "...and a corpus writes AMBIGUITY as an ordinary rule over the "
+          "number, rather than the engine learning what two readings mean",
+          m.holds(kb.term("ambiguous(g)")) == PLUS)
+    check("§1", "...the definite article the same way -- exactly one satisfies "
+          "it (§2.23's gap, from the corpus side)",
+          m.holds(kb.term("definite(e)")) == PLUS)
+    check("§1", "...and the negative existential the other two asks each "
+          "special-case: nothing was told about a troll",
+          m.holds(kb.term("untold(t)")) == PLUS)
+
+    # ⚠⚠⚠ Could this have failed? A count that always answered 2 would pass the
+    # first check, and a corpus reading a constant would pass the rest. Three
+    # counts over one corpus, each a different number, is what makes the
+    # instrument an instrument -- and the elf is the control for the goblins.
+    check("§1", "⚠ and the answer TRACKS THE WORLD rather than being a "
+          "constant: three descriptions over one corpus, three numbers",
+          counted("elves", 1) == PLUS and counted("trolls", 0) == PLUS)
+
+
+def a_count_is_not_monotone() -> None:
+    """§1, and the second of the design's four constraints on it.
+
+    A count is true of a moment and the next entry can falsify it -- so
+    `counted(p, 2)` and `counted(p, 3)` are different propositions and asserting
+    the second leaves the first standing. That is the dungeon's `hp(g1, 5)` and
+    `hp(g1, 2)` defect one layer down: an agent that believes there are two
+    goblins and three.
+
+    An authored corpus pays this by writing the denial and the assertion as a
+    pair (`docs/authoring.md` §0). Nobody can write it here, because nobody but
+    the machinery knows what the previous count was, so the machinery owes it.
+
+    ⚠ **Re-asking is the corpus's job and it is the ordinary discipline**: a
+    request is a fact, so it is SPENT and re-asserted. Writing the same ask
+    again changes nothing and is correctly dropped -- which is the same finding
+    the dungeon reported about its dice.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "fact +goblin(gob_a)",
+        "fact +goblin(gob_b)",
+        "fact <goblins> = count(goblin(?x))", ""]))
+    m.run(limit=20)
+    ask = kb.rule_nodes["goblins"]
+
+    def counted(n):
+        return m.holds(m.g.rel(m.COUNTED, ask, m._numeral(n)))
+
+    check("§1", "the count of two goblins is two", counted(2) == PLUS)
+
+    third = kb.term("goblin(gob_c)")
+    m.gate.write(m.focus, third, PLUS,
+                 licence=m.g.rel(m.LOADED, third), source=m.KB)
+    for sign in (MINUS, PLUS):  # spend the request, then ask again
+        m.gate.write(m.focus, ask, sign,
+                     licence=m.g.rel(m.LOADED, ask), source=m.KB, mention=True)
+    m.run(limit=20)
+
+    check("§1", "⭐⭐⭐ ...and when the world moves and the corpus asks again, the "
+          "new count lands",
+          counted(3) == PLUS)
+    check("§1", "...and the OLD one is denied in the same breath, so the agent "
+          "never holds two answers to one question",
+          counted(2) == MINUS)
+
+
+def a_computed_numeral_is_not_a_twin() -> None:
+    """§1, and the trap that had to be closed before any of it could be read.
+
+    `Machine.NUMERAL` shares the small numerals so a score written in a corpus
+    and a score written by a rule are one node, and `reserved` seeds every
+    loader's table from it -- **but that snapshot stops at nine.** Nothing had
+    ever computed a numeral, so nothing had noticed that `12` fell through to
+    `g.atom` and minted one node per document.
+
+    A count is the first thing that computes one, and a count of twelve would
+    have been a twin of every authored 12: the rule fires, the fact lands, and
+    every question about it answers nothing.
+    """
+    from .text import load
+
+    src = ["fact +thing(t%d)" % i for i in range(12)]
+    src += ["fact <things> = count(thing(?x))",
+            "rule <dozen> = implies( { +counted(<things>, 12) }, { +dozen(yes) } )",
+            ""]
+    m = Machine()
+    kb = load(m, chr(10).join(src))
+    m.run(limit=60)
+    check("§1", "⚠ a count past nine is the SAME node as the numeral a corpus "
+          "wrote, so a rule can read it -- the twin trap, seventh time",
+          m.holds(m.g.rel(m.COUNTED, kb.rule_nodes["things"],
+                          m._numeral(12))) == PLUS
+          and m.holds(kb.term("dozen(yes)")) == PLUS)
+
+
 def main() -> int:
     import sys
 
@@ -7634,6 +7982,13 @@ def main() -> int:
     surface()
     the_surface_can_say_what_the_apparatus_is_made_of()
     worked_examples()
+    an_unindexed_member_says_so()
+    a_line_of_work_can_run_dry_unnoticed()
+    the_watcher_is_handed_the_move()
+    a_table_can_outlive_a_run()
+    the_aggregate_over_bindings_is_one_primitive()
+    a_count_is_not_monotone()
+    a_computed_numeral_is_not_a_twin()
 
     failed = 0
     group = None

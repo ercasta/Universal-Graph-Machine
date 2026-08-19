@@ -229,6 +229,11 @@ class Table:
         # defaults, so nothing has to be undone when one expires.
         self.live: List[Tuple[int, NodeId, int]] = []
         self.now = 0
+        # How many ticks this table has actually been aged through, which is
+        # NOT `now`: a table handed back for a second run has to continue the
+        # tick count, and `now == 0` cannot tell *never ran* from *ran tick 0*
+        # -- the exact case a host stepping one tick at a time produces.
+        self.ticked = 0
 
     def absorb(self, rules: Sequence[Rule], standing: set) -> int:
         """Take in rules the agent did not start with.
@@ -264,6 +269,7 @@ class Table:
         """Drop what has expired and recompute. Cheap: the live list is short
         by construction, because that is what a lift being about NOW means."""
         self.now = tick
+        self.ticked += 1
         self.live = [b for b in self.live if tick - b[0] < LIFE]
         self.score = dict(self._defaults)
         for _born, node, delta in self.live:
@@ -373,6 +379,15 @@ class Report(NamedTuple):
     # the same sequence as names; this carries the `Application` itself, which
     # is what a caller reading `s.applied.rule.name` needs.
     steps: List["Step"] = []
+    # Members that could not be indexed and were answered by a scan, over this
+    # run -- the totals beside `widenings`, and the per-member breakdown that
+    # says which one to go and change. `scans` counts the fallbacks and
+    # `scanned_nodes` the instances they walked, which is the one that ranks
+    # them. `scanned` is `member as written -> [times, nodes]`.
+    # See `rules._narrowed`.
+    scans: int = 0
+    scanned: Dict[str, List[int]] = {}
+    scanned_nodes: int = 0
 
 
 def _is_defeated(m: Machine, rule: Rule, state) -> bool:
@@ -508,7 +523,8 @@ def _queries(m: Machine, posts: Sequence[Post]) -> set:
 
 def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         reflex: bool = False, chooser=None, watch=None,
-        pool: Optional[Sequence[Rule]] = None) -> Report:
+        pool: Optional[Sequence[Rule]] = None,
+        table: Optional["Table"] = None) -> Report:
     """The loop, in full. Everything else in this file is bookkeeping.
 
     `reflex` is the cheapest calibration imaginable and it is here to answer one
@@ -531,7 +547,25 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     if pool is None:
         pool = m.rules.rules
     pool = [r for r in pool if r.name not in queries]
-    table = Table(m.g, pool, _standing(m))
+    # ⭐⭐⭐ **A caller may bring its own table, and `docs/interpretation-feedback.md`
+    # §4 is right that the day it matters is the day something else changes.**
+    # A host driving the agent one tick at a time calls this per `/step`, and a
+    # table built here is free EXACTLY while no postcondition has moved it: with
+    # no posts supplied a table is its defaults plus a `prefer` lift recomputed
+    # from the graph every tick, so a rebuilt table is the same table. Supply
+    # real postconditions and the rebuild silently discards every spend -- what
+    # the agent learned *within* a run -- and nothing says so, because from
+    # here nothing went wrong.
+    #
+    # ⚠ **The ticks continue from `table.now` rather than restarting at 0**, and
+    # that is not decoration. `age` expires a lift by `tick - born < LIFE` and
+    # `rebuilt` walks the trace in tick order; restart the count and a lift born
+    # on tick 39 of the last call is younger than one born on tick 2 of this
+    # one. The assertion below is what would have caught it, which is why it
+    # reads `table.now` too.
+    if table is None:
+        table = Table(m.g, pool, _standing(m))
+    base = table.now + 1 if table.ticked else 0
     by_rule: Dict[str, List[Post]] = {}
     for p in posts:
         by_rule.setdefault(p.of, []).append(p)
@@ -544,8 +578,12 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     doubts = 0
     widenings = 0
     windows: List[int] = []
+    # Sampled rather than reset: the graph is shared -- an expert, a table of
+    # agents and a supposition all run over one -- so a run reports the scans
+    # IT caused and clears nothing another caller is still counting.
+    scans0 = {k: list(v) for k, v in m.g.scans.items()}
     t0 = time.time()
-    for tick in range(limit):
+    for tick in range(base, base + limit):
         # Not a phase: the world may have spoken since the last move, and the
         # shipped loop asks the same question in the same place.
         # ⭐⭐⭐ **The anchor a corpus reads the raw chain from.** Minting it is the
@@ -805,7 +843,17 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # chooses and then does not apply, so watching at the choice
             # recorded a rule that never ran -- and a lesson built from that
             # sequence teaches a move that never happened.
-            watch(m, table, window, chosen, tick)
+            #
+            # ⭐ **...and the `Step` goes with it, which is the whole of
+            # `docs/interpretation-feedback.md` §4.** Watching after the move
+            # means `_spend` has already appended its refraction bookkeeping, so
+            # a watcher asking the CHAIN *what did that move write* over-reports
+            # by a `spent(...)` term -- and the harness was wrapping
+            # `Machine._apply` on the instance to get the honest answer. It is
+            # the one place it reached inside the engine. The step already
+            # carries `wrote`, the entries the application itself deposited, so
+            # the answer was here all along and nothing was handing it over.
+            watch(m, table, window, chosen, tick, steps[-1])
         if reflex:
             table.score[chosen.rule.node] = table.score[chosen.rule.node] + 1
             table.trace.append(Spend(tick, "reflex", chosen.rule.name, 1, False))
@@ -818,7 +866,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             break
     # The trace is held to the table on every run: same scores, rebuilt from
     # the defaults and the spends alone.
-    assert table.rebuilt(limit) == table.score, "the trace cannot rebuild the table"
+    assert table.rebuilt(base + limit) == table.score, "the trace cannot rebuild the table"
     # ⚠ **The loop ran out of ITERATIONS, not out of work.** The first version of
     # this asked whether the last `Step` was `applied`, and the last step is
     # never `applied` -- the loop appends a `quiescent` or `stopped` step when it
@@ -832,9 +880,16 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     if steps and steps[-1].state == "applied":
         m.exhausted += 1
         m._note(m.g.rel(m.BOUNDED, m.TICKS))
+    scanned = {}
+    for k, v in m.g.scans.items():
+        was = scans0.get(k, [0, 0])
+        if v[0] > was[0]:
+            scanned[k] = [v[0] - was[0], v[1] - was[1]]
     return Report(
         len(applied), applied, time.time() - t0, tried, _state(m), table,
-        doubts, windows, widenings, steps
+        doubts, windows, widenings, steps,
+        sum(v[0] for v in scanned.values()), scanned,
+        sum(v[1] for v in scanned.values()),
     )
 
 
@@ -1065,7 +1120,8 @@ def compare(name: str) -> dict:
             "ticks": r.ticks, "seconds": r.seconds, "state": r.state,
             "tried": r.tried, "applied": r.applied,
             "doubts": r.doubts, "windows": r.windows,
-            "widenings": r.widenings}}
+            "widenings": r.widenings, "scans": r.scans,
+            "scanned": r.scanned}}
     a = _load(name)
     t0 = time.time()
     ticks = _option_set_run(a)
@@ -1084,7 +1140,8 @@ def compare(name: str) -> dict:
             "ticks": r.ticks, "seconds": r.seconds, "state": r.state,
             "tried": r.tried, "applied": r.applied,
             "doubts": r.doubts, "windows": r.windows,
-            "widenings": r.widenings,
+            "widenings": r.widenings, "scans": r.scans,
+            "scanned": r.scanned,
         },
     }
 
@@ -1279,7 +1336,8 @@ def main() -> int:
               f"   -{len(missing)} +{len(extra)}"
               f"   doubt {t['doubts']}/{len(w)}, "
               f"{t['tried'] / max(1, len(w)):.1f} matched/move, "
-              f"{t['widenings']} widenings")
+              f"{t['widenings']} widenings, "
+              f"{t['scans']} scans")
         if missing or extra:
             # By RELATION, because the interesting question is not which
             # proposition is absent but which piece of the shipped tick was

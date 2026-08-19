@@ -1580,6 +1580,29 @@ def _narrowed(g, rel, want, bindings):
     already gives when nothing is bound -- so the cost is the scan the docstring
     above already sanctions, paid only by a member that could not be indexed
     anyway.
+
+    ⭐⭐⭐ **...and the fallback SAYS SO, which is
+    `docs/interpretation-feedback.md` §3.** The paragraph above sanctions the
+    cost and is silent about the count, and those are different things: an
+    author cannot tell a member that joins from a member that scans, because
+    both are well formed, both find the right answers, and only one of them is
+    the difference between a parse and a hang on a corpus whose members are
+    pattern-heavy by construction. The information exists exactly here, at the
+    point where it was being discarded.
+
+    ⚠ Counted on the GRAPH rather than reported by return value, because this
+    is a generator's inner loop reached through two structural readers that have
+    no report to write on and no rule in hand. Keyed by the member as written,
+    which is what an author has to go and change.
+
+    ⚠⚠ **Both the count and the SIZE, because the count alone does not rank
+    them.** Measured on `ugm.interpret`: `asking(?s)` falls back 169 times and
+    `met(?a)` 16, which reads as one problem and one footnote -- and `asking`
+    has a single instance, so those 169 fallbacks visit 169 nodes between them
+    while the 16 walk a bucket that grows with the run. A member that cannot be
+    indexed over a relation with one instance costs nothing and is not worth an
+    author's afternoon. What was being discarded here is the join that did not
+    happen; what decides whether that matters is how big the scan was.
     """
     best = None
     for i, a in enumerate(g.members(want.pattern)):
@@ -1589,7 +1612,13 @@ def _narrowed(g, rel, want, bindings):
         bucket = g.instances_with(rel, i, node)
         if best is None or len(bucket) < len(best):
             best = bucket
-    return g.instances_of(rel) if best is None else list(best)
+    if best is None:
+        every = g.instances_of(rel)
+        seen = g.scans.setdefault(g.show(want.pattern), [0, 0])
+        seen[0] += 1
+        seen[1] += len(every)
+        return every
+    return list(best)
 
 
 def _as_fact(g, want, node, bindings):

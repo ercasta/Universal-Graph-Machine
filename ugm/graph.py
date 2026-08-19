@@ -72,6 +72,16 @@ class Graph:
         self._has_var: Dict[NodeId, bool] = {}
         self._next = 0
 
+        # ⭐ **Members that fell off the index**, counted by the member as
+        # written -- `docs/interpretation-feedback.md` §3. `_narrowed` cannot
+        # index a structure that still carries a variable, so it falls back to
+        # every instance of the relation: correct, sanctioned, and until now
+        # invisible. An instrument, not a fact -- nothing reads this but a
+        # `Report`, and no rule can match on it.
+        #
+        # `member as written -> [times it fell back, nodes those scans visited]`.
+        self.scans: Dict[str, List[int]] = {}
+
         # -- situations (`docs/situations.md`) ----------------------------
         #
         # **A situation is a branch. A moment is a commit.** Deltas and
