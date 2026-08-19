@@ -150,6 +150,67 @@ class Graph:
         # nothing.
         self._atom_leaf: Dict[AtomId, Tuple[Optional[str], bool]] = {}
 
+        # -- identity (coreference within a situation) --------------------
+        #
+        # ⭐⭐⭐ **The third identity, and it is the one that can be decided
+        # LATE.** A node is the realisation, an atom is the portable name, and
+        # neither can express *these two turned out to be the same thing*.
+        # Today identity is settled by construction and never inferred -- the
+        # loader's name table decides it at intake, interning decides it for
+        # compounds -- so two nodes are one node or they are unrelated, and
+        # there is no third state. This is the third state.
+        #
+        # ⚠ **Leaves only, and the default is the node itself.** A compound's
+        # identity is not stored because it is DERIVED: interning keys on the
+        # identities of the relation and members, so the canonical node *is* the
+        # derived identity. That is the exact opposite of the atom rule one
+        # block up, and the asymmetry is load-bearing:
+        #
+        #     atom      minted, never derived -- correspondence is an ACT, so a
+        #               rule can deny that two situations mean one relationship
+        #     identity  derived for compounds -- congruence IS the feature: if
+        #               `a` and `b` are one thing then so are `f(a)` and `f(b)`
+        #
+        # One id cannot be both minted and derived, which is why this is a third
+        # id rather than a reading of the second.
+        #
+        # ⚠⚠ **An unmerged corpus pays nothing.** With no entry here every
+        # lookup returns the node it was given, so the interning key is
+        # byte-identical to what it was before identity existed. That is the
+        # same discipline `count` is held to: nothing that never corefers pays.
+        # ⚠⚠⚠ **AND IT SUPERSEDES THE ATOM LAYER ABOVE -- next commit.** The
+        # author's argument, and it is right: branching is a COPY, so two nodes
+        # with one identity in two branches are one thing, which is the whole of
+        # what an atom does. The objection this file records one block up --
+        # *two situations that happened to build the same shape would be forced
+        # to agree* -- assumes COINCIDENCE, and under branching there is none:
+        # anything two branches share they share by DESCENT, so deriving the
+        # same compound identity means they were built from the same parts and
+        # genuinely are the same relationship. Independently minted things have
+        # different identities and are not forced together.
+        #
+        # And the clincher is structural rather than philosophical: a derived
+        # compound identity IS `(identity of relation, identities of members)`,
+        # so it describes its own structure -- which is exactly what
+        # `_atom_members` was added for, and makes that table redundant.
+        # `rebuild` can recurse on the identity term itself.
+        #
+        # Landed beside the atom layer rather than instead of it so this commit
+        # stays green and bisectable; the collapse is its own change.
+        self._identity: Dict[Tuple[SituationId, NodeId], NodeId] = {}
+        # The key each node is INDEXED under, so a merge knows what to move and
+        # does not have to recompute the world to find out.
+        self._keyed: Dict[NodeId, Tuple] = {}
+        # `(situation, identity) -> nodes whose key mentions it`. This is what
+        # makes a merge cost the upward CLOSURE of the merged things rather than
+        # a scan of the graph -- and the closure is the number that decides
+        # whether this is affordable.
+        self._mentions: Dict[Tuple[SituationId, NodeId], List[NodeId]] = {}
+        # Whether ANY merge has happened in this graph. The fast path is a
+        # single boolean test rather than a dict get per member per `rel`, and
+        # `rel` is the hottest call in the engine.
+        self._merges = 0
+
         # One index, over what was asserted rather than over what was derived
         # (§12): relation instances keyed by (rel, members) so the same
         # proposition is one node however often it is spoken of -- **within a
@@ -301,6 +362,152 @@ class Graph:
                 return n
         return None
 
+    def identity_of(self, n: NodeId, s: Optional[SituationId] = None) -> NodeId:
+        """What `n` counts as HERE -- itself, unless something merged it.
+
+        Resolved through the visibility walk rather than read off the node, for
+        the reason every other situation-relative thing is: a merge concluded
+        inside a hypothesis must die with the hypothesis, and a field on a node
+        would rewrite what the parent sees. `docs/situations.md`'s own line --
+        *the indices are where this is enforced, and not the nodes.*
+
+        ⚠ Follows chains: merging `b` into `a` and then `a` into `c` leaves `b`
+        pointing at `a`, so this walks to the representative. No path
+        compression, because the path is per-situation and compressing it in a
+        child would write a claim the parent never made.
+        """
+        if not self._merges:
+            return n
+        s = self.situation if s is None else s
+        seen = 0
+        while True:
+            got = None
+            for sit, cap in reversed(self._visible(s)):
+                hit = self._identity.get((sit, n))
+                if hit is not None and hit < cap:
+                    got = hit
+                    break
+            if got is None or got == n:
+                return n
+            n = got
+            seen += 1
+            if seen > len(self._identity):  # a cycle nothing should be able to build
+                return n
+
+    def _key(self, relation: Optional[NodeId], members: Tuple[NodeId, ...]):
+        """The interning key, in identities rather than in nodes.
+
+        With no merge anywhere this is the members tuple itself, so the key is
+        the one the engine used before identity existed and the dict lookup is
+        unchanged. That equality is what makes this free for every corpus that
+        never corefers, and it is checked rather than asserted.
+        """
+        if not self._merges:
+            return relation, members
+        return (
+            None if relation is None else self.identity_of(relation),
+            tuple(self.identity_of(m) for m in members),
+        )
+
+
+    def merge(self, keep: NodeId, drop: NodeId,
+              s: Optional[SituationId] = None) -> int:
+        """`drop` counts as `keep` from here on, in `s`. Returns nodes repointed.
+
+        ⭐⭐⭐ **Congruence, and it is why this cannot be two dict writes.** Once
+        two things are one thing, every relationship either of them stands in is
+        a relationship of the one thing -- so `bright(morning)` and
+        `bright(evening)` have to become one node too, and so does anything
+        built on THOSE. Merging two leaves therefore induces merges all the way
+        up, and the worklist below is that cascade.
+
+        ⚠⚠⚠ **Without the repoint, everything said before the merge is LOST.**
+        `bright(morning)` was interned under a key naming morning's identity;
+        after the merge `rel(bright, morning)` computes a key naming the new
+        one, finds nothing, and mints a third node while the original sits
+        unreachable in the index. Not a leak of containment -- a silent loss of
+        what the agent already believed, which is worse, because nothing reports
+        it. This is the whole of what makes identity a change to the INDICES
+        rather than a field on a node.
+
+        ⚠ **Per situation, so a merge inside a hypothesis dies with it.**
+        Deciding two things are the same is a decision, and a decision made
+        while supposing is not a decision about the world.
+
+        ⚠ It does NOT decide anything: the caller supplies the pair, and the
+        caller is a rule concluding `same(a, b)`. `deposit-dont-decide.md` --
+        the engine may compute the consequence, never make the choice.
+        """
+        s = self.situation if s is None else s
+        self._index_for_merge()
+        moved = 0
+        work = [(keep, drop)]
+        while work:
+            x, y = work.pop()
+            if x == y:
+                continue
+            self._identity[(s, y)] = x
+            self._merges += 1
+            # Everything whose key mentioned `y` now keys on `x` instead.
+            for n in list(self._mentions.get((s, y), ())):
+                old = self._keyed.get(n)
+                if old is None:
+                    continue
+                kr, km = self._key(self._rel[n], self._members[n])
+                if (kr, km) == old:
+                    continue
+                okr, okm = old
+                self._drop_from_index(n, s, okr, okm)
+                already = self._interned.get((s, kr, km))
+                if already is not None and already != n:
+                    # Two nodes have collapsed onto one key. The older one wins,
+                    # for the reason mint order always wins here: it is the one
+                    # anything else already points at.
+                    lo, hi = (already, n) if already < n else (n, already)
+                    work.append((lo, hi))
+                else:
+                    self._interned[(s, kr, km)] = n
+                    self._by_rel.setdefault((s, kr), []).append(n)
+                    for i, mm in enumerate(km):
+                        self._by_arg.setdefault((s, kr, i, mm), []).append(n)
+                    self._keyed[n] = (kr, km)
+                    for c in (kr,) + tuple(km):
+                        self._mentions.setdefault((s, c), []).append(n)
+                moved += 1
+            self._merged.clear()  # bucket merges are cached against a stale key
+        return moved
+
+    def _index_for_merge(self) -> None:
+        """Build `_keyed` and `_mentions`, once, at the first merge.
+
+        Everything a merge needs to find is derivable from what is already
+        stored, so the choice is *maintain it always* or *build it when it is
+        first wanted*. Maintaining it always taxed every corpus that never
+        corefers; this pays O(nodes) once, for the corpus that does.
+        """
+        if self._keyed:
+            return
+        for n, r in self._rel.items():
+            if r is None:
+                continue
+            sit = self._sit_of[n]
+            kr, km = self._key(r, self._members[n])
+            self._keyed[n] = (kr, km)
+            for x in (kr,) + tuple(km):
+                self._mentions.setdefault((sit, x), []).append(n)
+
+    def _drop_from_index(self, n: NodeId, s: SituationId, kr, km) -> None:
+        """Take `n` out of every index it is in under `(kr, km)`."""
+        if self._interned.get((s, kr, km)) == n:
+            del self._interned[(s, kr, km)]
+        b = self._by_rel.get((s, kr))
+        if b and n in b:
+            b.remove(n)
+        for i, mm in enumerate(km):
+            b = self._by_arg.get((s, kr, i, mm))
+            if b and n in b:
+                b.remove(n)
+
     def rebuild(self, a: AtomId, target: SituationId) -> NodeId:
         """Materialise the thing `a` names, in `target`, **from atoms alone**.
 
@@ -431,6 +638,8 @@ class Graph:
         if found is not None:
             return found
         n = self._mint(relation, members, None)
+        if self._merges:
+            relation, members = self._key(relation, members)
         self._interned[(self.situation, relation, members)] = n
         return n
 
@@ -454,6 +663,8 @@ class Graph:
         hypothesis's, and reaching past it would put the contained thing back in
         circulation.
         """
+        if self._merges:
+            relation, members = self._key(relation, members)
         vis = self._visible(self.situation)
         if len(vis) == 1:
             # Never branched from here -- one dict get, which is what the whole
@@ -525,9 +736,22 @@ class Graph:
         if name is not None:
             self._name[n] = name
         if relation is not None:
-            self._by_rel.setdefault((s, relation), []).append(n)
-            for i, mm in enumerate(members):
-                self._by_arg.setdefault((s, relation, i, mm), []).append(n)
+            kr, km = ((relation, members) if not self._merges
+                      else self._key(relation, members))
+            self._by_rel.setdefault((s, kr), []).append(n)
+            for i, mm in enumerate(km):
+                self._by_arg.setdefault((s, kr, i, mm), []).append(n)
+            # ⚠⚠⚠ **Only once something has merged.** Maintaining these at
+            # every mint cost the suite 9% -- 8.25s to 9.01s -- for corpora that
+            # never corefer and never will, which is the one thing this layer
+            # promised not to do. They are built by a single scan at the first
+            # merge instead (`_index_for_merge`), and maintained from then on.
+            # Measured rather than reasoned about: the fast path in `_key` was
+            # already free, and this was the half that was not.
+            if self._merges:
+                self._keyed[n] = (kr, km)
+                for x in (kr,) + tuple(km):
+                    self._mentions.setdefault((s, x), []).append(n)
         return n
 
     # -- reading ----------------------------------------------------------

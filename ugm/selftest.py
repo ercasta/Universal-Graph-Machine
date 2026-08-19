@@ -7991,6 +7991,110 @@ def a_situation_is_materialised_from_its_deltas() -> None:
     print()
 
 
+def two_things_can_turn_out_to_be_one() -> None:
+    """Identity: coreference decided LATE, and what it costs to decide it.
+
+    Until now identity was settled by construction and never inferred -- the
+    loader's name table decides it at intake (`text.py`: *a corpus is a bound,
+    `kettle` means one node inside it, by construction and not by inference,
+    which is why coreference does not arise in authored knowledge at all*), and
+    interning decides it for compounds. So two nodes were one node or they were
+    unrelated, and there was no third state. This is the third state, and it is
+    what a language front end needs: *a man walked in; a man sat down* is two
+    referents that may be one man, and intake cannot know.
+
+    ⚠⚠⚠ **The repoint is the whole of the implementation.** `bright(morning)`
+    is interned under a key naming morning's identity. Merge the two stars and
+    `rel(bright, evening)` computes a key naming the NEW identity, finds
+    nothing, and mints a third node -- while the original sits unreachable. Not
+    a containment leak: a silent loss of what the agent already believed, which
+    is worse, because nothing reports it.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "fact +bright(morning_star)",
+        "fact +rises(morning_star, dawn)",
+        "fact +bright(evening_star)",
+        "fact +seen_by(galileo, evening_star)", ""]))
+    m.run(limit=20)
+    g = m.g
+    ms, es = kb.atom("morning_star"), kb.atom("evening_star")
+    bright = g.relation_of(kb.term("bright(morning_star)"))
+    b_ms = kb.term("bright(morning_star)")
+
+    check("§3", "before anything is merged, two names are two things -- which "
+          "is intake deciding identity, and is right until something knows "
+          "better",
+          b_ms != kb.term("bright(evening_star)"))
+
+    moved = g.merge(ms, es)
+
+    check("§3", "⭐⭐⭐ ...and once a merge says they are one thing, CONGRUENCE "
+          "follows: every relationship either stood in is a relationship of the "
+          "one thing, so `bright(evening)` IS `bright(morning)`",
+          g.rel(bright, es) == b_ms)
+    check("§3", "⚠ ...and what was said BEFORE the merge is still reachable, "
+          "which is what the repoint buys -- without it the pre-merge nodes are "
+          "orphaned in the index and the belief is silently gone",
+          m.holds(kb.term("seen_by(galileo, evening_star)")) == PLUS
+          and m.holds(kb.term("rises(morning_star, dawn)")) == PLUS
+          and m.holds(kb.term("bright(evening_star)")) == PLUS)
+    check("§3", "...and the merge reports what it moved, so the cost of "
+          "deciding two things are one is a number rather than a mystery",
+          moved > 0)
+
+    # ⭐ The cascade. Merging two LEAVES has to unify the compounds built on
+    # them, and the compounds built on those -- congruence is transitive or it
+    # is not congruence.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "fact +knows(sam, bright(morning_star))",
+        "fact +knows(sam, bright(evening_star))", ""]))
+    m2.run(limit=20)
+    g2 = m2.g
+    k1 = kb2.term("knows(sam, bright(morning_star))")
+    inner = g2.relation_of(kb2.term("bright(morning_star)"))
+    g2.merge(kb2.atom("morning_star"), kb2.atom("evening_star"))
+    check("§3", "⭐⭐ ...and it CASCADES: merging two leaves unifies what was "
+          "built on them two levels up, or congruence stops at the first join",
+          g2.rel(g2.relation_of(k1), kb2.atom("sam"),
+                 g2.rel(inner, kb2.atom("evening_star"))) == k1)
+
+    # ⚠⚠⚠ Containment. Deciding two things are the same is a DECISION, and a
+    # decision made while supposing is not a decision about the world. This is
+    # the same property the whole of `situations.md` is about, asked of the
+    # third identity.
+    m3 = Machine()
+    kb3 = load(m3, chr(10).join([
+        "fact +bright(morning_star)", "fact +bright(evening_star)", ""]))
+    m3.run(limit=20)
+    g3 = m3.g
+    a3, b3 = kb3.atom("morning_star"), kb3.atom("evening_star")
+    br3 = g3.relation_of(kb3.term("bright(morning_star)"))
+    branch = g3.branch()
+    g3.merge(a3, b3, s=branch)
+    was, g3.situation = g3.situation, branch
+    inside = g3.rel(br3, b3) == kb3.term("bright(morning_star)")
+    g3.situation = was
+    outside = g3.rel(br3, b3) == kb3.term("bright(morning_star)")
+    check("§3", "⭐⭐⭐ ...and a merge made inside a branch is invisible outside "
+          "it, because deciding two things are the same is a decision and a "
+          "decision made while supposing is not one about the world",
+          inside and not outside)
+
+    # ⚠ The cost discipline: an unmerged graph must compute the key it computed
+    # before identity existed, or every corpus that never corefers pays for one
+    # that does. Asked structurally rather than by timing, because a timing
+    # check on a shared machine reports the weather.
+    plain = Machine()
+    check("§3", "⚠ ...and a graph where nothing has merged computes the same "
+          "interning key it did before identity existed, so nothing that never "
+          "corefers pays for this",
+          plain.g._key(1, (2, 3)) == (1, (2, 3)) and not plain.g._merges)
+
+
 def main() -> int:
     import sys
 
@@ -8092,6 +8196,7 @@ def main() -> int:
     a_count_is_not_monotone()
     a_computed_numeral_is_not_a_twin()
     a_situation_is_materialised_from_its_deltas()
+    two_things_can_turn_out_to_be_one()
 
     failed = 0
     group = None
