@@ -62,6 +62,55 @@ been watched running.
 same corpora and reports where they differ, which is the only way to find out
 what first-match costs in conclusions rather than in theory.
 
+## Attention: the same table, keyed on a THING
+
+Everything above scores rules. `prefer(<R>, key, n)` names a rule, a buff names
+a rule, a reranker nudges a rule -- and the loop takes the first surviving
+application and breaks. So with two goblins in the room and one `<attack>` rule,
+**which goblin is struck was never chosen**: it is the walk's answer, which is
+authoring order wearing a preference. Nothing in this file could say otherwise,
+because the thing to be preferred is not a rule.
+
+`attention(x)` is an ordinary claim about a NODE, and it reaches both halves:
+
+| | what it decides | how exact | what it costs |
+|---|---|---|---|
+| `_attended_first` | which of a rule's applications is taken | **exact** | nothing -- `found` is already materialised |
+| `_pull` | which rules are matched at all | approximate | two dict reads |
+
+⭐⭐⭐ **The second is a join, and that is the only reason it is affordable.**
+*Which rules are about `goblin1`* has no syntactic answer -- every rule is
+generic, so no rule's text mentions `goblin1` -- and its exact answer is *those
+with an application binding it*, which is the option set this loop exists not to
+build. Asked from the other end it is two lookups: the relations `goblin1` is
+currently spoken of under (`Situation.relations_of`, the state's third index),
+and the rules whose antecedent uses one (`Table.by_relation`). The same
+join-not-scan that recovered `overrides`, `supersedes` and `forgone`, for the
+fourth time.
+
+⚠ **Approximate on purpose.** A rule reading `wounded(?x)` is lifted because
+`goblin1` is wounded, whether or not it would bind `?x` to goblin1. That is the
+right amount of wrong: the lift decides who is MATCHED, and being roughly right
+about a shortlist costs a slot. Exactness arrives one layer up, for free.
+
+⚠ **Ranking-time and kept nowhere**, like `prefer`'s lift and unlike a buff.
+This file's own line between the two kinds of attention is *what I was doing
+persists and fades, what is in front of me is recomputed* -- and a claim the
+agent is currently making about what it is thinking about is plainly the second.
+Making it a buff would give it a life and a ceiling on top of a claim that has
+both already: the claim is denied, and it is over.
+
+⚠ And `_attended_first` is STABLE, so attention overrides §18's tie-break where
+it has an opinion and defers to it everywhere else. Measured on two goblins: the
+walk strikes the last-declared first, attention on the other flips it, and
+attention on the one already chosen changes nothing.
+
+Measured, on a twelve-rule table of which three rules can match: a rule twelfth
+in the table applies FIRST when the thing it is about is attended, and the run
+costs **143 matches against 183** because the shortlist stopped widening past
+it. Attending to all three narrows less (157) than attending to one -- attention
+that names everything narrows nothing, and the cost column is what says so.
+
 ## The trace
 
 Every buff is recorded as (tick, by whom, target, delta), so the table at step
@@ -134,6 +183,22 @@ NORM = 6
 # against 13 untaught, because nothing was ever close to anything again.
 LIFE = 12
 MAX_LIFT = 12
+
+# How far attention lifts a rule that could be about what is attended.
+#
+# Recomputed every move and kept nowhere, like `prefer`'s lift and unlike a
+# buff -- so there is no decay to tune and no runaway to guard against. That is
+# this file's own line between the two kinds of attention, and a claim the agent
+# is currently making about what it is thinking about is plainly the second
+# kind: *what is in front of me is recomputed*.
+#
+# Sized against `STANDING - FLOOR` (9), so a rule attention reaches can clear
+# the apparatus rather than merely climb past its neighbours at the floor. A
+# lift that could not do that would find the top of the table already full and
+# change nothing, which is the failure mode `_rerank` measured for shortlist-only
+# nudges: a mechanism that cannot bring a rule INTO consideration is not one
+# that can direct anything.
+PULL = 6
 
 # The default doubt-settling rule, and the author's correction to an earlier
 # sketch of mine: the loop does not need to HOLD a tick waiting for doubt to be
@@ -219,6 +284,9 @@ class Table:
                 self.by_name[r.name] = r
                 self.name_of[r.node] = r.name
         self.rules = list(rules)
+        # Attention's rule-side lookup, built once because a rule's antecedent
+        # does not change. `absorb` is the only thing that can invalidate it.
+        self.by_relation = _by_relation(self.rules, self.g)
         self._defaults = dict(self.score)
         self.trace: List[Spend] = []
         # Why the run ended, if a postcondition ended it. A name rather than a
@@ -263,6 +331,13 @@ class Table:
                 self.by_name[r.name] = r
                 self.name_of[r.node] = r.name
             added += 1
+        if added:
+            # ⚠ Rebuilt rather than appended to, because a rule adopted at run
+            # time is the case `absorb` exists for and a stale lookup here fails
+            # in the quietest way there is: the rule is in the table, at the
+            # floor, and attention can never reach it. That is `adopt`'s own
+            # round-trip defect one index along.
+            self.by_relation = _by_relation(self.rules, self.g)
         return added
 
     def age(self, tick: int) -> None:
@@ -517,6 +592,105 @@ def _standing(m: Machine) -> set:
     return out
 
 
+def _by_relation(rules: Sequence[Rule], g) -> Dict[NodeId, List[NodeId]]:
+    """Which rules could be about a relation: antecedent relation -> rule nodes.
+
+    The rule-side half of attention's join, and it is built once per table
+    rather than per move because a rule's antecedent does not change. `absorb`
+    is what keeps it current when the rule set does.
+
+    ⚠ A member whose pattern is a bare variable or whose relation is a variable
+    is filed under nothing. `+?p` is a rule about anything, and lifting it
+    whenever anything is attended would lift it always -- which is the same
+    thing as never, and costs a slot in every shortlist to say so.
+    """
+    out: Dict[NodeId, List[NodeId]] = {}
+    for r in rules:
+        seen = set()
+        for mm in r.antecedent:
+            if g.is_var(mm.pattern):
+                continue
+            rel = g.relation_of(mm.pattern)
+            if rel is None or g.is_var(rel) or rel in seen:
+                continue
+            seen.add(rel)
+            out.setdefault(rel, []).append(r.node)
+    return out
+
+
+def _pull(m: Machine, table: "Table", state: Situation,
+          attended: Sequence[NodeId]) -> Dict[NodeId, int]:
+    """Attention's rule-level lift: two dict reads and no matching.
+
+    ⭐⭐⭐ **The join, and the reason attention is affordable where a query is
+    not.** *Which rules are about `goblin1`* looks like it needs matching --
+    every rule is generic, so no rule's text mentions `goblin1` at all, and the
+    only exact answer is *those with an application binding it*, which is the
+    option set this loop exists not to build. Asked the other way round it is
+    two lookups:
+
+        goblin1 -> the relations it is spoken of under   (`relations_of`)
+                -> the rules whose antecedent uses one   (`_by_relation`)
+
+    ⚠ **Approximate, and deliberately so.** A rule reading `wounded(?x)` is
+    lifted because `goblin1` is wounded, whether or not it would bind `?x` to
+    goblin1 rather than to someone else. That is the right amount of wrong: this
+    decides who is MATCHED, not who wins, and being roughly right about a
+    shortlist costs a slot. The exact answer arrives one layer up, in
+    `_attended_first`, where the bindings are already in hand and free.
+
+    ⚠ Not summed over attended nodes. A rule reachable from two attended nodes
+    is not twice as relevant, and letting it be would make the lift a popularity
+    count over whatever the corpus happened to attend to.
+    """
+    lift: Dict[NodeId, int] = {}
+    for node in attended:
+        for rel in state.relations_of(node):
+            for r in table.by_relation.get(rel, ()):
+                lift[r] = PULL
+    return lift
+
+
+def _attended_first(found: List[Application],
+                    attended: Sequence[NodeId]) -> List[Application]:
+    """Order a rule's own applications by what the agent is thinking about.
+
+    ⭐⭐⭐ **This is the half no rule-keyed buff can express, and it costs
+    nothing.** The loop takes the first surviving application and breaks, so
+    which BINDING wins has always been walk order -- authoring order, wearing a
+    preference. `table.score` is keyed by `r.node`; `prefer(<R>, key, n)`,
+    `_rerank` and every taught reranker key on CONTEXT. None of them can say
+    *this rule, on that one*, because the thing being preferred is not a rule.
+
+    A claim about a node can. And `found` is already materialised -- the loop
+    paid for it and threw everything past the first survivor away -- so ordering
+    it is a sort over a list that is usually one or two long.
+
+    ⚠ **Stable, and that is what keeps the existing tie-break intact.** Among
+    applications attention says nothing about, the order is exactly the order
+    the matcher produced, which is §18's most-recent-first. So attention
+    OVERRIDES the walk where it has an opinion and defers to it everywhere else
+    -- rather than replacing an ordering the whole design rests on.
+
+    ⚠⚠ **And it counts, rather than testing.** An application binding two
+    attended nodes goes before one binding one, which is what makes attending to
+    a pair mean *the move involving both* instead of *either, and the walk
+    decides*.
+    """
+    if len(found) < 2:
+        return found
+    at = set(attended)
+
+    def weight(a: Application) -> int:
+        return sum(1 for v in a.bindings.values() if v in at)
+
+    scored = [(weight(a), i, a) for i, a in enumerate(found)]
+    if not any(w for w, _i, _a in scored):
+        return found  # nothing attended is in play here; do not touch the order
+    scored.sort(key=lambda t: (-t[0], t[1]))
+    return [a for _w, _i, a in scored]
+
+
 def _queries(m: Machine, posts: Sequence[Post]) -> set:
     return {p.query for p in posts if p.query}
 
@@ -666,6 +840,28 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             keys = m._in_play()
             lift = {r.node: m._priority(r, keys) for r in table.rules}
             lift = {k: v for k, v in lift.items() if v}
+        # ⭐⭐⭐ **Attention, and it is the same lift by a different key.**
+        # `prefer` keys on a RELATION being in play and so cannot tell two
+        # goblins apart; this keys on a NODE. Both are read on the same move and
+        # added to the same dict, because they are two axes of one question and
+        # not two mechanisms -- what the situation is about, and what the agent
+        # is thinking about.
+        #
+        # ⚠ Ranking-time and kept nowhere, exactly like `prefer`'s lift: an
+        # attention claim is a fact the corpus is currently making, so the lift
+        # is a function of the state and re-deriving it is the whole of keeping
+        # it current. Making it a buff would give it a life and a saturation
+        # ceiling on top of a claim that already has both -- the claim is
+        # denied, and it is over.
+        attended = m._attended()
+        if attended:
+            pull = _pull(m, table, state, attended)
+            if pull:
+                if lift is None:
+                    lift = pull
+                else:
+                    for k, v in pull.items():
+                        lift[k] = lift.get(k, 0) + v
         ordered = [r for r in table.order(lift) if not _dormant(m, r)]
         cut = 0
         while cut < len(ordered) and not window:
@@ -690,6 +886,11 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                     computes=m.rules.computes,
                     structural=m.rules.skeleton(),
                 )
+                # ...and WHICH of them, which the loop has never chosen. It
+                # takes the first survivor and breaks, so the binding was
+                # decided by the walk. Free: `found` is already here.
+                if attended:
+                    found = _attended_first(found, attended)
                 # `_survives` is the shipped per-candidate filter: passed up,
                 # quiescent, or already spent on these premises. Refraction
                 # stays, because *this instantiation has run* is not the same

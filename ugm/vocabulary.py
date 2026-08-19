@@ -71,7 +71,10 @@ ROLES: Dict[str, List[str]] = {
         # `unsupported` above are each a threshold on: a rule sees one binding
         # at a time, so *how many* is the machinery's to answer.
         "count", "counted",
-        "prefer", "excluded", "ticks",
+        # `attention` sits beside `prefer` because it is the same claim about a
+        # NODE rather than about a rule -- *think about this one* -- and it is
+        # the agent's own deliberation for the same reason `prefer` is.
+        "prefer", "attention", "excluded", "ticks",
         # Refraction (§14): what has already run, on what, and the
         # contradiction that stopping a loop would otherwise hide.
         "spent", "premises", "contested",

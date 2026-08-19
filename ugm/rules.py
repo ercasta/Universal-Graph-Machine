@@ -1061,6 +1061,28 @@ class Situation:
         self._by: Dict[Tuple[str, object], Dict[NodeId, Entry]] = {}
         self._read: Dict[Tuple[str, object], List[Entry]] = {}
         self._entries: Optional[List[Entry]] = None
+        # ⭐⭐⭐ **The third index, and it is the one attention needs: which
+        # RELATIONS a node is currently spoken of under.**
+        #
+        # The two above are read by a pattern that already knows its relation.
+        # Attention arrives from the other end -- it has a NODE and no relation
+        # at all -- so neither answers it, and the question *which rules could be
+        # about `goblin1`* has no cheap answer without this. With it: the node's
+        # relations are a lookup, and the rules using those relations are a
+        # second one, so a lift costs two dict reads and no matching. That is
+        # what makes attention cheaper than the reranker it competes with, whose
+        # every trigger is a match.
+        #
+        # ⚠ **Counted, not a set**, because `drop` has to be exact. Two entries
+        # can mention one node under one relation, and dropping either would
+        # take the relation away from a node the other still speaks of.
+        #
+        # ⚠ It is maintained off the SAME keys the argument index files under,
+        # which is what keeps it honest: it indexes what that index indexes, and
+        # `ugm.state` holds it to a rebuild. So it inherits that index's own
+        # limit -- an argument that is a structure is not filed, and neither is
+        # it here.
+        self._rels: Dict[NodeId, Dict[NodeId, int]] = {}
         for e in reversed(list(entries)):
             self.add(e)
 
@@ -1093,8 +1115,15 @@ class Situation:
         """Claim `e`, at the newest end."""
         self._order[e.node] = e
         for k in self._keys(e):
-            self._by.setdefault(k, {})[e.node] = e
+            bucket = self._by.setdefault(k, {})
+            # ⚠ Only a bucket this entry was not already in moves the count.
+            # `add` is idempotent everywhere else -- a dict assignment over the
+            # same key -- and a count is the one thing that would not be.
+            fresh = e.node not in bucket
+            bucket[e.node] = e
             self._read.pop(k, None)
+            if fresh and len(k) == 4:
+                self._mention(k[3], k[1], 1)
         self._entries = None
 
     def drop(self, e: Entry) -> None:
@@ -1104,7 +1133,33 @@ class Situation:
             bucket = self._by.get(k)
             if bucket is not None and bucket.pop(e.node, None) is not None:
                 self._read.pop(k, None)
+                if len(k) == 4:
+                    self._mention(k[3], k[1], -1)
         self._entries = None
+
+    def _mention(self, node: NodeId, rel: NodeId, d: int) -> None:
+        held = self._rels.setdefault(node, {})
+        n = held.get(rel, 0) + d
+        if n > 0:
+            held[rel] = n
+        else:
+            # Dropped rather than left at zero, so `relations_of` is a plain
+            # read and the dict does not grow a tail of relations nothing is
+            # spoken of under any more.
+            held.pop(rel, None)
+            if not held:
+                self._rels.pop(node, None)
+
+    def relations_of(self, node: NodeId) -> List[NodeId]:
+        """The relations this node is currently spoken of under, in the order
+        they were first claimed.
+
+        *What is believed about `goblin1` right now* -- the state's answer, not
+        the graph's. That is the right half for attention: a node the agent knew
+        about last week and holds nothing about now is not a node any rule is
+        going to be about.
+        """
+        return list(self._rels.get(node, ()))
 
     @property
     def entries(self) -> List[Entry]:

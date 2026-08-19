@@ -7705,6 +7705,100 @@ def the_watcher_is_handed_the_move() -> None:
                       for e in s.wrote) for _c, s in seen))
 
 
+def attention_is_about_a_node_not_a_rule() -> None:
+    """§19: the table, keyed on a thing instead of on a rule.
+
+    `prefer(<R>, key, n)` is the shipped way of saying *this is worth reaching
+    for*, and everything it can say is about a RULE. So it can say *swing more
+    often* and cannot say *swing at THAT one* -- and the loop takes the first
+    surviving application and breaks, so which BINDING wins has always been the
+    walk's decision, which is to say authoring order wearing a preference.
+
+    `attention(x)` is the same claim about a node, and it reaches both halves:
+
+        the binding   which of a rule's applications is taken -- EXACT, and
+                      free, because `found` is already materialised
+        the rule      which rules are matched at all -- APPROXIMATE, via the
+                      relations the node is currently spoken of under
+
+    ⭐ The second is a join and not a scan, which is the only reason it is
+    affordable: no rule's text mentions `goblin1`, because every rule is
+    generic, so *which rules are about goblin1* has no syntactic answer and its
+    exact answer is the option set this loop exists not to build.
+    """
+    from .text import load
+    from .attention import run as table_run
+
+    def order(extra):
+        m = Machine()
+        load(m, chr(10).join([
+            "rule <attack> = implies( { +enemy(?x) }, { +struck(?x) } )",
+            "fact +enemy(goblin1)",
+            "fact +enemy(goblin2)",
+        ] + extra + [""]))
+        rep = table_run(m, limit=6)
+        return [m.g.show(list(st.applied.bindings.values())[0])
+                for st in rep.steps if st.applied is not None]
+
+    plain = order([])
+    check("§18", "with nothing attended, which of two goblins is struck first "
+          "is the WALK's answer -- most-recent-first, so the last declared",
+          plain == ["goblin2", "goblin1"])
+    check("§19", "⭐⭐⭐ attention on a node reorders a rule's own applications: "
+          "the same rule, the other goblin, and no rule was named to say so",
+          order(["fact +attention(goblin1)"]) == ["goblin1", "goblin2"])
+    check("§18", "...and it is STABLE, so attending to what the walk already "
+          "chose changes nothing -- attention overrides the tie-break where it "
+          "has an opinion and defers to it everywhere else",
+          order(["fact +attention(goblin2)"]) == plain)
+
+    # ...and the rule half, which needs a table deep enough for the shortlist to
+    # be a real cut: twelve rules, of which only the last three can match at all.
+    rules = [f"rule <r{i}> = implies( {{ +a{i}(?x) }}, {{ +b{i}(?x) }} )"
+             for i in range(12)]
+    facts = [f"fact +a{i}(thing{i})" for i in (9, 10, 11)]
+
+    def run(extra):
+        m = Machine()
+        load(m, chr(10).join(rules + facts + extra + [""]))
+        return table_run(m, limit=20)
+
+    bare, lifted = run([]), run(["fact +attention(thing11)"])
+    check("§19", "⭐⭐⭐ a rule twelfth in the table, which no shortlist reaches "
+          "without widening, applies FIRST when the thing it is about is "
+          "attended",
+          bare.applied[0] == "r9" and lifted.applied[0] == "r11")
+    check("§19", "...and it is cheaper, not merely reordered: the shortlist "
+          f"stopped widening past it ({bare.tried} rules matched over the run, "
+          f"{lifted.tried} with attention)",
+          lifted.tried < bare.tried and lifted.widenings < bare.widenings)
+    check("§19", "⚠ attention that names everything narrows nothing, and the "
+          "cost column is what says so",
+          run(["fact +attention(thing9)", "fact +attention(thing10)",
+               "fact +attention(thing11)"]).tried > lifted.tried)
+    check("§19", "⚠ and the STATE is what the lift is read through, not the "
+          "graph: attending to a node the agent holds nothing about lifts "
+          "nothing at all",
+          run(["fact +attention(nowhere)"]).applied == bare.applied)
+
+    # The index the rule half rests on, held to what it indexes. `ugm.state`
+    # compares it on every look in the whole suite; this names it.
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "fact +enemy(goblin1)", "fact +wounded(goblin1)",
+        "fact +enemy(goblin2)", ""]))
+    sit = m._situation()
+    rels = [m.g.show(r) for r in sit.relations_of(kb.term("goblin1"))]
+    check("§3", "the state can be asked which relations a NODE is spoken of "
+          "under -- the third index, and the one arriving from the end that "
+          "has a node and no relation",
+          sorted(rels) == ["enemy", "wounded"])
+    check("§3", "...and a node nothing is claimed about is spoken of under "
+          "nothing",
+          sit.relations_of(kb.term("goblin1")) != []
+          and m._situation().relations_of(m.g.atom("goblin3")) == [])
+
+
 def a_table_can_outlive_a_run() -> None:
     """§4: let a caller pass its table in.
 
@@ -8296,6 +8390,7 @@ def main() -> int:
     a_situation_is_materialised_from_its_deltas()
     two_things_can_turn_out_to_be_one()
     a_rule_can_introduce_a_thing()
+    attention_is_about_a_node_not_a_rule()
 
     failed = 0
     group = None

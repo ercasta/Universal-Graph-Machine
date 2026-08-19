@@ -380,6 +380,27 @@ class Machine:
         # something separate: `+prefer(<R>, k, 3) @possible` is a strong
         # recommendation the agent is not sure of.
         self.PREFER = self.g.atom("prefer")
+        # ...and the same table said about a NODE instead of about a rule.
+        #
+        #     prefer(<R>, key, n)     when `key` is in play, think of R
+        #     attention(x)            think about x
+        #
+        # `prefer` can only ever name a rule, so it can say *swing more often*
+        # and cannot say *swing at THAT one*: the score is per rule, and among a
+        # rule's applications the loop takes the first survivor. So which BINDING
+        # wins is walk order -- authoring order, wearing a preference. Attention
+        # is the missing half, and it is the half no rule-keyed buff can express,
+        # because the thing being preferred is not a rule.
+        #
+        # ⭐ It is a claim about a NODE, so it survives what a rule id does not:
+        # rules are adopted, composed and rewritten, and a lesson keyed on
+        # `<R>` goes stale the moment they are. A lesson keyed on what is
+        # salient transfers to a rule authored afterwards.
+        #
+        # ⚠ And it is safe by construction under the action palette: `attention`
+        # is a FACT, so a learned rule that sets it can redirect what the agent
+        # considers and can never act. A learned rule still cannot mint.
+        self.ATTENTION = self.g.atom("attention")
         # Numerals as shared nodes for the small ones, so a score written in a
         # corpus and a score written by a rule are the same node. Everything
         # that READS a numeral reads its name, so an unshared one still works --
@@ -572,6 +593,7 @@ class Machine:
             "scoped": self.SCOPED, "loaded": self.LOADED,
             "again": self.AGAIN,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
+            "attention": self.ATTENTION,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
@@ -745,6 +767,7 @@ class Machine:
                              self.ROOT, self.ROOTED,
                              self.COUNT, self.COUNTED, self.NEW,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
+                             self.ATTENTION,
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
@@ -3366,6 +3389,35 @@ class Machine:
             if name.isdigit():
                 score += int(name)
         return score
+
+    def _attended(self) -> List[NodeId]:
+        """What the agent is thinking ABOUT: the nodes it claims `attention` of.
+
+        The counterpart to `_in_play`, and the difference is the point.
+        `_in_play` answers *what is this situation about* with a set of
+        RELATIONS, because that is what recurs across situations and so is what
+        a table can be keyed on. It cannot discriminate between two goblins:
+        `attack` is in play for both.
+
+        Attention answers *what am I thinking about* with the nodes themselves,
+        which is exactly the discrimination `prefer` cannot make. It is not a
+        better `_in_play` -- it is the other axis, and both are read on the same
+        move.
+
+        ⚠ Ground only. `attention(?x)` is a rule that has not matched yet, not a
+        claim about anything, and lifting on it would lift everything.
+
+        ⚠ Insertion-ordered like everything else here, because a caller ranks
+        with it: a set would hand the tie-break to a hash. §3.
+        """
+        out: List[NodeId] = []
+        for node in self.g.instances_of(self.ATTENTION):
+            members = self.g.members(node)
+            if len(members) != 1 or self.g.has_var(members[0]):
+                continue
+            if self._claims(node) and members[0] not in out:
+                out.append(members[0])
+        return out
 
     def _claims(self, proposition: NodeId) -> bool:
         e = self.chain.resolve(proposition, self.focus.topic, self.focus.seat)

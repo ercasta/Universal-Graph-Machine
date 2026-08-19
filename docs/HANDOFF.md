@@ -1,3 +1,93 @@
+# Handoff — 2026-08-19d (attention: the table, keyed on a thing)
+
+Built, on top of `2e8e9bf`. The 19c session's open item — *learning WHICH is not
+expressible* — is closed for the binding half and opened cheaply for the rule
+half.
+
+    selftest    599/0  (was 590; 9 added, none removed)
+    state       0 disagreements over 7,126 looks, on a FOURTH column
+    vocabulary  18/2 — `holds_at`, `time`. Unchanged; `attention` is classified.
+    quiescence  still exits 1 — PRE-EXISTING, and byte-diffed against the
+                branch point this session rather than assumed.
+    modules     all green: dungeon 17, quest 9, intake 10, table 16, walkers 16,
+                workload 25, acting 11, hindsight 8, clock 8, maze 7, experts 7,
+                surprise 7, backward 7, lifting 7, sexpr 7, compose 9,
+                bundle 19/19, agreement 28/0, arbitration 0, atlas 0 problems.
+
+## What was built
+
+**`attention(x)` — the table keyed on a NODE instead of on a rule.** Everything
+that existed scores rules: `prefer(<R>, key, n)`, buffs, rerankers. So with two
+goblins and one `<attack>` rule, *which goblin* was never chosen — the loop takes
+the first surviving application and breaks, so the walk decided, which is
+authoring order wearing a preference. No rule-keyed mechanism can say otherwise,
+because the thing being preferred is not a rule.
+
+**1. The binding half — exact, and it costs nothing.** `_attended_first` orders a
+rule's own applications by how many attended nodes they bind. `found` is already
+materialised; the loop was throwing everything past the first survivor away.
+STABLE, so §18's most-recent-first survives wherever attention has no opinion.
+Measured: the walk strikes the last-declared goblin first, attention on the other
+flips it, attention on the one already chosen changes nothing.
+
+**2. The rule half — a join, not a scan.** *Which rules are about `goblin1`* has
+no syntactic answer, because every rule is generic and no rule's text mentions
+`goblin1`; its exact answer is the option set this loop exists not to build.
+From the other end it is two lookups:
+
+    goblin1 -> relations it is spoken of under   Situation.relations_of
+            -> rules whose antecedent uses one   Table.by_relation
+
+⚠ Approximate on purpose: a rule reading `wounded(?x)` is lifted because
+goblin1 is wounded, whether or not it would bind `?x` to goblin1. It decides who
+is MATCHED, not who wins.
+
+Measured on twelve rules of which three can match: the twelfth applies FIRST when
+its thing is attended, at **143 matches against 183**, because the shortlist
+stopped widening past it. Attending to all three costs 157 — **attention that
+names everything narrows nothing**, and the cost column says so.
+
+**3. `Situation.relations_of` — the state's third index.** The two that existed
+are read by a pattern that already knows its relation; attention arrives with a
+node and no relation, so neither answers it. Counted, not a set, because `drop`
+has to be exact. Maintained off the same keys the argument index files under.
+
+⚠ **The index is free within noise**: 8.59/8.65/8.72s against 8.42/8.54/8.66s
+with maintenance short-circuited on the same tree — and that arm fails 5 checks,
+so the comparison is against something that is not doing the work.
+
+**4. `ugm.state` grew a fourth column, and it had to be made to fail first.** The
+first version compared which relations a node is spoken of under and reported
+**0 disagreements with the decrement removed entirely**. A denial does not remove
+an entry, it replaces `+q(a)` with `-q(a)` — two keys, one node, one relation —
+so across the one operation the column watches, the relation SET does not move.
+Comparing the COUNTS: 992 disagreements. The instrument's kill-probe table has
+the row.
+
+## Why this is the shape, and not a query
+
+`docs/HANDOFF.md` 2026-08-15 measured situation-keyed lessons as rerankers at
+**42.7 matched/move against a 29.6 baseline**, because every trigger query is a
+match. Attention makes the buff's query free: the rule's own antecedent IS the
+query, and it is being matched anyway. That is the cost argument, on the column
+that was built to make it.
+
+## Two things NOT done, and one hazard
+
+**Only the table loop.** `Machine.run` IS the table loop, so this is everywhere
+that matters — but `Machine.tick`, the surviving option-set loop, and
+`arbitrate`/`_rank` do not read attention. A comparison run drives `tick`.
+
+**Nothing sets attention but a corpus.** No rule bundles it, nothing learns it,
+and `teaching.py` still writes `prefer(<R>, ...)`. The learnable version — a
+postcondition concluding `+attention(?x)` about what the move just bound — is the
+obvious next thing and is not built.
+
+⚠ **`did(?a)` still means *the last action* only by walk order.** A rule reading
+the recent past binds the newest match because buckets are read newest-first, and
+that is now a property attention can deliberately override. Nothing depends on it
+today; something will.
+
 # Handoff — 2026-08-19c (learning: the action space, settled in conversation)
 
 ⚠⚠⚠ **NOTHING WAS BUILT IN THIS SESSION.** The suite is unchanged at **590/0**

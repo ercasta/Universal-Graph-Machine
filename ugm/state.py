@@ -16,6 +16,8 @@ it is wrong:
     state     the entries, IN ORDER -- §18's *the most recent wins* rests on it
     index     what `Situation.candidates` answers, per sign and relation
     keys      `_in_play`: what the situation is about, which orders arbitration
+    mentions  `relations_of`: which relations a NODE is spoken of under, which
+              is what attention lifts a rule with
 
 ⚠ The three fail in different ways and only the first is loud. A wrong state
 concludes from a premise that was denied; a wrong index silently stops a rule
@@ -32,18 +34,36 @@ small is a run that measured very little.
 Kill-probed five ways, and each lands in its own column. The last row is the
 one that justifies the instrument existing at all:
 
-| break | the suite | state | index | keys |
-|---|---|---|---|---|
-| never drop a superseded entry | 2 | 806 | 806 | 0 |
-| never decrement a goal's key | 1 | 0 | 0 | 8 |
-| never invalidate a bucket's read | 29 | 0 | 3,884 | 0 |
-| rebuild the state newest-first | 6 | 6,456 | 6,456 | 0 |
-| **one key cache for every seat** | **0** | 0 | 0 | **1,597** |
+| break | the suite | state | index | keys | mentions |
+|---|---|---|---|---|---|
+| never drop a superseded entry | 2 | 806 | 806 | 0 | -- |
+| never decrement a goal's key | 1 | 0 | 0 | 8 | -- |
+| never invalidate a bucket's read | 29 | 0 | 3,884 | 0 | -- |
+| rebuild the state newest-first | 6 | 6,456 | 6,456 | 0 | -- |
+| **one key cache for every seat** | **0** | 0 | 0 | **1,597** | -- |
+| **never decrement a node's relation** | **0** | 0 | 0 | 0 | **992** |
 
-⭐ The suite cannot see the last one, and that is not a gap in the fixtures: a
+⭐ The suite cannot see the fifth, and that is not a gap in the fixtures: a
 wrong key set makes a worse choice, and every fixture here asserts an outcome
 that the loop reaches anyway. Nothing that asserts what the agent concluded can
-see what it was thinking about while it concluded it.
+see what it was thinking about while it concluded it. The sixth is the same
+sentence one index along -- a stale mention makes a worse SHORTLIST -- which is
+why it is here and not in `ugm.selftest`.
+
+⚠⚠⚠ **And the mentions column had to be made to fail before it was worth
+anything.** A first version compared which relations a node is spoken of under
+and reported 0 disagreements with the decrement removed entirely. The reason is
+worth keeping: a denial does not remove an entry, it replaces `+q(a)` with
+`-q(a)`, and those are two keys mentioning one node under one relation. Across
+the one operation the column exists to watch, the relation SET does not move and
+the count is off by one. So the comparison is over the counts.
+
+⚠ Two branches of `_mention` are NOT exercised by anything here, and saying so
+is cheaper than implying otherwise. Re-adding an entry already in a bucket
+(`fresh`) and a count actually reaching zero both probe clean at 0 -- the first
+because nothing adds one entry twice, the second because a supersession always
+pairs the drop with an add of the same node under the same relation. A count
+reaches zero only when a proposition leaves the state entirely.
 """
 
 import contextlib
@@ -61,6 +81,7 @@ _tally = {
     "state": 0,
     "index": 0,
     "keys": 0,
+    "mentions": 0,
 }
 _examples = []
 
@@ -164,6 +185,36 @@ def install() -> None:
                 _note("index", f"bucket {k[:2]}: kept {len(a)}, walk {len(b)}")
                 break
 
+        # The fourth, and it is the quietest of the four: `relations_of` is
+        # read to LIFT a rule, so a stale count makes a worse shortlist and
+        # never a wrong conclusion. Exactly the column `keys` is here for, one
+        # index along -- and the counting is the part that can drift, because
+        # `add` and `drop` are the only two places it is ever right or wrong.
+        #
+        # ⚠⚠⚠ **The COUNTS, not the relations, and the difference is whether
+        # this column measures anything at all.** A first version compared the
+        # relation sets and could not see `drop` disabled entirely: a denial
+        # does not remove an entry, it REPLACES `+q(a)` with `-q(a)`, and the
+        # two are different keys mentioning one node under one relation. So the
+        # set is unchanged across the one operation the column exists to watch,
+        # and the count is off by one. Probed: with the decrement removed the
+        # set comparison reported 0 disagreements over 7,126 looks.
+        for node, held in list(cache["sit"]._rels.items()):
+            walk = reference._rels.get(node, {})
+            if held != walk:
+                rel = next((r for r in set(held) | set(walk)
+                            if held.get(r) != walk.get(r)), None)
+                _note("mentions",
+                      f"{self.g.show(node)} under {self.g.show(rel)}: kept "
+                      f"{held.get(rel, 0)}, the walk says {walk.get(rel, 0)}")
+                break
+        else:
+            for node in reference._rels:
+                if node not in cache["sit"]._rels:
+                    _note("mentions", f"{self.g.show(node)}: kept nothing, "
+                                      "the walk says it is spoken of")
+                    break
+
         f, sl = in_play(self), _slow_keys(self, slow)
         if f != sl:
             _note("keys", "extra=%s missing=%s" % (
@@ -195,8 +246,9 @@ def main() -> int:
     print(f"  {_tally['with_a_supersession']:6} of them after something was superseded")
     print(f"  {_tally['with_a_goal']:6} with a live goal, so the keys say something")
     print()
-    disagreed = _tally["state"] + _tally["index"] + _tally["keys"]
-    for what in ("state", "index", "keys"):
+    disagreed = (_tally["state"] + _tally["index"] + _tally["keys"]
+                 + _tally["mentions"])
+    for what in ("state", "index", "keys", "mentions"):
         print(f"  {_tally[what]:6} disagreements about the {what}")
     for e in _examples:
         print(f"         {e}")
