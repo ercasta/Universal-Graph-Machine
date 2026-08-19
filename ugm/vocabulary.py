@@ -39,7 +39,11 @@ ROLES: Dict[str, List[str]] = {
     # Not vocabulary at all: a numeral is an atom whose name reads as a number.
     "literals": list("0123456789"),
     # The surface's own marks -- connectives, signs, and the member modifier.
-    "the surface": ["causes", "implies", "not", "plus", "minus", "unsure", "at"],
+    # `new` sits here rather than under deliberation: it is a MARK a consequent
+    # writes, like a sign or `at`, and what it marks is that the application
+    # should mint. It says nothing about what the agent is trying to do.
+    "the surface": ["causes", "implies", "not", "plus", "minus", "unsure", "at",
+                    "new"],
     # §4-§11: the history, and how to walk it.
     # `licensed_by` sits beside `rests_on` and is here for its reason: *what
     # produced this entry* is a fact about the chain's own construction, not
