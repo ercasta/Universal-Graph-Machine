@@ -7889,6 +7889,108 @@ def a_computed_numeral_is_not_a_twin() -> None:
           and m.holds(kb.term("dozen(yes)")) == PLUS)
 
 
+def a_situation_is_materialised_from_its_deltas() -> None:
+    """`docs/situations.md` stage 4, items 1 and 2: replay, from atoms alone.
+
+    Three stages were built and the fourth stood in for by **capped ancestor
+    visibility** -- a situation reads THROUGH to its ancestors, each step capped
+    at the node counter as it stood at the cut. That computes what replay would
+    have produced for the structural layer, on the way past, and it is why the
+    suite did not slow down. What it gives up is the whole of this: **the graph
+    is not reconstructible from the deltas, so a materialisation cannot be
+    discarded**, and nodes minted inside a hypothesis live as long as the graph.
+
+    ⭐⭐⭐ **The atom layer had a hole and only replay could find it.** A delta
+    referencing atoms can NAME `healthy(paul)`; naming is not rebuilding,
+    because a compound's atom is minted and deliberately not derived from its
+    members'. So `_atom_members` and `_atom_leaf` are the floor: the same
+    structure again, one level up, in the identity that survives its nodes.
+
+    ⚠ **This rebuilds the structural layer and does not re-deposit the
+    entries.** Re-depositing needs the locus materialised too, and a moment is
+    not a node the atom layer covers. Stated rather than left to be found.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "fact +healthy(paul)",
+        "fact +ill(mary)",
+        "rule <r> = implies( { +healthy(?x) }, { +ok(?x) } )", ""]))
+    m.run(limit=40)
+    g = m.g
+
+    # A situation that has seen NOTHING: cut from the root at birth 0, so the
+    # visibility walk reaches no node at all and every answer must be rebuilt.
+    fresh = g.branch(0, born=0)
+    built = m.chain.materialise(m.focus.seat, fresh)
+
+    disagree = [e for mo in m.chain.moments for e in mo.delta
+                if built.get(e.patom) is not None
+                and g.show(built[e.patom]) != g.show(e.proposition)]
+    reused = [e for mo in m.chain.moments for e in mo.delta
+              if built.get(e.patom) == e.proposition]
+
+    check("§4", "⭐⭐⭐ a situation with no visibility at all is rebuilt from the "
+          "deltas, and every proposition comes back with the structure it went "
+          "in with -- which is what makes a materialisation discardable",
+          bool(built) and not disagree)
+    check("§4", "...as DIFFERENT nodes, so it is a replay and not the original "
+          "answering from behind a new name",
+          not reused)
+    check("§4", "...carrying the same atoms, which is what makes it the same "
+          "things rather than a second world that resembles the first",
+          all(g.atom_of(n) == a for a, n in built.items()))
+
+    # ⚠⚠⚠ The name is not structural and was the one thing replay lost. A rule
+    # is minted as a compound and named afterwards, so `_mint` never saw
+    # `<r>` -- 110 of 160 propositions round-tripped with identical structure
+    # and a rendering of ninety characters of `implies(moment(entry(...)))`,
+    # which is the exact defect `Graph.name` exists to fix, one layer down.
+    # ⚠ Asked of the RULE NODE and not of `built`, which is keyed by the
+    # propositions a delta names -- a rule appears as a MEMBER of `rule(<r>)`
+    # and is rebuilt recursively, so it is never a key here. The first version
+    # of this check looked in `built` and failed while the thing it was about
+    # was working, which is the more useful way round for a check to be wrong.
+    rule_node = [x for x in m.rules.rules if x.name == "r"][0].node
+    check("§4", "⚠ ...and a rebuilt RULE still prints as its name, because a "
+          "name is not structural and the atom layer has to carry it too",
+          g.show(g.rebuild(g.atom_of(rule_node), fresh)) == g.show(rule_node)
+          == "<r>")
+
+    # ⭐ The agreement that decides whether replay may replace capped
+    # visibility: where the target can ALREADY see the thing, rebuilding must
+    # return that node and mint nothing. This repository's own rule -- hold an
+    # index to a re-implementation of what it indexes.
+    child = g.branch(0)
+    p = kb.term("healthy(paul)")
+    check("§4", "⭐⭐⭐ ...and rebuilding what a situation can already see is a "
+          "NO-OP, so replay and capped visibility agree where both apply -- the "
+          "two must, or the fast path is a different answer rather than a "
+          "quicker one",
+          g.rebuild(g.atom_of(p), child) == p)
+    check("§4", "...and it is idempotent, so materialising twice is "
+          "materialising once",
+          g.rebuild(g.atom_of(p), fresh) == g.rebuild(g.atom_of(p), fresh))
+
+    # A variable must come back generic. `_is_var` is not derivable from the
+    # structure -- a variable and an atom are both *no relation, no members* --
+    # so without `_atom_leaf` a replayed rule's members become ground atoms
+    # named `?x`, which match nothing and fail silently.
+    r = [x for x in m.rules.rules if x.name == "r"][0]
+    mem = r.antecedent[0].pattern
+    check("§4", "⚠ ...and a rebuilt generic member is still generic, or a "
+          "replayed rule matches nothing and says nothing about why",
+          g.has_var(g.rebuild(g.atom_of(mem), fresh)))
+
+    print()
+    print(f"        {len(built)} atoms replayed into a situation that had seen "
+          f"nothing;")
+    print(f"        {len(disagree)} disagreed with the original, {len(reused)} "
+          f"were the original.")
+    print()
+
+
 def main() -> int:
     import sys
 
@@ -7989,6 +8091,7 @@ def main() -> int:
     the_aggregate_over_bindings_is_one_primitive()
     a_count_is_not_monotone()
     a_computed_numeral_is_not_a_twin()
+    a_situation_is_materialised_from_its_deltas()
 
     failed = 0
     group = None

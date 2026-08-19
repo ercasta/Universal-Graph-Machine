@@ -134,6 +134,21 @@ class Graph:
         # node's own situation and by `carry` for every situation a thing has
         # been transported into.
         self._node_by_atom: Dict[Tuple[AtomId, SituationId], NodeId] = {}
+        # `atom -> (relation atom, member atoms)`: the structural layer written
+        # in the portable identity rather than the local one, so a thing can be
+        # rebuilt in a situation that has never seen it. See `_mint` for why
+        # this is not a duplicate of `_members`, and `rebuild` for what reads it.
+        self._atom_members: Dict[
+            AtomId, Tuple[Optional[AtomId], Tuple[AtomId, ...]]
+        ] = {}
+        # ...and the leaf half of the same record: `atom -> (name, is a
+        # variable)`. Neither is derivable from the structure -- an atom and a
+        # variable are both *no relation, no members*, and a name is not
+        # structural at all -- so a replay that read only `_atom_members` would
+        # rebuild every leaf as an anonymous ground node. Measured the hard way:
+        # a replayed rule's `?x` came back as an atom named nothing and matched
+        # nothing.
+        self._atom_leaf: Dict[AtomId, Tuple[Optional[str], bool]] = {}
 
         # One index, over what was asserted rather than over what was derived
         # (§12): relation instances keyed by (rel, members) so the same
@@ -286,6 +301,48 @@ class Graph:
                 return n
         return None
 
+    def rebuild(self, a: AtomId, target: SituationId) -> NodeId:
+        """Materialise the thing `a` names, in `target`, **from atoms alone**.
+
+        This is what `docs/situations.md` means by *a situation is materialised*
+        and it is the half stage 4 exists to build. `carry` transports a node
+        that still exists; this reconstructs one from the portable record, so it
+        works for a situation whose nodes were never minted or were discarded.
+
+        ⭐ **It reads `_atom_members` and never `_members`**, which is the whole
+        test of whether the atom layer is real. If this function needed a node
+        to consult, atoms would be labels on a structure rather than a structure
+        of their own, and nothing could ever be thrown away.
+
+        ⚠ **Already-there wins, by the visibility walk.** If `target` can
+        already see a realisation of `a`, that one is the answer -- rebuilding
+        beside it would put two nodes for one thing in one situation, which is
+        the twin trap wearing a replay. That is also what makes this idempotent,
+        and what lets it be checked against capped visibility: rebuilding
+        something a situation can already reach must be a no-op.
+
+        ⚠ A variable rebuilds as a variable. `_is_var` is not derivable from the
+        structure -- a bare variable has no relation and no members, exactly like
+        an atom -- so it is carried across explicitly. Without this a replayed
+        rule's members turn into ground atoms named `?x` and match nothing.
+        """
+        got = self.node_of(a, target)
+        if got is not None:
+            return got
+        rel_a, mem_a = self._atom_members[a]
+        # Depth first, because `_mint` reads its constituents' atoms.
+        rel = None if rel_a is None else self.rebuild(rel_a, target)
+        members = tuple(self.rebuild(x, target) for x in mem_a)
+        name, generic = self._atom_leaf.get(a, (None, False))
+        with self.standing_in(target):
+            n = self._mint(rel, members, name, atom=a)
+            if generic:
+                self._is_var[n] = True
+                self._has_var[n] = True
+            if rel is not None:
+                self._interned[(target, rel, members)] = n
+        return n
+
     def carry(self, n: NodeId, target: SituationId) -> NodeId:
         """Transport a node into `target`, and RECORD that it landed there.
 
@@ -358,6 +415,7 @@ class Graph:
         """A variable, for the generic moments of a rule (§4)."""
         n = self._mint(None, (), name)
         self._is_var[n] = True
+        self._atom_leaf[self._atom[n]] = (name, True)
         # ⚠ Both, and this is the one place they can disagree: `_mint` decides
         # genericity from the relation and members, which a bare variable has
         # none of, so it would record False. A variable IS the generic thing.
@@ -419,7 +477,8 @@ class Graph:
         return self._mint(relation, tuple(members), None)
 
     def _mint(
-        self, relation: Optional[NodeId], members: Tuple[NodeId, ...], name: Optional[str]
+        self, relation: Optional[NodeId], members: Tuple[NodeId, ...],
+        name: Optional[str], atom: Optional[AtomId] = None,
     ) -> NodeId:
         n = self._next
         self._next += 1
@@ -428,10 +487,36 @@ class Graph:
         self._members[n] = members
         self._is_var[n] = False
         self._sit_of[n] = s
-        a = self._next_atom
-        self._next_atom += 1
+        # ⭐ `atom` is supplied only by `rebuild`, and it is what makes a replay
+        # a REPLAY rather than a second world that resembles the first. A node
+        # minted fresh gets a fresh portable name; a node materialised from a
+        # delta already has one, and minting a new one would break the
+        # correspondence the delta was written in.
+        if atom is None:
+            a = self._next_atom
+            self._next_atom += 1
+        else:
+            a = atom
         self._atom[n] = a
         self._node_by_atom[(a, s)] = n
+        # ⭐⭐⭐ **The same structure again, one level up, in atoms** -- and it is
+        # the floor stage 4 stands on. A delta referencing atoms can name
+        # `healthy(paul)`, and naming it is not enough to REBUILD it: a
+        # compound's atom is minted and deliberately not derived from its
+        # members', so the atom alone says nothing about what it is made of.
+        # Without this table an atom is a name for a node that has to still
+        # exist, which is the thing replay is for getting rid of.
+        #
+        # ⚠ Kept beside `_members` rather than replacing it. `_members` is per
+        # NODE and is what every reader walks; this is per ATOM and is what
+        # survives the node being discarded. They are the same shape and they
+        # answer different questions -- which is the whole of why there are two
+        # identities in the first place.
+        self._atom_members[a] = (
+            None if relation is None else self._atom[relation],
+            tuple(self._atom[mm] for mm in members),
+        )
+        self._atom_leaf.setdefault(a, (name, False))
         # Every constituent is already minted, so its answer is already here.
         self._has_var[n] = (
             (relation is not None and self._has_var.get(relation, False))
@@ -545,6 +630,14 @@ class Graph:
         was simply nowhere to put that.
         """
         self._name[n] = text
+        # ⚠⚠⚠ **The atom learns the name too, or a replay prints as its own
+        # structure.** A rule is minted as a compound and named afterwards, so
+        # `_mint` never saw `<intake>` -- and a materialised rule came back
+        # rendering as ninety characters of `implies(moment(entry(...)))`, which
+        # is the exact defect this method exists to fix, arriving one layer down.
+        # Caught by replaying the bundle: 110 of 160 propositions round-tripped
+        # with identical structure and a different rendering.
+        self._atom_leaf[self._atom[n]] = (text, self._is_var.get(n, False))
         return n
 
     def show(self, n: NodeId) -> str:
