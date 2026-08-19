@@ -8125,13 +8125,13 @@ def two_things_can_turn_out_to_be_one() -> None:
 
 
 def a_rule_can_introduce_a_thing() -> None:
-    """`new(k)`: a consequent may name something that did not exist.
+    """`+kind`: a consequent may name something that did not exist.
 
     Everything a consequent could name came from a binding or was written
     literally, so *there is some new person here* was unsayable. The binding
     check refuses `+named(?p, ?x)` with `?p` unbound, and refuses it correctly --
-    the gate cannot deposit a variable. `new(person)` says it instead: a marker
-    the application replaces with a node it mints.
+    the gate cannot deposit a variable. `+person` says it instead: the same mark that
+    already signals a node coming to be, one level down.
 
     ⭐⭐⭐ **One node per marker per APPLICATION**, which is what keeps two people
     called Paul apart. The mint is per occasion, not per name -- so it is the
@@ -8153,8 +8153,8 @@ def a_rule_can_introduce_a_thing() -> None:
         "fact +said(u2, paul)",
         "fact +said(u3, mary)",
         "rule <name> = implies( { +said(?u, ?x) },",
-        "                       { +named(new(person), ?x),",
-        "                         +is(new(person), person) } )", ""]))
+        "                       { +named(+person, ?x),",
+        "                         +is(+person, person) } )", ""]))
     m.run(limit=200)
     g = m.g
     named = [n for n in g.instances_of(kb.atoms["named"]) if m.holds(n) == PLUS]
@@ -8186,7 +8186,7 @@ def a_rule_can_introduce_a_thing() -> None:
     m2 = Machine()
     kb2 = load(m2, chr(10).join([
         "fact +thing(a)",
-        "rule <spawn> = implies( { +thing(?x) }, { +thing(new(thing)) } )", ""]))
+        "rule <spawn> = implies( { +thing(?x) }, { +thing(+thing) } )", ""]))
     m2.run(limit=40)
     check("§21", "⚠⚠⚠ ...but a GENERATIVE CHAIN is not bounded by refraction, and "
           "the run says so through the one record that can: `bounded(ticks)`",

@@ -121,9 +121,15 @@ class Machine:
         # One request, four uses, and the meaning is the corpus's own rule
         # rather than four bundled ones. That is *rows, not branches* at the
         # level of the feature itself.
-        # ⭐ The marker a consequent writes to introduce a thing: `new(person)`.
-        # See `_apply`. Reserved, so a corpus cannot mean something else by it
-        # without knowing -- and so the loader resolves it to THIS node.
+        # ⭐ The marker a consequent writes to introduce a thing, spelled `+kind`
+        # in an argument. See `_apply`.
+        #
+        # ⚠⚠⚠ **NOT in `reserved`, deliberately.** A keyword would take the word
+        # `new` away from every corpus, and `new` is far too ordinary a word to
+        # spend -- `ugm.vocabulary` exists to count exactly that cost and has a
+        # check named *a reserved name turned out to be a domain word*. The mark
+        # is reachable only from the parser, which builds this node directly, so
+        # a corpus writing `new(car)` means its own `new` and always did.
         self.NEW = self.g.atom("new")
         self.COUNT = self.g.atom("count")      # ask
         self.COUNTED = self.g.atom("counted")  # ...and the answer, always
@@ -561,7 +567,7 @@ class Machine:
             "forgone": self.FORGONE, "exercised": self.EXERCISED,
             "concluded": self.CONCLUDED,
             "root": self.ROOT, "rooted": self.ROOTED,
-            "count": self.COUNT, "counted": self.COUNTED, "new": self.NEW,
+            "count": self.COUNT, "counted": self.COUNTED,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "scoped": self.SCOPED, "loaded": self.LOADED,
             "again": self.AGAIN,
@@ -687,7 +693,7 @@ class Machine:
         self.considered = 0
         # The resolved state, kept rather than rebuilt. See `_state`.
         self._state_cache: dict = {}
-        # `new(...)` terms per rule -- see `_markers`.
+        # `+kind` marks per rule -- see `_markers`.
         self._marker_cache: dict = {}
         # ...and what the seat has mentioned, accumulated over the same delta.
         self._play_cache: dict = {}
@@ -3516,11 +3522,12 @@ class Machine:
         # consequent could name until now came from a binding or was written
         # literally, so *there is some new person here* was unsayable -- the
         # binding check refuses `+named(?p, ?x)` with `?p` unbound, correctly,
-        # because the gate cannot deposit a variable. `new(person)` says it
-        # instead: a marker term the application replaces with a node it mints.
+        # because the gate cannot deposit a variable. `+person` says it
+        # instead: a mark the application replaces with a node it mints, and it
+        # is the same `+` that already signals a node coming to be.
         #
-        # ⚠ **One node per distinct marker per APPLICATION**, so `+a(new(p))`
-        # and `+b(new(p))` in one consequent are about the same new thing, and
+        # ⚠ **One node per distinct marker per APPLICATION**, so `+a(+p)`
+        # and `+b(+p)` in one consequent are about the same new thing, and
         # two firings are about two things. That is what keeps two people called
         # Paul apart: the mint is per occasion, not per name.
         #
@@ -4415,9 +4422,9 @@ class Machine:
                     bucket.discard(k)
 
     def _markers(self, rule) -> Tuple[NodeId, ...]:
-        """The `new(...)` terms in a rule's consequent, cached on the rule node.
+        """The `+kind` marks in a rule's consequent, cached on the rule node.
 
-        Scanned rather than declared, so a corpus writes `new(person)` where it
+        Scanned rather than declared, so a corpus writes `+person` where it
         wants one and nothing else changes. Cached because the answer depends
         only on the rule, and `_apply` asks on every firing.
         """

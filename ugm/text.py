@@ -158,6 +158,12 @@ class Term(NamedTuple):
     is_var: bool
     is_rule: bool = False
     fn: Optional["Term"] = None
+    # ⭐ `+person` in an ARGUMENT: introduce one. `+` already signals a node
+    # coming to be -- asserting `+p(x)` is what builds `p(x)` -- so this is that
+    # mark one level down rather than a second meaning for it. `member` consumes
+    # the member-level sign before `term` is ever called, so the two cannot
+    # shadow each other.
+    mint: bool = False
 
 
 class RuleMember(NamedTuple):
@@ -475,6 +481,12 @@ class Parser:
         return t
 
     def primary(self) -> Term:
+        if self.at("+"):
+            # Reached only from inside a term, because `member` has already
+            # taken any member-level sign.
+            self.next()
+            inner = self.primary()
+            return inner._replace(mint=True)
         t = self.next()
         if t.kind == "var":
             # ⭐ `?p(?t)` -- a variable in the RELATION slot. The substrate has
@@ -846,6 +858,13 @@ class Loader:
             self.shadowed.add(t.head)
 
     def build(self, t: Term, scope: Dict[str, NodeId]) -> NodeId:
+        if t.mint:
+            # ⚠ Wrapped in the machine's OWN node, never one from the name
+            # table -- so `new` stays a word a corpus may mean something else
+            # by. That is the whole reason this is a mark and not a keyword:
+            # `ugm.vocabulary` counts every name the engine takes, and `new` is
+            # too ordinary a word to spend.
+            return self.m.g.rel(self.m.NEW, self.build(t._replace(mint=False), scope))
         if t.fn is not None:
             # The relation slot holds a term. `g.rel` interns on
             # (relation, members) as always, so `a(b)(c)` is one node however
