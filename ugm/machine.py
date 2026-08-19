@@ -2069,6 +2069,44 @@ class Machine:
             source=self.KB, mention=True,
         )
 
+    def _attend(self, node: NodeId, licence: Optional[NodeId] = None) -> bool:
+        """*Think about this one.* -- what a postcondition spends when it
+        attends, and an ordinary claim when it lands.
+
+        ⭐ Licensed by the rule that spent it, the way `close` and `defeated`
+        name the rule that produced them. So *why am I thinking about this*
+        answers with a rule and a moment, which is the whole reason attention is
+        a claim rather than a field on the loop.
+        """
+        prop = self.g.rel(self.ATTENTION, node)
+        if self._claims(prop):
+            return False
+        self._note(prop, licence)
+        return True
+
+    def _unattend(self, licence: Optional[NodeId] = None) -> int:
+        """Stop thinking about whatever it was -- `reset`, for attention.
+
+        ⚠ **Denied, not forgotten.** *The agent stopped attending to this here*
+        is dated and attributable; dropping a Python set is not readable by any
+        rule and cannot be argued with. That is `docs/deposit-dont-decide.md`
+        applied to the one piece of state a postcondition can now write.
+
+        ⚠⚠ And something must say it. Attention accumulates otherwise, and
+        attention that names everything narrows nothing -- measured in
+        `ugm.selftest`. A buff had `LIFE` for this reason; a claim has a denial,
+        and a corpus decides when.
+        """
+        dropped = 0
+        for node in self._attended():
+            self.gate.write(
+                self.focus, self.g.rel(self.ATTENTION, node), MINUS,
+                licence=licence or self.g.rel(self.QUIET, self.focus.seat.node),
+                source=self.KB, mention=True,
+            )
+            dropped += 1
+        return dropped
+
     def _knob(self, relation: NodeId, default):
         """A knob a corpus can turn, read from the graph.
 

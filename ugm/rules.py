@@ -45,6 +45,66 @@ class _Stop:
 STOP = _Stop()
 
 
+class Attend:
+    """The postcondition that deposits attention on what the move just bound.
+
+    ⭐⭐⭐ **The sixth row in the same vocabulary, and it is a different KIND of
+    row.** `boost` and `damp` move a score, `reset` returns the table to its
+    defaults, `stop` ends the run -- all four are the loop's own bookkeeping.
+    This one deposits an ordinary CLAIM, which nothing a postcondition could
+    spend has done before.
+
+    ⚠ That is the point rather than a wrinkle. Attention is a fact about a node
+    -- readable by rules, deniable, attributable, dated -- and a postcondition is
+    the only place a lesson about it can live. `docs/HANDOFF.md` 2026-08-15
+    measured why: a learned recogniser written as a RULE has to win a move to be
+    heard and fired twice out of sixteen, because *in a one-move-per-tick loop,
+    spending a move on recognition competes with doing the work*. A
+    postcondition is evaluated for free after whatever applied.
+
+    ⚠ So the deposit is NOT the table's business, and this file's sentinel is
+    where it stops: `Table.spend` stays a pure account of scores and the loop
+    hands attends to the machine. A table that could write claims would be an
+    interpreter with a memory, which is the thing the four primitives exist
+    instead of.
+
+    ⚠ A class rather than a sentinel because it carries the term to attend to,
+    which `stop` and `reset` do not. `term` is a node once the loader has built
+    it, and the parser's own term before that.
+    """
+
+    __slots__ = ("term",)
+
+    def __init__(self, term) -> None:
+        self.term = term
+
+    def __repr__(self) -> str:
+        return f"attend({self.term})"
+
+
+class _Unattend:
+    """...and the one that takes it back, which is `reset` for attention.
+
+    ⚠ It denies what is attended rather than forgetting it, and the difference
+    is the whole of `deposit-dont-decide.md`: *the agent stopped attending to
+    this here* is a dated, attributable, deniable claim, where dropping a Python
+    set is nothing anyone can read or argue with.
+
+    ⚠⚠ And something has to, or attention accumulates until it names everything
+    -- which is measurably the same as naming nothing (`ugm.selftest`:
+    *attention that names everything narrows nothing*). A buff had `LIFE` for
+    this reason; a claim has a denial.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "unattend"
+
+
+UNATTEND = _Unattend()
+
+
 class Member(NamedTuple):
     """A signed entry in a rule's antecedent or consequent.
 

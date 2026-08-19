@@ -1,3 +1,202 @@
+# Handoff — 2026-08-19f (Hanoi: a recursion is a node with a PHASE)
+
+Built on top of `7776439`. `ugm.hanoi` is new; `teaching.py` gained conditional
+focus lessons on the way.
+
+    selftest    618/0  (was 610; 8 added, none removed)
+    hanoi       exit 0 — optimal at 3..7 disks, every rule load-bearing
+    state       0 disagreements, four columns
+    teaching    exit 0
+    vocabulary  18/2 — `holds_at`, `time`. Unchanged.
+    quiescence  still exits 1 — PRE-EXISTING.
+
+## Why the fixture exists
+
+Every other fixture measures which RULE to reach for. None could measure which
+BINDING — and `ugm.workload`, the one built for scale, has exactly ONE
+individual (`item`), so it cannot measure it even in principle. That is why the
+binding conclusions drawn from the dungeon were worth so little: three
+combatants. Measured on a generated corpus, binding choice goes from **0% of
+moves at population 1 to 94% at population 16**, with the rule count flat.
+
+Hanoi has one action. Every step is a choice of binding for it, and rule
+selection contributes nothing.
+
+## ⚠⚠⚠ Four corpora failed first, and each failure is the finding
+
+| what was written | what happened |
+|---|---|
+| a free-standing `<move>` | only LEGAL moves, `d1` shuttles for ever: 155 moves, never solved |
+| the decomposition under `goal(...)` | the bundle's backward reader took **153 of 200 ticks** while `<move>` had one live application — the correct one — and never got a turn |
+| `built`/`at`/`site` as derived facts | the engine does not retract (§12), so `built(d2,d3)` still stood after d2 had moved to `y`, and the want was met by a memory |
+| the recursion guarded on WORLD STATE | `on(d2,d3)` holds again on the way back, so `<unstack>` re-fired and recreated a want it had already met — five correct moves, then a cycle |
+
+⭐⭐⭐ **The fourth decides the shape.** Hanoi's recursion is depth-first and
+ORDERED — unstack, then place, then restack — and world state cannot say which
+of the three you are in: `at(d1, x)` is equally true on the way out and on the
+way back. Guards read off the world are ambiguous *by construction*, and no
+number of them fixes it.
+
+So a call is a NODE, minted per occasion, carrying its own pegs and its own
+PHASE. Which is this repo's own *a multi-tick plan is a NODE, not a string*
+(19c, item 3) — reached from the failing side rather than by agreement.
+
+⚠ **Minted per OCCASION, not per parameters**, and Hanoi is where that stops
+being a nicety: `solve(d1, x, z, y)` occurs TWICE in a three-disk solution, so a
+call node keyed on its arguments collides with itself and refraction blocks the
+second. `+call` mints one node per application, which is exactly right.
+
+## What it establishes
+
+    disks   optimal   moves made               rules naming an individual
+    3         7         7  identical                      0
+    4        15        15  identical                      0
+    5        31        31  identical                      0
+    6        63        63  identical                      0
+    7       127       127  identical                      0
+
+Not *near* optimal — the sequence is identical to the recursive solution at
+every size. **The same rules, unchanged and unretuned, are optimal at every
+size, and not one names a disk or a peg** (checked, not asserted). That is the
+strongest form of the transfer result the structural-key thread was after.
+
+**And the ablation kills every rule.** All 14 removed in turn; none survives.
+⭐ One is worth telling apart: without `<finished>` it builds the tower
+optimally and never NOTICES — *solved* and *knowing you are solved* are two
+claims, and `enough` is only the second.
+
+## Two things this cost that are worth knowing
+
+**The agent's deliberation crowds out its domain.** Under `goal(...)`, the
+bundle's backward reader is `standing`, so it outranks everything a corpus
+writes. 153 of 200 ticks. A corpus that wants to plan for itself has to use its
+own relation, which means the bundle's planning apparatus and a corpus's own
+cannot share a vocabulary.
+
+**Non-retraction is load-bearing and expensive for planning.** §12's *losing
+your reason is not acquiring a counter-reason* is deliberate and right, but it
+means every derived state fact a planner leans on needs a hand-written teardown,
+and getting one wrong fails silently and reads as a corpus bug. Three of the six
+defects were exactly this. Threading the parameters through the goal node is
+what removed the need for `at`/`site` entirely; `at` survives only because only
+CLEAR disks move, so nothing above them ever has to be updated.
+
+## Left undone
+
+**The recursion is AUTHORED, not learned.** What the fixture provides is the
+target: a task where the identity-keyed version cannot work at all, knowledge
+that is entirely structural, and — for the first time — a teacher that can
+supervise a binding. `ugm.teaching`'s cannot: `arbitrate` keys on
+`(score(rule), rules.index(rule))`, so two applications of one rule tie and the
+first in walk order wins. Asked where the table took a binding it would not
+have, it answered **0 times in 148 dungeon moves**.
+
+**`teaching.py` learned lessons are still shallow.** `focuses(conditional=True)`
+now emits `after <A> { query } => unattend, attend(?v)` with the query
+anti-unified from play — needed because a one-rule corpus cannot be taught
+unconditionally. Not yet pointed at Hanoi.
+
+# Handoff — 2026-08-19e (attention, learned: a postcondition that deposits)
+
+Built on top of `7776439`. Attention was authored-only; it is now something a
+demonstration leaves behind.
+
+    selftest    610/0  (was 599; 11 added, none removed)
+    state       0 disagreements over 7,126 looks, four columns
+    teaching    exit 0, a new `focus` arm on both corpora
+    vocabulary  18/2 — `holds_at`, `time`. Unchanged.
+    quiescence  still exits 1 — PRE-EXISTING.
+
+## What was built
+
+**`attend(?x)` and `unattend` — the fifth and sixth things a postcondition can
+spend, and the first that DEPOSIT.**
+
+    boost / damp    move a rule's score
+    reset           back to the default table
+    stop            end the run
+    attend(?x)      think about what this move just bound
+    unattend        stop thinking about whatever it was
+
+`?x` is the HOST RULE's own variable — the loader already seeds a trigger's
+scope from the rule it hangs off — so `after <spot> => attend(?x)` means *think
+about the one `<spot>` was just about*, with no individual named.
+
+⭐⭐⭐ **It had to be a postcondition, and that was measured in 2026-08-15 before
+this existed.** A learned recogniser written as a RULE fired twice out of sixteen
+installed: in a one-move-per-tick loop, recognising competes with doing, and the
+rule that acts wins every time. A postcondition is evaluated for free after
+whatever applied.
+
+⚠ **The table does not run them.** `Table.spend` stays a pure account of scores;
+`_spend_one` sends attends to the machine. A table that could write claims would
+be an interpreter with a memory.
+
+⚠⚠⚠ **`_rerank` refuses them, and that is the stronger case.** A ranking-time
+trigger runs on rules that have not applied and may never apply, so a deposit
+from there is the agent claiming to think about what it *considered* thinking
+about. Ranking is not doing. Checked.
+
+⚠ **`unattend` is what bounds it.** A buff has `LIFE` and a ceiling; a claim has
+neither, so a lesson that only attends accumulates until everything is attended
+— which the suite already measures as the same thing as attending to nothing.
+Spent as a pair the lesson is a FOCUS, and the replacement is a denial rather
+than a forgetting.
+
+## ⚠⚠⚠ The negative result, and it is half the work
+
+**The gold teacher cannot supervise a binding.** `arbitrate`'s key is
+`(score(rule), rules.index(rule))`, so two applications of ONE rule tie exactly
+and the first in walk order wins. **It is binding-blind in precisely the way the
+table is.** Asked *where did the table take a binding you would not have*, it
+answered **0 times in 148 dungeon moves** and once in 21 on quest-p1.
+
+So the obvious design — learn where the table was wrong, as `reflex` does — can
+never produce an attention lesson, and would read as a corpus with nothing to
+teach. Checked as `a_teacher_cannot_supervise_what_it_cannot_see`.
+
+**The signal is carry-over instead, from play alone**: the next move was about
+this too. No teacher, no gold, no labels. Which variable is then decided by how
+many DISTINCT values it took — the one that VARIES — because attention is for
+telling two of a kind apart. On the dungeon `<check-ac>` has FOUR variables that
+carry every single time it fires; attending to four things is attending to
+nothing.
+
+## What it is worth, honestly
+
+| dungeon | posts | moves | matched/move | agrees | domain lost |
+|---|---|---|---|---|---|
+| none | -- | 143 | 31.6 | -- | 3 |
+| bigram | 30 | 139 | **16.0** | 131/148 | 3 |
+| **focus** | 15 | 142 | 30.3 | 134/148 | **3** |
+
+**Costs nothing, loses nothing, and buys nothing this harness can see.** The
+bigram is what shortens the scan. What focus buys is the binding, and the
+teacher is exactly the instrument that cannot show it — so the suite shows it on
+a constructed case: `after <spot> => attend(?x)` makes the next move strike the
+goblin `<spot>` was about instead of the one the walk offers.
+
+⚠ **And it flattered itself until it was stopped.** The focus arm reached 538
+conclusions against 523 uncalibrated, which reads as *attention makes the agent
+conclude more*. Measured: all 15 were `attention` deposits and doubt
+bookkeeping, **not one about the world**. `attention` is now in `BOOKKEEPING` —
+the same trap that list already records for `close` and `settled`.
+
+## Left undone
+
+**The heuristic picks the best available variable, not necessarily a good one.**
+`after <strike> => attend(?t)` is learned on a corpus where `?t` is always
+`red`, because it is the only variable that carries. Nothing declines a lesson
+for being useless, only for being thin.
+
+**Nothing learns `unattend` separately.** It is welded to every focus lesson as
+a pair. When to STOP attending is its own question and is not asked.
+
+**A numeral is a legal attention target.** On the dungeon `<check-ac>` learns
+`attend(?n)` — a die roll, which took ten distinct values and so won the
+distinctness tie-break. Attending to `14` lifts every rule about arithmetic.
+That is the clearest thing to fix next.
+
 # Handoff — 2026-08-19d (attention: the table, keyed on a thing)
 
 Built, on top of `2e8e9bf`. The 19c session's open item — *learning WHICH is not

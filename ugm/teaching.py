@@ -57,6 +57,44 @@ Three things are measured, and they are the three claims:
     agreement    does the table pick what the teacher picked
     matched/move does the cost claim move (29.6 uncalibrated)
     conclusions  does anything get lost
+
+## ...and a fourth lesson, which is not about rules at all
+
+Every arm above teaches the table which RULE to reach for. `focus` teaches the
+agent what to think ABOUT -- `after <A> => unattend, attend(?x)`, keyed on a
+node -- and so it is the only one that can reach the BINDING, which no buff can
+name.
+
+⚠⚠⚠ **It cannot be learned from the teacher, and finding that out is half the
+result.** `arbitrate`'s key is `(score(rule), rules.index(rule))`, so two
+applications of one rule tie exactly and the first in walk order wins: **the gold
+teacher is binding-blind in precisely the way the table is.** Asked *where did
+the table take a binding you would not have*, it answered **0 times in 148
+dungeon moves**. A teacher cannot supervise what it cannot see, and a lesson
+built on that question would learn nothing for ever and read as a corpus with
+nothing to teach.
+
+So the signal is **carry-over**, taken from play alone: the next move was about
+this too. Which variable to attend to is then decided by how many DISTINCT
+things it was ever bound to -- the one that varies. On the dungeon `<check-ac>`
+has four variables that carry every single time, and attending to four things is
+attending to nothing.
+
+⚠ **What it is worth, honestly: nothing this harness can see.** Measured, it
+costs nothing and loses nothing -- and it does not deliver the bigram's speed
+either.
+
+| dungeon | posts | moves | matched/move | agrees | domain conclusions lost |
+|---|---|---|---|---|---|
+| none | -- | 143 | 31.6 | -- | 3 |
+| bigram | 30 | 139 | **16.0** | 131/148 | 3 |
+| **focus** | 15 | 142 | 30.3 | 134/148 | **3** |
+
+The 15 extra conclusions the focus arm reaches are its own `attention` deposits
+and doubt bookkeeping -- **not one is about the world**, which is why `attention`
+is in `BOOKKEEPING`. What it buys is the binding, and this harness's teacher is
+exactly the instrument that cannot show that. `ugm.selftest` shows it on a
+constructed case instead, which is the honest place for it.
 """
 
 import os
@@ -106,6 +144,35 @@ class Lesson:
         # and the scan pays for the whole pool. Keyed on the situation it fires
         # whenever the situation arises, which is what experience is.
         self.occasions: Dict[str, List[Tuple]] = {}
+        # ⭐⭐⭐ **What the move just bound, and whether the next move was about
+        # it too.** `(rule, "?x") -> times the value `?x` took carried into the
+        # following move`, beside `values`, which is how many DISTINCT things
+        # that variable was ever bound to.
+        #
+        # ⚠⚠⚠ **This signal comes from PLAY and not from the teacher, and it
+        # has to.** The gold teacher is `arbitrate`, whose key is
+        # `(score(rule), rules.index(rule))` -- so two applications of one rule
+        # tie exactly and the first in walk order wins. **The teacher is
+        # binding-blind in precisely the way the table is**, and measured on the
+        # dungeon it never once preferred a binding the walk would not have
+        # taken: 0 occasions in 148 moves. A teacher cannot supervise what it
+        # cannot see, so a binding lesson learned by asking *where was the table
+        # wrong* would learn nothing, for ever, and look like a corpus problem.
+        #
+        # Carry-over needs no judgement: it is a fact about the sequence the
+        # agent actually produced. *The next move was about this too* is
+        # observable from play alone.
+        self.carried: Dict[Tuple[str, str], int] = {}
+        # ...and WHAT THE NEXT MOVE CONSUMED on each of those occasions, anchored
+        # back to the previous rule's own variables. This is what makes a focus
+        # lesson conditional, and a corpus with ONE action rule cannot be taught
+        # without it: every move is the same rule, so an unconditional
+        # `after <move> => attend(?d)` says the same thing at every step and
+        # therefore says nothing. What distinguishes the steps is the SHAPE of
+        # the situation, and that is what a query is.
+        self.focused: Dict[Tuple[str, str], List[Tuple]] = {}
+        self.values: Dict[Tuple[str, str], set] = {}
+        self.fired: Dict[str, int] = {}
         self.agreed = 0
         self.moves = 0
         self.last: Optional[str] = None
@@ -155,6 +222,20 @@ class Lesson:
         # example is taken rather than at the end.
         self.occasions.setdefault(name, []).append(
             tuple(_say(m, e.proposition) for e in chosen.consumed))
+        # ...and what carried, which is the attention lesson's whole signal.
+        if self.last is not None:
+            self.fired[self.last] = self.fired.get(self.last, 0) + 1
+            landed = set(chosen.bindings.values())
+            back = {v: k for k, v in self.last_bindings.items()}
+            for var, val in self.last_bindings.items():
+                if val in landed:
+                    key = (self.last, m.g.show(var))
+                    self.carried[key] = self.carried.get(key, 0) + 1
+                    self.focused.setdefault(key, []).append(tuple(
+                        _anchor(m, e.proposition, back) for e in chosen.consumed))
+        for var, val in chosen.bindings.items():
+            self.values.setdefault((name, m.g.show(var)), set()).add(
+                m.g.show(val))
         self.last = name
         self.last_bindings = dict(chosen.bindings)
 
@@ -198,6 +279,56 @@ class Lesson:
             out["posts"][(first, then)] = (text, 3 * min(seen, 3))
         return out
 
+
+    def focuses(self, m: Machine, conditional: bool = False) -> dict:
+        """What to think ABOUT after each rule: one variable per rule, learned
+        from what carried into the following move.
+
+        ⭐⭐⭐ **One per rule, and choosing which is the whole design.** On the
+        dungeon, `<check-ac>` has four variables that carry into the next move
+        every single time it fires. Attending to all four is attending to
+        everything, which is measurably the same as attending to nothing.
+
+        So the variable is chosen by **how many distinct things it was ever
+        bound to** -- the one that VARIES. A variable always bound to `me` or to
+        one constant individuates nobody and lifting on it lifts always; a
+        variable that took a different goblin each time is the one attention
+        exists for. That is `generalise`'s own signal, which turns a constant
+        into a variable across demonstrations, read one level up to decide what
+        is worth attending to rather than what is worth saying.
+
+        ⚠ Two firings at least, for this file's standing reason: one example
+        generalises to itself.
+        """
+        out = {"rules": {}, "declined": 0, "collided": 0}
+        best: Dict[str, Tuple] = {}
+        for (rule, var), n in self.carried.items():
+            fired = self.fired.get(rule, 0)
+            if n < 2 or fired < 2 or n * 2 < fired:
+                # Seen once, or carried less than half the time: not experience.
+                out["declined"] += 1
+                continue
+            # Distinctness first, then how often it carried, then the name --
+            # which is only ever a tie-break and is here so two runs of the same
+            # demonstration teach the same lesson (§3).
+            key = (len(self.values.get((rule, var), ())), n, var)
+            if rule not in best or key > best[rule][0]:
+                best[rule] = (key, var, n)
+        for rule, (_key, var, n) in best.items():
+            if not conditional:
+                out["rules"][rule] = (var, n, "")
+                continue
+            # ⭐ The query, by the same anti-unification a bigram lesson uses.
+            # What the occasions have in common is the lesson; an individual
+            # that appears in all of them is kept only because the evidence is
+            # thin, which is why experience means more than one run.
+            query = _query(m, self.focused.get((rule, var), []))
+            if not query:
+                out["declined"] += 1
+                continue
+            text = "q(" + ", ".join(m.g.show(x.pattern) for x in query) + ")"
+            out["rules"][rule] = (var, n, text)
+        return out
 
     def recognisers(self, m: Machine, ldr) -> dict:
         """The demonstrations keyed on the situation: for each rule taught,
@@ -261,6 +392,44 @@ def install_recognisers(m: Machine, ldr, learned: dict) -> int:
         members = ", ".join("+" + m.g.show(x) for x in m.g.members(whole))
         try:
             ldr.load(WHEN % (members, name, weight))
+        except ParseError:
+            learned["unspeakable"] = learned.get("unspeakable", 0) + 1
+            continue
+        added += 1
+    return added
+
+
+def install_focuses(m: Machine, ldr, learned: dict) -> int:
+    """The attention lessons, as postconditions.
+
+    ⚠⚠⚠ **`unattend` first, and it is what bounds the mechanism.** A buff has
+    `LIFE` and a saturation ceiling; a deposited claim has neither, so a lesson
+    that only ever attends accumulates until everything is attended -- and
+    `ugm.selftest` measures that attending to everything narrows nothing. Spent
+    as a pair, attention becomes a FOCUS: one thing at a time, replaced each
+    time the lesson fires, and the replacement is on the record as a denial
+    rather than as a forgetting.
+
+    ⚠ Nothing here is `frozen`. These are exactly what a calibration process is
+    supposed to move, and marking learned experience unmovable would be the
+    calibrator protecting its own output from the next demonstration.
+    """
+    by_name = {r.name for r in m.rules.rules if r.name}
+    added = 0
+    for name, (var, _n, text) in sorted(learned["rules"].items()):
+        if name not in by_name:
+            continue
+        query = " "
+        if text:
+            try:
+                whole = ldr.term(text)
+            except ParseError:
+                learned["unspeakable"] = learned.get("unspeakable", 0) + 1
+                continue
+            query = " { %s } " % ", ".join(
+                "+" + m.g.show(x) for x in m.g.members(whole))
+        try:
+            ldr.load(FOCUS % (name, query, var))
         except ParseError:
             learned["unspeakable"] = learned.get("unspeakable", 0) + 1
             continue
@@ -391,6 +560,9 @@ EXTRA_SEEDS = (11, 13, 17)
 # The two trigger forms, as text: a lesson is a document.
 WHEN = "when { %s } => boost(<%s>, %d)" + chr(10)
 AFTER = "after <%s>%s => boost(<%s>, %d)" + chr(10)
+# ⚠ The order inside one postcondition is the order it is spent in, so the
+# clearing has to come first or the lesson denies what it has just claimed.
+FOCUS = "after <%s>%s=> unattend, attend(%s)" + chr(10)
 
 
 def _agree(mine: List[str], theirs: List[str]) -> int:
@@ -435,7 +607,14 @@ def _agree(mine: List[str], theirs: List[str]) -> int:
 # ⚠ The gate keeps its teeth: `intends` is a domain relation and IS lost on the
 # dungeon -- by the UNCALIBRATED arm too, which is what says the loss is not
 # calibration's doing.
-BOOKKEEPING = frozenset({"close", "settled", "spent", "exercised"})
+# ⚠⚠⚠ **`attention` is here, and leaving it out flattered the mechanism.** A
+# focus lesson deposits `attention(...)` and denies it again, so the focus arm
+# reached **538 conclusions against 523** uncalibrated -- and counted naively
+# that reads as *attention makes the agent conclude more*. Measured: all 15 were
+# `attention` (18 of them) and doubt bookkeeping, and **not one was about the
+# world**. The same trap this list already records for `close` and `settled`,
+# arriving from the arm that was added last.
+BOOKKEEPING = frozenset({"close", "settled", "spent", "exercised", "attention"})
 
 
 def _domain_only(diff):
@@ -492,10 +671,19 @@ def measure(name: str, limit: int = 400) -> dict:
     # and `dungeon` was never measured at all. A gate that crashes reports the
     # same thing as a gate that passes -- nothing -- and it does it loudly
     # enough that nobody reads the rest.
-    for label in ("none", "bigram", "query", "occasion", "both"):
+    for label in ("none", "bigram", "query", "occasion", "focus", "both"):
         m, ldr = _machine(name)
         if label == "none":
             taught, added, declined, collided = {"unspeakable": 0}, 0, 0, 0
+        elif label == "focus":
+            # ⭐⭐⭐ **Keyed on a THING, not on a rule.** Every arm above teaches
+            # the table which RULE to reach for. This one teaches the agent what
+            # to think ABOUT -- and so it is the only one that can reach the
+            # binding, which no buff can name.
+            learned = lesson.focuses(gold_m)
+            added = install_focuses(m, ldr, learned)
+            declined, collided = learned["declined"], 0
+            taught = {"unspeakable": learned.get("unspeakable", 0)}
         elif label == "both":
             # The two kinds of attention doing their own jobs: persistent
             # buffs decide WHO IS IN the shortlist, which is speed, and
@@ -564,7 +752,7 @@ def main() -> int:
         print(f"  {c['corpus']}  -- {c['pairs']} bigrams from one taught run; "
               f"the teacher took the table's top choice "
               f"{c['teacher_took_the_top']}/{c['gold_moves']} times")
-        for label in ("none", "bigram", "query", "occasion", "both"):
+        for label in ("none", "bigram", "query", "occasion", "focus", "both"):
             d = c[label]
             print(f"    {label:7} {d['posts']:>3} posts "
                   f"({d['declined']} said nothing, {d['collided']} too general, "
@@ -579,7 +767,7 @@ def main() -> int:
         # uncalibrated table already reached. It may cost MOVES -- that is the
         # point of it -- and it may disagree with the teacher, who is one
         # person on one run. Losing an answer is the failure.
-        for label in ("bigram", "query", "occasion", "both"):
+        for label in ("bigram", "query", "occasion", "focus", "both"):
             if c[label]["lost"] > c["none"]["lost"]:
                 print(f"    FAIL  {label} lost {c[label]['lost']} against "
                       f"{c['none']['lost']} uncalibrated")

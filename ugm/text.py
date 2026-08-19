@@ -41,7 +41,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 from .chain import MINUS, PLUS, UNSURE
 from .graph import NodeId
 from .machine import Machine
-from .rules import CAUSES, IMPLIES, STOP, Member
+from .rules import CAUSES, IMPLIES, STOP, UNATTEND, Attend, Member
 
 SIGNS = {"+": PLUS, "-": MINUS, "?": UNSURE}
 
@@ -390,6 +390,22 @@ class Parser:
             # a rule spent attention by saying stop, exactly as it knows one
             # said `reset`.
             return (STOP, 0)
+        if t.kind == "name" and t.text == "unattend":
+            # `reset` for attention: the agent stops thinking about what it was
+            # thinking about. A denial rather than a forgetting, so it stays
+            # readable and arguable -- and something has to say it, or attention
+            # accumulates until it names everything.
+            return (UNATTEND, 0)
+        if t.kind == "name" and t.text == "attend":
+            # ⭐⭐⭐ **The learnable one.** `attend(?x)` says *think about what
+            # this move just bound to `?x`* -- and `?x` is the HOST RULE's own
+            # variable, because the loader seeds a trigger's scope from the rule
+            # it hangs off. So the lesson is anchored to the move that produced
+            # it without naming any individual.
+            self.expect("(")
+            target = self.term()
+            self.expect(")")
+            return (Attend(target), 0)
         if t.kind == "name" and t.text == "reset":
             # Back to the default table. The author's mechanism for refocusing,
             # and it is a postcondition like any other: nothing in the engine
@@ -399,7 +415,8 @@ class Parser:
         if t.kind != "name" or t.text not in ("boost", "damp"):
             raise ParseError(
                 f"line {t.line}: a postcondition spends attention, so it says "
-                f"`boost(...)`, `damp(...)`, `reset` or `stop`, not {t.text!r}"
+                f"`boost(...)`, `damp(...)`, `attend(...)`, `reset`, `unattend` "
+                f"or `stop`, not {t.text!r}"
             )
         self.expect("(")
         target = self.term()
@@ -779,9 +796,13 @@ class Loader:
             for mm in clause.query
         )
         buffs = tuple(
-            # `None` is a reset and `STOP` is a stop; neither is a term, so
-            # neither goes through `build`.
-            (t if t is None or t is STOP else self.build(t, scope), delta)
+            # `None` is a reset, `STOP` a stop and `UNATTEND` a clearing; none
+            # is a term, so none goes through `build`. An `attend` IS one, and
+            # it is built in the host rule's scope like everything else here --
+            # which is what makes `attend(?x)` *that* `?x`.
+            (t if t is None or t is STOP or t is UNATTEND
+             else Attend(self.build(t.term, scope)) if isinstance(t, Attend)
+             else self.build(t, scope), delta)
             for t, delta in clause.buffs
         )
         self.m.rules.triggers.setdefault(

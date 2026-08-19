@@ -7799,6 +7799,218 @@ def attention_is_about_a_node_not_a_rule() -> None:
           and m._situation().relations_of(m.g.atom("goblin3")) == [])
 
 
+def attention_is_learned_from_what_the_move_bound() -> None:
+    """§19: a postcondition that deposits attention, and a lesson made of them.
+
+    ⭐⭐⭐ **Attention has to be SPENT, not won.** `docs/HANDOFF.md` 2026-08-15
+    measured a learned recogniser written as a rule firing **twice out of
+    sixteen**, for a structural reason: in a one-move-per-tick loop, spending a
+    move on recognising something competes with doing the work. A postcondition
+    is evaluated for free after whatever applied, so that is where a lesson
+    about attention can live -- and `attend(?x)` says *think about what this
+    move just bound*, in the host rule's own variables.
+
+    ⚠ It is the first postcondition that DEPOSITS rather than moving a score, so
+    the table does not run it: `Table.spend` stays a pure account of scores and
+    the loop hands attends to the machine.
+    """
+    from .text import load
+    from .attention import run as table_run
+
+    base = [
+        "rule <spot>   = implies( { +leader(?x) }, { +marked(?x) } )",
+        "rule <strike> = implies( { +enemy(?y) }, { +struck(?y) } )",
+        "fact +enemy(goblin1)",
+        "fact +enemy(goblin2)",
+        "fact +leader(goblin1)",
+    ]
+
+    def go(extra):
+        m = Machine()
+        kb = load(m, chr(10).join(base + extra + [""]))
+        rep = table_run(m, limit=12)
+        order = [(st.applied.rule.name,
+                  m.g.show(list(st.applied.bindings.values())[0]))
+                 for st in rep.steps if st.applied is not None]
+        return m, kb, order
+
+    _m, _kb, plain = go([])
+    check("§18", "with nothing taught, the move after `<spot>` strikes whoever "
+          "the WALK offers first -- not the one `<spot>` was about",
+          plain == [("spot", "goblin1"), ("strike", "goblin2"),
+                    ("strike", "goblin1")])
+
+    m, kb, taught = go(["after <spot> => attend(?x)"])
+    check("§19", "⭐⭐⭐ `after <spot> => attend(?x)` makes the next move about "
+          "what the last one bound: the same rules, the other order, and no "
+          "rule was named to say so",
+          taught == [("spot", "goblin1"), ("strike", "goblin1"),
+                     ("strike", "goblin2")])
+    check("§19", "...and what it spent is an ordinary CLAIM, so it can be "
+          "asked about",
+          m.holds(kb.term("attention(goblin1)")) == PLUS)
+
+    m2, kb2, both = go(["after <spot> => attend(?x)",
+                        "after <strike> => unattend"])
+    check("§19", "⚠ `unattend` is `reset` for attention, and it DENIES rather "
+          "than forgets -- so a focus that has moved on is on the record",
+          both == taught and m2.holds(kb2.term("attention(goblin1)")) == MINUS)
+
+    # ...and a ranking-time trigger may not write, which is the one place the
+    # split between spending and depositing could have leaked.
+    m3 = Machine()
+    kb3 = load(m3, chr(10).join(base + [
+        "when { +leader(?z) } => attend(?z)", ""]))
+    table_run(m3, limit=12)
+    check("§19", "⚠⚠⚠ a RANKING-time trigger cannot attend: it runs on rules "
+          "that have not applied and may never apply, so a deposit from there "
+          "would be the agent claiming to think about what it considered "
+          "thinking about",
+          m3.holds(kb3.term("attention(goblin1)")) is None)
+
+
+def a_lesson_about_attention_is_learned_from_play() -> None:
+    """§19: the lesson, learned from an ordinary run with no teacher at all.
+
+    The signal is **carry-over** -- the next move was about this too -- which is
+    a fact about the sequence the agent produced and needs nobody's judgement.
+    See `a_teacher_cannot_supervise_what_it_cannot_see` for why it cannot be
+    anything else.
+
+    ⭐ **And which variable is the whole design.** Two of `<spot>`'s variables
+    carry into the following move every time; one of them is always bound to
+    `red`. The one that VARIES is the one attention exists for, because
+    attention is for telling two of a kind apart -- so the lesson is chosen by
+    how many distinct things the variable was ever bound to, which is
+    `generalise`'s own signal read one level up.
+    """
+    from .text import load
+    from .attention import run as table_run
+    from .teaching import Lesson, install_focuses
+
+    src = chr(10).join([
+        "rule <spot>   = implies( { +leader(?x), +side(?s) }, { +marked(?x) } )",
+        "rule <strike> = implies( { +marked(?y), +side(?t) }, { +struck(?y) } )",
+        "after <spot> => boost(<strike>, 9)",
+        "fact +side(red)",
+        "fact +leader(g1)", "fact +leader(g2)", "fact +leader(g3)", ""])
+
+    m = Machine()
+    load(m, src)
+    lesson = Lesson()
+    played = table_run(m, limit=30, watch=lesson.watching)
+    check("§19", "an ordinary run, watched -- no teacher, no gold, no labels",
+          played.applied == ["spot", "strike"] * 3)
+    check("§19", "...and both of `<spot>`'s variables carried into the next "
+          "move every time, so counting carry-over alone cannot choose",
+          lesson.carried[("spot", "?x")] == 3
+          and lesson.carried[("spot", "?s")] == 3)
+
+    learned = lesson.focuses(m)
+    check("§19", "⭐ the variable that VARIES is the lesson: `?x` took three "
+          "goblins, `?s` was always `red`, and attention is for telling two of "
+          "a kind apart",
+          learned["rules"]["spot"][0] == "?x")
+
+    student = Machine()
+    ldr = load(student, src)
+    added = install_focuses(student, ldr, learned)
+    check("§19", "...and it reads back into a machine that was never taught, "
+          "as a postcondition and not as a rule",
+          added == 2
+          and any(any(repr(t).startswith("attend") for t, _d in buffs)
+                  for _q, buffs, _f in student.rules.triggers.get(
+                      ldr.rules_by_name["spot"].node, ()))) 
+
+
+def a_teacher_cannot_supervise_what_it_cannot_see() -> None:
+    """§19: why the attention lesson is learned from play and not from the gold
+    teacher.
+
+    ⚠⚠⚠ **`arbitrate` is binding-blind, and so is every teacher built on it.**
+    Its key is `(score(rule), rules.index(rule))`, so two applications of ONE
+    rule tie exactly and the first in walk order wins. Asking *where did the
+    table pick the wrong binding* of a teacher that cannot pick a binding
+    returns nothing, for ever, and reads as a corpus with nothing to teach.
+
+    So the signal is **carry-over**, which needs no judgement at all: the next
+    move was about this too, which is a fact about the sequence the agent
+    actually produced.
+    """
+    from .text import load
+    from .rules import arbitrate
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <strike> = implies( { +enemy(?y) }, { +struck(?y) } )",
+        "fact +enemy(goblin1)",
+        "fact +enemy(goblin2)", ""]))
+    rule = kb.rules_by_name["strike"]
+    apps = m._materialise([rule], m._situation())
+    check("§14", "one rule, two goblins, two applications -- so there IS a "
+          "binding to choose", len(apps) == 2)
+    chosen = arbitrate(m.rules, apps, lambda r: ())
+    check("§19", "⚠⚠⚠ ...and arbitration returns the FIRST of them whatever the "
+          "priority says, because its key is over rules: a teacher built on it "
+          "can never demonstrate a binding",
+          chosen is apps[0]
+          and arbitrate(m.rules, apps, lambda r: (99,)) is apps[0])
+
+
+def a_recursion_is_a_node_with_a_phase() -> None:
+    """§18: an ordered plan cannot be guarded on the state of the world.
+
+    Hanoi's recursion is depth-first and ORDERED -- unstack, then place, then
+    restack -- and `ugm.hanoi` records four corpora that failed before this one
+    worked. The fourth failure decides the shape: guards read off the world are
+    ambiguous by construction, because `at(d1, x)` is equally true on the way
+    out and on the way back. Measured: `<unstack>` re-fired once the sub-tower
+    was replaced, recreating a want it had already met, and the agent cycled for
+    ever after five correct moves.
+
+    ⭐⭐⭐ So a call is a NODE carrying its own parameters AND its own phase,
+    which is `docs/HANDOFF.md`'s *a multi-tick plan is a node, not a string*
+    arriving from the failing side.
+
+    ⚠ Minted per OCCASION, not per parameters, and Hanoi is where that stops
+    being a nicety: `solve(d1, x, z, y)` occurs TWICE in a three-disk solution,
+    so a call node keyed on its arguments would collide with itself and
+    refraction would block the second.
+    """
+    import re
+    from .hanoi import RULES, optimal, solve
+
+    named = sorted(set(re.findall(r"\bd\d+\b|\b[xyz]\b", RULES)))
+    check("§18", "⭐ not one rule of the recursion names a disk or a peg, which "
+          "is what makes the SAME corpus the answer at every size",
+          named == [])
+
+    three, four = solve(3), solve(4)
+    check("§18", "⭐⭐⭐ three disks: solved, in the optimal sequence, by a "
+          "corpus with no teacher and no learned table",
+          three["solved"] and three["moves"] == three["optimal"]
+          and len(three["moves"]) == 7)
+    check("§18", "⭐⭐⭐ ...and four disks by the same rules, unchanged and "
+          "unretuned -- 15 moves, identical to the recursive solution",
+          four["solved"] and four["moves"] == four["optimal"]
+          and len(four["moves"]) == 15)
+    check("§14", "⚠ a call is minted per OCCASION: the same parameters recur "
+          "within one solution, so a node keyed on them would collide with "
+          "itself and refraction would block the second",
+          optimal(3).count(("d1", "x", "z")) == 2)
+
+    for rule in ("descend", "ascend", "placed"):
+        gone = solve(4, without=rule, limit=2000)
+        check("§18", "⚠ without <%s> the puzzle is not solved, so the phase "
+              "machine is load-bearing rather than decoration" % rule,
+              not gone["solved"])
+    blind = solve(4, without="finished", limit=2000)
+    check("§9", "⭐ ...and without <finished> it builds the tower optimally and "
+          "never NOTICES: solved and knowing you are solved are two claims, and "
+          "`enough` is only the second",
+          blind["moves"] == blind["optimal"] and not blind["solved"])
+
+
 def a_table_can_outlive_a_run() -> None:
     """§4: let a caller pass its table in.
 
@@ -8391,6 +8603,10 @@ def main() -> int:
     two_things_can_turn_out_to_be_one()
     a_rule_can_introduce_a_thing()
     attention_is_about_a_node_not_a_rule()
+    attention_is_learned_from_what_the_move_bound()
+    a_lesson_about_attention_is_learned_from_play()
+    a_teacher_cannot_supervise_what_it_cannot_see()
+    a_recursion_is_a_node_with_a_phase()
 
     failed = 0
     group = None

@@ -111,6 +111,43 @@ costs **143 matches against 183** because the shortlist stopped widening past
 it. Attending to all three narrows less (157) than attending to one -- attention
 that names everything narrows nothing, and the cost column is what says so.
 
+## ...and where a lesson about it lives: a postcondition, never a rule
+
+`attend(?x)` is the sixth thing a postcondition can spend, and the first that
+DEPOSITS rather than moving a score:
+
+    boost / damp    move a rule's score
+    reset           back to the default table
+    stop            end the run
+    attend(?x)      think about what this move just bound
+    unattend        stop thinking about whatever it was
+
+⭐⭐⭐ **It has to be a postcondition, and that was measured before it was
+built.** `docs/HANDOFF.md` 2026-08-15 wrote a learned recogniser as a RULE and it
+fired **twice out of sixteen installed** -- *in a one-move-per-tick loop,
+spending a move on recognition competes with doing the work*, and the rule that
+recognises a situation loses to the rule that acts in it, every time. A
+postcondition is evaluated for free after whatever applied. The same sentence
+decided where the bigram lives; this is it applying to attention.
+
+⚠ **The table does not run these.** `Table.spend`'s own docstring keeps `stop`
+out so the trace stays a pure account of scores, and a deposit is further
+outside that account than a stop is -- it writes a claim the corpus can read,
+deny and reason about. So `_spend_one` splits them: attention to the machine,
+scores to the table.
+
+⚠⚠⚠ **And `_rerank` refuses them, which is the stronger case.** A ranking-time
+trigger runs on rules that have not applied and may never apply, so a deposit
+from there would be the agent claiming to think about something because it
+considered thinking about it. Ranking is not doing -- the same line
+`_is_defeated` draws between matched and survived.
+
+⚠ `unattend` is what bounds the mechanism. A buff has `LIFE` and a ceiling; a
+claim has neither, so a lesson that only ever attends accumulates until
+everything is attended -- which is measurably the same as attending to nothing.
+Spent as a pair, attention becomes a FOCUS: one thing at a time, and the
+replacement is on the record as a denial rather than as a forgetting.
+
 ## The trace
 
 Every buff is recorded as (tick, by whom, target, delta), so the table at step
@@ -127,8 +164,8 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 from .chain import PLUS
 from .graph import NodeId
 from .machine import Machine, Step
-from .rules import (STOP, Application, Member, Rule, Situation, _superseded,
-                    match, substitute)
+from .rules import (STOP, UNATTEND, Application, Attend, Member, Rule,
+                    Situation, _superseded, match, substitute)
 from .text import load, load_file
 
 # A rule the bundle marks `standing` is in the table at the default; everything
@@ -1143,11 +1180,21 @@ def _rerank(m, table, state, chunk, index, tried: int):
         for hit in hits:
             bindings = {} if hit is None else hit.bindings
             for target, delta in buffs:
-                if target is None or target is STOP:
+                if (target is None or target is STOP or target is UNATTEND
+                        or isinstance(target, Attend)):
                     # A reset means nothing to a nudge that is not kept, and a
                     # stop is not a nudge at all: a reranker reorders what is in
                     # front of the agent, and ending the run is not an ordering.
                     # A corpus that wants to stop hangs it off a rule that RAN.
+                    #
+                    # ⚠⚠⚠ **And an `attend` is refused here for a stronger
+                    # reason than the other two: it would WRITE.** `_rerank`
+                    # runs once per shortlist, on rules that have not applied
+                    # and may never apply, so a deposit from here would be the
+                    # agent claiming to think about something because it
+                    # considered thinking about it. Ranking is not doing --
+                    # which is the same line `_is_defeated` draws between
+                    # matched and survived.
                     continue
                 node = table._target(target, bindings)
                 if node is not None and node in table.score:
@@ -1178,6 +1225,42 @@ def _rerank(m, table, state, chunk, index, tried: int):
                                         table.rank[r.node])), tried
 
 
+def _spend_one(m: Machine, table: Table, tick: int, by: str, buffs, frozen,
+               bindings, rule_node) -> None:
+    """Spend one postcondition's buffs: attention to the machine, scores to the
+    table.
+
+    ⭐⭐⭐ **The split is the design, not plumbing.** `Table.spend`'s own
+    docstring says a stop is kept out of it so *the trace stays a pure account
+    of scores* -- and a deposit is further outside that account than a stop is,
+    because it writes a claim the corpus can read, deny and reason about. A
+    table that could write claims would be an interpreter with a memory.
+
+    ⚠ The licence is the rule that spent it, so *why am I thinking about this*
+    answers with a rule and a moment.
+    """
+    rest = []
+    licence = m.g.rel(m.APPLIED, rule_node)
+    for target, delta in buffs:
+        if isinstance(target, Attend):
+            node = table._target(target.term, bindings)
+            if node is None:
+                node = target.term
+            # ⚠ Ground only, and silently so. A postcondition naming a variable
+            # the move did not bind has nothing to attend TO, and depositing
+            # `attention(?x)` would be a claim about no one -- which `_attended`
+            # would then refuse to read, one layer further from the mistake.
+            if node is not None and not m.g.has_var(node):
+                m._attend(node, licence)
+            continue
+        if target is UNATTEND:
+            m._unattend(licence)
+            continue
+        rest.append((target, delta))
+    if rest:
+        table.spend(tick, by, rest, frozen, bindings)
+
+
 def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
                  state: Situation) -> None:
     """Run the applied rule's postconditions and move the table.
@@ -1190,7 +1273,8 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
     name = chosen.rule.name or "?"
     for query, buffs, frozen in m.rules.triggers.get(chosen.rule.node, ()):
         if not query:
-            table.spend(tick, name, buffs, frozen, chosen.bindings)
+            _spend_one(m, table, tick, name, buffs, frozen, chosen.bindings,
+                       chosen.rule.node)
             continue
         probe = Rule(
             chosen.rule.node, chosen.rule.connective,
@@ -1204,7 +1288,8 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
         ):
             bound = dict(chosen.bindings)
             bound.update(hit.bindings)
-            table.spend(tick, name, buffs, frozen, bound)
+            _spend_one(m, table, tick, name, buffs, frozen, bound,
+                       chosen.rule.node)
 
 
 def _holds(m: Machine, table: Table, query: str, state: Situation):
