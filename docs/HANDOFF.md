@@ -1,3 +1,124 @@
+# Handoff — 2026-08-19b (stage 4 replay, identity, minting — and the debt list)
+
+Branch `worktree-bridge-cse_01T6yy6UUrtPYckwgiG14nA2`, off `main` at `907e6c9`.
+Eight commits on top of the handoff below: `replay`, `identity`, `intake`,
+`binding`, `quiet`, `minting`, `census`, `mark`.
+
+    selftest    590/0  (was 546 at the branch point; 44 added, none removed)
+    modules     dungeon 17/0, quest 9/0, intake 10/0, table 16/0, interpret 6/0,
+                sexpr 7/0, compose 9/0, forest 24/0, learning 31/0,
+                practice 21/0, atlas 0 problems. All exit 0.
+    vocabulary  18/2 — `holds_at`, `time`. PRE-EXISTING and byte-identical to the
+                branch point; verified by stashing. Every name added this session
+                was either classified or kept out of `reserved` on purpose.
+    quiescence  still exits 1 — PRE-EXISTING, identical output to the branch point.
+
+## What was built
+
+**Stage 4 items 1 and 2 (`replay`).** `_atom_members` and `_atom_leaf` are the
+atom layer's own structure — a compound's atom is minted and not derived, so the
+atom alone could never rebuild it. `Graph.rebuild` materialises a thing from
+atoms ALONE; `Chain.materialise` replays a delta chain. Into a situation cut at
+`born=0`, 160 atoms replayed with every proposition's structure preserved, as
+different nodes, same atoms.
+
+⚠ **Measured, and the honest outcome is a materialisation POLICY, not a
+replacement.** Replay is linear in the deltas replayed at a flat ~10.6us/node;
+capped visibility stays flat and roughly an order of magnitude cheaper. So
+capped visibility remains the read path and replay is the reconstruction path —
+which is what makes a materialisation discardable, the leak stage 4 exists to
+close.
+
+**Identity, the third id (`identity`, `binding`).** `_identity` maps LEAVES only,
+resolved through the visibility walk, defaulting to the node itself. Compound
+identity is DERIVED — the canonical interned node is it. `merge(keep, drop)`
+repoints the upward closure; congruence cascades. Measured: merging two leaves
+unifies what was built on them two levels up, and a merge inside a branch is
+invisible outside it.
+
+⚠⚠⚠ **It took THREE layers to be true, and each was silent alone**: interning
+and the argument index (the candidate is filed), `unify` (it is not thrown away
+for having the wrong relation node), and the state index plus its cache (it is
+offered at all). With any one missing, the rule matches nothing, reports nothing
+and reads as a corpus bug. That is how the gap was found.
+
+**Rules can introduce a thing (`minting`, `mark`).** `+kind` in an argument —
+one node per mark per APPLICATION, so `+a(+p)` and `+b(+p)` are one thing and two
+firings are two things. That is what keeps two people called Paul apart: the mint
+is per occasion, not per name, and it is the ANTECEDENT that individuates.
+
+⚠ **Refraction is what bounds it and already existed** — an instantiation fires
+once per set of premises. Quiescence could never have caught it: a fresh node
+always changes something.
+
+⚠⚠ **Spelled `+kind`, and `NEW` is deliberately NOT in `reserved`.** A keyword
+would take the word `new` from every corpus. The parser builds the machine's node
+directly, so `new(car)` still means a corpus's own `new` — checked.
+
+**`ugm.intake` (`intake`).** A corpus, 10 checks: compound descriptions denote,
+the definite article is `count`, ambiguity is REPORTED and nothing picks one, a
+proper name is a mention like any other, and a labelless entity is reasoned about
+exactly as a named one. **Four mentions resolved, two coreferring, with ZERO
+identity merges** — so coreference of mentions needs no merge; merge is for two
+ENTITIES turning out to be one.
+
+## The design settled with the author, and it is not all in the code
+
+**`denotes` vs `same`.** `denotes` is a boundary concern — the dungeon has 19
+rules and zero of them. For vocabulary alignment the answer is to COMMIT: merge
+compiles it into identity and no rule mentions a denotation. Measured: `<chase>`
+reads `owes` and sees `debt` facts after the merge.
+
+**A world model** is (a) what can happen — `causes`, and the denial is what makes
+a fact disappear; (b) what makes sense — ordinary rules concluding
+`impossible(...)`. ⚠ (b) is ADVISORY: the engine deposits the judgement and does
+not enforce it. Whether it should become constitutive (a second `gate.veto`
+beside `forbidden`) is an open decision and needs its own carve-out argument.
+
+**An aggregate is relative to what was looked at, and the engine must NOT
+annotate that.** `counted(..., 1)` means *one, among what I decided to consider*.
+`dormant(<r>)` is already a dated, attributable claim, so *what was in mind* is
+an ordinary query. A `narrowed(<seat>)` deposit was proposed and rejected: it
+would duplicate the record and second-guess a judgement the agent made.
+
+## THE DEBT — in the order it is likely to bite
+
+**1. "The entire utterance" is not tracked.** The consumption criterion —
+`count(rests_on(?x, ?e)) == 0` over the agent's own seat — answers *did any rule
+consume this CLAIM*, not *was every part of the compound used*. A partly-matched
+compound counts as consumed: `friend(named(person, paul), me)` matched only by
+`friend(?x, me)` reads as understood. **Sub-term coverage is the open problem**,
+and the author's criterion (*understanding is inferring up to the point we
+consumed the entire utterance*) needs it. Nothing in the chain records which
+SUBTERMS a match bound, only which entries it consumed.
+
+**2. `same(a, b)` is not rule-reachable.** `Graph.merge` is an engine call; no
+corpus can commit a coreference. It needs the answerer wiring `count` got. Until
+then the identity layer is only usable from Python, which is the one thing
+`deposit-dont-decide.md` draws a line at.
+
+**3. The atom/identity collapse is queued, not done.** The argument is written in
+`graph.py` beside `_identity`: branching is a copy, so two nodes with one
+identity in two branches are one thing, and a derived compound identity IS
+`(identity of relation, identities of members)` — which describes its own
+structure and makes `_atom_members` redundant. The engine currently carries node
++ atom + identity, which is more concepts than either design.
+
+**4. The static re-trigger check is still unbuilt** — `docs/quest-feedback.md`
+§0's second ask, *a rule whose consequent can restore its own antecedent*. It
+matters MORE now: a corpus can write `+thing(?x) => +thing(+thing)`, refraction
+does not bound a generative chain, and `bounded(ticks)` only reports after the
+fact. Checked as such in `a_rule_can_introduce_a_thing`.
+
+**5. `ugm.necessity` has never been byte-compared to the branch point.** It runs
+clean here (exit 0, "6 of 80 reachable names unkillable"); what moved is still
+unknown. >10 minutes a side.
+
+**6. The harness's §2 decision is theirs and unanswered.** `docs/interpretation-reply.md`
+argues the repair tiers ARE reached and it is the RECORD that is missing — so it
+may need no scope-carrier, just the shortlist widening depositing what the global
+one already does. Not built, deliberately.
+
 # Handoff — 2026-08-19 (interpretation-feedback: all four asks, and `count` is a new primitive)
 
 Branch `worktree-bridge-cse_01T6yy6UUrtPYckwgiG14nA2`, off `main` at `907e6c9`.
