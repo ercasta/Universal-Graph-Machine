@@ -610,3 +610,32 @@ wrong.
 rule still fire on a partially-present structure? That is the same shape as
 `merge`'s *without the repoint, everything said before the merge is LOST* --
 asked of the opposite operation.
+
+### DECIDED: the signs go, and `?` is DROPPED — absence is ignorance
+
+The author's, 2026-08-20: *dropped. Anything unstated is unsure / unknown.*
+
+    +p    believed(p)          a node. Present = believed.
+    -p    believed(not(p))     a DIFFERENT node. §9 already had denial as a
+                               term; the sign was the redundant one all along.
+    ?p    nothing.             Absence IS unknown.
+
+⭐⭐⭐ **This dissolves the reason `?` was introduced rather than overriding it.**
+`Chain.holds` states it: *`?` is not None: it stops the walk and reports
+ignorance, **which is the one thing writing nothing could never say** (§6).*
+That is true of an APPEND-ONLY chain, where absence is ambiguous -- never
+considered, or not yet derived? -- so ignorance had to be written down to be
+distinguishable from silence.
+
+A scratchpad breaks the ambiguity from the other side: **the log records the
+erasure.** *Nothing has been said* and *this was believed and I erased it* are
+told apart by reading what changed, which is the half of the chain the author
+kept. So absence becomes readable, and `?` stops being the only way to say it.
+
+⚠ What to check when it is built, because this is where a dropped distinction
+usually comes back: the three-valued reads. `unsure` is reserved vocabulary, a
+`?` member is parseable (`? ?p` appears in `bundle.ugm`'s `<deviation---
+invalidated>`), and §6's *a rule that reads ignorance* is a real pattern. Each
+becomes *no `believed(...)` node matches*, which is negation-as-failure -- so
+the honest question is whether the three deviation rules still say what they say
+when ignorance is absence. **They are the fixture for this change.**
