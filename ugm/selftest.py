@@ -8137,6 +8137,52 @@ def the_action_palette_is_declared_and_discoverable() -> None:
           refused is not None and "may not contain a variable" in refused)
 
 
+def a_bad_attempt_is_declined_rather_than_ignored() -> None:
+    """§9: *nothing happened* and *nothing was wrong* are different answers.
+
+    ⭐⭐⭐ `docs/HANDOFF.md` 19c measured the old behaviour: a policy concluding
+    `do(teleport, ann, pet)` deposits it and **nothing happens**, because no
+    action rule matches. That silence bounded learning safely and told the agent
+    nothing. An attempt is now met by one of two declines, and they come from
+    different places on purpose:
+
+        what is LEGAL   the world model's, and a rule says it
+        what EXISTS     the palette's, and only the machinery can check it
+
+    ⚠ The machinery has to, because a rule cannot: subsumption runs the pattern
+    against the entry, and here the entry is the generic one. Measured --
+    `unify(move(?x,?y), move(d1,z))` is True and the reverse is False.
+    """
+    from .hanoi import misbehave
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "action move(?x, ?y)",
+        "rule <policy> = implies( { +wants(?w) }, { +attempt(?w) } )",
+        "fact +wants(move(d1, z))",
+        "fact +wants(teleport(ann, pet))", ""]))
+    m.run(limit=60)
+    check("§9", "⭐⭐⭐ an attempt at something the palette does not afford is "
+          "DECLINED by the machinery, where before it was deposited and nothing "
+          "happened at all",
+          m.holds(kb.term("declined(teleport(ann, pet), unafforded)")) == PLUS)
+    check("§9", "...and an afforded one is left alone, because whether it is "
+          "LEGAL is not the machinery's question",
+          m.holds(kb.term("declined(move(d1, z), unafforded)")) is None
+          and m.holds(kb.term("attempt(move(d1, z))")) == PLUS)
+
+    bad = misbehave(3)
+    check("§9", "⭐ on Hanoi, both declines happen and by different routes: a "
+          "covered disk by the world model's own rule, an action that does not "
+          "exist by the machinery",
+          bad["covered"] and bad["unafforded"])
+    check("§20", "⚠ and the world model's decline is load-bearing -- correct "
+          "play never makes an illegal move, so SOLVING cannot kill that rule "
+          "and the ablation had to be pointed at the misbehaviour instead",
+          not misbehave(3, without="covered")["covered"])
+
+
 def a_table_can_outlive_a_run() -> None:
     """§4: let a caller pass its table in.
 
@@ -8735,6 +8781,7 @@ def main() -> int:
     a_recursion_is_a_node_with_a_phase()
     a_recursion_can_be_learned_from_watching_it()
     the_action_palette_is_declared_and_discoverable()
+    a_bad_attempt_is_declined_rather_than_ignored()
 
     failed = 0
     group = None

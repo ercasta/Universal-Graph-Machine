@@ -1,3 +1,75 @@
+# Handoff — 2026-08-20c (an attempt is answered, not ignored)
+
+Built on top of `c07b2b1`. Step 2 of the action/competence design.
+
+    selftest    632/0  (was 628; 4 added)
+    hanoi       exit 0 — solve, misbehaviour, ablation, learning, all green
+    state       0 disagreements, four columns
+    vocabulary  18/2 — unchanged
+    modules     all 29 green
+
+## What was built
+
+    action move(?d, ?p)                      the palette (step 1)
+    +attempt(move(d1, z))                    the agent asks
+    +declined(move(d1, z), covered)          the world model says no
+    +declined(teleport(a, b), unafforded)    the MACHINERY says no such thing
+
+⭐⭐⭐ **19c's silence is closed.** It measured the old behaviour: a policy
+concluding `do(teleport, ann, pet)` deposits it and *nothing happens*, because
+no action rule matches. That bounded learning safely and told the agent nothing.
+
+**The two declines come from different places, on purpose.** What is LEGAL is
+the world model's business and an ordinary rule says it. What EXISTS is the
+palette's, and only the machinery can check it — because subsumption runs the
+pattern against the entry and here the entry is the generic one. Measured:
+`unify(move(?x,?y), move(d1,z))` is True and the reverse is False. So a rule
+literally cannot ask *is this attempt afforded*, and `_unafforded` is hooked at
+the write for `_forbid`'s reason and by the same route.
+
+⚠ **Deposited, not VETOED.** A vetoed attempt never existed, so the agent could
+not learn it tried something that is not a thing — which is the entire reason to
+have a palette. The machinery notes the smallest unarguable fact and a rule
+decides what it means.
+
+⚠ `declined` is distinct from the gate's `refused` (arity 3, carrying the norm
+that forbade a write). *You may not* and *there is no such move* are different
+claims.
+
+Hanoi is rewired: `want(on(?d,?p))` → `attempt(move(?d,?t))`, still optimal at
+3..7 with identical sequences and identical tick counts.
+
+## ⚠⚠⚠ Three things the gate caught, all mine
+
+**1. `<covered>` was not load-bearing and the ablation said so.** Correct play
+never makes an illegal move, so SOLVING cannot kill a rule that only declines.
+It now ablates against `misbehave()` instead. A rule no fixture can kill is a
+rule the fixture is not testing — §20 catching a fresh instance of its own case.
+
+**2. Absence is not denial (§9), and the initial state was incomplete.**
+`-clear(?d)` means *an entry denies this*, so a corpus that merely omits
+`clear(d2)` cannot be asked whether d2 is covered — the decline rule matched
+nothing until something had denied it. `facts()` now states `-clear` for every
+covered disk, so the question is askable at tick 0.
+
+**3. ⚠ THE DECLINE IS LATE, and this is the next thing to fix.** The attempt
+stands from tick 0 and is not declined until tick ~101, because `<covered>` sits
+at the floor and the shortlist is busy with the recursion. Correct, and slow: a
+refusal the agent learns about only after it has finished is a poor thing to
+learn from. **That is the concrete argument for step 3** — an attempt is a fresh
+fact, and nothing currently lifts the rules about it.
+
+## Next
+
+**Step 3**: auto-attention on the right-hand side of what just applied —
+node-decomposed, replacing rather than accumulating, learned lessons additive.
+The late decline above is the measurement it should move.
+
+**Then** two-tier scoring (leaf matches, then a compound bonus), TF-IDF over
+rules with length normalisation recomputed per expert pool, and finally
+retiring `_in_play` and `prefer`, which attention subsumes once relation atoms
+are in the attended set.
+
 # Handoff — 2026-08-20b (the action palette, declared)
 
 Built on top of `a9f9124`. Step 1 of the action/competence design.

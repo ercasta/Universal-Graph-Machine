@@ -85,6 +85,11 @@ ROLES: Dict[str, List[str]] = {
         # was the nearest thing and answers a different question -- how a rule
         # relates to the world, not that the agent may deliberately do it.
         "afforded",
+        # ...and asking for one. `attempt` is the request; `declined` is what
+        # becomes of a bad one, with `unafforded` the single reason the
+        # MACHINERY ever gives -- what is legal is the world model's to say, in
+        # its own word.
+        "attempt", "declined", "unafforded",
         # Refraction (§14): what has already run, on what, and the
         # contradiction that stopping a loop would otherwise hide.
         "spent", "premises", "contested",

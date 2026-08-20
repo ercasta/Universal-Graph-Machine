@@ -128,6 +128,12 @@ PEGS = ("x", "y", "z")
 # The knowledge. Nothing here mentions a disk, a peg, or a size -- `main`
 # checks that rather than trusting it, because it is the whole experiment.
 RULES = """
+# ⭐ The palette: one action, declared. Two rules RESOLVE it -- onto a peg that
+# has a top disk, and onto an empty one -- which is the point of separating the
+# declaration from the resolution: what the agent may ask for is one thing, and
+# what happens when it asks is several.
+action move(?d, ?p)
+
 fact +advances(unstacking, placing)
 fact +closes(waiting)
 
@@ -151,7 +157,7 @@ rule <descend> = implies( { +stage(?c, start), +call(?c, tower(?d, ?f, ?t, ?s)),
 
 # Placing is the only stage that asks for an action.
 rule <ask> = implies( { +stage(?c, placing), +call(?c, tower(?d, ?f, ?t, ?s)) },
-                      { +want(on(?d, ?t)) } )
+                      { +attempt(move(?d, ?t)) } )
 
 rule <placed> = implies( { +stage(?c, placing), +call(?c, tower(?d, ?f, ?t, ?s)),
                            +at(?d, ?t) },
@@ -170,19 +176,28 @@ rule <leaf> = implies( { +stage(?c, restacking), +call(?c, tower(?d, ?f, ?t, ?s)
 # true -- which is cheap because only a CLEAR disk ever moves, so nothing
 # above it has to be updated.
 
-rule <move> = causes( { +want(on(?d, ?p)), +peg(?p), +on(?d, ?from),
+rule <move> = causes( { +attempt(move(?d, ?p)), +peg(?p), +on(?d, ?from),
                          +at(?d, ?was), +clear(?d), +clear(?to),
                          +fits(?d, ?to), +at(?to, ?p) },
                        { +on(?d, ?to), -on(?d, ?from), +clear(?from),
-                         -clear(?to), -want(on(?d, ?p)),
+                         -clear(?to), -attempt(move(?d, ?p)),
                          +at(?d, ?p), -at(?d, ?was) } )
 
-rule <move-bare> = causes( { +want(on(?d, ?p)), +peg(?p), +clear(?p),
+rule <move-bare> = causes( { +attempt(move(?d, ?p)), +peg(?p), +clear(?p),
                               +on(?d, ?from), +at(?d, ?was), +clear(?d),
                               +fits(?d, ?p) },
                             { +on(?d, ?p), -on(?d, ?from), +clear(?from),
-                              -clear(?p), -want(on(?d, ?p)),
+                              -clear(?p), -attempt(move(?d, ?p)),
                               +at(?d, ?p), -at(?d, ?was) } )
+
+# ⭐⭐⭐ ...and the world model DECLINES an illegal one, out loud. Before this,
+# an attempt to move a covered disk simply matched nothing, and *nothing
+# happened* is indistinguishable from *nothing was wrong* -- the silence this
+# whole design is against. `-clear(?d)` is sayable here because a move DENIES
+# what it lands on, so *an entry denies this* is exactly the case (§9).
+rule <covered> = implies( { +attempt(move(?d, ?p)), -clear(?d) },
+                         { +declined(move(?d, ?p), covered),
+                           -attempt(move(?d, ?p)) } )
 
 rule <finished> = implies( { +returned(whole) }, { +enough(solved) } )
 """
@@ -257,6 +272,15 @@ def facts(n: int, pegs: Tuple[str, ...] = PEGS, target: str = "z") -> str:
     L.append("fact +on(d%d, %s)" % (n, pegs[0]))
     L.append("fact +clear(d1)")
     L.append("fact +smallest(d1)")
+    # ⚠⚠⚠ **Stated, not left absent.** `-clear(?d)` means *an entry denies
+    # this*, never *there is no entry* (§9) -- so a world model that merely
+    # omits `clear(d2)` cannot be asked whether d2 is covered, and the rule that
+    # declines a move onto a covered disk matches nothing until something has
+    # denied it. A complete initial state is what makes the question askable at
+    # tick 0 rather than only after the first move.
+    for i in range(2, n + 1):
+        L.append("fact -clear(d%d)" % i)
+    L.append("fact -clear(%s)" % pegs[0])
     for p in pegs[1:]:
         L.append("fact +clear(%s)" % p)
     # `whole` rather than `root`: `root` is a RESERVED name, so an argument
@@ -339,6 +363,12 @@ def solve(n: int, without: str = "", limit: int = 20000) -> dict:
 # What is not the corpus's own: the apparatus, and the stack the bundle now
 # supplies. A demonstration teaches the domain, and the plumbing was never the
 # domain's to learn.
+# Rules the SOLVE cannot exercise, because correct play never needs them. They
+# are ablated against `misbehave` instead. A rule no fixture can kill is a rule
+# the fixture is not testing -- and the first run of this gate caught exactly
+# that about `<covered>`.
+DECLINING = ("covered",)
+
 NOT_THE_DOMAIN = frozenset({
     "plan", "relevant", "call-spawn", "call-advance", "call-return",
     "deviation-+-contradicted", "deviation---contradicted", "intake",
@@ -499,6 +529,46 @@ def _canonical(text: str) -> str:
     return re.sub(r"\?[A-Za-z_][A-Za-z0-9_]*", sub, flat)
 
 
+def misbehave(n: int = 3, without: str = "", limit: int = 400) -> dict:
+    """Two bad attempts, and what becomes of them.
+
+    ⭐⭐⭐ The whole of what step 2 buys. Before it, an attempt to move a covered
+    disk simply matched nothing -- and *nothing happened* is indistinguishable
+    from *nothing was wrong*. Now:
+
+        covered      the world model declines it, and says why
+        unafforded   the MACHINERY declines it, because no such action exists
+
+    ⚠⚠⚠ **The decline is LATE.** The attempt stands from tick 0 and is not
+    declined until tick ~101, because `<covered>` sits at the floor and the
+    shortlist is busy with the recursion. Correct, and slow: a refusal the agent
+    only learns about after it has finished is a poor thing to learn from. That
+    is the concrete argument for attending to what a move just wrote -- an
+    attempt is a fresh fact, and nothing currently lifts the rules about it.
+
+    ⚠ The two are declined by different things on purpose. What is LEGAL is the
+    world model's business and a rule says it; what EXISTS is the palette's, and
+    only the machinery can check it, because subsumption runs the pattern
+    against the entry and here the entry is the generic one.
+    """
+    from .attention import run
+    from .chain import PLUS
+    from .machine import Machine
+    from .text import load
+
+    m = Machine()
+    kb = load(m, corpus(n, without)
+              + "fact +attempt(move(d%d, y))" % n      # d(n) is covered
+              + chr(10)
+              + "fact +attempt(teleport(d1, z))" + chr(10))
+    run(m, limit=limit)
+    return {
+        "covered": m.holds(kb.term("declined(move(d%d, y), covered)" % n)) == PLUS,
+        "unafforded": m.holds(
+            kb.term("declined(teleport(d1, z), unafforded)")) == PLUS,
+    }
+
+
 def _authored() -> Dict[str, str]:
     """The authored rules, by name.
 
@@ -567,10 +637,35 @@ def main() -> int:
             print("    FAIL  the countdown did not recurse to the bottom")
             bad += 1
 
+    # ⭐ What becomes of a bad attempt -- the whole of what the palette buys.
+    print()
+    print("  two bad attempts:")
+    bad_attempts = misbehave(3)
+    print("      a covered disk        declined by the WORLD MODEL:  %s"
+          % bad_attempts["covered"])
+    print("      an action that is not declined by the MACHINERY:    %s"
+          % bad_attempts["unafforded"])
+    if not (bad_attempts["covered"] and bad_attempts["unafforded"]):
+        print("    FAIL  a bad attempt was met with silence, which is the one "
+              "thing this is against")
+        bad += 1
+
     print()
     print("  the ablation -- each rule removed in turn, on 4 disks:")
     survivors = []
     for name in re.findall(r"rule <([^>]+)>", RULES):
+        if name in DECLINING:
+            # ⚠ Ablated against the exercise that NEEDS it. Hanoi's own play
+            # never makes an illegal move -- the recursion is correct -- so
+            # solving cannot kill a rule that only declines, and the gate said
+            # so the first time it ran.
+            gone = misbehave(3, without=name)
+            mark = ("STILL DECLINES" if gone["covered"]
+                    else "fails, as it must")
+            print("      without <%-11s> %14s  %s" % (name, "", mark))
+            if gone["covered"]:
+                survivors.append(name)
+            continue
         r = solve(4, without=name, limit=4000)
         if r["solved"]:
             mark = "STILL SOLVED"

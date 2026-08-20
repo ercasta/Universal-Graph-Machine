@@ -456,6 +456,38 @@ class Machine:
         # The gate refuses to deposit a proposition with a variable in it, and
         # rightly; what is deposited here is a claim ABOUT a pattern.
         self.AFFORDED = self.g.atom("afforded")
+        # ...and asking for one. `attempt(move(d1, z))` is the agent proposing
+        # to act; the world model's own rules resolve it, or decline it.
+        #
+        # ⭐⭐⭐ **An attempt at something the palette does not afford is DECLINED
+        # BY THE MACHINERY**, and that is the one part of this only the engine
+        # can do. `docs/HANDOFF.md` 19c measured the alternative: a policy
+        # concluding `do(teleport, ann, pet)` deposits it and *nothing happens*,
+        # because no action rule matches. Nothing happening is indistinguishable
+        # from nothing being wrong, and that silence is what this design is
+        # against.
+        #
+        # ⚠ Deposited, not VETOED. A vetoed attempt never existed, so the agent
+        # cannot learn that it tried something that is not a thing -- and being
+        # able to is the entire reason to have a palette. The machinery notes
+        # the smallest unarguable fact and a rule decides what it means, which
+        # is this repository's standing answer.
+        #
+        # ⚠⚠ Checked at the WRITE, for `_forbid`'s reason and by the same
+        # route: a rule cannot ask it. Subsumption runs
+        # `unify(generic, ground)`, and a rule's premise is the pattern and the
+        # entry is the ground fact -- so `+afforded(?a)` against a ground
+        # attempt matches nothing. Measured: `unify(move(?x,?y), move(d1,z))`
+        # is True and the reverse is False.
+        self.ATTEMPT = self.g.atom("attempt")
+        # ⚠ Distinct from `refused`, which is the GATE's: a write a norm
+        # covered, arity 3, carrying the norm that forbade it. *You may not* and
+        # *there is no such move* are different claims and conflating them would
+        # lose both.
+        self.DECLINED = self.g.atom("declined")
+        # Why the machinery declined one. A corpus declining for its own reasons
+        # says its own word here; this is the only one the engine ever uses.
+        self.UNAFFORDED = self.g.atom("unafforded")
         self.CALL = self.g.atom("call")
         self.STAGE = self.g.atom("stage")
         self.SPAWN = self.g.atom("spawn")
@@ -656,7 +688,8 @@ class Machine:
             "again": self.AGAIN,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "attention": self.ATTENTION,
-            "afforded": self.AFFORDED,
+            "afforded": self.AFFORDED, "attempt": self.ATTEMPT,
+            "declined": self.DECLINED, "unafforded": self.UNAFFORDED,
             "call": self.CALL, "stage": self.STAGE, "spawn": self.SPAWN,
             "awaits": self.AWAITS, "returned": self.RETURNED,
             "advances": self.ADVANCES, "closes": self.CLOSES,
@@ -834,7 +867,8 @@ class Machine:
                              self.COUNT, self.COUNTED, self.NEW,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.ATTENTION,
-                             self.AFFORDED, self.CALL, self.STAGE, self.SPAWN,
+                             self.AFFORDED, self.ATTEMPT, self.DECLINED,
+                             self.UNAFFORDED, self.CALL, self.STAGE, self.SPAWN,
                              self.AWAITS, self.RETURNED,
                              self.ADVANCES, self.CLOSES,
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
@@ -959,6 +993,7 @@ class Machine:
                     mention=True,
                 )
         self.gate.veto.append(self._forbid)
+        self.gate.on_write.append(self._unafforded)
         self._booting = False
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
@@ -2184,6 +2219,35 @@ class Machine:
             )
             dropped += 1
         return dropped
+
+    def _unafforded(self, frame, e) -> None:
+        """An attempt at something the palette does not afford, on the record.
+
+        ⭐ The engine's whole share of an action. What is LEGAL is the world
+        model's business and a rule says it; what EXISTS is the palette's, and
+        only the machinery can check it, because subsumption runs the pattern
+        against the entry and here the entry is the generic one.
+
+        ⚠ Cheap for `_forbid`'s reason: indexed by what is being written, so it
+        costs nothing on a write that is not an attempt, and the palette is
+        walked only for one that is.
+        """
+        if self._booting or e.sign != PLUS:
+            return
+        if self.g.relation_of(e.proposition) is not self.ATTEMPT:
+            return
+        members = self.g.members(e.proposition)
+        if len(members) != 1 or self.g.has_var(members[0]):
+            return
+        wanted = members[0]
+        for node in self.g.instances_of(self.AFFORDED):
+            sig = self.g.members(node)
+            if len(sig) != 1 or not self._claims(node):
+                continue
+            if unify(self.g, sig[0], wanted, {}) is not None:
+                return
+        self._note(self.g.rel(self.DECLINED, wanted, self.UNAFFORDED),
+                   licence=e.node)
 
     def _knob(self, relation: NodeId, default):
         """A knob a corpus can turn, read from the graph.
