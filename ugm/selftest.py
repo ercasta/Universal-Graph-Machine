@@ -232,7 +232,7 @@ def arbitration_is_total() -> None:
     lit = g.atom("lit")
     r1 = m.rules.rule(IMPLIES, [Member(PLUS, g.rel(lit, p))], [Member(PLUS, g.rel(lit, q))], "R1")
     r2 = m.rules.rule(IMPLIES, [Member(PLUS, g.rel(lit, p))], [Member(MINUS, g.rel(lit, q))], "R2")
-    m.gate.write(m.focus, g.rel(lit, p), PLUS)
+    m.gate.write(g.rel(lit, p), PLUS)
 
     step = _move(m)
     check("§14", "with two rules matching, arbitration still answers", step.applied is not None)
@@ -246,9 +246,9 @@ def arbitration_is_total() -> None:
     # ⚠ Deposited, not called. Precedence is what the graph claims -- this used
     # to reach into a Python table, and it was the only thing in the suite that
     # broke when the table went, which is what said the table was the anomaly.
-    m2.gate.write(m2.focus, g2.rel(m2.OVERRIDES, a2.node, a1.node), PLUS,
+    m2.gate.write(g2.rel(m2.OVERRIDES, a2.node, a1.node), PLUS,
                   source=m2.KB, mention=True)
-    m2.gate.write(m2.focus, g2.rel(lit2, p2), PLUS)
+    m2.gate.write(g2.rel(lit2, p2), PLUS)
     step2 = _move(m2)
     check("§14", "authored precedence beats authored order", step2.applied.rule is a2)
 
@@ -288,11 +288,11 @@ def connectives_differ() -> None:
     heat, water = g.rel(g.atom("heat"), g.atom("w")), g.rel(g.atom("water"), g.atom("w"))
     boiling = g.rel(g.atom("boiling"), g.atom("w"))
     m.rules.rule(CAUSES, [Member(PLUS, heat), Member(PLUS, water)], [Member(PLUS, boiling)], "boil")
-    m.gate.write(m.focus, heat, PLUS)
-    m.gate.write(m.focus, water, PLUS)
-    before = m.focus.seat
+    m.gate.write(heat, PLUS)
+    m.gate.write(water, PLUS)
+    before = m.chain.now
     m.run(limit=5)
-    check("§10", "`causes` lands in a later moment", m.focus.seat.depth > before.depth)
+    check("§10", "`causes` lands in a later moment", m.chain.now.depth > before.depth)
     check("§10", "and the effect is believed", m.holds(boiling) == PLUS)
 
     m2 = Machine()
@@ -300,12 +300,12 @@ def connectives_differ() -> None:
     cloudy = g2.rel(g2.atom("cloudy"), g2.atom("mon"))
     rain = g2.rel(g2.atom("rain"), g2.atom("mon"))
     m2.rules.rule(IMPLIES, [Member(PLUS, cloudy)], [Member(PLUS, rain)], "R2")
-    m2.gate.write(m2.focus, cloudy, PLUS)
-    seat_before = m2.focus.seat
+    m2.gate.write(cloudy, PLUS)
+    seat_before = m2.chain.now
     m2.run(limit=5)
-    check("§10", "`implies` lands in the same moment", m2.focus.seat is seat_before)
+    check("§10", "`implies` lands in the same moment", m2.chain.now is seat_before)
     check("§10", "...and the conclusion is there to be read",
-          m2.chain.resolve(rain, m2.focus.topic) is not None)
+          m2.chain.resolve(rain, m2.chain.now) is not None)
 
 
 def quiescence() -> None:
@@ -313,7 +313,7 @@ def quiescence() -> None:
     g = m.g
     p, q = g.rel(g.atom("f"), g.atom("p")), g.rel(g.atom("f"), g.atom("q"))
     m.rules.rule(IMPLIES, [Member(PLUS, p)], [Member(PLUS, q)], "pq")
-    m.gate.write(m.focus, p, PLUS)
+    m.gate.write(p, PLUS)
     steps = m.run(limit=20)
     check("§15", "the loop stops rather than reapplying forever", len(steps) < 20)
     check("§15", "and says which silence it was", steps[-1].state == "quiescent")
@@ -347,7 +347,7 @@ def trusting_a_channel() -> None:
     # ought to send someone here crashed the runner three checks earlier and
     # every check after it went unreported. A runner whose contract is *any False
     # is a failure* has to be able to say False about an absence.
-    e = m.chain.resolve(raining, m.focus.topic, m.focus.seat)
+    e = m.chain.resolve(raining)
     check("§5", "the conclusion names what produced it", e is not None and e.licence is not None)
 
     trail = m.chain.trail(e) if e is not None else []
@@ -400,7 +400,7 @@ def surface() -> None:
     m, kb = _loads("fact +on(a, b)\nfact -in(b, c)   # a comment\n")
     check("§3", "the surface writes a fact", m.holds(kb.term("on(a, b)")) == PLUS)
     check("§6", "and a signed one", m.holds(kb.term("in(b, c)")) == MINUS)
-    check("§13", "a loaded fact is stamped as having come from the KB", m.chain.resolve(kb.term("on(a, b)"), m.focus.topic).source == m.KB)
+    check("§13", "a loaded fact is stamped as having come from the KB", m.chain.resolve(kb.term("on(a, b)"), m.chain.now).source == m.KB)
 
     check("§4", "a fact may not contain a variable", _refuses("fact +on(?x, b)"))
     check(
@@ -454,7 +454,7 @@ def the_bundle() -> None:
     m.run(limit=6)
 
     said = g.rel(m.SAYS, user, raining, m.rules.SIGN[PLUS])
-    e = m.chain.resolve(said, m.focus.topic, m.focus.seat)
+    e = m.chain.resolve(said)
     check("§5", "a report becomes a saying", e is not None)
     check("§5", "and a rule application licensed it", e is not None and e.licence is not None)
 
@@ -478,7 +478,7 @@ def the_bundle() -> None:
     check(
         "§5",
         "and nothing else writes it -- delete the rule and there is no saying",
-        m2.chain.resolve(s2, m2.focus.topic, m2.focus.seat) is None,
+        m2.chain.resolve(s2) is None,
     )
 
     # The inbound crossing does not wait for a tick. Intake used to be the first
@@ -511,7 +511,7 @@ def the_bundle() -> None:
     g3 = m3.g
     heat = g3.rel(g3.atom("heat"), g3.atom("anna"), g3.atom("kettle"))
     m3.actuator("hands")
-    m3.gate.write(m3.focus, g3.rel(m3.DOING, heat), PLUS)
+    m3.gate.write(g3.rel(m3.DOING, heat), PLUS)
     m3.run(limit=8)
     check("§15", "an intent crosses the boundary at the write", m3.emitted == [heat])
     check("§15", "a rule turns the crossing into *I acted*", m3.holds(g3.rel(m3.DID, heat)) == PLUS)
@@ -525,7 +525,7 @@ def the_bundle() -> None:
     g4 = m4.g
     m4.rules.rules = [r for r in m4.rules.rules if r.name != "assert-act"]
     h4 = g4.rel(g4.atom("heat"), g4.atom("anna"), g4.atom("kettle"))
-    m4.gate.write(m4.focus, g4.rel(m4.DOING, h4), PLUS)
+    m4.gate.write(g4.rel(m4.DOING, h4), PLUS)
     m4.run(limit=8)
     check("§18", "drop that rule and the agent still acts", m4.emitted == [h4])
     check("§18", "and still knows it acted", m4.holds(g4.rel(m4.DID, h4)) == PLUS)
@@ -565,7 +565,7 @@ def denial_nests() -> None:
     # looking at. The rules are written against the sign.
     m2 = Machine()
     kb2 = load(m2, "rule <s> = implies( { -b(x) }, { +noticed(x) } )")
-    m2.gate.write(m2.focus, m2.g.rel(m2.NOT, kb2.term("b(x)")), PLUS)
+    m2.gate.write(m2.g.rel(m2.NOT, kb2.term("b(x)")), PLUS)
     m2.run(limit=10)
     check("§9", "a term denial reads as a sign denial", m2.holds(kb2.term("b(x)")) == MINUS)
     check(
@@ -639,10 +639,9 @@ def surprise_is_four_rows() -> None:
         g = m.g
         p = g.rel(g.atom("boiling"), g.atom("kettle"))
         # An expectation, then an observation that disappoints it.
-        m.gate.write(
-            m.focus, g.rel(m.EXPECTS, p, m.rules.SIGN[expected]), PLUS, mention=True
+        m.gate.write(g.rel(m.EXPECTS, p, m.rules.SIGN[expected]), PLUS, mention=True
         )
-        m.gate.write(m.focus, p, observed)
+        m.gate.write(p, observed)
         m.run(limit=8)
         check(
             "§18",
@@ -655,8 +654,8 @@ def surprise_is_four_rows() -> None:
     m = Machine()
     g = m.g
     p = g.rel(g.atom("boiling"), g.atom("kettle"))
-    m.gate.write(m.focus, g.rel(m.EXPECTS, p, m.rules.SIGN[PLUS]), PLUS, mention=True)
-    m.gate.write(m.focus, p, PLUS)
+    m.gate.write(g.rel(m.EXPECTS, p, m.rules.SIGN[PLUS]), PLUS, mention=True)
+    m.gate.write(p, PLUS)
     m.run(limit=8)
     check(
         "§18",
@@ -826,7 +825,7 @@ def the_tick_limit_is_on_the_record() -> None:
           "would make the record useless in the other direction",
           steps[-1].state == "quiescent"
           and m.chain.holds(kb.term("bounded(ticks)"),
-                            m.focus.topic, m.focus.seat) is None)
+                            m.chain.now, m.chain.now) is None)
 
     m2 = Machine()
     kb2 = load(m2, chr(10).join([
@@ -837,12 +836,12 @@ def the_tick_limit_is_on_the_record() -> None:
           "so a runaway stops being indistinguishable from a finished corpus",
           len(steps2) == 40 and steps2[-1].state == "applied"
           and m2.chain.holds(kb2.term("bounded(ticks)"),
-                             m2.focus.topic, m2.focus.seat) == PLUS)
+                             m2.chain.now, m2.chain.now) == PLUS)
     m2.run(limit=10)
     check("§19", "...and it is an OCCASION, so a corpus reacts to its own "
           "runaway rather than being cut off in silence",
           m2.chain.holds(kb2.term("noticed(runaway)"),
-                         m2.focus.topic, m2.focus.seat) == PLUS)
+                         m2.chain.now, m2.chain.now) == PLUS)
 
     # ⚠⚠⚠ `Loader.term` parsed one term and dropped the rest of the string, and
     # `Loader.say` uses it -- so an agent could say one thing and the hearer
@@ -917,7 +916,7 @@ def silence_over_a_stretch_is_sayable() -> None:
                   for layer in m.rules.strata()]
         m.settle_structure()
         m.run(limit=120)
-        at = lambda q: m.chain.holds(kb.term(q), m.focus.topic, m.focus.seat)
+        at = lambda q: m.chain.holds(kb.term(q), m.chain.now, m.chain.now)
         return layers, at("attacks(hero, 1)"), at("holds(hero, 1)")
 
     layers, attacks, holds = round_of(declare=False)
@@ -955,7 +954,7 @@ def a_guard_is_an_ordinary_member() -> None:
         "fact +wounded(hero)", "fact +wounded(ally)",
         "fact +poisoned(hero)", "fact -poisoned(ally)", ""]))
     m.run(limit=80)
-    at = lambda p: m.chain.holds(kb.term(p), m.focus.topic, m.focus.seat)
+    at = lambda p: m.chain.holds(kb.term(p), m.chain.now, m.chain.now)
     check("§12", "⭐⭐⭐ a negated member IS `unless`: the per-entity exception "
           "that §14's precedence cannot express -- `overrides` is per rule and "
           "per tick, `supersedes` needs a shared consumed entry, and this needs "
@@ -989,7 +988,7 @@ def a_guard_is_an_ordinary_member() -> None:
         carried = any(x.sign == MINUS
                       and m2.g.show(x.pattern).startswith("poisoned")
                       for x in composed.antecedent)
-        apps = match(m2.g, m2.chain, composed, m2.focus.topic, m2.focus.seat,
+        apps = match(m2.g, m2.chain, composed, m2.chain.now, m2.chain.now,
                      structural=structural_relations(m2.chain))
         reaches = {m2.g.show(v) for a in apps for v in a.bindings.values()
                    if m2.g.show(v) in ("hero", "ally")}
@@ -1212,7 +1211,7 @@ def worked_examples() -> None:
     # The trust rule's consequent is a bare variable: whatever the channel says.
     raining = kb.term("likely(raining(here))")
     check("§13", "a rule whose consequent is a variable believes what a channel said", m.holds(raining) == PLUS)
-    e = m.chain.resolve(raining, m.focus.topic)
+    e = m.chain.resolve(raining, m.chain.now)
     check("§13", "the channel in the rule is the channel delivered on", e is not None and any(t.source == kb.term("user") for t in m.chain.trail(e)))
     check("R5", "the trail reaches the utterance", len(m.why(raining)) > 1)
 
@@ -1249,7 +1248,7 @@ def rules_as_data() -> None:
 
     ok = False
     try:
-        m.gate.write(m.focus, m.g.rel(m.g.atom("f"), m.g.var("?z")), PLUS)
+        m.gate.write(m.g.rel(m.g.atom("f"), m.g.var("?z")), PLUS)
     except ValueError:
         ok = True
     check("§13", "mention is a gate parameter, not a hole in the gate", ok)
@@ -1610,7 +1609,7 @@ def an_action_is_substituted_by_its_outcome() -> None:
     def plan(extra=""):
         m = Machine()
         kb = load(m, src + extra)
-        m.gate.write(m.focus, kb.term("at(home)"), PLUS)
+        m.gate.write(kb.term("at(home)"), PLUS)
         m.run(limit=600)
         return m, kb
 
@@ -1743,7 +1742,7 @@ def an_agent_that_can_stop() -> None:
 
     # *Why did you stop?* has to have an answer, or stopping is the fourth silent
     # decline (§5) -- which is the criterion §2 calls not-lossy.
-    seat = m1.focus.seat.node
+    seat = m1.chain.now.node
     check("§19", "the stop is on the record, and it names what made here over",
           m1.holds(kb1.term("stopped")) is None
           and any(m1.g.show(n).startswith("stopped(") and "r(a)" in m1.g.show(n)
@@ -2296,7 +2295,7 @@ def a_domain_can_be_taken_out_of_mind() -> None:
     m4 = Machine()
     r4 = load(m4, chr(10).join(corpus + [""]), scope="world", domain="rules")
     b4 = load(m4, chr(10).join(billing + [""]), scope="world", domain="billing")
-    owes = m4.chain.resolve(b4.term("owes(acme, 100)"), m4.focus.topic, m4.focus.seat)
+    owes = m4.chain.resolve(b4.term("owes(acme, 100)"))
     check("§13", "a document declares its name table and its domain separately: "
           "one scope, so the rule and the fact mean the same `owes` -- two "
           "domains, so unloading the data does not unload the rules that read it",
@@ -2670,9 +2669,9 @@ def the_state_is_kept_not_rebuilt() -> None:
     q = g.rel(g.atom("qq"), g.atom("a"))
 
     m._state()                       # build the cache, then grow it
-    m.gate.write(m.focus, p, PLUS)
-    m.gate.write(m.focus, q, PLUS)
-    m.gate.write(m.focus, p, PLUS)   # ...and claim the first one again
+    m.gate.write(p, PLUS)
+    m.gate.write(q, PLUS)
+    m.gate.write(p, PLUS)   # ...and claim the first one again
     order = [e.proposition for e in m._state()]
     check("§18", "a proposition claimed again is the most recent in the state, "
           "which is what *a description with two candidates resolves to the most "
@@ -2682,7 +2681,7 @@ def the_state_is_kept_not_rebuilt() -> None:
     # §17's two indices, inside the kept state: a claim about an EARLIER moment,
     # deposited later, must not displace a claim about a later one.
     m2 = Machine()
-    early = m2.focus.seat
+    early = m2.chain.now
     later = m2.chain.succeed(early, None)
     m2.gate.reseat(m2.focus, later)
     m2._state()
@@ -2695,7 +2694,7 @@ def the_state_is_kept_not_rebuilt() -> None:
 
     # ...and reasoning about the past does not see the present.
     m3 = Machine()
-    e0 = m3.focus.seat
+    e0 = m3.chain.now
     e1 = m3.chain.succeed(e0, None)
     m3.focus = m3.gate.frame(e1, topic=e0)
     m3._state()
@@ -3153,9 +3152,9 @@ def the_matchers_are_one() -> None:
         "fact +watching(x)", ""]))
     door = m7.g.rel(m7.g.atom("open"), m7.g.atom("door"))
     d1 = m7.chain.succeed(m7.chain.root, None)
-    m7.gate.write(m7.gate.frame(d1), door, "+")
+    m7.gate.write(door, "+")
     d2 = m7.chain.succeed(d1, None)
-    m7.gate.write(m7.gate.frame(d2), door, "-")
+    m7.gate.write(door, "-")
     m7.focus = m7.gate.frame(d2)
     steps = m7.run(limit=60)
     changed = [e for e in m7._state()
@@ -3186,7 +3185,7 @@ def the_matchers_are_one() -> None:
     m8.ask_read(m8.chain.moments[-1])
     from .core.rules import match as _match, Situation as _Sit
     up8 = [r for r in m8.rules.rules if r.name == "up"][0]
-    apps = _match(m8.g, m8.chain, up8, m8.focus.topic, m8.focus.seat, _Sit(m8.g, []),
+    apps = _match(m8.g, m8.chain, up8, m8.chain.now, m8.chain.now, _Sit(m8.g, []),
                   computes=m8.rules.computes, structural=m8.rules.skeleton())
     before_n = m8.g.count()
     first = [m8._would_change(a) for a in apps]
@@ -3211,8 +3210,8 @@ def the_matchers_are_one() -> None:
     r = m5.chain.root
     left = m5.chain.succeed(r, None)
     right = m5.chain.succeed(r, None)
-    m5.gate.write(m5.gate.frame(left), m5.g.rel(m5.g.atom("on"), m5.g.atom("l")), "+")
-    m5.gate.write(m5.gate.frame(right), m5.g.rel(m5.g.atom("on"), m5.g.atom("r")), "+")
+    m5.gate.write(m5.g.rel(m5.g.atom("on"), m5.g.atom("l")), "+")
+    m5.gate.write(m5.g.rel(m5.g.atom("on"), m5.g.atom("r")), "+")
     m5.ask_read(left)
     m5.settle_structure()
     reached_entries = {m5.g.members(n)[1]
@@ -4346,8 +4345,8 @@ def a_join_is_not_a_scan() -> None:
     # member 1 before member 0. Handing it the whole state instead finds the
     # application on the first pivot and dedups the second away -- so the walk
     # under test never runs, and the check passes vacuously. It did.
-    later = m.chain.resolve(kb.term("b(t)"), m.focus.topic, m.focus.seat)
-    found = R.match(m.g, m.chain, rule, m.focus.topic, m.focus.seat, state,
+    later = m.chain.resolve(kb.term("b(t)"))
+    found = R.match(m.g, m.chain, rule, m.chain.now, m.chain.now, state,
                     fresh=R.Situation(m.g, [later]))
     rel_of = lambda e: m.g.relation_of(e.proposition)
     check("§12", "however the join is walked, the trail records what each "
@@ -4905,7 +4904,7 @@ def support_can_be_withdrawn() -> None:
     # rule could ask what anything rested on and `why()` had to be a native walk.
     # `rests_on` joins `pred` and `in_delta` in the structural mirror: nobody
     # asserted it, it cannot be denied, dated or attributed.
-    derived = m.chain.resolve(kb.term("q(a)"), m.focus.topic)
+    derived = m.chain.resolve(kb.term("q(a)"), m.chain.now)
     check("§6", "an entry's support is readable from the graph",
           derived is not None and bool(m.chain.rests_on(derived)))
     check(
@@ -5258,9 +5257,9 @@ def the_index_agrees_with_the_walk() -> None:
     ]))
     m.run(limit=400)
     # A revision about an earlier moment: same locus, later deposit (§17).
-    old = m.focus.seat.ancestors()[-1]
-    m.gate.write(m.gate.frame(m.focus.seat, topic=old), kb.term("q(one)"), MINUS)
-    m.gate.write(m.focus, kb.term("p(three)"), PLUS)
+    old = m.chain.now.ancestors()[-1]
+    m.gate.write(kb.term("q(one)"), MINUS)
+    m.gate.write(kb.term("p(three)"), PLUS)
     m.run(limit=400)
 
     def brute(proposition, locus, seat):
@@ -5280,7 +5279,7 @@ def the_index_agrees_with_the_walk() -> None:
         for seat in seats:
             for locus in seat.ancestors():
                 comparisons += 1
-                if m.chain.resolve(p, locus, seat) is not brute(p, locus, seat):
+                if m.chain.resolve(p) is not brute(p, locus, seat):
                     disagreements.append((p, locus, seat))
 
     check(
@@ -5324,7 +5323,7 @@ def a_cause_moves_the_register() -> None:
         "fact p(x)",
         "",
     ]))
-    began = m3.focus.seat
+    began = m3.chain.now
     m3.run(limit=60)
     moves = [e for mo in m3.chain.moments for e in mo.delta
              if m3.g.relation_of(e.proposition) is m3.gate.MOVED]
@@ -5332,7 +5331,7 @@ def a_cause_moves_the_register() -> None:
           len(moves) == 1)
     check("§17", "...from the seat it left, to the seat it took",
           bool(moves) and tuple(m3.g.members(moves[0].proposition))
-          == (began.node, m3.focus.seat.node))
+          == (began.node, m3.chain.now.node))
     check("§17", "...licensed by the rule that moved it",
           bool(moves) and moves[0].licence is not None
           and m3.g.relation_of(moves[0].licence) is m3.APPLIED)
@@ -5525,7 +5524,7 @@ def a_cached_application_can_be_retracted() -> None:
     ]))
     m.tick()  # one of them acts; BOTH applications are now cached
     waiting = [n for n in ("ann", "bob")
-               if m.chain.holds(kb.term(f"acted({n})"), m.focus.topic) is None]
+               if m.chain.holds(kb.term(f"acted({n})"), m.chain.now) is None]
     check(
         "§6", "both applications are cached before the structural fact appears",
         len(waiting) == 1,
@@ -5536,7 +5535,7 @@ def a_cached_application_can_be_retracted() -> None:
     check(
         "§12",
         "a structural fact appearing retracts the cached application it blocks",
-        m.chain.holds(kb.term(f"acted({waiting[0]})"), m.focus.topic) is None,
+        m.chain.holds(kb.term(f"acted({waiting[0]})"), m.chain.now) is None,
     )
 
 
@@ -5599,7 +5598,7 @@ def quiescence_is_an_occasion() -> None:
     check(
         "§5",
         "the loop running out of work is deposited, not merely returned",
-        m.holds(m.g.rel(m.QUIET, m.focus.seat.node)) == PLUS,
+        m.holds(m.g.rel(m.QUIET, m.chain.now.node)) == PLUS,
     )
     check(
         "§15",
@@ -6567,10 +6566,10 @@ def a_count_is_not_monotone() -> None:
     check("§1", "the count of two goblins is two", counted(2) == PLUS)
 
     third = kb.term("goblin(gob_c)")
-    m.gate.write(m.focus, third, PLUS,
+    m.gate.write(third, PLUS,
                  licence=m.g.rel(m.LOADED, third), source=m.KB)
     for sign in (MINUS, PLUS):  # spend the request, then ask again
-        m.gate.write(m.focus, ask, sign,
+        m.gate.write(ask, sign,
                      licence=m.g.rel(m.LOADED, ask), source=m.KB, mention=True)
     m.run(limit=20)
 
