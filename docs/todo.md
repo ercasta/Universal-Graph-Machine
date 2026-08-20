@@ -644,3 +644,74 @@ Both faults measured above are exactly *a described rule the parser would have
 refused* -- the two-scope one and the dropped-`as`-slot one, which is why one
 check catches both. The fix is not new machinery and not a new diagnostic: it is
 `Loader._rule`'s existing check, applied where rules now also come from.
+
+---
+
+# Probed 2026-08-20: variable identity as a CLAIM, not an intake decision
+
+The author's question, and it is the right way round: *why can't a loaded rule
+with two `?w` in it be represented as a subgraph with two distinct `?w` nodes?*
+
+## It can. The engine already has the representation
+
+Two variable nodes plus `Graph.merge` is exactly that shape, and merge is real:
+
+    before   bright(evening_star) is not bright(morning_star)
+    merge(morning_star, evening_star)          repointed 2
+    after    bright(evening_star) IS bright(morning_star)      congruence
+             seen_by(galileo, evening_star) still believed     the repoint
+
+A variable is a leaf, and `_identity`'s own note says *leaves only*. Nothing
+refuses the merge, and `identity_of` reports it correctly.
+
+## What does NOT follow is the BEHAVIOUR, and the reason is one line
+
+    C. one shared ?w node                            q(a) = +
+    A. two ?w nodes, no coreference                  q(a) = None
+    B. two ?w nodes, MERGED before the rule is built q(a) = None
+    D. two ?w nodes, built then merged               q(a) = None
+
+`substitute` is `bindings.get(pattern, pattern)` -- a raw node-id lookup that
+never consults `identity_of`. Match binds the antecedent's `?w` NODE; substitute
+asks for the consequent's `?w` NODE; different keys, whatever the graph says
+they are. **So the coreference is real in the index and inert in matching.**
+
+⭐⭐⭐ **And it is a one-line change.** With `substitute` falling back to
+`bindings.get(g.identity_of(pattern))`:
+
+    two ?w nodes, MERGED                             q(a) = +
+
+## Why it was not done, in the design's own words
+
+`two_things_can_turn_out_to_be_one`'s docstring states the premise:
+
+> the loader's name table decides it at intake -- *a corpus is a bound, kettle
+> means one node inside it, by construction and not by inference, **which is why
+> coreference does not arise in authored knowledge at all***
+
+⭐⭐⭐ **That premise is exactly what fails for a COMPUTED description.** A
+computed rule is authored knowledge whose identity is NOT settled at intake --
+it is assembled over several firings, after intake, by rules. The one case the
+design excluded is the case this line of work creates.
+
+## The trade, stated rather than assumed
+
+**For.** Variable identity stops being a mint-time engine decision (the loader's
+`scope` dict) and becomes a claim a corpus can make and argue with. That is the
+move this repository keeps making. It is guarded by `_merges`, so it costs
+nothing until someone corefers.
+
+**Against.** `merge` is GLOBAL and permanent; variable identity is per-rule. The
+`Loader.var` comment -- *`?w` in two rules is two variables* -- is a SCOPE claim,
+and merge has nowhere to put a scope now that situations are going. Merging two
+rules' `?w` would make them one variable everywhere, for ever.
+
+**And the case is already covered.** `<anchor>` -- sharing by BINDING -- handles
+the computed description, and the parser refuses the version without it. The
+merge route buys the ability to repair a hand-written SPLIT description, which
+the entry above concludes should not be written in the first place.
+
+> So: cheap, implementable, and currently without a use `<anchor>` does not
+> already serve. Worth having on the record as the answer to *why not*, which is
+> **not** "the representation cannot express it" -- it can -- but "match and
+> substitute do not read it, and nothing yet needs them to."
