@@ -1,3 +1,119 @@
+# Handoff — 2026-08-20m (retiring `prefer` and the buffs: the plan, measured)
+
+`main` is at `12fbfc7 subtract`, **645/0**, `./tools_sweep.sh` clean but for the
+pre-existing `vocabulary` 18/2. The retirement below was started, measured, and
+**reverted** -- 27 insertions and 35 deletions is cheap to redo, and what is
+worth keeping is what it cost.
+
+## Why retire them: measured, not argued
+
+`prefer(<R>, key, n)` and `after <A> => boost(<B>, n)` NAME OTHER RULES, which
+goes stale the moment a rule is adopted, composed or renamed -- *keyed on an
+identity*, one level up from bindings. The replacement is attention, which names
+NODES. On the dungeon, matched/move against 34.8 uncalibrated, none losing more
+than the 3 domain conclusions the uncalibrated arm loses:
+
+    focus     13.0   134 agree   keyed on NODES
+    bigram    17.2   131 agree   keyed on rules
+    query     32.8   134 agree   keyed on rules
+    occasion  44.4   134 agree   keyed on rules -- WORSE than doing nothing
+
+⭐ Every rule-naming arm loses to the node-naming one. Retiring costs nothing.
+
+## The three pieces that made attention win (20g, 20h)
+
+    attend(?x, n)       the buff weighs a NODE; the evidence count is n
+    auto-attention      what a move wrote goes on the queue at weight 1, so a
+                        lesson's multiplier has something to stand out against
+    lift on CLAIMED     the whole queue orders BINDINGS; only what something
+                        claimed attention of LIFTS rules
+
+⚠⚠⚠ The third is the piece three attempts were missing. Ordering a rule's own
+bindings costs nothing -- the applications are in hand. Lifting decides which
+rules are matched at all, so a queue full of whatever the last move wrote pushes
+the shortlist onto recently-touched rules and leaves work unreached: **48
+conclusions lost, quiescing 32 moves early.**
+
+## Exactly what was done, and what broke
+
+Two engine edits and two check rewrites:
+
+1. `attention.py` -- delete the `prefer` lift block in `run()` (keep the
+   `attended = m._attended()` line; removing it with the block is a `NameError`
+   that cost a cycle).
+2. `ugm/rules/bundle.ugm` -- delete `<relevant>`, which concludes
+   `prefer(?r, ?wanted, 1)`.
+3. `selftest.the_better_move_wins` -- assert on `fits(<toward>, nearer(a))`
+   instead of `prefer(...)`. ⭐ The KNOWLEDGE is untouched: the backward reader
+   still works out which rule serves the goal and says so in `fits`. Only the
+   translation into a rule-keyed score goes. Verified.
+4. `selftest` -- *attention that names everything discriminates nothing* is now
+   FALSE, because the queue grades by position, so three attended things still
+   have an order. What naming everything actually loses is the ability to say
+   WHICH one matters: attend one and its rule goes first (`r11`), attend all
+   three and it does not (`r10`).
+
+Suite went to 645/0. `./tools_sweep.sh` then showed **four** red:
+
+    attention   "the trigger changed the run -- the null result moved"
+    walkers     "18 ticks vs 18" -- wants them to differ
+    learning    "an episode taught the next one something"
+    practice    "it EXPLORES without being told to"
+
+The first two are the bundle-rank problem: **removing a rule renumbers every
+corpus**, and rank decides the shortlist when scores tie at the floor. Mechanical
+-- update the recorded numbers.
+
+## ⚠⚠⚠ THE OPEN DECISION, and it is not the `workload` case
+
+`ugm/learning.py` (572 lines) and `ugm/practice.py` (424) fail because `prefer`
+is their MECHANISM. But unlike `ugm.workload`, which measured a code path that no
+longer executed, **`learning` measures a live question** -- *does an episode
+teach the next one anything?* The question survives; the implementation does not.
+
+    1  rewrite them onto attention lessons   the replacement is measurably
+                                             better, so the question can still
+                                             be answered. ~1,000 lines. LARGEST
+                                             piece of the refactor.
+    2  delete them                           consistent with the last two
+                                             rounds, but loses a live question
+    3  stop                                  `prefer` stays
+
+My recommendation is 1. It is a much bigger piece than the two removals before
+it, which is why it was not taken unilaterally.
+
+## Then the buffs, which is the larger half and untouched
+
+`boost`/`damp`/`reset` and the whole scoring apparatus behind them: `Buff`,
+`Table.spend`, `LIFE`, `MAX_LIFT`, `live`, `age`, `clear`, `trace`, `rebuilt`,
+`_rerank`, `reflex`, and `teaching.py`'s bigram/query/occasion arms. Also
+`_priority`, `_rank` and `_in_play` in `machine.py`, and the `PREFER` atom.
+
+⚠ `stop` must survive. It is a postcondition but it is not scoring, and
+`attention.py` argues it is what made *done is the output of a rule* mean
+anything.
+⚠ `arbitrate` and `_materialise` must survive: the gold teacher in `teaching.py`
+and the chooser in `ugm.hanoi`.
+⚠ `_rank` is read by `teaching.teacher`; retiring it means the gold teacher
+ranks by authored order, which is simpler and probably right.
+
+## Standing lessons from this session
+
+**Run `./tools_sweep.sh`, never a hand-written list.** A list of a dozen out of
+~30 hid `ugm.practice` for two commits and `ugm.attention` for six.
+
+**Measure before claiming.** *The `tick` callers only want step-once* was said
+before the sweep and was false for three of them. Same shape as *step 3 will fix
+the late decline*, which made it worse.
+
+**Never bisect over a dirty tree.** `git checkout <ref>` fails silently when a
+modified file differs and reports the previous ref's result. One bisect this
+session named the wrong commit until the tree was committed first.
+
+**The bundle is not free, and neither is the vocabulary.** Adding a rule shifts
+declaration RANK; reserving a name shifts NODE IDS. Both are global, and both
+cost a fixture this session.
+
 # Handoff — 2026-08-20l (the option-set loop is gone, and three instruments with it)
 
 On top of `4ec6f4c`. **-1,093 lines, +51.**
