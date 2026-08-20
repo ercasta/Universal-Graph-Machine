@@ -124,9 +124,6 @@ class Machine:
         self.ANT = self.g.atom("ant")
         self.CON = self.g.atom("con")
         self.REIFIED = self.g.atom("reified")
-        self.SUPPOSING = self.g.atom("supposing")
-        self.CONCLUDED = self.g.atom("concluded")
-        self.SUPPOSE = self.g.atom("suppose")
         self.GOAL = self.g.atom("goal")
         self.WANTED = self.g.atom("wanted")
         self.ACHIEVED = self.g.atom("achieved")
@@ -183,7 +180,6 @@ class Machine:
         # machinery -- and what the machinery deposits is the smallest
         # unarguable record of it, exactly as `arrived` and `emitted` are for the
         # boundary. What it MEANS is rules.
-        self.LEFT = self.g.atom("left")
         # The other silent decline (§5).
         # → docs/design/machine.md#the-other-silent-decline-5-the-loop-running
         self.QUIET = self.g.atom("quiet")
@@ -229,7 +225,6 @@ class Machine:
         # A callback: a pointer to a rule, hung on a node. `+resume(h, <R>)` says
         # *when h returns, R's turn has come* -- and `turn` is the strongest thing
         # it can say, because §5's wall stands: no rule may apply a rule.
-        self.RESUME = self.g.atom("resume")
         # A rule that ordinary recall does not propose. Dormancy is what makes a
         # pointer do any work -- with recall exhaustive, a callback rule would
         # apply whenever it happened to match and the pointer would be decoration.
@@ -352,8 +347,6 @@ class Machine:
         # A corpus asked for this first, ahead of every feature in its list.
         self.TICKS = self.g.atom("ticks")
         self.BUDGET = self.g.atom("budget")
-        self.DEPTH = self.g.atom("depth")
-        self.HYPOTHESES = self.g.atom("hypotheses")
         self.RECALL = self.g.atom("recall")
         self.RECALLED = self.g.atom("recalled")
         self.FORBIDDEN = self.g.atom("forbidden")
@@ -383,18 +376,17 @@ class Machine:
             # one rule that reconciles the two ways of saying no.
             "not": self.NOT,
             "rule": self.RULE, "conn": self.CONN, "ant": self.ANT, "con": self.CON,
-            "suppose": self.SUPPOSE, "goal": self.GOAL,
+            "goal": self.GOAL,
             "achieved": self.ACHIEVED, "blocked": self.BLOCKED,
             "plan": self.PLAN, "subgoal": self.SUBGOAL,
             "binds": self.BINDS, "expands": self.EXPANDS,
             "doing": self.DOING, "did": self.DID,
             "expects": self.EXPECTS, "deviates": self.DEVIATES,
             "taken": self.TAKEN, "emitted": self.EMITTED,
-            "left": self.LEFT, "quiet": self.QUIET, "resume": self.RESUME,
+            "quiet": self.QUIET,
             "enough": self.ENOUGH, "stopped": self.STOPPED, "open": self.OPEN,
             "helped": self.HELPED, "harmed": self.HARMED,
             "forgone": self.FORGONE, "exercised": self.EXERCISED,
-            "concluded": self.CONCLUDED,
             "root": self.ROOT, "rooted": self.ROOTED,
             "count": self.COUNT, "counted": self.COUNTED,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
@@ -446,8 +438,7 @@ class Machine:
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
             "bounded": self.BOUNDED, "ticks": self.TICKS,
-            "budget": self.BUDGET, "depth": self.DEPTH,
-            "hypotheses": self.HYPOTHESES,
+            "budget": self.BUDGET,
             **{str(i): n for i, n in self.NUMERAL.items()},
             "check": self.CHECK, "unmet": self.UNMET,
             "verdict": self.VERDICT, "pursued": self.PURSUED,
@@ -468,10 +459,6 @@ class Machine:
         self.selections = 0
         self.useful_writes = 0
         self.exhausted = 0
-        self.max_depth = 8
-        self._enacted: set = set()
-        self._supposed: set = set()
-        self.supposition_budget = 32
         # Backward reading is rules now, so its budget is the ordinary one: the
         # loop's `limit`, and `_would_change` for termination. The phase carried
         # its own counter because it ran outside arbitration and nothing else
@@ -547,14 +534,14 @@ class Machine:
         # of a frame. doing is deliberately NOT here.
         # →
         # docs/design/machine.md#machinery-vocabulary-requests-not-claims-noth
-        self._bookkeeping = {self.SUPPOSE, self.GOAL, self.ACHIEVED, self.BLOCKED,
+        self._bookkeeping = {self.GOAL, self.ACHIEVED, self.BLOCKED,
                              self.PLAN, self.SUBGOAL, self.BINDS, self.EXPANDS,
                              self.EXPECTS, self.DID, self.DEVIATES,
                              self.EMITTED, self.FIT, self.FITS, self.UNFIT,
                              self.NEED, self.CHECK, self.UNMET,
-                             self.LEFT, self.QUIET, self.RESUME, self.DORMANT,
+                             self.QUIET, self.DORMANT,
                              self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED, self.HARMED,
-                             self.FORGONE, self.EXERCISED, self.CONCLUDED,
+                             self.FORGONE, self.EXERCISED,
                              self.ROOT, self.ROOTED,
                              self.COUNT, self.COUNTED, self.NEW,
                              self.DUE, self.VERDICT, self.PURSUED,
@@ -566,8 +553,8 @@ class Machine:
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
-                             self.BUDGET, self.DEPTH,
-                             self.HYPOTHESES, self.WIDENED, self.REACHED,
+                             self.BUDGET,
+                             self.WIDENED, self.REACHED,
                              self.BOUNDED, self.DEFEATED, self.ADOPT,
                              self.SPENT, self.PREMISES, self.CONTESTED,
                              # A seat move is the machinery's record of its own
@@ -604,7 +591,6 @@ class Machine:
         # Refraction's cost, checked at the write: see `_contest`.
         self.gate.on_write.append(self._contest)
         self.gate.on_write.append(self._dispatch)
-        self.gate.on_write.append(self._enter)
         self.gate.on_write.append(self._answer)
         for name, request, fn, standing in (
             ("fit", "fit", self._fit, True),
@@ -819,76 +805,7 @@ class Machine:
 
     @focus.setter
     def focus(self, frame: Frame) -> None:
-        """Move the register -- and the graph's, which is the same move.
-
-        §4 item 3: finding where to write requires a read, and a read requires
-        somewhere to stand. That was always true of the chain; situations make
-        it true of the graph as well, because *what structure exists* is now a
-        question with a standpoint. One assignment, two registers, and no caller
-        that has to know.
-        """
         self._focus = frame
-        self.g.situation = frame.situation
-
-    # -- supposing --------------------------------------------------------
-
-    def suppose(
-        self, assumption: NodeId, wrap: Optional[NodeId] = None
-    ) -> Frame:
-        """Enter a supposition: assume `assumption` bare, and reason inside.
-
-        This is the alternative to lifting.
-
-        See docs/design/machine.md#suppose.
-        """
-        licence = self.g.rel(self.SUPPOSING, assumption)
-        seat = self.chain.succeed(self.focus.seat, licence)
-        # Cut before the frame is built and after the licence and the seat are,
-        # so both of those are the caller's nodes: the caller has to be able to
-        # name what it supposed and where it stood to suppose it.
-        situation = self.g.branch(self.focus.situation)
-        child = self.gate.frame(seat, parent=self.focus, purpose=licence, wrap=wrap,
-                                situation=situation)
-        # Moving the register. This is the irreducible part, and it is the ONLY
-        # irreducible part -- §4 item 3: finding where to write requires a read,
-        # and a read requires somewhere to stand. Everything else about supposing
-        # is convention.
-        self.focus = child
-        self.gate.write(child, assumption, PLUS, licence=licence, source=self.KB)
-        return child
-
-    def _enter(self, frame: Frame, e: Entry) -> None:
-        """Open a supposition when one is requested -- at the write, not in a
-
-        phase, and *without* running the reasoning inside it. A rule concludes
-        +suppose(p, likely) like any other fact.
-
-        See docs/design/machine.md#enter.
-        """
-        if self.g.relation_of(e.proposition) is not self.SUPPOSE or e.sign != PLUS:
-            return
-        if e.node in self._enacted or self.g.has_var(e.proposition):
-            return
-        # Bounds, and each reports that it was hit rather than stopping silently
-        # (§13). Depth recurses by construction: a wrapped conclusion carried out
-        # of one frame proposes the next.
-        if len(self.focus.ancestry()) > self._knob(self.DEPTH, self.max_depth):
-            self.exhausted += 1
-            self._note(self.g.rel(self.BOUNDED, self.DEPTH))
-            return
-        if len(self._supposed) >= self._knob(
-                self.HYPOTHESES, self.supposition_budget):
-            self.exhausted += 1
-            self._note(self.g.rel(self.BOUNDED, self.HYPOTHESES))
-            return
-        assumption, wrap = self.g.members(e.proposition)
-        self._enacted.add(e.node)
-        # ⭐⭐⭐ Whether to suppose again is REASONING, and it was Python. ⚠ The
-        # first repair was worse: a Python test for *was this licensed by
-        # again*, which put the decision back in the machinery one layer down.
-        # → docs/design/machine.md#whether-to-suppose-again-is-reasoning-and
-        self._supposed.add(assumption)
-        self.suppose(assumption, wrap=wrap)
 
     def _fit(self, frame: Frame, e: Entry) -> None:
         """Answer a match request (§5's wall, from the side that can be crossed).
@@ -1263,55 +1180,6 @@ class Machine:
             if e is not None and e.sign == PLUS:
                 return node
         return None
-
-    def _own_frame(self) -> Frame:
-        """Where the agent itself is standing, as opposed to where its reasoning
-        currently is.
-
-        Climb out of every supposition in the register's ancestry. What is left
-        is the outermost frame that is not a hypothesis -- the agent's own seat,
-        and the only place a report from the world may land.
-
-        This is derived, not a second register. §4 allows exactly one privileged
-        pointer, and a second one for *the agent's own position* would have been
-        the easy wrong answer: the position is recoverable from the forest, so it
-        does not need to be held.
-        """
-        f = self.focus
-        while (
-            f.parent is not None
-            and f.purpose is not None
-            and self.g.relation_of(f.purpose) is self.SUPPOSING
-        ):
-            f = f.parent
-        return f
-
-    def _leave(self) -> bool:
-        """The loop has nothing more to do inside the current supposition, so
-        carry its conclusions out and restore the register.
-
-        This is not a phase over a convention -- it is the register's own
-        discipline. Something entered; something must restore. What it does while
-        restoring *is* convention (§16's re-wrap), and it cannot be a rule for
-        §17's reason: reading another frame's conclusions is match with an
-        explicit anchor, and an anchor is exactly what a generic rule cannot name.
-        """
-        frame = self.focus
-        if frame.parent is None or frame.wrap is None:
-            return False
-        self.discharge(frame, frame.wrap)
-        # Returning is an OCCASION, and the smallest unarguable record of it is
-        # that this frame, assuming this, is over. Nothing here says what follows
-        # -- `<resuming>` and whatever a corpus hangs on the hypothesis do that.
-        # This is the same split as `arrived` and `emitted`: crossing is
-        # machinery because a frame is anchored and a rule is generic; what the
-        # crossing MEANS was never the machinery's to say.
-        (assumption,) = self.g.members(frame.purpose) if frame.purpose is not None else (frame.node,)
-        self.gate.write(
-            self.focus, self.g.rel(self.LEFT, frame.node, assumption), PLUS,
-            licence=self.g.rel(self.CONCLUDED, frame.node), source=self.KB,
-        )
-        return True
 
     def _wants(self, app) -> set:
         """Which goals this application is a way of serving.
@@ -1932,16 +1800,6 @@ class Machine:
             return
         self._acted.add(e.node)
         (what,) = self.g.members(e.proposition)
-        if self._hypothetical(frame):
-            # Supposing something must not bring it about.
-            # →
-            # docs/design/machine.md#supposing-something-must-not-bring-it-about
-            self.gate.write(
-                frame, self.g.rel(self.TAKEN, what), "+",
-                licence=self.g.instance(self.UTTERANCE, self.KB, what),
-                source=self.KB, consumed=(e,),
-            )
-            return
         if self.replaying:
             # ⚠⚠⚠ Replaying a session must not re-do it.
             # → docs/design/machine.md#replaying-a-session-must-not-re-do-it-t
@@ -1983,15 +1841,6 @@ class Machine:
         (node,) = self.g.members(e.proposition)
         if any(r.node == node for r in self.rules.rules):
             return  # already live -- restating is not revising (§8)
-        if self._hypothetical(frame):
-            refusal = self.g.rel(
-                self.REFUSED, e.proposition, self.chain.SIGN[PLUS],
-                frame.purpose or self.g.rel(self.SUPPOSING, node),
-            )
-            if self.chain.resolve(refusal, frame.topic, frame.seat) is None:
-                self.gate.write(frame, refusal, PLUS, licence=e.node,
-                                source=self.KB, mention=True)
-            return
         built = self._read_rule(frame, node)
         if built is None:
             return
@@ -2026,15 +1875,6 @@ class Machine:
         if first is None or second is None:
             # Not live rules. `None` is a real answer (§17) -- a tool that must
             # answer everything is one nothing can decline.
-            return None
-        if self._hypothetical(frame):
-            refusal = self.g.rel(
-                self.REFUSED, e.proposition, self.chain.SIGN[PLUS],
-                frame.purpose or self.g.rel(self.SUPPOSING, e.proposition),
-            )
-            if self.chain.resolve(refusal, frame.topic, frame.seat) is None:
-                self.gate.write(frame, refusal, PLUS, licence=e.node,
-                                source=self.KB, mention=True)
             return None
         self.rules.inherit = []
         composed = self.rules.compose(first, second)
@@ -2114,20 +1954,6 @@ class Machine:
             return None  # a rule that concludes nothing is not a rule
         return connective, side(self.ANT), con
 
-    def _hypothetical(self, frame: Frame) -> bool:
-        """Is this frame inside a supposition? Derived from the forest, not held.
-
-        §4 allows one privileged pointer and this is not a second one: the
-        purpose of every frame on the path to the root already says whether it
-        was entered by supposing.
-        """
-        f: Optional[Frame] = frame
-        while f is not None:
-            if f.purpose is not None and self.g.relation_of(f.purpose) is self.SUPPOSING:
-                return True
-            f = f.parent
-        return False
-
     def _expect(self, frame: Frame, proposition: NodeId, sign: str, licence: NodeId) -> None:
         """Forward application deposits what it predicts (§16).
 
@@ -2149,83 +1975,6 @@ class Machine:
     # used to be here: _expand_goal, the last interpreter phase, deleted in
     # nophases.
     # → docs/design/machine.md#backward-reading
-
-    def discharge(self, frame: Frame, wrap: NodeId, limit: int = 100) -> List[Entry]:
-        """Run to quiescence inside, then carry conclusions out **wrapped**.
-
-        Nothing leaves a frame (§13). What crosses is a claim *about* what was
-        concluded under the supposition -- `likely(q)` at the caller's seat, never
-        `q`. The caller knows it was working under a guard; the rules inside never
-        had to.
-
-        This used to begin with `self.run(limit)` -- a nested loop that owned the
-        agent until the supposition was exhausted. It does not any more: the
-        caller is `_leave`, which runs when the ordinary loop has already found
-        nothing more to do inside.
-        """
-        inside = []
-        m: Optional[Moment] = self.focus.seat
-        while m is not None and m is not frame.origin.predecessor:
-            inside.append(m)
-            m = m.predecessor
-        assumption_licence = frame.purpose
-
-        out: List[Entry] = []
-        parent = frame.parent or frame
-        self.focus = parent
-        # Which hypothesis produced which conclusion.
-        # →
-        # docs/design/machine.md#which-hypothesis-produced-which-conclusion-it-w
-        recorded: set = set()
-        for moment in reversed(inside):
-            for e in moment.delta:
-                if e.licence == assumption_licence:
-                    continue  # the assumption itself is not a conclusion
-                if self.g.relation_of(e.proposition) in self._bookkeeping:
-                    # A request to suppose is not a claim about the world, so
-                    # there is nothing for the wrapper to qualify. Carrying it
-                    # out produces `likely(suppose(...))`, which the rule that
-                    # crosses guards then crosses -- the machinery supposing its
-                    # own bookkeeping, forever.
-                    continue
-                # ⭐⭐⭐ Carried across the situation boundary, by atom.
-                # →
-                # docs/design/machine.md#carried-across-the-situation-boundary-by
-                inner = self.g.carry(e.proposition, parent.situation)
-                sign = e.sign
-                if sign == MINUS:
-                    inner, sign = self.g.rel(self.NOT, inner), PLUS
-                crossed = self.g.rel(wrap, inner)
-                out.append(
-                    self.gate.write(
-                        parent,
-                        crossed,
-                        sign,
-                        licence=self.g.rel(self.CONCLUDED, frame.node),
-                        source=self.KB,
-                        consumed=(e,),
-                        # A mention carried out of a frame is still a mention.
-                        # Dropping it here made the gate refuse a conclusion
-                        # ABOUT a rule the moment one was drawn under a
-                        # hypothesis -- §14's propagation, with a hole in it at
-                        # the one place conclusions change hands.
-                        mention=e.mention,
-                    )
-                )
-                # PLUS whatever the conclusion's own sign was: this is not the
-                # claim, it is the record that this frame reached it. A frame
-                # that concluded `?q` still concluded something.
-                if crossed not in recorded:
-                    recorded.add(crossed)
-                    self.gate.write(
-                        parent, self.g.rel(self.CONCLUDED, frame.node, crossed), PLUS,
-                        licence=self.g.rel(self.CONCLUDED, frame.node),
-                        source=self.KB, mention=True,
-                    )
-        frame.state = "discharged"
-        self._forget_spent(frame)
-        frame.carried = out
-        return out
 
     # -- the loop ---------------------------------------------------------
 
@@ -2398,21 +2147,10 @@ class Machine:
 
         See docs/design/machine.md#deliver.
         """
-        own = self._own_frame()
-        # ⭐⭐⭐ And the same argument one layer down, which situations made
-        # visible.
-        # → docs/design/machine.md#and-the-same-argument-one-layer-down-whic
-        with self.g.standing_in(own.situation):
-            self._report(own, a)
+        self._report(self.focus, a)
 
     def _report(self, own: Frame, a: Arrival) -> None:
-        """The body of `_deliver`, standing in the agent's own situation."""
-        if own is not self.focus:
-            # The register is inside a hypothesis and the world has spoken.
-            # →
-            # docs/design/machine.md#the-register-is-inside-a-hypothesis-and-the-worl
-            self.gate.reseat(own, self.chain.succeed(own.seat, self.KB),
-                             licence=self.KB, source=a.channel)
+        """The body of `_deliver`."""
         utterance = self.g.instance(self.UTTERANCE, a.channel, a.proposition)
         report = self.g.rel(
             self.ARRIVED, a.channel, a.proposition, self.rules.SIGN[a.sign]

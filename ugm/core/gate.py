@@ -8,7 +8,7 @@ See docs/design/gate.md.
 from typing import Callable, List, Optional, Tuple
 
 from .chain import PLUS, Chain, Entry, Moment
-from .graph import ROOT_SITUATION, Graph, NodeId, SituationId
+from .graph import Graph, NodeId
 
 
 class Frame:
@@ -26,24 +26,10 @@ class Frame:
         parent: Optional["Frame"] = None,
         purpose: Optional[NodeId] = None,
         wrap: Optional[NodeId] = None,
-        situation: SituationId = ROOT_SITUATION,
     ) -> None:
         self.node = node
         self.seat = seat
         self.topic = topic
-        # ⭐⭐⭐ The third thing a frame supplies, beside the seat and the topic
-        # (docs/situations.md). A rule cannot name a situation any more than it
-        # can name a locus, so this is where one comes from.
-        # → docs/design/gate.md#the-third-thing-a-frame-supplies-beside-t
-        self.situation = situation
-        # ...and where the frame's own NODE lives, which is not the same
-        # situation and must not be. A hypothesis reasons inside its branch; the
-        # thing that opened it talks about it from outside, so `frame(seat,
-        # topic)` is minted where the caller stands. `reseat` re-mints it, and
-        # re-minting it at `situation` would make a frame that had advanced
-        # unnameable by the caller that opened it -- which is `left(?f, ?a)`
-        # silently matching nothing.
-        self.home = situation
         self.parent = parent
         self.purpose = purpose
         # What a conclusion is re-wrapped in on the way out (§16). Held on the
@@ -118,17 +104,10 @@ class Gate:
         parent: Optional[Frame] = None,
         purpose: Optional[NodeId] = None,
         wrap: Optional[NodeId] = None,
-        situation: Optional[SituationId] = None,
     ) -> Frame:
         """A frame is `frame(seat, topic)` -- two ordered members, structurally
         identical to a span. The engine learns no new relation name from it; what
         it needs is one register, which is the machine's `focus`.
-
-        ⚠ The situation defaults to **the register's**, not to a fresh branch. A
-        frame is not a hypothesis; most of them are the ordinary business of
-        being somewhere, and cutting a situation for each would make the caller
-        unable to see its own work. `Machine.suppose` is what branches, because
-        supposing is what needs containing.
         """
         topic = seat if topic is None else topic
         if not seat.at_or_after(topic):
@@ -139,15 +118,8 @@ class Gate:
         # `instance`, not `rel`: two processes reasoning at the same seat about
         # the same topic are two frames, and §17 needs each to be a node other
         # facts can be about -- a purpose, a parent, a state.
-        # Minted at the REGISTER's situation and not at the new frame's, which
-        # matters exactly for a supposition: `left(?f, ?a)` and
-        # `concluded(?f, ?c)` are the caller's claims about the hypothesis it
-        # opened, so the node they are about has to be one the caller can see.
         node = self.g.instance(self.FRAME, seat.node, topic.node)
-        f = Frame(node, seat, topic, parent, purpose, wrap,
-                  self.g.situation if situation is None else situation)
-        f.home = self.g.situation
-        return f
+        return Frame(node, seat, topic, parent, purpose, wrap)
 
     def reseat(self, frame: Frame, seat: Moment,
                licence: Optional[NodeId] = None,
@@ -167,11 +139,7 @@ class Gate:
         frame.seat = seat
         if follow_topic:
             frame.topic = seat
-        was_sit, self.g.situation = self.g.situation, frame.home
-        try:
-            frame.node = self.g.instance(self.FRAME, frame.seat.node, frame.topic.node)
-        finally:
-            self.g.situation = was_sit
+        frame.node = self.g.instance(self.FRAME, frame.seat.node, frame.topic.node)
         self.write(frame, self.g.rel(self.MOVED, was.node, seat.node), PLUS,
                    licence=licence, source=source)
 
@@ -212,45 +180,30 @@ class Gate:
             if forbidding is None:
                 continue
             self.refusals += 1
-            # Pinned like the ordinary deposit below, and for the same reason: a
-            # refusal is the record of a gate decision made INSIDE whatever was
-            # reasoning, so a hypothesis that was stopped from writing something
-            # should not leave the evidence outside itself.
-            was_sit, self.g.situation = self.g.situation, frame.situation
-            try:
-                return self.chain.deposit(
-                    seat=frame.seat,
-                    locus=frame.topic if locus is None else locus,
-                    proposition=self.g.rel(
-                        self.REFUSED, proposition, self.chain.SIGN[sign], forbidding
-                    ),
-                    sign="+",
-                    licence=forbidding,
-                    source=source,
-                    consumed=tuple(x.node for x in consumed),
-                    mention=True,
-                )
-            finally:
-                self.g.situation = was_sit
-
-        self.writes += 1
-        # ⭐ Pinned to the frame's situation for the deposit, and only for the
-        # deposit. ⚠ The hooks run OUTSIDE the pin.
-        # → docs/design/gate.md#pinned-to-the-frame-s-situation-for-the-deposi
-        was_sit, self.g.situation = self.g.situation, frame.situation
-        try:
-            e = self.chain.deposit(
+            return self.chain.deposit(
                 seat=frame.seat,
                 locus=frame.topic if locus is None else locus,
-                proposition=proposition,
-                sign=sign,
-                licence=licence,
+                proposition=self.g.rel(
+                    self.REFUSED, proposition, self.chain.SIGN[sign], forbidding
+                ),
+                sign="+",
+                licence=forbidding,
                 source=source,
-                consumed=tuple(e.node for e in consumed),
-                mention=mention,
+                consumed=tuple(x.node for x in consumed),
+                mention=True,
             )
-        finally:
-            self.g.situation = was_sit
+
+        self.writes += 1
+        e = self.chain.deposit(
+            seat=frame.seat,
+            locus=frame.topic if locus is None else locus,
+            proposition=proposition,
+            sign=sign,
+            licence=licence,
+            source=source,
+            consumed=tuple(e.node for e in consumed),
+            mention=mention,
+        )
         for hook in self.on_write:
             hook(frame, e)
         return e

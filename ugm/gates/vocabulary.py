@@ -35,13 +35,13 @@ ROLES: Dict[str, List[str]] = {
                       "composed", "computes", "names", "binds", "exercised",
                       "overrides", "supersedes", "defeated"],
     # The agent reasoning about its own reasoning: goals, plans, backward
-    # reading, recall, supposing, effort, stopping, credit.
+    # reading, recall, effort, stopping, credit.
     "the agent's deliberation": [
         "goal", "plan", "subgoal", "check", "fit", "fits", "unfit", "unmet",
         "verdict", "blocked", "pursued", "expands", "need", "recall",
-        "recalled", "achieved", "enough", "stopped", "quiet", "open", "left",
-        "resume", "again", "suppose", "hypotheses", "budget", "depth",
-        "close", "forgone", "helped", "harmed", "concluded",
+        "recalled", "achieved", "enough", "stopped", "quiet", "open",
+        "again", "budget",
+        "close", "forgone", "helped", "harmed",
         "reached", "bounded", "widened", "support", "unsupported", "root",
         "rooted", "scoped", "loaded", "kb", "dormant", "due", "standing",
         # The aggregate over bindings, which is what `blocked`, `rooted` and

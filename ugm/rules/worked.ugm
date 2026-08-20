@@ -30,14 +30,6 @@ rule <trust_user> = implies(
     { +says(user, ?p, plus) },
     { +likely(?p) } )
 
-# ⭐ And the crossing, which is what a grade used to do for free. Supposing
-# UNWRAPS: inside the frame the assumption is an ordinary fact and the ordinary
-# rules apply to it by ordinary matching, so no rule needs a lifted twin. What
-# is concluded comes back out wrapped, which is the weakest link as structure.
-rule <cross> = implies(
-    { +likely(?p) },
-    { +suppose(?p, likely) } )
-
 # Standing knowledge, stamped as having come from the knowledge base.
 fact +heat(anna, kettle)
 fact +water(kettle)

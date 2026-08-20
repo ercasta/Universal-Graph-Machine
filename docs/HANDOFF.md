@@ -1,3 +1,113 @@
+# Handoff — 2026-08-20t (situations retired)
+
+On top of `60c17e9`. **-1,949 lines, +206.**
+
+    selftest          534/0   (was 641; 107 checks went with the mechanism)
+    ./tools_sweep.sh  2 failing, 25 run    <- see below, and NEITHER is trivial
+    core/graph.py     701 -> 355 lines
+
+The queued deletion in `docs/todo.md`, taken as the author decided it: **delete
+situations only.** No swap-back, no mark/revert, no refraction-via-
+materialisation. Hypothetical reasoning is now the regular graph.
+
+## What went
+
+    core/graph.py    the situation register, `_sit_parent`/`_sit_born`/`_sit_of`/
+                     `_vis`, `branch`, `standing_in`, `_visible`, `visible`,
+                     `situation_of`, `_bucket` and the bucket-merge cache.
+                     ⭐ ...and the ENTIRE ATOM LAYER with it -- `_atom`,
+                     `_node_by_atom`, `_atom_members`, `_atom_leaf`, `atom_of`,
+                     `node_of`, `carry`, `rebuild`. It existed only to move a
+                     node between situations; nothing else ever read it.
+                     Both indices lose a key component; `_interned` is
+                     `(rel, members)`; `_identity`/`_mentions` lose the situation.
+    core/gate.py     `Frame.situation`, `Frame.home`, and all three pin/restore
+                     blocks in `write` and `reseat`.
+    core/chain.py    `Entry.patom`/`latom`/`satom`, `Moment.watermark`,
+                     `Chain.materialise`.
+    core/machine.py  `suppose`, `_enter`, `discharge`, `_hypothetical`,
+                     `_own_frame`, `_leave`, the situation half of the `focus`
+                     setter, and the `suppose`/`supposing`/`concluded`/`left`/
+                     `resume`/`hypotheses`/`depth` vocabulary.
+    core/attention.py  both `m._leave()` calls in the table loop.
+    corpora          `bundle.ugm`'s callback section (`<resuming>`),
+                     `worked.ugm`'s `<cross>`.
+
+## ⚠⚠⚠ What it COST, recorded as checks rather than conceded in prose
+
+Every one of these is now a comment in the suite at the site of the check it
+replaced, so the loss is findable from the thing that used to prove it:
+
+    containment                  a conclusion drawn while hypothesising is
+                                 ordinary belief. There is nothing to contain.
+    the weakest link as STRUCTURE  two uncertain premises used to give
+                                 `likely(possible(c(t)))`. Anchored rules cannot:
+                                 the two anchors are different, and a rule
+                                 needing both fires in neither.
+    denial nesting               `-b` under a `likely` supposition crossed out as
+                                 `likely(not(b))`. Nothing re-wraps now, so §16's
+                                 claim is true and unenforced.
+    planning without acting      `doing(...)` inside a hypothesis wrote
+                                 `taken(...)` instead of emitting. Now it emits.
+                                 Not acting while planning is a corpus's
+                                 discipline.
+    `enough` ending a BRANCH     there is nothing smaller than the run to end.
+    adopt/compose containment    a rule adopted or composed while supposing was
+                                 REFUSED, because one rule set is shared by every
+                                 frame. **The guard is gone rather than
+                                 satisfied.**
+    a containable MERGE          `merge(a, b, s=branch)` was invisible outside the
+                                 branch. A merge is now unconditional and there is
+                                 no un-merge.
+    referring to a hypothesis    `left(?frame, ?a)` bound the occasion of leaving
+                                 one, so a corpus could name a hypothesis it was
+                                 never given a name for.
+
+⭐ The suite went 641 -> 534 and **0 of the 107 lost checks were deleted in
+silence** -- eight groups went whole, and every check that survived in a changed
+form says at its own site what changed.
+
+## ⚠⚠ The sweep is 2 failing, and both are worth reading
+
+**`learning.practice` -- 8 of 14 checks, and it CRASHES.** The module's whole
+subject is *rehearse, review, carry forward -- and never act*, with the register
+left standing inside the rehearsal and cost charged to the frame. That is
+supposition, and there is no anchored rewrite of it in this commit.
+
+> ⚠⚠⚠ **`docs/todo.md`'s inventory said *No production module builds on
+> suppositions*, and that is measurably false.** The measurement that found it
+> is in the same file: `learning.practice` ran 66% of its aggregate asks and 59%
+> of its index reads inside a hypothesis, more than any other module by an order
+> of magnitude. The inventory was taken before that measurement existed.
+> **Decide it explicitly: rewrite `practice` on the anchored shape, or retire
+> it.**
+
+**`gates.state` -- 1 state and 1 index disagreement, and it is PRE-EXISTING.**
+`the_index_agrees_with_the_walk` needed a third `causes` rule to reach six
+moments, because supposing was what used to make its chain deep. With that rule
+the gate reports *same entries, different order* at one mid-run look:
+
+    kept   1678 quiet(moment())  locus depth 4
+    walk   1543 q(one)           locus depth 2
+
+Verified against the ORIGINAL engine, same fixture shape: **1 state and 1 index
+disagreement there too.** So one added `causes` rule found a latent ordering
+disagreement in the revision-at-an-earlier-locus case that no fixture had ever
+reached -- and `gates.state`'s standing *0 disagreements over 7,359 looks* was
+partly a statement about the fixtures.
+
+⚠ Not fixed here, deliberately: it is a different defect from this one, and the
+brief was one thing at a time. It is the first thing to pick up.
+
+## Two simplifications now AVAILABLE and not taken
+
+    `Moment.at_or_after`     nothing forks the chain any more, so `resolve`'s own
+                             comment -- *a depth comparison cannot replace it
+                             once anything forks* -- no longer applies.
+    `Frame`                  `parent`, `purpose`, `wrap` and `carried` have no
+                             second case left. §18's call stack is FACTS, so
+                             check that before assuming `Frame` can go.
+
 # Handoff — 2026-08-20s (`_in_play`, the `tolerance` knob, and `modality` retired)
 
 On top of `d3d802e`. **-554 lines, +36.**

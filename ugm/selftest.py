@@ -41,110 +41,6 @@ def substrate() -> None:
     check("§3", "a ground proposition is not", not g.has_var(p1))
 
 
-def situations() -> None:
-    """`docs/situations.md`, stages one and two: two identities per node, and
-
-    both indices keyed by the branch that minted into them. The defect this
-    closes was not in the read. ⚠ The cap is what makes a situation a branch
-    rather than a window.
-
-    See docs/design/selftest.md#situations.
-    """
-    g = Graph()
-    on, a, b, c = g.atom("on"), g.atom("a"), g.atom("b"), g.atom("c")
-    shared = g.rel(on, a, b)
-
-    s1 = g.branch()
-    g.situation = s1
-    check("situations", "a branch sees what its ancestor had at the cut",
-          g.find_rel(on, a, b) == shared and shared in g.instances_of(on))
-    inside = g.rel(on, b, c)
-    check("situations", "and mints its own into itself",
-          g.situation_of(inside) == s1)
-
-    g.situation = 0
-    check("situations", "⭐⭐⭐ the ancestor does not see the branch's -- which is "
-                        "the whole defect, and it is the INDEX that closes it",
-          g.find_rel(on, b, c) is None and inside not in g.instances_of(on))
-    check("situations", "...nor by argument position, which is the other index "
-                        "and the one the structural walkers actually enumerate",
-          inside not in g.instances_with(on, 0, b))
-
-    # The cap. Minted in the ancestor AFTER s1 was cut, so it is not in s1.
-    later = g.rel(on, c, a)
-    g.situation = s1
-    check("situations", "⚠ a branch is a branch, not a window: what the ancestor "
-                        "mints after the cut is a later commit elsewhere",
-          later not in g.instances_of(on) and g.find_rel(on, c, a) is None)
-
-    # Siblings. Both cut from the root, neither on the other's walk.
-    g.situation = 0
-    s2 = g.branch()
-    g.situation = s2
-    twin = g.rel(on, b, c)
-    check("situations", "two situations that build the same shape are two nodes, "
-                        "and nothing forces them to agree it is one relationship",
-          twin != inside)
-    check("situations", "siblings do not see each other",
-          inside not in g.instances_of(on) and not g.visible(inside, s2))
-
-    # Mint order survives the merge, because it is what every tie-break rests on.
-    g.situation = s1
-    order = g.instances_of(on)
-    check("situations", "a merged bucket is still in mint order, so a derivation "
-                        "that ends in a tie breaks it the same way every run",
-          order == sorted(order))
-
-    # -- atoms ----------------------------------------------------------
-    check("situations", "every node has an atom, compounds included -- a delta "
-                        "names `healthy(paul)` as much as it names `paul`",
-          all(isinstance(g.atom_of(n), int) for n in (a, shared, inside)))
-    check("situations", "an atom is minted, never derived from the members' -- "
-                        "so a shape two situations both built is not one thing",
-          g.atom_of(twin) != g.atom_of(inside))
-    check("situations", "a node answers `?x@S` in its own situation",
-          g.node_of(g.atom_of(inside), s1) == inside)
-    check("situations", "and nowhere it has not been",
-          g.node_of(g.atom_of(inside), s2) is None)
-
-    landed = g.carry(inside, s2)
-    check("situations", "⭐ carrying establishes the correspondence -- an ACT, "
-                        "which is the only thing that ever establishes one",
-          g.node_of(g.atom_of(inside), s2) == landed)
-    check("situations", "...and it lands on what the target already had, because "
-                        "within a situation the same relationship is one node",
-          landed == twin)
-
-    g.situation = 0
-    check("situations", "carrying into a sibling changed nothing here",
-          g.find_rel(on, b, c) is None)
-
-    # ⭐ **Branching from an arbitrary past commit**, which the design lists
-    # among what this buys and which was absent rather than merely hard. A
-    # moment is a commit, so a moment is what a cut is expressed in: the node
-    # counter as it stood when that moment was made.
-    m = Machine()
-    r = m.g.atom("r")
-    then = m.chain.succeed(m.chain.root, None)
-    early = m.g.rel(r, m.g.atom("e"))
-    now = m.chain.succeed(then, None)
-    late = m.g.rel(r, m.g.atom("l"))
-
-    at_now = m.g.branch(m.g.situation, born=now.watermark)
-    at_then = m.g.branch(m.g.situation, born=then.watermark)
-    m.g.situation = at_now
-    check("situations", "a situation cut at a past moment sees the world as of "
-                        "then -- a moment is a commit, and this is the checkout",
-          early in m.g.instances_of(r) and late not in m.g.instances_of(r))
-    m.g.situation = at_then
-    check("situations", "...and one cut earlier sees less, which is the only "
-                        "thing that makes the first check about the moment",
-          early not in m.g.instances_of(r))
-
-
-# -- §4, §5, §6 moments, entries, signs -------------------------------------
-
-
 def chain_reads() -> None:
     m = Machine()
     g, c = m.g, m.chain
@@ -261,55 +157,33 @@ def uncertainty_is_a_proposition() -> None:
     check("§10", "`@` is refused, and says what to write instead",
           _refuses("rule <r> = implies( { +p(a) }, { +q(a) @likely } )"))
 
-    # Crossing: what a grade did for free, as two corpus lines. ⭐ Supposing
-    # UNWRAPS, so `<wet>` needs no lifted twin -- it is the bare rule, matching
-    # a bare fact, inside the frame.
+    # Crossing: what a grade did for free, as corpus lines. ⚠ Since situations
+    # went, the rule is written ANCHORED -- `holds_in(?w, ...)` on both sides --
+    # because there is no frame to unwrap the assumption into. The uncertainty
+    # is still a proposition a rule can read; what changed is that carrying it
+    # is the corpus's to write. See `docs/descriptions-to-rules.md` for the
+    # five-rule compiler that writes the anchored twin from the bare rule.
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
-        "rule <wet> = implies( { +rain(?x) }, { +wet(?x) } )",
-        "fact +likely(rain(street))", ""]))
+        "rule <wet> = implies( { +holds_in(?w, rain(?x)) },",
+        "                      { +holds_in(?w, wet(?x)) } )",
+        "fact +holds_in(likely, rain(street))", ""]))
     m.run(limit=80)
     check("§12", "an uncertain premise carries its uncertainty to the "
           "conclusion -- as a WRAPPER a rule can read, not a field it cannot",
-          m.holds(kb.term("likely(wet(street))")) == PLUS)
+          m.holds(kb.term("holds_in(likely, wet(street))")) == PLUS)
     check("§12", "...and the bare conclusion is never asserted, so nothing "
           "downstream can quietly treat it as certain",
           m.holds(kb.term("wet(street)")) is None)
 
-    # ⭐⭐⭐ Two independent uncertainties: the weakest link as STRUCTURE. `min`
-    # gave one ordinal and threw away which premises were weak; nesting keeps
-    # both, and which is weaker is a claim a corpus makes.
-    two = Machine()
-    kb2 = load(two, chr(10).join([
-        "rule <c1> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
-        "rule <c2> = implies( { +possible(?p) }, { +suppose(?p, possible) } )",
-        "rule <both> = implies( { +a(?x), +b(?x) }, { +c(?x) } )",
-        "fact +likely(a(t))",
-        "fact +possible(b(t))", ""]))
-    two.run(limit=300)
-    check("§12", "⭐ two uncertain premises give a NESTED conclusion -- the "
-          "weakest link as structure, where min gave a number and forgot which "
-          "premise was weak",
-          two.holds(kb2.term("likely(possible(c(t)))")) == PLUS
-          and two.holds(kb2.term("c(t)")) is None)
-
-    # ⚠ And the price, stated as a check rather than as a caveat: collapsing the
-    # nest is a corpus's table, and its ORDERING is a corpus's claim. `min` was
-    # free and unarguable; this costs a line per pair and can be argued with,
-    # which is the whole of the trade.
-    collapsed = Machine()
-    kb3 = load(collapsed, chr(10).join([
-        "rule <c1> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
-        "rule <c2> = implies( { +possible(?p) }, { +suppose(?p, possible) } )",
-        "rule <both> = implies( { +a(?x), +b(?x) }, { +c(?x) } )",
-        "rule <weakest> = implies( { +likely(possible(?x)) }, { +possible(?x) } )",
-        "fact +likely(a(t))",
-        "fact +possible(b(t))", ""]))
-    collapsed.run(limit=300)
-    check("§12", "...and a corpus collapses the nest by saying which of its own "
-          "modalities is the weaker -- the ordinal, authored rather than built in",
-          collapsed.holds(kb3.term("possible(c(t))")) == PLUS)
+    # ⚠⚠⚠ **What went with situations, recorded rather than quietly dropped.**
+    # Two independent uncertainties used to give a NESTED conclusion --
+    # `likely(possible(c(t)))` -- because each supposition unwrapped its own
+    # premise into one frame and discharge re-wrapped what came out. Anchored
+    # rules cannot reproduce it: `holds_in(likely, a(t))` and
+    # `holds_in(possible, b(t))` are in two anchors, and a rule needing both
+    # fires in neither. **The weakest link as structure is a capability this
+    # deletion cost**, and nothing here replaces it.
 
 
 # -- §8, §14 rules, match, arbitration --------------------------------------
@@ -674,27 +548,16 @@ def denial_nests() -> None:
 
     m = Machine()
     kb = load(m, "rule <r> = implies( { +a(x) }, { -b(x) } )")
-    f = m.suppose(kb.term("a(x)"), wrap=kb.term("likely"))
-    m.run(limit=20)
+    # ⚠⚠⚠ **What went with situations.** A denial concluded under a supposition
+    # used to cross out INSIDE the wrapper -- `likely(not(b(x)))` and never
+    # `-likely(b(x))` -- and that was `discharge` re-wrapping on the way out.
+    # With no frame there is no way out and nothing to re-wrap, so the sign
+    # stays a sign. **The claim §16 makes is still true and nothing in the
+    # engine now enforces it**; a corpus that wants the distinction writes
+    # `not(...)` itself. Recorded here rather than deleted in silence.
 
-    likely = kb.term("likely")
-    b = kb.term("b(x)")
-    check(
-        "§9",
-        "a denial concluded under a supposition crosses out INSIDE the wrapper",
-        [(e.sign, m.g.show(e.proposition)) for e in f.carried]
-        == [(PLUS, "likely(not(b(x)))")],
-    )
-    check(
-        "§16",
-        "so *probably not-b* and *not probably-b* stay different claims",
-        m.holds(m.g.rel(likely, m.g.rel(m.NOT, b))) == PLUS
-        and m.holds(m.g.rel(likely, b)) is None,
-    )
-
-    # And the two forms are one claim, so a corpus need not know which it is
-    # looking at. Crossing back into a supposition unwraps to the term; the rules
-    # inside are written against the sign.
+    # The two forms are one claim, so a corpus need not know which it is
+    # looking at. The rules are written against the sign.
     m2 = Machine()
     kb2 = load(m2, "rule <s> = implies( { -b(x) }, { +noticed(x) } )")
     m2.gate.write(m2.focus, m2.g.rel(m2.NOT, kb2.term("b(x)")), PLUS)
@@ -1322,7 +1185,7 @@ def worked_examples() -> None:
     m = Machine()
     kb = load_file(m, path)
     authored = [r for r in m.rules.rules if r not in m.bundle]
-    check("§8", "the document's worked rules parse", len(authored) == 4)
+    check("§8", "the document's worked rules parse", len(authored) == 3)
 
     steps = m.run(limit=30)
     check("§15", "and run to quiescence", steps[-1].state == "quiescent")
@@ -1385,200 +1248,6 @@ def rules_as_data() -> None:
     except ValueError:
         ok = True
     check("§13", "mention is a gate parameter, not a hole in the gate", ok)
-
-
-def supposing() -> None:
-    """§13's frames, used for modality: enter the guard, reason bare, wrap on
-    the way out. The alternative to a lifting rule, and it does what lifting
-    cannot -- work over rules that carry variables."""
-    from .core.text import load
-
-    src = chr(10).join([
-        "rule <sympt> = implies( { +reading(?p, low) },        { +symptom(?p, restricted) } )",
-        "rule <cause> = implies( { +symptom(?p, restricted) }, { +diag(?p, blocked) } )",
-        "rule <act>   = implies( { +diag(?p, blocked) },       { +action(replace, ?p) } )",
-        "",
-    ])
-    m = Machine()
-    kb = load(m, src)
-    low_water = m.g.count()
-    f = m.suppose(kb.term("reading(pump7, low)"), wrap=kb.term("likely"))
-    check("§13", "supposing seats the frame in a successor", f.seat.predecessor is f.parent.seat)
-    check("§13", "and the frame is a child of the caller", f.parent is not None)
-    check("situations", "supposing cuts a branch of the GRAPH as well as a "
-                        "successor of the chain",
-          f.situation != f.parent.situation
-          and m.g.situation_parent(f.situation) == f.parent.situation)
-    check("situations", "...and the frame's own node stays where the CALLER can "
-                        "name it, or `left(?f, ?a)` would match nothing",
-          m.g.visible(f.node, f.parent.situation))
-
-    # No nested run: reasoning inside a supposition is ordinary ticks of the
-    # ordinary loop, and the frame is left when the loop runs out of work there.
-    m.run(limit=30)
-    check("§13", "conclusions come out wrapped", len(f.carried) == 3)
-    check(
-        "§12",
-        "supposing lifts modality over rules with VARIABLES, which lifting cannot",
-        m.holds(kb.term("likely(symptom(pump7, restricted))")) == PLUS,
-    )
-    check("§12", "across the whole chain", m.holds(kb.term("likely(action(replace, pump7))")) == PLUS)
-    check(
-        "§17",
-        "containment: nothing concluded inside is readable as current belief",
-        m.holds(kb.term("symptom(pump7, restricted)")) is None
-        and m.holds(kb.term("action(replace, pump7)")) is None,
-    )
-
-    # ⭐⭐⭐ And containment now covers STRUCTURE, which is what
-    # docs/situations.md was written about.
-    # → docs/design/selftest.md#and-containment-now-covers-structure-whic
-    inside = [n for n in range(low_water, m.g.count())
-              if m.g.situation_of(n) == f.situation]
-    check(
-        "situations",
-        f"⭐⭐⭐ ...and over STRUCTURE: {len(inside)} nodes were minted inside the "
-        "hypothesis and the caller can see none of them",
-        len(inside) > 20 and not any(m.g.visible(n, f.parent.situation) for n in inside),
-    )
-    # ⚠ The honest limit, and it is a consequence of §16's re-wrap rather than a
-    # hole. `likely(q)` names `q`, so a caller that carried a conclusion out has
-    # `q` in its own situation -- freshly minted there by `carry`, not the
-    # hypothesis's node leaking. What is contained is everything the caller did
-    # NOT deliberately take; what it took, it is talking about.
-    crossed = m.g.member(f.carried[0].proposition, 0)
-    check(
-        "situations",
-        "⚠ what the caller carried out, it can see -- as its OWN node, minted "
-        "in its own situation, never the hypothesis's",
-        m.g.situation_of(crossed) == f.parent.situation and crossed not in inside,
-    )
-    check("§13", "the caller is back in its own frame", m.focus.seat is f.parent.seat)
-    check("§13", "and the frame reports how it ended", f.state == "discharged")
-
-    # Nesting needs no mechanism: it is a path in the frame forest.
-    m2 = Machine()
-    kb2 = load(m2, "rule <r1> = implies( { +a(?x) }, { +b(?x) } )")
-    outer = m2.suppose(kb2.term("seen(x)"), wrap=kb2.term("likely"))
-    inner = m2.suppose(kb2.term("a(x)"), wrap=kb2.term("possible"))
-    m2.run(limit=30)
-    check(
-        "§4",
-        "nested suppositions wrap in order -- likely(possible(b(x)))",
-        any(m2.g.show(e.proposition) == "likely(possible(b(x)))" for e in outer.carried),
-    )
-    check(
-        "§18",
-        "each frame was left because the loop ran out of work there, not by a return",
-        inner.state == "discharged" and outer.state == "discharged",
-    )
-
-    # Nothing owns the loop (§18). Supposing used to call `run()` inside itself,
-    # so the caller regained control only once the whole hypothesis was
-    # exhausted. Now every step inside a supposition is an ordinary top-level
-    # tick: the caller can stop between any two of them, and the reasoning done
-    # under the hypothesis appears in the caller's own trace.
-    m3 = Machine()
-    kb3 = load(m3, chr(10).join([
-        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
-        "",
-    ]))
-    f3 = m3.suppose(kb3.term("p(x)"), wrap=kb3.term("likely"))
-    one = _move(m3)
-    check("§18", "one tick inside a supposition applies exactly one rule", one.state == "applied")
-    check("§18", "and the caller has control back between ticks", m3.focus is f3)
-    rest = m3.run(limit=20)
-    check(
-        "R7",
-        "the reasoning done under a hypothesis is in the caller's own trace",
-        sum(1 for s in rest if s.state == "applied") >= 1,
-    )
-
-    # The world does not stop talking while the agent hypothesises, and what it
-    # says belongs to the agent rather than to the hypothesis. Delivering into
-    # the register turned the channel record -- which §17 calls unforgeable --
-    # into `likely(says(...))`: the world's own testimony, hedged, and the plain
-    # record unreadable.
-    m4 = Machine()
-    kb4 = load(m4, "rule <a> = implies( { +p(x) }, { +q(x) } )")
-    user = m4.channels.open("user")
-    rain = m4.g.rel(m4.g.atom("raining"), m4.g.atom("here"))
-    m4.suppose(kb4.term("p(x)"), wrap=kb4.term("likely"))
-    m4.channels.deliver(user, rain)
-    m4.run(limit=20)
-    said = m4.g.rel(m4.SAYS, user, rain, m4.rules.SIGN[PLUS])
-    check("§17", "a report arriving mid-supposition lands at the agent's own seat", m4.holds(said) == PLUS)
-    check(
-        "§17",
-        "and is not hedged by a hypothesis it had nothing to do with",
-        m4.holds(m4.g.rel(kb4.term("likely"), said)) is None,
-    )
-    check(
-        "§16",
-        "while the supposition itself still concludes, on its own branch",
-        m4.holds(m4.g.rel(kb4.term("likely"), kb4.term("q(x)"))) == PLUS,
-    )
-    # ⭐⭐⭐ And the same argument structurally, which situations found.
-    # → docs/design/selftest.md#and-the-same-argument-structurally-which
-    own4 = m4._own_frame()
-    check(
-        "situations",
-        "the agent's own seat after a mid-supposition report is a node the "
-        "agent can SEE -- its timeline is not inside its guess about the world",
-        m4.g.situation_of(own4.seat.node) == own4.situation
-        and m4.g.visible(own4.seat.node, own4.situation),
-    )
-    # The general form, and the invariant worth stating once: an entry the agent
-    # deposited is no use to it if the thing the entry is ABOUT lives somewhere
-    # it cannot look. Checked over every moment on the agent's own walk, because
-    # the bug above put the entry in one situation and its proposition in
-    # another, and a check that named one proposition would have missed it.
-    stranded = [
-        e for mo in own4.seat.ancestors() for e in mo.delta
-        if not m4.g.visible(e.proposition, own4.situation)
-    ]
-    check(
-        "situations",
-        "⭐⭐⭐ ...and every entry on the agent's own walk is about something "
-        "the agent can see -- an entry whose proposition is elsewhere is a "
-        "belief it cannot match on",
-        not stranded,
-    )
-
-
-def rule_driven_supposition() -> None:
-    """The whole of it, with no Python driving: a rule PROPOSES crossing the
-    guard, the machinery enacts it, and the conclusions come back wrapped."""
-    from .core.text import load
-
-    src = chr(10).join([
-        "rule <sympt> = implies( { +reading(?p, low) },        { +symptom(?p, restricted) } )",
-        "rule <cause> = implies( { +symptom(?p, restricted) }, { +diag(?p, blocked) } )",
-        "rule <act>   = implies( { +diag(?p, blocked) },       { +action(replace, ?p) } )",
-        "rule <cross> = implies( { +likely(?p) },              { +suppose(?p, likely) } )",
-        "rule <hedge> = implies( { +likely(diag(?p, blocked)) }, { +goal(corroborate(?p)) } )",
-        "fact +likely(reading(pump7, low))",
-        "",
-    ])
-    m = Machine()
-    kb = load(m, src)
-    steps = m.run(limit=200)
-
-    check("§14", "the loop settles rather than exhausting its budget", steps[-1].state == "quiescent")
-    check("§9", "and no bound was hit silently", m.exhausted == 0)
-    check("§12", "modality crossed the whole pipeline", m.holds(kb.term("likely(diag(pump7, blocked))")) == PLUS)
-    check("§12", "and the hedge fired on the wrapped conclusion", m.holds(kb.term("goal(corroborate(pump7))")) == PLUS)
-    check(
-        "§17",
-        "the guard held: nothing acted on the unwrapped conclusion",
-        m.holds(kb.term("action(replace, pump7)")) is None,
-    )
-    check(
-        "§13",
-        "a suppose request is bookkeeping and never carries out of a frame",
-        m.holds(kb.term("likely(suppose(reading(pump7, low), likely))")) is None,
-    )
 
 
 def backward_reading() -> None:
@@ -1774,187 +1443,6 @@ def the_loop_closes() -> None:
           m2.holds(kb2.term("blocked(anything(here))")) == PLUS)
 
 
-def callbacks_on_a_hypothesis() -> None:
-    """A pointer to a rule, hung on a hypothesis, picked up when it returns.
-
-    The mechanism is three ordinary facts and one bundled rule. What makes it
-    worth having is what it is NOT: `<cb>` is never called. `<resuming>` reads
-    the pointer and says only *this rule's turn has come*; the machinery then
-    proposes it, and it applies -- or is defeated, or does not match -- like
-    anything else. A continuation, without a call.
-
-    The worked case is reductio: what a hypothesis concluded can only be judged
-    from outside it, after it is over, which is exactly what no rule inside the
-    frame and no generic rule outside it can time for itself.
-    """
-    from .core.text import load
-
-    src = chr(10).join([
-        # The callback. It names no hypothesis: the pointer supplies that.
-        "rule <cb>     = implies( { +left(?f, ?a), +hyp(?q), -?q }, { -?a } )",
-        "fact dormant(<cb>)",
-        # Attaching it is a rule's job, not the loader's -- a hypothesis is
-        # raised in the middle of reasoning, so its callback has to be too.
-        "rule <start>  = implies( { +testing(?h) },",
-        "                        { +resume(?h, <cb>), +suppose(?h, hyp) } )",
-        "rule <derive> = implies( { +h(?x) }, { +q(?x) } )",
-        "fact -q(a)",
-        "fact +testing(h(a))",
-        "",
-    ])
-    m = Machine()
-    kb = load(m, src)
-    steps = m.run(limit=80)
-
-    check("§13", "a rule attached a rule to a hypothesis", m.holds(kb.term("resume(h(a), <cb>)")) == PLUS)
-    check("§13", "leaving a hypothesis is recorded as an occasion", any(s.state == "supposed" for s in steps))
-    check(
-        "§15",
-        "the pointer woke a dormant rule -- recall, not invocation",
-        m.holds(m.g.rel(m.DUE, kb.rules_by_name["cb"].node)) == PLUS,
-    )
-    check(
-        "§13",
-        "and the callback drew reductio: the hypothesis contradicted a belief, so it is false",
-        m.holds(kb.term("h(a)")) == MINUS,
-    )
-    check(
-        "§17",
-        "what the hypothesis concluded stayed inside it",
-        m.holds(kb.term("q(a)")) == MINUS and m.holds(kb.term("hyp(q(a))")) == PLUS,
-    )
-    check("§14", "and the loop settled", steps[-1].state == "quiescent" and m.exhausted == 0)
-
-    # The pointer is load-bearing, not decoration: without it the same rule is
-    # never proposed, and the same reasoning stops one step short.
-    m2 = Machine()
-    kb2 = load(m2, src.replace("+resume(?h, <cb>), ", ""))
-    m2.run(limit=80)
-    check(
-        "§15",
-        "delete the pointer and the callback never runs -- dormancy is what makes it a pointer",
-        m2.holds(kb2.term("h(a)")) is None,
-    )
-
-
-def rival_hypotheses_are_comparable() -> None:
-    """Which hypothesis concluded WHAT -- §21's defect for the eighth time.
-
-    The deleted ugm/hypothesis.py had rivals(about), and its docstring made
-    coexisting rivals the headline advantage over one-at-a-time supposition:
-    *two hypotheses coexist, both readable, and choosing between them is an
-    ordinary comparison.* This floor kept the first half and lost the second.
-
-    See docs/design/selftest.md#rival-hypotheses-are-comparable.
-    """
-    from .core.text import load
-
-    src = chr(10).join([
-        # Two rival diagnoses of one symptom. Both predict a wet floor; only the
-        # broken pipe predicts the tap losing pressure.
-        "rule <wet-a>  = implies( { +broken(pipe) },  { +wet(floor) } )",
-        "rule <wet-b>  = implies( { +spilled(jug) },  { +wet(floor) } )",
-        "rule <dry-a>  = implies( { +broken(pipe) },  { +nopressure(tap) } )",
-        # Entertained one after the other rather than nested: the second is
-        # proposed on the occasion of the first being LEFT, so both are children
-        # of the agent's own frame and their conclusions are siblings.
-        "rule <first>  = implies( { +maybe(?p) }, { +suppose(?p, likely) } )",
-        "rule <second> = implies( { +left(?f, broken(pipe)) },",
-        "                        { +suppose(spilled(jug), likely) } )",
-        # ...and the comparison, which is the line no corpus could write before.
-        "rule <blame>  = implies( { +left(?f, ?a), +concluded(?f, likely(nopressure(tap))) },",
-        "                        { +explains(?a, nopressure(tap)) } )",
-        "fact +maybe(broken(pipe))",
-        "",
-    ])
-    m = Machine()
-    kb = load(m, src)
-    steps = m.run(limit=400)
-
-    # ⚠ By NODE, never by name. Every frame prints as `frame(moment(), moment())`,
-    # so a set of `g.show` strings collapses two rivals into one -- the twin trap
-    # this repo has recorded six times, here in an instrument rather than in the
-    # engine. Names are not identity; that is what makes them safe to print.
-    frames = {
-        m.g.member(e.proposition, 0)
-        for mm in m.chain.moments for e in mm.delta
-        if m.g.relation_of(e.proposition) is m.LEFT and e.sign == PLUS
-    }
-    check("§13", "two rival hypotheses were entertained, neither nested in the other",
-          len(frames) == 2 and steps[-1].state == "quiescent")
-    check("§16", "and both crossed the shared prediction out",
-          m.holds(kb.term("likely(wet(floor))")) == PLUS)
-
-    # ⚠ Arity-guarded, so a record that forgot the WHAT reports False instead of
-    # raising. A runner that cannot say False about an absence is the instrument
-    # bug this suite has now hit three times, and it was hit again here: the
-    # first version indexed member 1 unconditionally, so the mutation that
-    # deposits `concluded(<frame>)` alone crashed the run rather than failing.
-    recorded = {
-        (m.g.member(e.proposition, 0), m.g.show(m.g.member(e.proposition, 1)))
-        for mm in m.chain.moments for e in mm.delta
-        if m.g.relation_of(e.proposition) is m.CONCLUDED and e.sign == PLUS
-        and len(m.g.members(e.proposition)) == 2
-    }
-    check(
-        "§21",
-        "the shared conclusion is recorded against BOTH frames -- rivals agreeing is sayable",
-        len({f for f, what in recorded if what == "likely(wet(floor))"}) == 2,
-    )
-    check(
-        "§21",
-        "...and the distinguishing one against exactly one of them",
-        len({f for f, what in recorded if what == "likely(nopressure(tap))"}) == 1,
-    )
-    # The payoff, and the gate: delete the deposit and this is the check that
-    # goes out. A corpus rule discriminated between two hypotheses by what each
-    # one concluded, which is `rivals(about)`'s whole purpose.
-    check(
-        "§21",
-        "so a corpus rule can say WHICH hypothesis explains a prediction",
-        m.holds(kb.term("explains(broken(pipe), nopressure(tap))")) == PLUS,
-    )
-    check(
-        "§12",
-        "...and does not credit the rival that concluded no such thing",
-        m.holds(kb.term("explains(spilled(jug), nopressure(tap))")) is None,
-    )
-    # It is a record about the frame, not a claim about the world: bookkeeping,
-    # so a nested frame does not carry likely(concluded(...)) out. ⚠ This needs
-    # its OWN fixture, and finding that out is the finding.
-    # → docs/design/selftest.md#it-is-a-record-about-the-frame-not-a-claim-abou
-    nested = chr(10).join([
-        "rule <outer>  = implies( { +ask(?p) }, { +suppose(?p, likely) } )",
-        "rule <inner>  = implies( { +a },       { +suppose(b, likely) } )",
-        "rule <derive> = implies( { +b },       { +c } )",
-        "fact +ask(a)",
-        "",
-    ])
-    m2 = Machine()
-    kb2 = load(m2, nested)
-    m2.run(limit=400)
-    likely = m2.g.relation_of(kb2.term("likely(c)"))
-    wrapped = [
-        m2.g.show(e.proposition)
-        for mm in m2.chain.moments for e in mm.delta
-        if m2.g.relation_of(e.proposition) is likely
-        and m2.g.relation_of(m2.g.member(e.proposition, 0)) is m2.CONCLUDED
-    ]
-    check(
-        "§13",
-        "a hypothesis inside a hypothesis records its conclusion in the outer one",
-        any(
-            m2.g.relation_of(e.proposition) is m2.CONCLUDED and e.sign == PLUS
-            for mm in m2.chain.moments for e in mm.delta
-        ) and m2.holds(kb2.term("likely(likely(c))")) == PLUS,
-    )
-    check(
-        "§13",
-        "...and the record is bookkeeping -- nothing carries it out of a frame wrapped",
-        not wrapped,
-    )
-
-
 def recall_is_narrowable() -> None:
     """§19's first slice: recall stops proposing everything, and what narrows it
 
@@ -2089,184 +1577,6 @@ def the_better_move_wins() -> None:
     )
 
 
-def crossing_opens_hypotheses() -> None:
-    """Crossing a modality is **one hypothesis, and more when something says so**
-
-    -- and the number is not a parameter anywhere. likely(p) is crossed by an
-    ordinary rule concluding +suppose(p, likely). Considering the other case is
-    another such rule.
-
-    See docs/design/selftest.md#crossing-opens-hypotheses.
-    """
-    from .core.text import load
-
-    world = [
-        "rule <cross> = implies( { +uncertain(?p) },   { +suppose(?p, likely) } )",
-        "rule <ifso>  = implies( { +rain(here) },      { +wet(street) } )",
-        "rule <ifnot> = implies( { +not(rain(here)) }, { +dry(street) } )",
-        "fact +uncertain(rain(here))",
-    ]
-
-    def run(extra):
-        m = Machine()
-        kb = load(m, chr(10).join(world + extra) + chr(10))
-        steps = m.run(limit=600)
-        return m, kb, steps
-
-    m, kb, _ = run([])
-    check(
-        "§13",
-        "crossing a modality opens one hypothesis, and its conclusion comes back wrapped",
-        len(m.focus.children) == 1 and m.holds(kb.term("likely(wet(street))")) == PLUS,
-    )
-    check(
-        "§16",
-        "and the other case was never considered -- nothing said it should be",
-        m.holds(kb.term("otherwise(dry(street))")) is None,
-    )
-
-    # **The alternative has to be opened ON RESUME.** Proposed at the same time
-    # as the first, it is enacted while the register is already inside it, so it
-    # becomes a sub-hypothesis rather than a sibling and the second case ends up
-    # wrapped in the first. `left(?f, ?p)` is the occasion for *this hypothesis
-    # is over*, and opening the alternative there is what makes them siblings --
-    # which is what the frame FOREST was for.
-    branch = [
-        "rule <also>  = implies( { +left(?f, ?p), +uncertain(?p), +goal(doing(?q)) },",
-        "                       { +suppose(not(?p), otherwise) } )",
-        "fact +goal(doing(cross(road)))",
-    ]
-    m2, kb2, steps2 = run(branch)
-    siblings = m2.focus.children
-    check(
-        "§13",
-        "a rule opens a second hypothesis on resume, and the two are siblings",
-        len(siblings) == 2 and all(f.state == "discharged" for f in siblings),
-    )
-    check(
-        "§16",
-        "so both cases are on the record, each wrapped in what it was supposed under",
-        m2.holds(kb2.term("likely(wet(street))")) == PLUS
-        and m2.holds(kb2.term("otherwise(dry(street))")) == PLUS,
-    )
-    check(
-        "§17",
-        "and neither leaked -- containment is structural, whatever the branching factor",
-        m2.holds(kb2.term("wet(street)")) is None
-        and m2.holds(kb2.term("dry(street)")) is None,
-    )
-
-    # ⚠ **A crossing rule that can match its own output runs away.** `<also>` on
-    # `+left(?f, ?p)` alone fires again when the alternative is itself left, and
-    # the run reached 32 sibling frames before its budget did. §9 records the
-    # same trap for `<denial>`: translating both ways builds `not(not(p))` the
-    # moment it meets its own output. The corpus stops it -- here by requiring
-    # the hypothesis to be one it called `uncertain` in the first place.
-    m3, _, steps3 = run([
-        "rule <also> = implies( { +left(?f, ?p) }, { +suppose(not(?p), otherwise) } )",
-    ])
-    check(
-        "§9",
-        "a crossing rule matching its own output runs away; the corpus must stop it",
-        len(m3.focus.children) > 8 and len(siblings) == 2,
-    )
-    check("§14", "and the gated version settles", steps2[-1].state == "quiescent")
-
-
-def a_hypothesis_does_not_happen() -> None:
-    """Supposing something must not bring it about -- and the reason to insist is
-
-    not tidiness. The point of opening a hypothesis about a course of action is
-    to find out whether it leads anywhere unacceptable.
-
-    See docs/design/selftest.md#a-hypothesis-does-not-happen.
-    """
-    from .core.text import load
-
-    m = Machine()
-    kb = load(m, "rule <act> = implies( { +p(x) }, { +doing(fire(missile)) } )")
-    m.suppose(kb.term("p(x)"), wrap=kb.term("likely"))
-    m.run(limit=100)
-    check(
-        "§17",
-        "an act concluded inside a hypothesis does NOT leave the agent",
-        m.emitted == [],
-    )
-    check(
-        "§16",
-        "and what it concluded still crosses out wrapped, so the agent knows it would have",
-        m.holds(kb.term("likely(doing(fire(missile)))")) == PLUS,
-    )
-    check(
-        "§11",
-        "so nothing was done, and nothing claims it was",
-        m.holds(kb.term("did(fire(missile))")) is None,
-    )
-
-    # **Deciding to act is a conclusion; planning needs the action's assumed
-    # outcome.** Blocking the emission is not enough -- the first repair here
-    # also stopped the reasoning, so a plan died at its first action instead of
-    # continuing past it. The record is deposited under a different name
-    # (`taken`), `<taken>` makes it a `did`, and §15's `<assert-act>` supplies
-    # the assumption that it worked. One row, not one branch.
-    m1 = Machine()
-    kb1 = load(m1, chr(10).join([
-        "rule <step1> = implies( { +at(home) },     { +doing(travel(work)) } )",
-        "rule <step2> = implies( { +travel(work) }, { +doing(open(door)) } )",
-        "rule <step3> = implies( { +open(door) },   { +arrived(work) } )",
-        "",
-    ]))
-    m1.suppose(kb1.term("at(home)"), wrap=kb1.term("likely"))
-    m1.run(limit=400)
-    check(
-        "§15",
-        "planning continues PAST an action, on its assumed outcome",
-        m1.holds(kb1.term("likely(arrived(work))")) == PLUS,
-    )
-    check(
-        "§17",
-        "...and a three-step plan was worked out with nothing done at all",
-        m1.emitted == [],
-    )
-
-    # The same thing, acted on for real when it is not a hypothesis -- otherwise
-    # the check above would pass on an agent that simply never acts.
-    m2 = Machine()
-    kb2 = load(m2, chr(10).join([
-        "rule <act> = implies( { +p(x) }, { +doing(fire(missile)) } )",
-        "fact +p(x)",
-        "",
-    ]))
-    m2.run(limit=100)
-    check(
-        "§11",
-        "...while the same rule outside a hypothesis still acts",
-        [m2.g.show(x) for x in m2.emitted] == ["fire(missile)"],
-    )
-
-    # And the use it was for: ask whether a course of action is acceptable by
-    # supposing it, and let the norm answer. No comparison, no ranking -- the
-    # branch that reaches a prohibition has disqualified itself.
-    m3 = Machine()
-    kb3 = load(m3, chr(10).join([
-        "rule <act>    = implies( { +route(cliff) }, { +doing(drive(cliff)) } )",
-        "fact <no-harm> = forbidden(doing(drive(cliff)))",
-        "",
-    ]))
-    f = m3.suppose(kb3.term("route(cliff)"), wrap=kb3.term("likely"))
-    m3.run(limit=100)
-    check(
-        "§19",
-        "a hypothesis that reaches a prohibition refuses it, and says so on the record",
-        m3.gate.refusals == 1 and m3.emitted == [],
-    )
-    check(
-        "§13",
-        "so the branch answers *is this acceptable* without anything being compared",
-        f.state == "discharged",
-    )
-
-
 def an_action_is_substituted_by_its_outcome() -> None:
     """Planning should take a rule that suggests an action and **substitute the
     call with the expected outcome** -- operator semantics, and it needs no plan
@@ -2295,7 +1605,7 @@ def an_action_is_substituted_by_its_outcome() -> None:
     def plan(extra=""):
         m = Machine()
         kb = load(m, src + extra)
-        m.suppose(kb.term("at(home)"), wrap=kb.term("likely"))
+        m.gate.write(m.focus, kb.term("at(home)"), PLUS)
         m.run(limit=600)
         return m, kb
 
@@ -2303,7 +1613,15 @@ def an_action_is_substituted_by_its_outcome() -> None:
     check(
         "§15",
         "an action's declared outcome carries the plan forward -- no plan machinery",
-        m.holds(kb.term("likely(inside(work))")) == PLUS and m.emitted == [],
+        m.holds(kb.term("inside(work)")) == PLUS,
+    )
+    check(
+        "§15",
+        "⚠⚠⚠ ...and with situations gone the agent ACTS while it plans: there is no "
+        "hypothesis to plan inside, so `doing` emits. Planning without acting is now "
+        "a corpus's discipline -- conclude something that is not `doing` until the "
+        "decision to act has been taken",
+        m.emitted != [],
     )
 
     # A corpus can NAME a bundled rule. Every section that says *a corpus can
@@ -2319,8 +1637,8 @@ def an_action_is_substituted_by_its_outcome() -> None:
     check(
         "§15",
         "...and overriding `<assert-act>` substitutes the call: only the outcome is asserted",
-        m2.holds(kb2.term("likely(inside(work))")) == PLUS
-        and m2.holds(kb2.term("likely(travel(work))")) is None,
+        m2.holds(kb2.term("inside(work)")) == PLUS
+        and m2.holds(kb2.term("travel(work)")) is None,
     )
 
     # ⚠ And what that cannot express. §12's defeat is about the RULE and the
@@ -2336,13 +1654,13 @@ def an_action_is_substituted_by_its_outcome() -> None:
     check(
         "§12",
         "defeat is rule-level and per-tick, so an undeclared act loses its fallback too",
-        m3.holds(kb3.term("likely(greet(bo))")) is None,
+        m3.holds(kb3.term("greet(bo)")) is None,
     )
     m4, kb4 = plan("rule <wave> = implies( { +at(work) }, { +doing(greet(bo)) } )" + chr(10))
     check(
         "§15",
         "...which it keeps when nothing overrides -- so the check is about defeat, not the act",
-        m4.holds(kb4.term("likely(greet(bo))")) == PLUS,
+        m4.holds(kb4.term("greet(bo)")) == PLUS,
     )
 
     # So there are two intents and one relation could not carry both.
@@ -2359,13 +1677,13 @@ def an_action_is_substituted_by_its_outcome() -> None:
     check(
         "§12",
         "`supersedes` defeats per CASE: the declared act is replaced by its outcome",
-        m5.holds(kb5.term("likely(inside(work))")) == PLUS
-        and m5.holds(kb5.term("likely(travel(work))")) is None,
+        m5.holds(kb5.term("inside(work)")) == PLUS
+        and m5.holds(kb5.term("travel(work)")) is None,
     )
     check(
         "§12",
         "...and the undeclared act in the same step keeps its fallback -- which `overrides` could not",
-        m5.holds(kb5.term("likely(greet(bo))")) == PLUS,
+        m5.holds(kb5.term("greet(bo)")) == PLUS,
     )
 
 
@@ -2437,36 +1755,11 @@ def an_agent_that_can_stop() -> None:
           m1.widenings == 0 and not any(
               m1.holds(n) == PLUS for n in m1.g.instances_of(m1.QUIET)))
 
-    # Inside a hypothesis, `enough` ends the BRANCH and not the run -- through the
-    # door that already existed. This is *when is a plan settled* and *when is a
-    # woken rule done* getting their local answer for free, because a frame is
-    # already the unit that can be over.
-    branch = chr(10).join([
-        "rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
-        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +far(?x) } )",
-        "fact +likely(p(a))",
-        "",
-    ])
-    says_done = "rule <done> = implies( { +q(?x) }, { +enough(q(?x)) } )" + chr(10)
-    m2, kb2, s2 = go(branch)
-    m3, kb3, s3 = go(branch + says_done + "fact standing(<done>)" + chr(10))
-    check("§19", "enough inside a hypothesis ends the BRANCH: work the branch had left "
-          "is not done, and what it did conclude still crosses out wrapped",
-          m2.holds(kb2.term("likely(far(a))")) == PLUS
-          and m3.holds(kb3.term("likely(far(a))")) is None
-          and m3.holds(kb3.term("likely(q(a))")) == PLUS)
-    check("§19", "...and not the run: the frame is left and the loop goes on to quiesce, "
-          "so *is this plan settled* gets its answer at the door that already existed",
-          any(s.state == "supposed" for s in s3) and s3[-1].state == "quiescent"
-          and any(m3.holds(n) == PLUS for n in m3.g.instances_of(m3.LEFT)))
-
-    # §16's ordering trap, arriving a third time and deciding a design again.
-    # → docs/design/selftest.md#16-s-ordering-trap-arriving-a-third-time-and-d
-    m4, kb4, _ = go(branch + says_done)
-    check("§19", "and an unmarked stop rule stops LATE -- it is one competitor among "
-          "many, so the branch takes another step before it ends",
-          m4.holds(kb4.term("likely(far(a))")) == PLUS)
+    # ⚠⚠ **What went with situations.** `enough` used to end the BRANCH and not
+    # the run when it fired inside a hypothesis -- *is this plan settled* and
+    # *is this woken rule done* getting a local answer for free, because a frame
+    # was already the unit that could be over. With no frame there is nothing
+    # smaller than the run to end, so `enough` always stops the agent.
 
 
 def no_goal_is_dropped_silently() -> None:
@@ -3007,79 +2300,6 @@ def a_domain_can_be_taken_out_of_mind() -> None:
           and m4.g.show(owes.source) == "billing")
 
 
-def a_hypothesis_can_be_re_entered() -> None:
-    """The user's case: *explore a hypothesis, find you need something you do not
-
-    have, go and get it, and finish the reasoning.* ⚠⚠⚠ It could not be done,
-    and the block was one line with a reason true only while nothing changes:
-    *supposing the same thing twice derives nothing new.* Measured -- explore
-    broken(pipe), want wet(pipe), conclude nothing, discharge; then be told
-    wet(pipe), and the hypothesis is never revisited, not even when a corpus
-    asks for it outright. ⚠ Note what is NOT claimed: this does not pause a
-    half-explored hypothesis.
-
-    See docs/design/selftest.md#a-hypothesis-can-be-re-entered.
-    """
-    from .core.text import load
-
-    world = [
-        "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
-        "rule <c> = implies( { +broken(?x), +wet(?x) }, { +leaks(?x) } )",
-        "rule <trust> = implies( { +says(user, ?p, plus) }, { +?p } )",
-        "fact standing(<trust>)", "fact +odd(pipe)",
-    ]
-    redo = [
-        "rule <redo> = implies( { +says(user, wet(?x), plus) },"
-        "                       { +again(suppose(broken(?x), likely), ?x) } )",
-        "fact standing(<redo>)",
-    ]
-
-    def run(with_redo):
-        m = Machine()
-        kb = load(m, chr(10).join(world + (redo if with_redo else []) + [""]),
-                  scope="hy")
-        m.run(limit=300)
-        before = m.holds(kb.term("likely(leaks(pipe))"))
-        kb.say("user", "wet(pipe)")
-        steps = m.run(limit=300)
-        return m, kb, before, steps
-
-    m, kb, before, steps = run(True)
-    check("§16", "the hypothesis concludes nothing while the fact is missing",
-          before is None)
-    check("§16", "⭐ ...and once the agent is told, it thinks again and finishes: "
-          "finding something out is a reason to re-enter a hypothesis",
-          m.holds(kb.term("likely(leaks(pipe))")) == PLUS)
-    check("§15", "...and it terminates, for the reason re-asking does: one "
-          "`again` node per occasion, so the same occasion asks once",
-          steps[-1].state in ("quiescent", "stopped") and len(steps) < 300)
-
-    # ⚠⚠⚠ And the re-ask criterion transfers whole: **an occasion warrants a
-    # re-ask only if re-asking cannot produce one.** A corpus that re-supposes
-    # on `left` -- the record of leaving a frame -- generates the occasion for
-    # the next re-entry by re-entering, and never stops. Not a machinery
-    # failure: the criterion is stated and unenforced, and this is an author
-    # writing the `causes`-shaped mistake in a second place.
-    away = Machine()
-    load(away, chr(10).join([
-        "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
-        "rule <l> = implies( { +left(?f, ?a) },"
-        "                    { +again(suppose(?a, likely), ?f) } )",
-        "fact +odd(pipe)", ""]), scope="hy2")
-    ran = away.run(limit=200)
-    check("§21", "⚠ re-supposing on an occasion the re-entry itself creates does "
-          "not terminate -- the same criterion as re-asking, in a second place",
-          len(ran) == 200)
-
-    # The control, and it is the whole claim: without the corpus asking, the
-    # hypothesis stays unrevisited even though the fact is now known.
-    c, kbc, _, _ = run(False)
-    check("§16", "...where a corpus that does not ask gets no re-entry, even "
-          "with the fact in hand -- the machinery does not decide this",
-          c.holds(kbc.term("wet(pipe)")) == PLUS
-          and c.holds(kbc.term("likely(leaks(pipe))")) is None)
-
-
 def its_own_effort_is_reasonable_over() -> None:
     """§21's hidden state, for the counters -- and the user's reason is the right
 
@@ -3109,16 +2329,6 @@ def its_own_effort_is_reasonable_over() -> None:
     deposits = sum(1 for mo in tight.chain.moments for e in mo.delta
                    if tight.g.relation_of(e.proposition) is tight.WIDENED)
 
-    b2 = Machine()
-    load(b2, chr(10).join([
-        "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
-        "fact +odd(pipe)", "fact hypotheses(0)", ""]))
-    b2.run(limit=200)
-    check("§13", "...and so does the other bound, by name",
-          [b2.g.show(n) for n in
-           [x for x in b2.g.instances_of(b2.BOUNDED) if b2.holds(x) == PLUS]]
-          == ["bounded(hypotheses)"])
-
     # Reaching for a domain that was put out of mind is the same kind of record.
     esc = Machine()
     kb_e = load(esc, chr(10).join([
@@ -3134,15 +2344,6 @@ def its_own_effort_is_reasonable_over() -> None:
           esc.recoveries == 1
           and [n for n in esc.g.instances_of(esc.REACHED) if esc.holds(n) == PLUS]
           and esc.holds(kb_e.term("chase(acme)")) == PLUS)
-
-    b = Machine()
-    load(b, chr(10).join([
-        "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
-        "fact +odd(pipe)", "fact depth(0)", ""]))
-    b.run(limit=200)
-    check("§13", "⚠ a bound that was hit says WHICH one, where the code had "
-          "claimed to report and only counted",
-          [b.g.show(n) for n in said(b, b.BOUNDED)] == ["bounded(depth)"])
 
     # The point of all of it: a corpus can reason over the agent's own effort.
     act = Machine()
@@ -3171,7 +2372,7 @@ def the_knobs_are_claims() -> None:
     """§21's hidden state, for the knobs -- and the argument was already written.
 
     Three knobs are FACTS -- how many rules recall may propose, how deep a
-    hypothesis may nest, how many may be open -- for a reason the design states
+-- for a reason the design states
     out loud: *how careful am I being is a claim with a trail, and a rule can
     raise it before an irreversible step.* As Python fields they were the one
     kind of decision this design does not allow: one nobody can ask about.
@@ -3180,7 +2381,9 @@ def the_knobs_are_claims() -> None:
     `_close`, which compared two `prefer` scores, and both went with the buffs.
     It was left parseable for a while on the argument that a corpus should be
     able to say a number -- but a number nothing reads is not a claim, it is
-    decoration, so it is gone.
+    decoration, so it is gone. ⚠ `depth(n)` and `hypotheses(n)` went the same
+    way and for the same reason, with situations: both were read only by
+    `_enter`, which bounded supposing.
 
     ⚠ The DEFAULT stays in Python. A default nobody has to choose is not a
     hidden decision; it is the absence of one.
@@ -3190,17 +2393,13 @@ def the_knobs_are_claims() -> None:
     m = Machine()
     load(m, "fact +x(a)" + chr(10))
     check("§15", "with nothing said, the defaults hold and no constant was chosen",
-          m._knob(m.BUDGET, m.recall_budget) is None
-          and m._knob(m.DEPTH, m.max_depth) == m.max_depth)
+          m._knob(m.BUDGET, m.recall_budget) is None)
 
     c = Machine()
-    load(c, chr(10).join([
-        "fact budget(3)", "fact depth(9)", "fact hypotheses(7)", ""]))
-    check("§21", "⭐ a corpus can turn every one of them, so *how careful am I "
-          "being* is answerable rather than compiled in",
-          (c._knob(c.BUDGET, c.recall_budget),
-           c._knob(c.DEPTH, c.max_depth),
-           c._knob(c.HYPOTHESES, c.supposition_budget)) == (3, 9, 7))
+    load(c, "fact budget(3)" + chr(10))
+    check("§21", "⭐ a corpus can turn it, so *how careful am I being* is "
+          "answerable rather than compiled in",
+          c._knob(c.BUDGET, c.recall_budget) == 3)
 
     # ...and it really steers: a budget written as a fact narrows recall, which
     # is what `m.recall_budget = 3` did from Python and nothing could argue with.
@@ -3232,26 +2431,6 @@ def the_knobs_are_claims() -> None:
     # enough: with only the reader in place, mutating the depth bound back to
     # its Python field failed nothing. A knob that is read and not obeyed is
     # the same defect wearing the fix's clothes.
-    supposing = [
-        "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
-        "rule <c> = implies( { +broken(?x) }, { +leaks(?x) } )",
-        "fact +odd(pipe)", "",
-    ]
-    free = Machine(); kb_f = load(free, chr(10).join(supposing)); free.run(limit=200)
-    deep = Machine(); kb_d = load(deep, chr(10).join(
-        supposing[:-1] + ["fact depth(0)", ""])); deep.run(limit=200)
-    many = Machine(); kb_m = load(many, chr(10).join(
-        supposing[:-1] + ["fact hypotheses(0)", ""])); many.run(limit=200)
-    check("§21", "a depth bound written in the corpus stops the agent supposing, "
-          "and says it was hit rather than declining in silence",
-          free.holds(kb_f.term("likely(leaks(pipe))")) == PLUS
-          and free.exhausted == 0
-          and deep.holds(kb_d.term("likely(leaks(pipe))")) is None
-          and deep.exhausted > 0)
-    check("§21", "...and so does a bound on how many hypotheses may be open",
-          many.holds(kb_m.term("likely(leaks(pipe))")) is None
-          and many.exhausted > 0)
-
     # A denial turns it off again, because it is an ordinary claim.
     off = Machine()
     load(off, chain + chr(10).join(["fact budget(1)", "fact -budget(1)", ""]))
@@ -3752,15 +2931,19 @@ def the_skeleton_is_an_ordinary_member() -> None:
           not [e for e in m2._state() if e.sign == PLUS
                and m2.g.show(e.proposition).startswith("reached")])
 
-    # ⭐⭐⭐ Containment, on a chain that forks: every moment a structural member
-    # reached is an ancestor of where its conclusion sits.
+    # ⭐⭐⭐ Every moment a structural member reached is an ancestor of where its
+    # conclusion sits. ⚠ The chain used to FORK here (the fixture supposed), and
+    # nothing forks it now -- so this asks the same question of a linear walk.
+    # ⚠⚠ `<mark>` has to be `causes` for the fixture to have a past at all:
+    # supposing was what advanced the seat, and with it gone an all-`implies`
+    # world lands in ONE moment and `sanc` reaches nothing. The check reported
+    # 0 comparisons and passed on `total > 0` -- caught here, not by the check.
     m3 = Machine()
     load(m3, chr(10).join([
-        "rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
-        "rule <mark>  = implies( { +seen(?x) }, { +noted(?x) } )",
+        "rule <mark>  = causes(  { +seen(?x) }, { +noted(?x) } )",
         "rule <reach> = implies( { +noted(?x) at ?mx, sanc(?mx, ?up) },",
         "                       { +sees(?x, ?up) } )",
-        "fact +likely(seen(a))", "fact +likely(seen(b))", ""]))
+        "fact +seen(a)", "fact +seen(b)", ""]))
     m3.run(limit=300)
     total = off = 0
     for mo in m3.chain.moments:
@@ -3773,8 +2956,8 @@ def the_skeleton_is_an_ordinary_member() -> None:
             total += 1
             if not e.locus.at_or_after(up):
                 off += 1
-    check("§17", "⭐⭐⭐ ...and containment holds STRUCTURALLY: on a forking chain, "
-          "every moment a structural member reached is on its own walk",
+    check("§17", "⭐⭐⭐ ...and it holds STRUCTURALLY: every moment a structural "
+          "member reached is on its own walk",
           total > 0 and off == 0)
 
 
@@ -4410,29 +3593,11 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
     check("§4", "...and the shortcut reaches the same conclusion",
           m.holds(kb.term("q(a, d)")) == PLUS)
 
-    # ⚠⚠⚠ Containment, and it is `_adopt`'s argument exactly: `RuleSet.rules`
-    # is one list shared by every frame, so a shortcut built while supposing
-    # would apply after the frame is discharged and to everything. Supposing
-    # would change what the agent believes, which is the one thing supposing
-    # must not do.
-    m2 = Machine()
-    kb2 = load(m2, chr(10).join([
-        "rule <s1> = implies( { +p1(?a) }, { +i1(?a) } )",
-        "rule <s2> = implies( { +i1(?a) }, { +q(?a) } )",
-        "rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
-        "rule <inside> = implies( { +trigger(?x) }, { +compose(<s1>, <s2>) } )",
-        "fact +likely(trigger(now))", ""]))
-    n0 = len(m2.rules.rules)
-    m2.run(limit=80)
-    check("§17", "⚠⚠⚠ ...and it is REFUSED inside a supposition, because one "
-          "rule set is shared by every frame",
-          len(m2.rules.rules) == n0
-          and not [r for r in m2.rules.rules if r.name.startswith("s1+s2")])
-    # ...and the refusal is on the record rather than silent, which is the
-    # whole of §5's third place the machinery can decline.
-    refused = any("refused(compose" in m2.g.show(e.proposition)
-                  for e in m2._state())
-    check("§5", "...on the record, wrapped, not silently", refused)
+    # ⚠⚠⚠ **What went with situations.** `compose` used to be REFUSED inside a
+    # supposition, for `_adopt`'s reason exactly: one rule set is shared by
+    # every frame, so a shortcut built while supposing would apply after the
+    # frame was discharged and to everything. The refusal was also the third
+    # place §5 lets the machinery decline on the record. Both are gone.
 
     # ⚠⚠⚠ **`has_var` is not a usable guard for anything naming a rule**, and
     # copying `_adopt`'s was the bug this fixture found. A LIVE rule node holds
@@ -4730,34 +3895,13 @@ def a_rule_can_author_a_rule() -> None:
                   for p in inert.g.instances_of(inert.ANSWERED)
                   if inert.holds(p) == PLUS))
 
-    # ⚠⚠⚠ Adopting inside a supposition is REFUSED, and that is containment.
-    # A frame's conclusions are unreadable from outside by construction, but
-    # `RuleSet.rules` is one list shared by every frame -- so a rule adopted
-    # while supposing would apply after the frame is discharged, and to
-    # everything. Supposing must not bring it about.
-    inside, kb_s = build(chr(10).join([
-        "rule <suppose-it> = implies( { +want(?w) }, { +suppose(q(?w), certain) } )",
-        "rule <ask> = implies( { +q(?w) }, { +build(?w) } )",
-        "rule <take> = implies( { +answered(<builder>, build(?w), ?r) },",
-        "                      { +adopt(?r) } )",
-        "fact +want(a_rule)", "fact +seen(door)", ""]))
-    s_before = len(inside.rules.rules)
-    inside.run(limit=120)
-    # ⚠ Looked for in the CHAIN, not with `holds`. The refusal is written inside
-    # the frame, where the attempt happened, and a frame's conclusions are
-    # unreadable from outside by construction -- so asking the root whether it
-    # holds answers None however well the refusal worked. That is the
-    # containment doing its job, and it caught this check before the check
-    # caught anything.
-    refused_inside = [
-        e for mo in inside.chain.moments for e in mo.delta
-        if inside.g.relation_of(e.proposition) is inside.REFUSED
-        and inside.g.relation_of(inside.g.member(e.proposition, 0)) is inside.ADOPT
-    ]
-    check("§4", "⚠ a rule adopted while supposing is REFUSED -- one rule set is "
-          "shared by every frame, so supposing would change what the agent "
-          "believes after the frame is gone",
-          len(inside.rules.rules) == s_before and len(refused_inside) == 1)
+    # ⚠⚠⚠ **What went with situations, and it was a real guard.** Adopting
+    # inside a supposition used to be REFUSED: `RuleSet.rules` is one list
+    # shared by every frame, so a rule adopted while supposing would apply
+    # after the frame was discharged, and to everything. With no frame there is
+    # nothing to refuse and nothing to be inside, so **the guard is gone rather
+    # than satisfied.** `docs/descriptions-to-rules.md` argues the replacement:
+    # propose/dispose belongs at the boundary a description crosses.
 
     # ⚠ The POSITION, which `reify` did not record until this needed it.
     # Without it the members are ordered by the accident of minting -- which
@@ -6084,9 +5228,14 @@ def the_index_agrees_with_the_walk() -> None:
     was derived.**
 
     Replacing a walk with an index is exactly the kind of change that is right
-    for a fixture and wrong for a fork, so it is checked against a brute-force
-    walk over a world that has both -- nested suppositions (which fork) and a
-    revision about an earlier moment (which separates the two orderings).
+    for a fixture and wrong at scale, so it is checked against a brute-force
+    walk over a world with a revision about an earlier moment, which separates
+    the two orderings.
+
+    ⚠ It used to fork as well -- nested suppositions -- and with situations gone
+    **nothing forks the chain any more**. `Moment.at_or_after` is kept as a walk
+    rather than collapsed to a depth comparison, and `resolve`'s own comment
+    says the collapse is now available. Not taken here: one deletion at a time.
     """
     from .core.text import load
 
@@ -6094,16 +5243,19 @@ def the_index_agrees_with_the_walk() -> None:
     kb = load(m, chr(10).join([
         "rule <a> = causes(  { +p(?x) }, { +q(?x) } )",
         "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
-        "rule <c> = implies( { +likely(?p) }, { +suppose(?p, likely) } )",
+        # ⚠ A third `causes` step, because supposing was what used to make this
+        # chain deep. Without it the same fixture makes four moments where it
+        # used to make more, and the breadth check below is what noticed.
+        "rule <c> = causes(  { +r(?x) }, { +s(?x) } )",
         "fact +p(one)",
-        "fact +likely(p(two))",
+        "fact +p(two)",
         "",
     ]))
     m.run(limit=400)
     # A revision about an earlier moment: same locus, later deposit (§17).
     old = m.focus.seat.ancestors()[-1]
     m.gate.write(m.gate.frame(m.focus.seat, topic=old), kb.term("q(one)"), MINUS)
-    m.suppose(kb.term("p(three)"), wrap=kb.term("possible"))
+    m.gate.write(m.focus, kb.term("p(three)"), PLUS)
     m.run(limit=400)
 
     def brute(proposition, locus, seat):
@@ -6133,10 +5285,8 @@ def the_index_agrees_with_the_walk() -> None:
     )
     check(
         "§4",
-        "...over a world that forks and revises, so the comparison could have failed",
-        len(m.chain.moments) > 6
-        and any(f.state == "discharged" for f in _frames(m))
-        and comparisons > 1000,
+        "...over a world that revises, so the comparison could have failed",
+        len(m.chain.moments) > 6 and comparisons > 1000,
     )
 
 
@@ -6144,54 +5294,19 @@ def a_cause_moves_the_register() -> None:
     """Found by a fixture that was trying to measure something else.
 
     A `causes` rule lands in a *later* moment, so applying one advances the seat.
-    That was done by minting a fresh frame -- which dropped the parent, the
-    purpose and the wrap. Under a hypothesis it orphaned the register: `_leave`
-    could never fire, the frame was never discharged, and everything concluded
-    under that hypothesis stayed inside it with nothing anywhere saying so.
+    That was done by minting a fresh frame -- which dropped the parent and the
+    purpose.
 
     §4 allows exactly one register. Advancing it is a **seat move**, not a new
     frame, and §17 already says every seat move is a write -- which is what
-    `reseat` is for. Discharge then needs the frame's *origin* rather than its
-    current seat, because those stop being the same thing the moment it moves.
+    `reseat` is for.
+
+    ⚠ Most of this fixture was about what the move did to a HYPOTHESIS -- an
+    orphaned register `_leave` could never fire on, and a seat move crossing out
+    of a frame wrapped. Both went with situations; what remains is the move
+    itself, which is the part that was owed to §17 all along.
     """
     from .core.text import load
-
-    out = {}
-    for conn in ("implies", "causes"):
-        m = Machine()
-        kb = load(m, f"rule <a> = {conn}( {{ +p(?x) }}, {{ +q(?x) }} )")
-        f = m.suppose(kb.term("p(x)"), wrap=kb.term("likely"))
-        m.run(limit=60)
-        out[conn] = (f, m, kb)
-
-    for conn, (f, m, kb) in out.items():
-        check(
-            "§13",
-            f"a hypothesis whose reasoning used `{conn}` is still left and discharged",
-            f.state == "discharged" and len(f.carried) == 1,
-        )
-        check(
-            "§16",
-            f"...and its conclusion crosses out wrapped, not bare (`{conn}`)",
-            m.holds(kb.term("likely(q(x))")) == PLUS and m.holds(kb.term("q(x)")) is None,
-        )
-
-    # Two moments deep inside one hypothesis: discharge must carry BOTH, which is
-    # what reading the start of the frame off `seat` would have got wrong.
-    m2 = Machine()
-    kb2 = load(m2, chr(10).join([
-        "rule <a> = causes( { +p(?x) }, { +q(?x) } )",
-        "rule <b> = causes( { +q(?x) }, { +r(?x) } )",
-        "",
-    ]))
-    f2 = m2.suppose(kb2.term("p(x)"), wrap=kb2.term("likely"))
-    m2.run(limit=60)
-    check(
-        "§13",
-        "every moment inside a frame is discharged, not just the last one",
-        m2.holds(kb2.term("likely(q(x))")) == PLUS
-        and m2.holds(kb2.term("likely(r(x))")) == PLUS,
-    )
 
     # §17's *every seat move is a write*, which §21 carried as owed for as long
     # as it has existed. This fixture is the one that found the move; these are
@@ -6220,14 +5335,6 @@ def a_cause_moves_the_register() -> None:
           len([e for mo in m3.chain.moments for e in mo.delta
                if m3.g.relation_of(e.proposition) is kb3.term("shifted")]) == 1)
 
-    # ...and it is bookkeeping, not a claim about the supposed world, so a
-    # wrapper has nothing to qualify. Without this the `causes` frame above
-    # carried `likely(moved(...))` out -- the agent hedging about where it had
-    # been standing -- and it is the one thing adding the write broke.
-    supposing = out["causes"][0]
-    check("§16", "a seat move does not cross out of a hypothesis wrapped",
-          all(m3.g.relation_of(m3.g.member(e.proposition, 0)) is not m3.gate.MOVED
-              for e in supposing.carried))
 
 
 def _frames(m) -> list:
@@ -6269,19 +5376,10 @@ def reference_is_binding() -> None:
         m.holds(kb.term("noted(plan(<boil>, boiling(kettle)))")) == PLUS,
     )
 
-    m1 = Machine()
-    kb1 = load(m1, chr(10).join([
-        "rule <in> = implies( { +h(?x) },            { +q(?x) } )",
-        "rule <f>  = implies( { +left(?frame, ?a) }, { +noted(?a) } )",
-        "fact +suppose(h(a), hyp)",
-        "",
-    ]))
-    m1.run(limit=300)
-    check(
-        "R3",
-        "and so is a hypothesis, from the occasion of leaving it",
-        m1.holds(kb1.term("noted(h(a))")) == PLUS,
-    )
+    # ⚠ **A hypothesis used to be referable the same way** -- `left(?frame, ?a)`
+    # bound the occasion of leaving one, so a corpus could name a hypothesis it
+    # had never been given a name for. There are no frames to leave now, and the
+    # `left`/`resume` vocabulary went with them.
 
     # Which one, though. Two candidates match one description, and the order they
     # are tried in was undeclared until this check: `ancestors()` is newest-first,
@@ -7520,89 +6618,6 @@ def a_computed_numeral_is_not_a_twin() -> None:
           and m.holds(kb.term("dozen(yes)")) == PLUS)
 
 
-def a_situation_is_materialised_from_its_deltas() -> None:
-    """`docs/situations.md` stage 4, items 1 and 2: replay, from atoms alone.
-
-    Three stages were built and the fourth stood in for by capped ancestor
-    visibility -- a situation reads THROUGH to its ancestors, each step capped
-    at the node counter as it stood at the cut. ⚠ This rebuilds the structural
-    layer and does not re-deposit the entries.
-
-    See docs/design/selftest.md#a-situation-is-materialised-from-its-deltas.
-    """
-    from .core.text import load
-
-    m = Machine()
-    kb = load(m, chr(10).join([
-        "fact +healthy(paul)",
-        "fact +ill(mary)",
-        "rule <r> = implies( { +healthy(?x) }, { +ok(?x) } )", ""]))
-    m.run(limit=40)
-    g = m.g
-
-    # A situation that has seen NOTHING: cut from the root at birth 0, so the
-    # visibility walk reaches no node at all and every answer must be rebuilt.
-    fresh = g.branch(0, born=0)
-    built = m.chain.materialise(m.focus.seat, fresh)
-
-    disagree = [e for mo in m.chain.moments for e in mo.delta
-                if built.get(e.patom) is not None
-                and g.show(built[e.patom]) != g.show(e.proposition)]
-    reused = [e for mo in m.chain.moments for e in mo.delta
-              if built.get(e.patom) == e.proposition]
-
-    check("§4", "⭐⭐⭐ a situation with no visibility at all is rebuilt from the "
-          "deltas, and every proposition comes back with the structure it went "
-          "in with -- which is what makes a materialisation discardable",
-          bool(built) and not disagree)
-    check("§4", "...as DIFFERENT nodes, so it is a replay and not the original "
-          "answering from behind a new name",
-          not reused)
-    check("§4", "...carrying the same atoms, which is what makes it the same "
-          "things rather than a second world that resembles the first",
-          all(g.atom_of(n) == a for a, n in built.items()))
-
-    # ⚠⚠⚠ The name is not structural and was the one thing replay lost.
-    # → docs/design/selftest.md#the-name-is-not-structural-and-was-the-one-t
-    rule_node = [x for x in m.rules.rules if x.name == "r"][0].node
-    check("§4", "⚠ ...and a rebuilt RULE still prints as its name, because a "
-          "name is not structural and the atom layer has to carry it too",
-          g.show(g.rebuild(g.atom_of(rule_node), fresh)) == g.show(rule_node)
-          == "<r>")
-
-    # ⭐ The agreement that decides whether replay may replace capped
-    # visibility: where the target can ALREADY see the thing, rebuilding must
-    # return that node and mint nothing. This repository's own rule -- hold an
-    # index to a re-implementation of what it indexes.
-    child = g.branch(0)
-    p = kb.term("healthy(paul)")
-    check("§4", "⭐⭐⭐ ...and rebuilding what a situation can already see is a "
-          "NO-OP, so replay and capped visibility agree where both apply -- the "
-          "two must, or the fast path is a different answer rather than a "
-          "quicker one",
-          g.rebuild(g.atom_of(p), child) == p)
-    check("§4", "...and it is idempotent, so materialising twice is "
-          "materialising once",
-          g.rebuild(g.atom_of(p), fresh) == g.rebuild(g.atom_of(p), fresh))
-
-    # A variable must come back generic. `_is_var` is not derivable from the
-    # structure -- a variable and an atom are both *no relation, no members* --
-    # so without `_atom_leaf` a replayed rule's members become ground atoms
-    # named `?x`, which match nothing and fail silently.
-    r = [x for x in m.rules.rules if x.name == "r"][0]
-    mem = r.antecedent[0].pattern
-    check("§4", "⚠ ...and a rebuilt generic member is still generic, or a "
-          "replayed rule matches nothing and says nothing about why",
-          g.has_var(g.rebuild(g.atom_of(mem), fresh)))
-
-    print()
-    print(f"        {len(built)} atoms replayed into a situation that had seen "
-          f"nothing;")
-    print(f"        {len(disagree)} disagreed with the original, {len(reused)} "
-          f"were the original.")
-    print()
-
-
 def two_things_can_turn_out_to_be_one() -> None:
     """Identity: coreference decided LATE, and what it costs to decide it.
 
@@ -7667,10 +6682,13 @@ def two_things_can_turn_out_to_be_one() -> None:
           g2.rel(g2.relation_of(k1), kb2.atom("sam"),
                  g2.rel(inner, kb2.atom("evening_star"))) == k1)
 
-    # ⚠⚠⚠ Containment. Deciding two things are the same is a DECISION, and a
-    # decision made while supposing is not a decision about the world. This is
-    # the same property the whole of `situations.md` is about, asked of the
-    # third identity.
+    # ⚠⚠⚠ **A merge is now UNCONDITIONAL, and that is what situations cost
+    # here.** Deciding two things are the same is a decision, and it used to be
+    # containable: a merge made inside a branch was invisible outside it, so an
+    # agent could ask *what if these were one thing* without committing. With no
+    # branch there is nowhere for a tentative merge to live, and `identity_of`
+    # answers the same everywhere for ever. **There is no un-merge**, so this is
+    # the one deletion here that removed a guard rather than a mechanism.
     m3 = Machine()
     kb3 = load(m3, chr(10).join([
         "fact +bright(morning_star)", "fact +bright(evening_star)", ""]))
@@ -7678,16 +6696,11 @@ def two_things_can_turn_out_to_be_one() -> None:
     g3 = m3.g
     a3, b3 = kb3.atom("morning_star"), kb3.atom("evening_star")
     br3 = g3.relation_of(kb3.term("bright(morning_star)"))
-    branch = g3.branch()
-    g3.merge(a3, b3, s=branch)
-    was, g3.situation = g3.situation, branch
-    inside = g3.rel(br3, b3) == kb3.term("bright(morning_star)")
-    g3.situation = was
-    outside = g3.rel(br3, b3) == kb3.term("bright(morning_star)")
-    check("§3", "⭐⭐⭐ ...and a merge made inside a branch is invisible outside "
-          "it, because deciding two things are the same is a decision and a "
-          "decision made while supposing is not one about the world",
-          inside and not outside)
+    g3.merge(a3, b3)
+    check("§3", "⚠⚠⚠ a merge holds everywhere and cannot be taken back -- what "
+          "used to be containable in a branch is now a commitment, and nothing "
+          "in the engine records that it was ever in doubt",
+          g3.rel(br3, b3) == kb3.term("bright(morning_star)"))
 
     # ⚠ The cost discipline: an unmerged graph must compute the key it computed
     # before identity existed, or every corpus that never corefers pays for one
@@ -7785,7 +6798,6 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     substrate()
-    situations()
     chain_reads()
     two_indices()
     gate()
@@ -7794,8 +6806,6 @@ def main() -> int:
     arbitration_is_total()
     a_rule_is_a_node()
     rules_as_data()
-    supposing()
-    rule_driven_supposition()
     backward_reading()
     plan_bindings()
     the_loop_closes()
@@ -7806,12 +6816,8 @@ def main() -> int:
     denial_nests()
     mention_propagates()
     surprise_is_four_rows()
-    callbacks_on_a_hypothesis()
-    rival_hypotheses_are_comparable()
     recall_is_narrowable()
     the_better_move_wins()
-    crossing_opens_hypotheses()
-    a_hypothesis_does_not_happen()
     an_action_is_substituted_by_its_outcome()
     an_agent_that_can_stop()
     no_goal_is_dropped_silently()
@@ -7819,7 +6825,6 @@ def main() -> int:
     a_root_goal_is_askable()
     a_request_can_be_re_asked()
     a_domain_can_be_taken_out_of_mind()
-    a_hypothesis_can_be_re_entered()
     its_own_effort_is_reasonable_over()
     the_knobs_are_claims()
     a_session_can_be_saved_and_resumed()
@@ -7877,7 +6882,6 @@ def main() -> int:
     the_aggregate_over_bindings_is_one_primitive()
     a_count_is_not_monotone()
     a_computed_numeral_is_not_a_twin()
-    a_situation_is_materialised_from_its_deltas()
     two_things_can_turn_out_to_be_one()
     a_rule_can_introduce_a_thing()
     attention_is_about_a_node_not_a_rule()

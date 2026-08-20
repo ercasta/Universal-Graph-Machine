@@ -79,26 +79,6 @@ rule <denial> = implies(
     { -?denied } )
 
 
-# -- callbacks -------------------------------------------------------------
-
-# What to do on the way back out of a hypothesis.
-#
-# `+resume(h, <R>)` hangs a pointer to a rule on the hypothesis's own node, and
-# this rule picks it up when that hypothesis returns. What it can do with the
-# pointer is the whole finding: **not apply it**. §5's wall stands -- applying is
-# substitution, substitution is floor, and no rule crosses it. What a rule can do
-# is say *this one's turn has come*, and leave the machinery to propose it.
-#
-# So a callback is directed RECALL, not invocation, and that is a stronger result
-# than a call would have been. The woken rule still has to match, can still be
-# defeated, still competes in arbitration, and still yields to a surprise -- none
-# of which survives a subroutine call. §18's *nothing may own the loop* is not
-# weakened by adding continuations, which is not the usual outcome.
-rule <resuming> = implies(
-    { +left(?frame, ?assumed), +resume(?assumed, ?rule) },
-    { +due(?rule) } )
-
-
 # -- surprise --------------------------------------------------------------
 
 # §18 says it in one line -- *an expected entry and an observed entry that

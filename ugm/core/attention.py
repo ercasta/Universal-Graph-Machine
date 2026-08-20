@@ -470,16 +470,10 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
 
         arrivals = m.channels.since_last_tick() or 0
 
-        # ⭐⭐⭐ Satisfaction, ported from the tick this loop replaces. ⚠ Inside a
-        # hypothesis, enough ends the BRANCH and not the run -- which is
-        # _leave, the door that already existed, and is how *is this plan
-        # settled* gets a...
+        # ⭐⭐⭐ Satisfaction, ported from the tick this loop replaces.
         # → docs/design/attention.md#satisfaction-ported-from-the-tick-this-lo
         reason = m._enough()
         if reason is not None:
-            if m._leave():
-                steps.append(Step(arrivals, 0, tried, None, (), "supposed"))
-                continue
             m._halt(reason)
             steps.append(Step(arrivals, 0, tried, None, (), "stopped"))
             break
@@ -558,13 +552,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 continue
             if m._wake():
                 steps.append(Step(arrivals, 0, tried, None, (), "quiet"))
-                continue
-            # ...and the register: nothing more applies HERE, and here may be
-            # inside a supposition. Moving the register is chemistry -- the
-            # same move `causes` makes -- and the decision to make it is the
-            # empty window, so no notion of a goal is involved.
-            if m._leave():
-                steps.append(Step(arrivals, 0, tried, None, (), "supposed"))
                 continue
             # The run is over, and WHICH silence it was goes on the record: the
             # option-set loop's callers read `steps[-1].state` in 33 places to

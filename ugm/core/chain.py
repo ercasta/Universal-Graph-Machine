@@ -38,12 +38,6 @@ class Entry(NamedTuple):
     # variables, and is not a generic claim; structurally the two are identical,
     # so the difference has to be recorded rather than inferred.
     mention: bool = False
-    # The portable identity, so a delta can be replayed into another situation.
-    # ⚠ Redundant with `g.atom_of(proposition)` today, deliberately:
-    # docs/design/chain.md.
-    patom: Optional[int] = None      # the proposition
-    latom: Optional[int] = None      # the licence
-    satom: Optional[int] = None      # the source
 
 
 class Moment:
@@ -65,10 +59,6 @@ class Moment:
         self.chain = chain
         self.delta: List[Entry] = []
         self.depth = 0 if predecessor is None else predecessor.depth + 1
-        # The node counter as of this moment: what a situation's cut is
-        # expressed in. ⚠ Nothing in the loop reads it -- not dead, see
-        # docs/design/chain.md.
-        self.watermark = 0 if chain is None else chain.g.count()
 
     def ancestors(self) -> List["Moment"]:
         """This moment and its predecessors, newest first."""
@@ -413,9 +403,6 @@ class Chain:
             self.g.rel(self.MENTIONED, node)
         e = Entry(
             node, locus, proposition, sign, licence, source, consumed, mention,
-            self.g.atom_of(proposition),
-            None if licence is None else self.g.atom_of(licence),
-            None if source is None else self.g.atom_of(source),
         )
         seat.delta.append(e)
         # ...and an index by the entry's own node. `entry_by_node` was a scan of
@@ -431,44 +418,6 @@ class Chain:
         # had been fixed. The entries for one proposition are almost always one.
         self._claims.setdefault(proposition, []).append((seat, len(seat.delta) - 1, e))
         return e
-
-    def materialise(self, seat: Moment, target: int) -> Dict[int, int]:
-        """Replay every delta on `seat`'s walk into `target`, from atoms alone.
-
-        `docs/situations.md`'s *a situation is materialised*, and the half stage
-        4 exists to build. Capped ancestor visibility stands in for it today and
-        computes the same answer for the structural layer on the way past --
-        which is exactly why this must agree with it, and why the check below is
-        written the way this repository writes them: **hold an index to a
-        re-implementation of what it indexes** (`_has_var`/`_has_var_slow`,
-        `state`).
-
-        ⭐ **It reads `e.patom` and never `atom_of`.** That is the test of
-        whether a delta is self-sufficient. If this function had to consult the
-        graph about a node, the delta would still be referencing nodes with an
-        atom written beside them, and nothing could ever be discarded.
-
-        ⚠ **Oldest first.** `ancestors()` is newest-first and replay is not
-        commutative with interning: rebuilding `healthy(paul)` before `paul`
-        works only because `rebuild` recurses, but the ORDER nodes are minted in
-        is the tie-break every reader below depends on, and reversing it
-        produces a situation that answers the same questions in a different
-        order. Mint order is a property of the record, not an accident of it.
-
-        ⚠ What this does NOT yet do is deposit the entries. It rebuilds the
-        structural layer -- the propositions, licences and sources a delta names
-        -- which is the layer that leaked and the layer capped visibility stands
-        in for. Re-depositing the entries themselves needs the locus to be
-        materialised too, and a moment is not a node the atom layer covers.
-        Named here rather than left to be discovered.
-        """
-        out: Dict[int, int] = {}
-        for mo in reversed(seat.ancestors()):
-            for e in mo.delta:
-                for a in (e.patom, e.latom, e.satom):
-                    if a is not None and a not in out:
-                        out[a] = self.g.rebuild(a, target)
-        return out
 
     # -- reading (§4) -----------------------------------------------------
 
