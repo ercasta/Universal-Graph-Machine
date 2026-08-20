@@ -1,3 +1,65 @@
+# Handoff — 2026-08-20i (two regressions found, one fixed, and how they hid)
+
+On top of `a4b461f`.
+
+    selftest    645/0
+    practice    FIXED — was red since `5418cda`
+    ⚠ attention exit 1 — red since `c07b2b1 palette`, NOT fixed. See below.
+
+## `ugm.practice`: fixed
+
+It asserted `len(forgone) == 1` and broke when the attention queue changed how
+many moves a rehearsal takes: the SAME route was passed up twice, on two
+moments, and `_forgo` writes directly with no dedupe because *this happened
+here* is what an entry says.
+
+⭐ Two records of one alternative is not two alternatives. The claim is about
+the CHOICE — one route taken, one other named — so it counts `set(forgone)`.
+Counting deposits was measuring the length of the run.
+
+## ⚠⚠⚠ `ugm.attention`: red since `c07b2b1 palette`, and the cause is worth more
+than the failure
+
+    FAIL  1 conclusion(s) lost that is not an accepted loss:
+          defeated(<hero-holds>, <hero-acts>)
+
+Bisected: green at `f3514c4`, red at `c07b2b1` — **the commit that reserved a
+new atom for the action palette.**
+
+⭐⭐⭐ **Reserving a name shifts every subsequent NODE ID**, and this repository's
+tie-breaks are mint-ordered by design (§3: no derived result is read out of an
+unordered source, and insertion order is what makes a tie break the same way
+every run). So a new reserved atom perturbs orderings globally, and a rule can
+drop out of a shortlist at the moment its overrider matched — which is exactly
+what `defeated` needs to be recorded.
+
+> The bundle is not free, and neither is the vocabulary. Adding a rule shifts
+> declaration RANK; adding a reserved name shifts NODE IDS. Both are global.
+
+That is the author's *global equilibrium*, one level below where it was first
+noticed, and it has now cost two fixtures in one session — `ugm.walkers` to the
+first and `ugm.attention` to the second.
+
+⚠ `defeated` was deliberately taken OFF the accepted-losses list once already
+(`attention.py`: *it was accepted as unreachable on the same grounds... That was
+wrong — the question can be asked the other way round*). Losing it again is a
+regression against work done on purpose, not a tolerance to widen.
+
+## ⚠ How both hid: the module sweep was a hand-written list
+
+There are ~30 modules with a `main()`. Every sweep this session used a list of a
+dozen, and neither `practice` nor `attention` was in it. Enumerating from the
+filesystem found both in one run:
+
+    for f in ugm/*.py; do grep -q "^def main" "$f" && python3 -m ugm.$(basename $f .py); done
+
+Something like it belongs in the repo rather than in a session's scratch.
+
+⚠⚠ And a bisect over a DIRTY tree is worthless: `git checkout <ref>` fails
+silently when a modified file differs, leaving the previous ref in place and
+reporting its result. The first bisect this session said `5c961f7` and was
+wrong; committing first and re-running said `c07b2b1`.
+
 # Handoff — 2026-08-20h (a buff that names a NODE beats one that names a rule)
 
 On top of `5418cda`.
