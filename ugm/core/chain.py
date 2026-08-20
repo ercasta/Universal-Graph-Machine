@@ -4,15 +4,7 @@ A moment is a signed delta, a predecessor and a licence. A proposition claims
 nothing; the claim is a separate node, the entry, with exactly three members --
 locus, proposition, sign.
 
-An entry carries two times, and keeping them apart is the whole of §4's second
-half:
-
-    locus       what the claim is about
-    deposit     the moment whose delta it sits in -- when the claim was made
-
-In the common case they coincide. They come apart when the agent learns
-something about a time that has already passed, which is what makes belief
-revision ordinary rather than a second mechanism.
+See docs/design/chain.md.
 """
 
 import time as _wallclock

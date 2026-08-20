@@ -1,3 +1,76 @@
+# Handoff — 2026-08-20r (dead code, the sweep goes green, and the prose moves out)
+
+On top of `ec47d28`. Three commits: `dead`, `vocabulary`... and this.
+
+    selftest          646/0
+    ./tools_sweep.sh  0 failing, 26 run    <- GREEN, for the first time
+
+## The sweep is green
+
+`gates.vocabulary` had been red the whole session and before it. Both its
+failures were ONE cause: `holds_at` and `time` are reserved in `core/chain.py`
+and were never added to the classification, and the unclassified pair made the
+*reserved names that are about a WORLD* count non-zero -- so the headline check
+was failing on bookkeeping rather than on a real domain word.
+
+## Dead code, and the layering violation went with it
+
+    attention._fight, _load, _holds, Table._bare
+    experts_named, machine._binding_stamp, _note_defeat, _sharing
+    quest._beliefs                                          -159 lines
+
+⭐ Deleting `_fight` removed the one place `core` reached into `probes`.
+`core/attention.py` also shed `_corpora`, `PLUS` and `os`, all orphaned by the
+deletions. Six of the nine pre-dated this session.
+
+## ⭐⭐⭐ The prose moved to `docs/design/`, and the CODE DID NOT MOVE AT ALL
+
+    before   33,935 lines   16,652 code   14,633 prose  (43%)
+    after    27,188 lines   16,652 code    7,886 prose  (29%)
+
+> **Not one file changed its code-line count.** That is the check that says this
+> was a comment edit and not a refactor, and it is asserted rather than hoped.
+
+42 notes under `docs/design/`, 10,488 lines. Nothing was deleted: every block
+moved verbatim under a heading, and the module keeps a summary plus a pointer.
+
+Two passes. First, comment runs of 8+ lines and docstrings of 15+; then module
+docstrings, which is what the complaint was actually about -- `probes/walkers.py`
+opened with **205 lines** and `core/attention.py` with **204**.
+
+## ⚠ What this changes at runtime, said out loud
+
+**22 modules print their own `__doc__` as a report header.** Their console output
+is now short and points at the note. The findings are not lost -- they are in
+`docs/design/` and under version control -- but `python -m ugm.probes.walkers`
+prints a paragraph where it used to print an essay.
+
+## ⚠⚠ Two things the mechanical pass got wrong, both caught by looking
+
+    wrap()          dropped every space when the prefix was empty, so a
+                    docstring came out as `Thisisthealternativetolifting.`
+    walkers.py      its header was a markdown TABLE, and flattening prose into
+                    sentences turned it into one unreadable paragraph. Rewritten
+                    by hand; it was the only one, and a scan for `|` found it.
+
+> **A sentence-splitter does not know what a table is**, which is the same shape
+> as 20q's *a regex anchored on `^from ` does not know what a docstring is*.
+> Both were found by reading the output rather than by the suite.
+
+## What is left of the 1.0 list
+
+    Machine._in_play      NO production caller. `ugm.gates.state` holds it to a
+                          definition and one selftest check measures it, and
+                          nothing in the loop calls it. A DECISION, not a
+                          deletion.
+    the `tolerance` knob  parses, reads, steers nothing since `_close` went
+    probes/modality       its own header says its question is settled
+    docs/                 HANDOFF.md 462 KB, observations.md 165 KB, three
+                          feedback/reply pairs. `docs/design/` is now a fourth
+                          kind of doc and CLAUDE.md still says rules-design.md
+                          is "the only doc" -- worth reconciling before 1.0.
+    situations            queued in docs/todo.md, costed and measured
+
 # Handoff — 2026-08-20q (four packages, and the sweep nearly stopped looking)
 
 On top of `bfb5c56`. A pure move plus the three things a move forces.

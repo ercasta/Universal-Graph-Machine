@@ -4,6 +4,24 @@ Moved out of the module so the code reads as code. Nothing here is required to
 work on `chain.py`; it is the record of *why*, and the module carries a one-line
 pointer at each place it applies.
 
+## Module overview
+
+Moments (§4) and entries (§5), and the walk that reads them.
+
+A moment is a signed delta, a predecessor and a licence. A proposition claims
+nothing; the claim is a separate node, the entry, with exactly three members --
+locus, proposition, sign.
+
+An entry carries two times, and keeping them apart is the whole of §4's second
+half:
+
+    locus       what the claim is about
+    deposit     the moment whose delta it sits in -- when the claim was made
+
+In the common case they coincide. They come apart when the agent learns
+something about a time that has already passed, which is what makes belief
+revision ordinary rather than a second mechanism.
+
 ## There is no closed set of grades
 
 `GRADES` was five names in Python — unknown, unlikely, possible, likely, certain
