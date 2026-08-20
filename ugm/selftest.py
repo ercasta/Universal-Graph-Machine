@@ -7845,10 +7845,21 @@ def attention_is_learned_from_what_the_move_bound() -> None:
         return m, kb, order
 
     _m, _kb, plain = go([])
-    check("§18", "with nothing taught, the move after `<spot>` strikes whoever "
-          "the WALK offers first -- not the one `<spot>` was about",
-          plain == [("spot", "goblin1"), ("strike", "goblin2"),
-                    ("strike", "goblin1")])
+    # ⭐⭐⭐ **This check used to assert the opposite, and the change is the
+    # result.** It read *with nothing taught, the walk decides* -- and it did,
+    # because nothing put what a move wrote in front of the agent. Now the
+    # machinery attends what a move wrote, so the move after `<spot>` is
+    # already about the goblin `<spot>` was about, with no lesson at all.
+    #
+    # ⚠ Which means a focus lesson no longer has to teach THIS. What it teaches
+    # is the weight -- that of the things a move touched, one matters more --
+    # and that is what took the dungeon from 32.6 matched/move to 13.0, past
+    # the rule-naming bigram's 17.2.
+    check("§18", "⭐⭐⭐ untaught, the move after `<spot>` is already about the "
+          "goblin `<spot>` bound -- the machinery attends what a move wrote, so "
+          "the walk no longer decides and no lesson had to say so",
+          plain == [("spot", "goblin1"), ("strike", "goblin1"),
+                    ("strike", "goblin2")])
 
     m, kb, taught = go(["after <spot> => attend(?x)"])
     check("§19", "⭐⭐⭐ `after <spot> => attend(?x)` makes the next move about "
@@ -8370,14 +8381,15 @@ def attention_is_a_bounded_queue() -> None:
           "forgotten -- no `unattend`, no timer, and nothing to tune but the "
           "span",
           len(m._attention) == ATTENTION_SPAN
-          and m._attention[0] is ns[-1] and ns[0] not in m._attention)
+          and m._attention[0][0] is ns[-1]
+          and ns[0] not in [n for n, _w in m._attention])
 
     m._push_attention(ns[-3])
     check("§19", "⚠ re-attending something already held MOVES it up rather than "
           "adding it twice, or one node would crowd out everything else the "
           "agent knows it is doing",
-          m._attention[0] is ns[-3]
-          and len(set(m._attention)) == len(m._attention))
+          m._attention[0][0] is ns[-3]
+          and len({n for n, _w in m._attention}) == len(m._attention))
 
     # The span is a knob a corpus can turn, the way `tolerance` already is.
     narrow = Machine()

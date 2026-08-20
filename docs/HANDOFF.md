@@ -1,3 +1,133 @@
+# Handoff — 2026-08-20h (a buff that names a NODE beats one that names a rule)
+
+On top of `5418cda`.
+
+    selftest    645/0
+    teaching    exit 0, and the result below
+    ⚠ practice  exit 1 — a regression I introduced in `5418cda` and did not
+                catch, because the module sweep was an ad-hoc list. See below.
+
+## The result
+
+    dungeon             moves   matched/move   agrees   domain lost
+    uncalibrated         141        34.8         --          3
+    bigram (names RULES) 139        17.2        131          3
+    focus (names NODES)  141        13.0        134          3
+
+⭐⭐⭐ **A calibration that names a node now BEATS one that names a rule** — fewer
+matches, better agreement with the teacher, and nothing lost. That is the
+retirement of `prefer`/`boost` made possible rather than argued for: the reason
+to retire them was that naming another rule goes stale, and the reason not to
+was that nothing else worked.
+
+## Three pieces, and none of them works alone
+
+**`attend(?x, n)` — the buff weighs a NODE.** The author's idea: after a rule
+runs, some nodes get a stronger attention multiplier. The evidence count is the
+weight, so a lesson seen nine times outranks one seen twice.
+
+**Auto-attention at weight 1.** What a move wrote goes on the queue, decomposed,
+relation atoms included — so a lesson's multiplier has something to stand out
+against. Everything one move writes arrives at the same depth, which is why the
+queue's own gradient could not separate them and why this failed twice before.
+
+**⚠⚠⚠ The lift keys on CLAIMED attention only; the whole queue orders bindings.**
+This is the piece three attempts were missing. Ordering a rule's own bindings
+costs nothing — the applications are in hand. LIFTING decides which rules are
+matched at all, so a queue full of whatever the last move wrote pushes the
+shortlist onto recently-touched rules and leaves work unreached: **48 conclusions
+lost, quiescing 32 moves early**. Someone saying *attend to this* is a reason to
+bring rules to mind; the machinery noticing *this just happened* is not.
+
+⭐ A side effect worth having: untaught, the move after `<spot>` is now already
+about the goblin `<spot>` bound. The machinery does what a focus lesson used to
+have to teach, so what a lesson teaches is now only the WEIGHT.
+
+## ⚠ The regression, and how it got through
+
+`ugm.practice` has been failing since `5418cda` — the queue commit, already on
+`main`. Its `forgone` record shows one route twice where the check wants two
+distinct ones, so a rehearsal no longer reads as a choice.
+
+**It got through because the module sweep was a hand-written list.** There are
+~30 modules with a `main()` and the list had a dozen. `/tmp/allmods.sh` in that
+session enumerated them from the filesystem instead; something like it belongs in
+the repo.
+
+⚠ `forgone` is a SAFETY property before it is a learning one (`attention.py`'s
+own note: *an act cannot be taken back*), so this is not a cosmetic failure and
+is the next thing to fix.
+
+# Handoff — 2026-08-20h (retiring `prefer` and the buffs: blocked, and why)
+
+On top of `5418cda`. **Nothing was retired.** The suite is 645/0 and behaviour is
+unchanged; what is committed is the measurement that says the retirement cannot
+happen yet.
+
+## What was asked, and what it needs
+
+`prefer(<R>, key, n)` and `after <A> => boost(<B>, n)` both NAME OTHER RULES,
+which is the *keyed on an identity* defect this whole thread has been about, one
+level up from bindings. Retiring them is right.
+
+⭐ But `prefer`'s *when `key` is in play* is exactly *`key` is in the attended
+set* — and nothing puts relation atoms there. That is the auto-attention half,
+backed out in 20d. **The retirement is blocked on it, precisely.**
+
+## Tried again, on the queue this time, and it is still wrong
+
+The queue's gradient was the obvious repair for what killed it before:
+
+    flat lift, no queue (20d)   10-13 checks failed; focus arm lost 44
+    onto the GRADED queue        5 checks failed  ...and the dungeon's
+                                 UNCALIBRATED arm lost 48 conclusions and
+                                 stopped 30 moves early (109 against 141)
+
+⭐⭐⭐ **The gradient fixed the check count and not the substance.** Attending
+everything a move wrote keeps the queue permanently full of the last move's
+nodes, so the agent chases its own tail and quiesces early. Only the bigram
+buffs pulled it back — 153 moves, 3 lost.
+
+> The queue is a real gain for attention a rule ASKS for. It is not one for
+> attention nobody asked for.
+
+## The number that says what retirement would cost
+
+    dungeon        matched/move   domain conclusions lost
+    uncalibrated       34.8              3
+    bigram (buffs)     17.2              3
+    focus (attention)  32.6              3
+
+The buffs halve the work. Attention, graded, moves it by 6%. **Retiring the
+buffs today gives up that factor of two** and puts nothing in its place.
+
+## What would unblock it
+
+Not more attention-by-default — that is two measurements, both negative. The
+open candidates are the ones never tried: **length normalisation** (a 15-node
+rule should not out-match a 2-node one by size) and **inverse frequency over the
+active pool** (`stage` and `on` should not lift everything). Both were named in
+20d and neither is built.
+
+⚠ And the honest possibility to keep open: that a bigram naming its successor is
+simply the right shape for *this rule, then that one*, and what should be
+retired is `prefer` alone — whose key is a relation, which attention can carry —
+while the sequence-shaped lesson stays. That is a smaller claim than the one
+this session set out to test, and the numbers so far support it.
+
+## Inventory, for whoever does it
+
+~180 sites: `machine.py` (`PREFER`, `_priority`, `_rank`, `_in_play`, `_recall`),
+`attention.py` (the lift block, `Buff`, `Table.spend`, `LIFE`, `MAX_LIFT`,
+`live`, `age`, `clear`, `trace`, `rebuilt`, `_rerank`, `reflex`), `rules.py`
+(`arbitrate`'s priority), `bundle.ugm` (`<relevant>`, and `SETTLE`'s
+`boost(?a, 1)`), `teaching.py` (three of five arms), `text.py` (parsing),
+`workload.py` / `learning.py` / `practice.py` (which USE `prefer` as their
+mechanism — `workload`'s ideal table is `fact prefer(...)` and is its whole
+ceiling measurement), plus 42 mentions in `selftest.py`.
+
+⚠ `stop` must survive: it is a postcondition but it is not scoring.
+
 # Handoff — 2026-08-20g (attention is a bounded queue, and position is weight)
 
 On top of `e1da382`.

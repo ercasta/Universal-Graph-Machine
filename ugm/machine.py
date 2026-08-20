@@ -1022,7 +1022,7 @@ class Machine:
         # ⚠ And it decays by DISPLACEMENT rather than by a timer, which is the
         # better notion: ten quiet ticks should not forget what you were doing,
         # and ten busy ones should. `LIFE` could never say that.
-        self._attention: List[NodeId] = []
+        self._attention: List[Tuple[NodeId, int]] = []
         self._booting = False
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
@@ -2229,7 +2229,8 @@ class Machine:
             source=self.KB, mention=True,
         )
 
-    def _attend(self, node: NodeId, licence: Optional[NodeId] = None) -> bool:
+    def _attend(self, node: NodeId, licence: Optional[NodeId] = None,
+                weight: int = 1) -> bool:
         """*Think about this one.* -- what a postcondition spends when it
         attends, and an ordinary claim when it lands.
 
@@ -2238,14 +2239,50 @@ class Machine:
         answers with a rule and a moment, which is the whole reason attention is
         a claim rather than a field on the loop.
         """
-        self._push_attention(node)
+        self._push_attention(node, weight)
         prop = self.g.rel(self.ATTENTION, node)
         if self._claims(prop):
             return False
         self._note(prop, licence)
         return True
 
-    def _push_attention(self, node: NodeId) -> None:
+    def _attend_written(self, wrote) -> None:
+        """What a move just wrote goes on the queue, at weight 1.
+
+        ⚠⚠⚠ Backed out TWICE before (20d, 20h) and back only because the piece
+        it was missing now exists. Everything one move writes arrives at the
+        same depth, so the queue alone cannot tell those nodes apart -- and a
+        queue permanently full of undifferentiated nodes made the agent chase
+        its own tail and quiesce 30 moves early.
+
+        ⭐ A learned `attend(?x, 3)` outweighs them. Weight 1 is *this is what
+        just happened*; a multiplier is *and a lesson says this part mattered*.
+        """
+        for e in reversed(tuple(wrote or ())):
+            # ⚠ NOT the agent's own record-keeping. `spent`, `did`, `goal` and
+            # the rest are how the machinery remembers what it did, not things
+            # the world is about -- and a queue full of them is a queue that
+            # says nothing about the situation.
+            if self.g.relation_of(e.proposition) in self._bookkeeping:
+                continue
+            for node in self._nodes_of(e.proposition, []):
+                if self.g.relation_of(node) in self._bookkeeping:
+                    continue
+                self._push_attention(node)
+
+    def _nodes_of(self, node: NodeId, out: List[NodeId]) -> List[NodeId]:
+        """A proposition, decomposed into every node it is made of."""
+        if node in out:
+            return out
+        out.append(node)
+        rel = self.g.relation_of(node)
+        if rel is not None:
+            self._nodes_of(rel, out)
+        for m in self.g.members(node):
+            self._nodes_of(m, out)
+        return out
+
+    def _push_attention(self, node: NodeId, weight: int = 1) -> None:
         """To the top, and whatever falls off the bottom is forgotten.
 
         ⚠ Re-attending something already in the queue MOVES it up rather than
@@ -2253,9 +2290,8 @@ class Machine:
         recently, and a queue that held duplicates would let one node crowd out
         everything else the agent knows it is doing.
         """
-        if node in self._attention:
-            self._attention.remove(node)
-        self._attention.insert(0, node)
+        self._attention = [(n, w) for n, w in self._attention if n != node]
+        self._attention.insert(0, (node, max(1, weight)))
         span = self._knob(self.SPAN, ATTENTION_SPAN)
         if span is not None and span > 0:
             del self._attention[span:]
@@ -3744,7 +3780,7 @@ class Machine:
         """
         # ⭐ The QUEUE first, newest at the front, because position is the
         # gradient: what the agent turned to last is what it is most about.
-        out: List[NodeId] = list(self._attention)
+        out: List[NodeId] = [n for n, _w in self._attention]
         # ...and a standing claim not in the queue goes at the BOTTOM. A corpus
         # writing `fact +attention(goblin1)` has said something lasting rather
         # than something recent, so it ranks below whatever the agent was just
@@ -3756,6 +3792,36 @@ class Machine:
             if self._claims(node) and members[0] not in out:
                 out.append(members[0])
         return out
+
+    def _attention_asked(self) -> List[NodeId]:
+        """Only what something CLAIMED attention of — authored or learned.
+
+        ⭐⭐⭐ The line is claimed vs derived, not weighted vs plain. Someone
+        saying *attend to this* is a reason to bring rules to mind; the
+        machinery noticing *this just happened* is not, and conflating them is
+        what starved the shortlist — the dungeon quiesced 32 moves early and
+        lost 48 conclusions because a queue full of the last move's nodes
+        decided which rules were matched at all.
+
+        ⚠ Ordered by the QUEUE where a claim is in it, so a claim just made
+        outranks one standing since the corpus loaded.
+        """
+        claimed = set()
+        for node in self.g.instances_of(self.ATTENTION):
+            members = self.g.members(node)
+            if len(members) != 1 or self.g.has_var(members[0]):
+                continue
+            if self._claims(node):
+                claimed.add(members[0])
+        out = [n for n, _w in self._attention if n in claimed]
+        for n in claimed:
+            if n not in out:
+                out.append(n)
+        return out
+
+    def _attention_weights(self) -> dict:
+        """Node -> the multiplier a learned buff put on it, for the lift."""
+        return {n: w for n, w in self._attention}
 
     def _claims(self, proposition: NodeId) -> bool:
         e = self.chain.resolve(proposition, self.focus.topic, self.focus.seat)

@@ -436,7 +436,7 @@ def focus_lines(m: Machine, ldr, learned: dict) -> List[str]:
     """
     by_name = {r.name for r in m.rules.rules if r.name}
     out: List[str] = []
-    for name, (var, _n, text) in sorted(learned["rules"].items()):
+    for name, (var, times, text) in sorted(learned["rules"].items()):
         if name not in by_name:
             continue
         query = " "
@@ -448,7 +448,7 @@ def focus_lines(m: Machine, ldr, learned: dict) -> List[str]:
                 continue
             query = " { %s } " % ", ".join(
                 "+" + m.g.show(x) for x in m.g.members(whole))
-        out.append(FOCUS % (name, query, var))
+        out.append(FOCUS % (name, query, var, min(times, 9)))
     return out
 
 
@@ -615,7 +615,11 @@ AFTER = "after <%s>%s => boost(<%s>, %d)" + chr(10)
 # `docs/HANDOFF.md` 20d records attending the last move's right-hand side being
 # tried and backed out. Until that lands this is the only thing bounding the
 # set, and the measurement below is what says whether it matters.
-FOCUS = "learned after <%s>%s=> attend(%s)" + chr(10)
+# ⭐⭐⭐ **The weight is the EVIDENCE.** A lesson seen nine times says the node
+# matters more than one seen twice, and that multiplier is what lets a learned
+# lesson stand out from the nodes a move merely wrote -- which all arrive at the
+# same depth in the queue and cannot otherwise be told apart.
+FOCUS = "learned after <%s>%s=> attend(%s, %d)" + chr(10)
 
 
 def _agree(mine: List[str], theirs: List[str]) -> int:

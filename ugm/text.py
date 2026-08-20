@@ -435,8 +435,19 @@ class Parser:
             # it without naming any individual.
             self.expect("(")
             target = self.term()
+            weight = 1
+            if self.at(","):
+                # ⭐ The learned buff, and it weighs a NODE rather than a rule.
+                # `attend(?x, 3)` says *of what this move touched, that one
+                # matters* -- a multiplier on its place in the attention queue.
+                self.next()
+                n = self.next()
+                if not n.text.isdigit():
+                    raise ParseError(
+                        f"line {n.line}: how much to attend is a numeral")
+                weight = int(n.text)
             self.expect(")")
-            return (Attend(target), 0)
+            return (Attend(target, weight), 0)
         if t.kind == "name" and t.text == "reset":
             # Back to the default table. The author's mechanism for refocusing,
             # and it is a postcondition like any other: nothing in the engine
@@ -832,7 +843,8 @@ class Loader:
             # it is built in the host rule's scope like everything else here --
             # which is what makes `attend(?x)` *that* `?x`.
             (t if t is None or t is STOP or t is UNATTEND
-             else Attend(self.build(t.term, scope)) if isinstance(t, Attend)
+             else Attend(self.build(t.term, scope), t.weight)
+             if isinstance(t, Attend)
              else self.build(t, scope), delta)
             for t, delta in clause.buffs
         )

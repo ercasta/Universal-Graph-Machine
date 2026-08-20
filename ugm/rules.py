@@ -71,15 +71,27 @@ class Attend:
     ⚠ A class rather than a sentinel because it carries the term to attend to,
     which `stop` and `reset` do not. `term` is a node once the loader has built
     it, and the parser's own term before that.
+    
+    ⭐⭐⭐ **And it carries a WEIGHT, which is what a learned buff now is.**
+    `attend(?x, 3)` says *of the things this move touched, THAT one matters* --
+    a multiplier on a node's place in the attention queue rather than a number
+    added to some other rule's score.
+
+    That is the whole of the retirement `prefer` and `boost` were blocking: a
+    calibration that names a NODE goes stale for nothing, where one naming
+    `<R>` goes stale the moment a rule is adopted, composed or renamed. And it
+    is the differentiation the queue's position alone cannot supply, because
+    everything one move wrote arrives at the same instant.
     """
 
-    __slots__ = ("term",)
+    __slots__ = ("term", "weight")
 
-    def __init__(self, term) -> None:
+    def __init__(self, term, weight: int = 1) -> None:
         self.term = term
+        self.weight = weight
 
     def __repr__(self) -> str:
-        return f"attend({self.term})"
+        return f"attend({self.term}, {self.weight})"
 
 
 class _Unattend:

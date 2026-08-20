@@ -733,8 +733,15 @@ def _pull(m: Machine, table: "Table", state: Situation,
     # sum. Being about two things the agent is thinking of does not make a rule
     # twice as relevant, and summing would make the lift a popularity count over
     # whatever the corpus happened to attend to.
+    weights = m._attention_weights()
     for i, node in enumerate(attended):
-        weight = max(1, PULL - i)
+        # ⭐⭐⭐ **Position times the learned multiplier.** Depth says how
+        # recently the agent turned to a thing; the multiplier says how much a
+        # lesson thinks it is worth. Neither alone is enough -- everything one
+        # move wrote arrives at the same depth, so without a weight the queue
+        # cannot separate them, which is exactly what sank attending the
+        # right-hand side twice (20d, 20h).
+        weight = max(1, PULL - i) * weights.get(node, 1)
         for rel in state.relations_of(node):
             for r in table.by_relation.get(rel, ()):
                 if weight > lift.get(r, 0):
@@ -742,8 +749,8 @@ def _pull(m: Machine, table: "Table", state: Situation,
     return lift
 
 
-def _attended_first(found: List[Application],
-                    attended: Sequence[NodeId]) -> List[Application]:
+def _attended_first(found: List[Application], attended: Sequence[NodeId],
+                    weights: Optional[dict] = None) -> List[Application]:
     """Order a rule's own applications by what the agent is thinking about.
 
     ⭐⭐⭐ **This is the half no rule-keyed buff can express, and it costs
@@ -771,8 +778,10 @@ def _attended_first(found: List[Application],
     if len(found) < 2:
         return found
     at = set(attended)
+    weights = weights or {}
 
-    rank = {node: len(attended) - i for i, node in enumerate(attended)}
+    rank = {node: (len(attended) - i) * weights.get(node, 1)
+            for i, node in enumerate(attended)}
 
     def weight(a: Application) -> int:
         # ⚠ Weighted by POSITION here too, so an application binding what the
@@ -952,8 +961,18 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # ceiling on top of a claim that already has both -- the claim is
         # denied, and it is over.
         attended = m._attended()
-        if attended:
-            pull = _pull(m, table, state, attended)
+        # ⚠⚠⚠ **The queue has two uses and only one of them can starve.**
+        # Ordering a rule's own BINDINGS costs nothing -- the applications are
+        # already in hand. LIFTING rules changes which are matched at all, so a
+        # queue full of whatever the last move wrote can push the shortlist onto
+        # recently-touched rules and leave work unreached: measured, the dungeon
+        # quiesced 32 moves early and lost 48 conclusions.
+        #
+        # So the lift is driven by what a LESSON asked for -- a weighted
+        # `attend(?x, n)` -- and the whole queue orders bindings.
+        asked = m._attention_asked()
+        if asked:
+            pull = _pull(m, table, state, asked)
             if pull:
                 if lift is None:
                     lift = pull
@@ -988,7 +1007,8 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 # takes the first survivor and breaks, so the binding was
                 # decided by the walk. Free: `found` is already here.
                 if attended:
-                    found = _attended_first(found, attended)
+                    found = _attended_first(found, attended,
+                                            m._attention_weights())
                 # `_survives` is the shipped per-candidate filter: passed up,
                 # quiescent, or already spent on these premises. Refraction
                 # stays, because *this instantiation has run* is not the same
@@ -1133,6 +1153,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         m._forgo(window + _rivals(m, chosen, state), chosen)
         m._widened = False
         wrote = m._apply(chosen)
+        m._attend_written(wrote)
         m._spend(chosen, wrote)
         applied.append(chosen.rule.name or "?")
         steps.append(Step(arrivals, len(window), tried, chosen,
@@ -1312,7 +1333,11 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, buffs, frozen,
             # `attention(?x)` would be a claim about no one -- which `_attended`
             # would then refuse to read, one layer further from the mistake.
             if node is not None and not m.g.has_var(node):
-                m._attend(node, licence)
+                # ⭐ The learned WEIGHT rides along: `attend(?x, 3)` says this
+                # node matters more than whatever else is in the queue at the
+                # same depth -- a calibration that names a node instead of a
+                # rule.
+                m._attend(node, licence, target.weight)
             continue
         if target is UNATTEND:
             m._unattend(licence)
