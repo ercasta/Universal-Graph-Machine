@@ -494,3 +494,93 @@ Two candidate repairs, neither taken here: make `adopt` re-askable the way
 `_reask` already makes the other requests, or have it record `unadopted(?t,
 reason)` so a corpus can ask again. The second is the one the rest of the
 vocabulary is shaped like.
+
+---
+
+# Probed 2026-08-20: the binding check, and DEPOSIT-AS-INSTALL instead of `adopt`
+
+Two questions the author asked of the compiling probe above. Both measured on
+`cde0e8c`; the engine was not changed to take either.
+
+## 1) One check catches BOTH silent defects, and the engine already has it
+
+`Loader._rule` refuses a rule that *concludes about a variable its antecedent
+never binds*. `_adopt` applies no such check -- a text rule is checked and a
+graph-described rule is not, and that asymmetry IS the bug. Run over the three
+cases:
+
+    two-scope description        consequent `?x` is node 1389, unbound  REFUSED
+    one-scope description                              nothing unbound  accepted
+    dropped `as` slot            consequent `?n` unbound                REFUSED
+
+⭐⭐⭐ **One check, both defects, and the control passes.** The two-scope trap and
+the dropped-slot trap are the same fault seen twice: a consequent variable that
+nothing binds. Nothing new has to be invented -- the check has to be moved to
+where rules now also come from.
+
+⚠ It cannot fire on every write, because a description arrives over several
+ticks and is legitimately incomplete in between. **Complete-but-unbindable is an
+aggregate over a finished search**, so it belongs at quiescence, in the family
+`blocked` and `unsupported` are already in, rather than at the deposit.
+
+## 2) Deposit-as-install WORKS: 639 of 641, and `adopt` is not needed for it
+
+The author's proposal: stop treating `adopt` as a special request and let a rule
+become live in the same place a loaded corpus's rules do. Prototyped as one
+`on_write` hook -- when a describing fact lands, re-read that rule and install or
+revise it -- with **no `adopt` in the corpus at all**, over the whole suite:
+
+    suite                    641 checks, 2 failing
+    wall                     15.1s, of which `_read_rule` 0.0s
+    `_read_rule` calls       461     installs 9   revisions 97   no-revision 36
+
+⭐⭐⭐ **Every rule in the suite goes through the round trip and 639 checks still
+pass.** That is a far stronger fidelity test of `_read_rule` than adopt has ever
+had -- adopt is exercised by a handful of fixtures, this puts all ~100 live rules
+through it -- and it costs nothing measurable.
+
+⭐ **And it fixes the race outright.** The order-dependence measured above is
+gone: both declaration orders author the rule and conclude `+`. There is no
+instant at which the description is read once and abandoned, because every write
+re-reads.
+
+### Two implementation facts, learned the hard way and both silent
+
+⚠⚠ **The name must survive a revision.** `show(node)` is `<a>` where the loader
+called the rule `a`, so re-installing renamed every corpus rule and a fixture
+looking one up by name got nothing.
+
+⚠⚠⚠ **Revise by MUTATING the Rule, never by minting a fresh one.** A new `Rule`
+object for the same node is one rule in the graph and a twin in Python, and every
+holder of the old reference keeps the stale one. Re-minting failed two
+arbitration checks that compare `step.applied.rule is r1`; mutating in place
+passed them. **The twin trap, ninth outing, this time in Python object identity
+rather than node identity.**
+
+### What it SPENDS, and it is exactly two checks
+
+    FAIL  ...and a tool only PROPOSES: without the rule that adopts, the offer
+          is on the record and nothing is live
+    FAIL  ⚠ a rule adopted while supposing is REFUSED
+
+The second goes with situations anyway -- `_hypothetical` is on the deletion
+list -- so **one property is really at stake: propose/dispose.**
+
+⭐⭐⭐ **And `adopt` is not what carries it.** An arrival already has the
+propose/dispose shape without any help: `_report` writes `arrived(ch, p, sign)`,
+so a channel that utters a described rule deposits a claim ABOUT one and a
+corpus rule must lift it. The hole is the TOOL boundary, not the install: the
+`<builder>` answerer writes `rule`/`conn`/`ant`/`con` straight into the graph
+with `mention=True`, and under deposit-as-install that installs.
+
+> So the repair is to put propose/dispose where it belongs -- at the boundary a
+> description CROSSES -- rather than in a special install request. A tool that
+> describes a rule should deposit under `answered(...)` like every other tool
+> answer, and a corpus rule should lift it, exactly as it must for an arrival.
+> Then `adopt` has nothing left to do that a deposit does not do, and the race,
+> the silent decline and the second install path all go with it.
+
+⚠ Not built, and one thing is unmeasured: whether anything depends on a rule
+being describable in the graph WITHOUT being live. `reify` writes a description
+for every live rule, so the two are already almost the same set -- but *almost*
+is what this repo keeps getting caught by.
