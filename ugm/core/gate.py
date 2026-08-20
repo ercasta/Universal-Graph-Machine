@@ -13,48 +13,27 @@ from .graph import Graph, NodeId
 
 class Frame:
     """A reasoning in progress, as a node -- which is R7 discharged for the
-    machinery itself. Frames form a forest, not a stack: two hypotheses under
-    comparison are siblings, both alive, neither the caller of the other. What
-    looks like a stack is the ancestor path of whichever frame is in focus.
+    machinery itself: a seat to write from and a topic to write about.
+
+    ⭐⭐⭐ **Three fields, and the engine builds exactly ONE of these.** It used
+    to be a forest -- `parent`, `children`, `ancestry()`, `purpose`, `wrap`,
+    `origin`, `state`, `carried` -- because two hypotheses under comparison were
+    siblings, both alive, neither the caller of the other. Retiring situations
+    left every one of those with no writer and no reader; `state` was set only
+    by `discharge`, `wrap` only by `suppose`, and `parent` only ever by a check
+    testing that `parent` worked.
+
+    ⚠ **§18's call stack is FACTS and is untouched** -- `call`, `stage`,
+    `spawn`, `awaits`, `returned` are reserved names a corpus writes, and none
+    of them was ever a frame. Checked before this was cut, because *the frames
+    are gone* and *the agent cannot call anything* would look identical from
+    here and are not the same claim.
     """
 
-    def __init__(
-        self,
-        node: NodeId,
-        seat: Moment,
-        topic: Moment,
-        parent: Optional["Frame"] = None,
-        purpose: Optional[NodeId] = None,
-        wrap: Optional[NodeId] = None,
-    ) -> None:
+    def __init__(self, node: NodeId, seat: Moment, topic: Moment) -> None:
         self.node = node
         self.seat = seat
         self.topic = topic
-        self.parent = parent
-        self.purpose = purpose
-        # What a conclusion is re-wrapped in on the way out (§16). Held on the
-        # frame rather than in a call stack, because there is no call: reasoning
-        # inside a supposition is ordinary ticks of the ordinary loop, and the
-        # frame has to survive between them.
-        self.wrap = wrap
-        # Where the frame BEGAN, which stops being the same as `seat` the moment
-        # a `causes` rule applies inside it and the frame advances. Discharge
-        # needs the beginning -- it collects every moment from here to now -- and
-        # reading it off `seat` silently carried out only the last one.
-        self.origin = seat
-        self.children: List["Frame"] = []
-        self.state: Optional[str] = None  # discharged | exhausted | abandoned
-        self.carried: List["Entry"] = []  # what crossed out, wrapped (§17)
-        if parent is not None:
-            parent.children.append(self)
-
-    def ancestry(self) -> List["Frame"]:
-        """Derived, not maintained -- there is nothing to push (§4)."""
-        out, f = [], self
-        while f is not None:
-            out.append(f)
-            f = f.parent
-        return out
 
     def __repr__(self) -> str:
         return f"Frame(seat={self.seat}, topic={self.topic})"
@@ -97,14 +76,7 @@ class Gate:
         self.REFUSED = g.atom("refused")
         self.refusals = 0
 
-    def frame(
-        self,
-        seat: Moment,
-        topic: Optional[Moment] = None,
-        parent: Optional[Frame] = None,
-        purpose: Optional[NodeId] = None,
-        wrap: Optional[NodeId] = None,
-    ) -> Frame:
+    def frame(self, seat: Moment, topic: Optional[Moment] = None) -> Frame:
         """A frame is `frame(seat, topic)` -- two ordered members, structurally
         identical to a span. The engine learns no new relation name from it; what
         it needs is one register, which is the machine's `focus`.
@@ -119,7 +91,7 @@ class Gate:
         # the same topic are two frames, and §17 needs each to be a node other
         # facts can be about -- a purpose, a parent, a state.
         node = self.g.instance(self.FRAME, seat.node, topic.node)
-        return Frame(node, seat, topic, parent, purpose, wrap)
+        return Frame(node, seat, topic)
 
     def reseat(self, frame: Frame, seat: Moment,
                licence: Optional[NodeId] = None,

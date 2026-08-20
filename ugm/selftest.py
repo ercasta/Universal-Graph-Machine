@@ -137,7 +137,12 @@ def gate() -> None:
 
     f2 = gate_.frame(seat=now)
     check("§13", "topic defaults to the seat", f2.topic is now)
-    check("§13", "frames form a forest: ancestry is derived", gate_.frame(now, parent=f2).ancestry()[-1] is f2)
+    # ⚠ *Frames form a forest: ancestry is derived* was checked here, and the
+    # forest went with situations. `Frame` is a seat and a topic now, and the
+    # engine builds exactly one. §18's call stack is FACTS and is unaffected.
+    check("§13", "a frame is its seat and its topic, and nothing else",
+          (f2.node, f2.seat, f2.topic) == (f2.node, now, now)
+          and not hasattr(f2, "parent"))
 
 
 # -- §12 uncertainty ---------------------------------------------------------
@@ -5335,18 +5340,6 @@ def a_cause_moves_the_register() -> None:
           len([e for mo in m3.chain.moments for e in mo.delta
                if m3.g.relation_of(e.proposition) is kb3.term("shifted")]) == 1)
 
-
-
-def _frames(m) -> list:
-    out, seen = [], []
-    f = m.focus
-    while f is not None:
-        seen.append(f)
-        f = f.parent
-    for f in seen:
-        out.append(f)
-        out.extend(f.children)
-    return out
 
 
 def reference_is_binding() -> None:

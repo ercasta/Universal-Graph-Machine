@@ -1,3 +1,107 @@
+# Handoff — 2026-08-20u (practice rewritten, `at_or_after`, `Frame`)
+
+On top of `27f5faf`. Three follow-ons to the situations deletion.
+
+    selftest          534/0        (11.3s, was 12.0s)
+    ./tools_sweep.sh  1 failing, 25 run   <- `gates.state`, left open on purpose
+    ugm.learning.practice  17 checks, 0 failing   (was 14, 8 failing + a crash)
+
+## 1. `learning/practice` rewritten on anchors, and the headline is back
+
+    agent                      emitted              lost
+    no practice                ['smash(jug1)']      ['intact(jug1)']
+    practised first            ['fill(kettle)']     []
+
+    rehearsed harm per round   [1, 0, 0, 0]
+    rule <learned-0-in-under> = implies( { +under(?v2, ?v3) }, { +attention(?v3, 3) } )
+
+⭐⭐⭐ **Containment is now an ordinary PREMISE.** Three bridge rules replace
+`suppose`/`discharge` entirely:
+
+    <act>     { +world(?s), +in(?s, doing(?a)) } => { +doing(?a) }
+    <assume>  { +rehearsal(?s), +in(?s, doing(?a)) } => { +in(?s, did(?a)) }
+    <observe> { +world(?s), +did(?a) } => { +in(?s, did(?a)) }
+
+A rehearsal is a scene that is not a `world`, so `<act>` simply fails to match.
+*What would happen if we set fire to the house*, answered without burning it
+down, with no machinery -- which is what `docs/todo.md` predicted and this is the
+first place it carries a real fixture.
+
+### ⭐⭐⭐ The design rule the rewrite found: anchor what CHANGES, not what IS
+
+Blanket anchoring was tried and **measured wrong twice**, both silently:
+
+    every premise anchored    `_relations_required` collapses to {goal, in} for
+                              EVERY route, so `_salient` cannot tell two routes
+                              apart and `leaves()` returns NOTHING. The agent
+                              rehearses, is harmed, blames correctly -- and
+                              learns nothing, with no error anywhere.
+    `doing`/`did` anchored,   `_circumstances` skips DOING and DID BY RELATION,
+    no anchored premise in    and `in(?s, did(...))` is neither. The lesson gets
+    the chooser               conditioned on what happened AFTER the choice, so
+                              it can never fire before one.
+
+Both are fixed by the same thing: the choosing rules name `in` in their own
+antecedents, which puts it in `_circumstances`' `required` set. `under`,
+`holds`, `achieves` and `fruit` stay bare -- a rehearsal and the world do not
+disagree about them.
+
+> **This is the sharpest measured cost of the anchored shape yet, and it is not
+> verbosity.** `docs/todo.md` costs anchoring as *every premise and conclusion
+> wrapped, on 51 of the 72 authored rules*. The real cost is that anchoring
+> erases the relation-level signal `_salient`, `_circumstances` and `leaves` all
+> read, and the failure is a silent no-lesson. Add it to
+> `docs/descriptions-to-rules.md`'s ledger before the compiler is pointed at a
+> corpus that learns.
+
+⭐ Two simplifications fell out: `_own_losses`/`_charge` and their
+`locus.at_or_after(frame.origin)` arithmetic became *which scene is this about*,
+and the old *rehearsals NEST -- the crossing runaway in a new place* finding is
+closed by construction, because a scene is a node somebody wrote down. That is
+what `hypotheses(n)` and `depth(n)` were bounding, and why both could go.
+
+## 2. `at_or_after` -- ⚠⚠⚠ the proposed collapse was UNSOUND
+
+`docs/todo.md` proposed collapsing this to a depth comparison because *nothing
+forks now*. **That is false**, and the suite cannot see it:
+
+    two siblings off the root      walk says False, depth says True
+    suite, with the collapse       534 checks, 0 failing
+
+`Chain.succeed` still forks on demand and `selftest.the_matchers_are_one` forks
+ON PURPOSE, to prove that a structural read anchored at one branch reaches no
+entry on its sibling. Nothing ever asks `at_or_after` about those two moments,
+so a green suite would have signed off an unsound read.
+
+**Taken instead: `Graph._merges`' pattern.** `Chain.forks` counts every
+`succeed` given anything but the latest moment -- zero for every chain the
+engine builds -- and `at_or_after` pays one integer compare until something
+forks, then walks. Plus a guard sound on any shape: an ancestor is never deeper.
+
+    586,596 of 1,544,658 comparisons walked NINE OR MORE steps
+    suite 12.02s -> 11.30s
+
+## 3. `Frame` collapses to three fields
+
+    node, seat, topic
+
+Gone: `parent`, `children`, `ancestry()`, `purpose`, `wrap`, `origin`, `state`,
+`carried`, and `Gate.frame`'s three extra parameters. Every one had no writer
+and no reader after the deletion -- `state` was set only by `discharge`, `wrap`
+only by `suppose`, and **`parent` only ever by the check that tested `parent`**.
+
+⭐ The engine builds exactly ONE frame: `gate.frame(self.chain.root)`. Every
+other call site in the tree is a test or a gate instrument.
+
+⚠ Checked before cutting, as `docs/todo.md` asked: **§18's call stack is FACTS**
+-- `call`, `stage`, `spawn`, `awaits`, `returned` are reserved names a corpus
+writes, and none of them was ever a frame.
+
+## Still open
+
+`gates.state`'s 1 state + 1 index disagreement, pre-existing and newly exposed.
+Deliberately untouched.
+
 # Handoff — 2026-08-20t (situations retired)
 
 On top of `60c17e9`. **-1,949 lines, +206.**

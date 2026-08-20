@@ -71,11 +71,31 @@ class Moment:
     def at_or_after(self, other: "Locus") -> bool:
         """Is `other` this moment or one of its ancestors?
 
-        A depth comparison is not enough once anything forks -- and supposing
-        forks by construction. Two moments on different branches can share a
-        depth while neither is on the other's walk, and a depth test would let a
-        claim made inside one supposition answer a question asked inside its
-        sibling. That is the containment property, so it has to be ancestry.
+        A depth comparison is not enough ONCE ANYTHING FORKS. Two moments on
+        different branches can share a depth while neither is on the other's
+        walk, and a depth test would answer a question asked on one branch with
+        a claim made on the other. That is the containment property, so where
+        the chain forks it has to be ancestry.
+
+        ⭐⭐⭐ **But a chain that has never forked pays one integer compare.**
+        Retiring situations removed the engine's only source of forks -- nothing
+        in the loop calls `succeed` on anything but the latest moment -- so the
+        common chain is linear and the walk was pure cost: measured over the
+        suite, 586,596 of 1,544,658 comparisons walked NINE OR MORE steps.
+
+        ⚠⚠⚠ **The fast path is guarded on a counter, not on the deletion.**
+        `docs/todo.md` proposed collapsing this outright on the argument that
+        *nothing forks now*, and that is false: `Chain.succeed` still forks on
+        demand, `selftest.the_matchers_are_one` forks ON PURPOSE to prove a
+        containment property, and the collapse answers that case WRONG --
+
+            two siblings off the root:  walk False, depth True
+
+        -- while the suite stays 534/0 either way, because nothing ever asks
+        `at_or_after` about the two siblings. A green suite would have signed
+        off an unsound read. This is `Graph._merges`' pattern exactly: the
+        cheap answer is exact until something makes it not, and the something
+        is counted where it happens.
 
         ⚠ **The span case is no longer decided here.** *A span is at or before
         this moment once the stretch is complete* is a decision, not a walk, and
@@ -85,6 +105,11 @@ class Moment:
         """
         if isinstance(other, Span):
             return bool(self.chain and self.chain.consult(self.node, other.node))
+        if self.chain is not None and not self.chain.forks:
+            return other.depth <= self.depth
+        # ⚠ Sound on ANY shape and free: an ancestor is never deeper.
+        if other.depth > self.depth:
+            return False
         m: Optional["Moment"] = self
         while m is not None:
             if m is other:
@@ -314,6 +339,10 @@ class Chain:
         g.rel(self.IS_MOMENT, self.root.node)
         self._stamp(self.root)
         self.moments: List[Moment] = [self.root]
+        # How many times `succeed` was given anything but the latest moment.
+        # Zero for every chain the engine builds; `at_or_after` reads it to
+        # decide whether a depth compare is exact. See `Moment.at_or_after`.
+        self.forks = 0
         self._moment_by_node: Dict[NodeId, Moment] = {self.root.node: self.root}
         self._span_by_node: Dict[NodeId, Span] = {}
         # Entries by the proposition they are about: (seat, position, entry).
@@ -334,6 +363,11 @@ class Chain:
         # nowhere in the repository, while §4 claimed *which of the two this is
         # is said by the licence and by nothing else*. The moment's own
         # succession is `pred`; what a moment is FOR is a fact about it.
+        # ⚠ Counted BEFORE the append, and it is what licenses `at_or_after`'s
+        # depth compare. A caller that succeeds an older moment has forked the
+        # chain, and from then on ancestry is the only sound answer.
+        if self.moments and self.moments[-1] is not predecessor:
+            self.forks += 1
         m = Moment(self.g.instance(self.MOMENT), predecessor, self)
         self.g.rel(self.IS_MOMENT, m.node)
         self.g.rel(self.PRED, m.node, predecessor.node)
