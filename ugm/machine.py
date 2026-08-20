@@ -488,6 +488,13 @@ class Machine:
         # Why the machinery declined one. A corpus declining for its own reasons
         # says its own word here; this is the only one the engine ever uses.
         self.UNAFFORDED = self.g.atom("unafforded")
+        # ...and the other one the apparatus gives: nothing resolved it, and the
+        # loop ended. `<unattended>` in the bundle concludes it, so it has to be
+        # RESERVED -- a bundle rule's argument atom is a twin waiting to happen
+        # exactly as its relation is, and this one was: the rule fired, and a
+        # corpus asking about `declined(?a, unattended)` built a second node
+        # with the same name and saw nothing.
+        self.UNATTENDED = self.g.atom("unattended")
         self.CALL = self.g.atom("call")
         self.STAGE = self.g.atom("stage")
         self.SPAWN = self.g.atom("spawn")
@@ -690,6 +697,7 @@ class Machine:
             "attention": self.ATTENTION,
             "afforded": self.AFFORDED, "attempt": self.ATTEMPT,
             "declined": self.DECLINED, "unafforded": self.UNAFFORDED,
+            "unattended": self.UNATTENDED,
             "call": self.CALL, "stage": self.STAGE, "spawn": self.SPAWN,
             "awaits": self.AWAITS, "returned": self.RETURNED,
             "advances": self.ADVANCES, "closes": self.CLOSES,
@@ -868,7 +876,7 @@ class Machine:
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.ATTENTION,
                              self.AFFORDED, self.ATTEMPT, self.DECLINED,
-                             self.UNAFFORDED, self.CALL, self.STAGE, self.SPAWN,
+                             self.UNAFFORDED, self.UNATTENDED, self.CALL, self.STAGE, self.SPAWN,
                              self.AWAITS, self.RETURNED,
                              self.ADVANCES, self.CLOSES,
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
@@ -1058,9 +1066,27 @@ class Machine:
         def visit(n: NodeId) -> None:
             rel = self.g.relation_of(n)
             if rel is None:
+                # ⚠⚠⚠ **An ARGUMENT atom is a twin waiting to happen exactly as
+                # a relation is, and this returned early on every one of them.**
+                # `<unattended>` concludes `declined(?a, unattended)`; the
+                # bundle's `unattended` was not reserved, so a corpus asking
+                # about it built a second node with the same name and saw
+                # nothing at all. The rule fired. The corpus could not tell.
+                #
+                # ⚠ Variables are exempt: they are scoped to the statement (§8)
+                # and are not names a corpus needs to reach.
+                if (not self.g.is_var(n) and not self.g.members(n)
+                        and n not in known and self.g.show(n) not in missing):
+                    missing.append(self.g.show(n))
                 return
             if rel not in known and self.g.show(rel) not in missing:
                 missing.append(self.g.show(rel))
+            if rel is self.NEW:
+                # ⚠ A mint MARKER is internal. `+k` says *one new thing per
+                # application* and `k` is how the author told two markers apart
+                # inside one consequent -- it names nothing a corpus could ask
+                # about, so requiring it to be reserved would reserve a letter.
+                return
             for m in self.g.members(n):
                 visit(m)
 
@@ -2467,7 +2493,69 @@ class Machine:
                 licence=self.g.rel(self.GOAL, wanted), source=self.KB, mention=True,
             )
             stopped = True
-        return stopped
+        # ⭐⭐⭐ **And an ATTEMPT nobody resolved, which is the same claim.** A
+        # goal still open and a request still outstanding are both *the agent
+        # was asked for something and it did not happen*, so both veto a stop
+        # once and both go on the record as `open`.
+        #
+        # ⚠⚠⚠ It has to be HERE and not in a watchdog keyed on `quiet`, and
+        # that is the whole finding. `quiet` is written when the search ran dry,
+        # and an agent that stops SATISFIED never runs dry -- Hanoi finishes on
+        # `enough(solved)` with a stale attempt standing and `quiet` never
+        # written at all. `_halt` then breaks the loop immediately, so a rule
+        # keyed on `stopped(...)` never gets a turn either. Between the two, an
+        # outstanding request could be dropped in silence by an agent that
+        # believed itself finished -- death by silence, and it is the case the
+        # existing carve-out did not cover.
+        return self._notice_attempts() or stopped
+
+    def _notice_attempts(self) -> bool:
+        """An attempt nobody resolved, on the record before the loop ends.
+
+        ⭐⭐⭐ A goal still open and a request still outstanding are the same
+        claim -- *the agent was asked for something and it did not happen* -- so
+        both go on the record as `open` and both veto a stop once.
+
+        ⚠⚠⚠ **Called from BOTH endings, and that is the whole of it.** A run
+        that stops SATISFIED never goes quiet, and a run that goes quiet never
+        stops satisfied; covering one leaves the other silent. Measured on
+        Hanoi, which finishes on `enough(solved)` with a stale attempt standing
+        and writes `quiet` not once.
+
+        ⚠ Neither `quiet` nor `stopped` could carry this on its own: `_halt`
+        breaks the loop immediately, so a rule keyed on `stopped(...)` never
+        gets a turn, while `quiet` is written only when the search ran dry.
+        """
+        seat = self.focus.seat.node
+        noticed = False
+        for node in self.g.instances_of(self.ATTEMPT):
+            if self.g.has_var(node):
+                continue
+            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            if e is None or e.sign != PLUS:
+                continue
+            (asked,) = self.g.members(node)
+            if (seat, asked) in self._noticed:
+                continue
+            self._noticed.add((seat, asked))
+            # ⚠⚠⚠ **The machinery says this, not a bundled watchdog**, and the
+            # reason is measured rather than aesthetic. A rule keyed on `open`
+            # would be a fourteenth bundled rule, and a bundled rule shifts the
+            # declaration RANK of every rule in every corpus: it cost
+            # `ugm.walkers` its central demonstration -- the `<step>`/`<fork>`
+            # contention stopped showing as two options about one walker -- and
+            # `ugm.teaching` one conclusion. The bundle is not free, and it is
+            # not free in a way that is invisible from inside it.
+            #
+            # ⭐ It is also the more honest owner. *Nothing resolved this and
+            # the loop is ending* is a claim about the loop, which no rule can
+            # see: `_halt` breaks immediately and `quiet` is only written when
+            # the search ran dry. The machinery deposits its own event, exactly
+            # as it does for `unafforded`, and what it MEANS is still a rule's.
+            self._note(self.g.rel(self.DECLINED, asked, self.UNATTENDED),
+                       licence=self.g.rel(self.ATTEMPT, asked))
+            noticed = True
+        return noticed
 
     def _halt(self, reason: NodeId) -> bool:
         """Record that the loop stopped because it was satisfied, not because it
@@ -2497,6 +2585,10 @@ class Machine:
     def _wake(self) -> bool:
         """The loop found nothing to do. Say so, in the graph, once per seat.
 
+        ⚠ And notice what is still outstanding while there is still a tick to
+        react in -- the same call `_enough` makes before stopping satisfied.
+        The two endings are disjoint and an attempt can be dropped by either.
+
         §5 named two places the machinery declines -- match and write -- and
         quiescence is the third. It was the only one that declined *silently*,
         and silence is what lets reasoning stop with goals still open and nothing
@@ -2523,6 +2615,7 @@ class Machine:
         if seat.node in self._quieted:
             return False
         self._quieted.add(seat.node)
+        self._notice_attempts()
         self.gate.write(
             self.focus, self.g.rel(self.QUIET, seat.node), PLUS,
             licence=self.g.rel(self.QUIET, seat.node), source=self.KB,

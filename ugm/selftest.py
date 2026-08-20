@@ -8183,6 +8183,54 @@ def a_bad_attempt_is_declined_rather_than_ignored() -> None:
           not misbehave(3, without="covered")["covered"])
 
 
+def outstanding_business_is_not_dropped_in_silence() -> None:
+    """§9: an agent may not walk away from a request without saying so.
+
+    ⭐⭐⭐ **Low priority as a PREMISE, not a score.** A watchdog names an
+    occasion only the machinery writes, so it is inert until there is nothing
+    better to do -- which is what a floor score was reaching for, expressed as a
+    fact instead of a number. `<give-up>` has always been one, for goals;
+    `<unattended>` is the same thing for a request nobody resolved.
+
+    ⚠⚠⚠ **Both endings, and they are disjoint.** A run that stops SATISFIED
+    never goes quiet, and a run that goes quiet never stops satisfied -- Hanoi
+    finishes on `enough(solved)` and writes `quiet` not once. Covering one
+    leaves the other silent, which is the case `_notice_attempts` exists for.
+
+    ⚠ And neither `quiet` nor `stopped` could carry it alone: `_halt` breaks the
+    loop immediately, so a rule keyed on `stopped(...)` never gets a turn.
+    """
+    from .hanoi import corpus
+    from .text import load
+
+    m = Machine()
+    kb = load(m, "action move(?x, ?y)" + chr(10)
+              + "fact +attempt(move(a, b))" + chr(10))
+    m.run(limit=40)
+    check("§9", "⭐ a run that RAN DRY with a request outstanding says so: "
+          "nothing resolved it, and that is a fact rather than a silence",
+          m.holds(kb.term("declined(move(a, b), unattended)")) == PLUS)
+
+    # ...and the other ending, which no `quiet` ever reaches.
+    sat = Machine()
+    ksat = load(sat, corpus(3, "covered")
+                + "fact +attempt(move(d3, y))" + chr(10))
+    sat.run(limit=400)
+    check("§9", "⭐⭐⭐ ...and so does one that stopped SATISFIED -- Hanoi solves "
+          "the puzzle and never writes `quiet` at all, so the request would "
+          "otherwise be dropped by an agent that believed itself finished",
+          sat.holds(ksat.term("declined(move(d3, y), unattended)")) == PLUS)
+
+    # The world model still gets first refusal where it has an opinion.
+    own = Machine()
+    kown = load(own, corpus(3) + "fact +attempt(move(d3, y))" + chr(10))
+    own.run(limit=400)
+    check("§9", "⚠ where the world model DOES have a rule, its own decline is "
+          "what stands -- the watchdog is the last word, not the first",
+          own.holds(kown.term("declined(move(d3, y), covered)")) == PLUS
+          and own.holds(kown.term("declined(move(d3, y), unattended)")) is None)
+
+
 def a_table_can_outlive_a_run() -> None:
     """§4: let a caller pass its table in.
 
@@ -8782,6 +8830,7 @@ def main() -> int:
     a_recursion_can_be_learned_from_watching_it()
     the_action_palette_is_declared_and_discoverable()
     a_bad_attempt_is_declined_rather_than_ignored()
+    outstanding_business_is_not_dropped_in_silence()
 
     failed = 0
     group = None

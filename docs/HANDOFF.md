@@ -1,3 +1,68 @@
+# Handoff — 2026-08-20e (outstanding business, and the bundle is not free)
+
+On top of `d3a79bc`.
+
+    selftest    635/0  (was 632; 3 added)
+    vocabulary  18/2 — unchanged
+    modules     all 29 green
+
+## What was built
+
+An attempt nobody resolved is now declined before the loop ends:
+
+    declined(move(d3, y), unattended)
+
+⭐⭐⭐ **Both endings, and they are disjoint.** A run that stops SATISFIED never
+goes quiet; a run that goes quiet never stops satisfied. Hanoi solves the puzzle
+on `enough(solved)` and writes `quiet` **not once** — so a watchdog keyed on
+`quiet` alone would never see it, and one keyed on `stopped(...)` never gets a
+turn because `_halt` breaks the loop immediately. `_notice_attempts` is called
+from both, and it vetoes the stop once so there is a tick to react in.
+
+That is death by silence closed: an agent that believed itself finished could
+drop a request it had made and nothing anywhere recorded it.
+
+## ⚠⚠⚠ Why it is the MACHINERY and not a bundled watchdog
+
+It was built as a bundle rule first — `<unattended>`, keyed on `open(?a)` — and
+that is the right shape in principle: low priority as a PREMISE rather than a
+score, which is what `<give-up>` already is for goals.
+
+**It cost two other fixtures**, and the reason is worth keeping:
+
+    ugm.walkers    its CENTRAL demonstration. The `<step>`/`<fork>` contention
+                   stopped showing as two options about one walker (per walker
+                   2 -> 1, 4 ticks -> 3)
+    ugm.teaching   the bigram arm lost one extra conclusion (4 against 3)
+
+A bundled rule shifts the declaration RANK of every rule in every corpus, and
+rank is what decides the shortlist when scores are equal at the floor. **The
+bundle is not free, and it is not free in a way that is invisible from inside
+it.** This is the second time this session — the call-stack rules did the same
+to `ugm.walkers`, which is what forced its per-walker measurement.
+
+⭐ The machinery is also the more honest owner. *Nothing resolved this and the
+loop is ending* is a claim about the LOOP, which no rule can see. So it deposits
+its own event, exactly as it does for `unafforded`, and what it MEANS is still a
+rule's to decide.
+
+## ⚠⚠⚠ And a name was a twin for the fourth time this thread
+
+`<unattended>` fired, and a corpus asking `declined(?a, unattended)` saw
+**nothing** — the bundle's `unattended` was not reserved, so the corpus built a
+second node with the same name.
+
+`_vocabulary_is_surface_nameable` exists to catch exactly this and **returned
+early on every argument atom**: it checked relations only. Extended to argument
+atoms, and it immediately caught a second case — the mint marker `k` in
+`<call-spawn>`, which is exempt because a marker names nothing a corpus asks
+about.
+
+Running tally for this thread: `child` (caught by grep), `spawn` (caught by a
+rule-name collision), `action` (not caught — broke `ugm.modality`), `unattended`
+(not caught — silently invisible). The check now covers the class that produced
+two of the four.
+
 # Handoff — 2026-08-20d (step 3 attempted, measured, and backed out)
 
 On top of `39e8c14`. **No behaviour changed.** The suite is 632/0 and every

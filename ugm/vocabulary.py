@@ -89,7 +89,7 @@ ROLES: Dict[str, List[str]] = {
         # becomes of a bad one, with `unafforded` the single reason the
         # MACHINERY ever gives -- what is legal is the world model's to say, in
         # its own word.
-        "attempt", "declined", "unafforded",
+        "attempt", "declined", "unafforded", "unattended",
         # Refraction (§14): what has already run, on what, and the
         # contradiction that stopping a loop would otherwise hide.
         "spent", "premises", "contested",
