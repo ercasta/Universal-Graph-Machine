@@ -2131,16 +2131,26 @@ def rival_hypotheses_are_comparable() -> None:
 
 def recall_is_narrowable() -> None:
     """§19's first slice: recall stops proposing everything, and what narrows it
-    is a table of ordinary facts.
+    is a knob a corpus can set.
 
-    `prefer(<R>, k)` says *when k is in play, bring R to mind*. Authored here;
-    §19 says it is learned from the trail, and the trail is already deposited for
-    R5, so nothing new has to be measured for that to happen.
+    ⚠⚠⚠ **THE `prefer` TABLE THAT USED TO BE HERE IS GONE, AND SO IS THE
+    ORDERING IT FED.** `prefer(<R>, k)` said *when k is in play, bring R to
+    mind*; it named a rule id, which is what the whole retirement is about, and
+    `_priority` -- the only thing that read it -- went with it. The cap now takes
+    rules in AUTHORED order. The three `prefer` facts were left in this fixture
+    for one run after the reader went, and they changed nothing: measured, the
+    corpus with and without them recalls identically. A fixture that cannot tell
+    its own subject from its absence is not testing it, so they are deleted
+    rather than kept as decoration.
 
-    The key is not the register. Attention is the register (§4's one privileged
-    pointer, `Machine.focus` -- seat and topic), but a seat is a fresh moment
-    every tick, so a table keyed on it would never see the same key twice. What
-    recurs is what the situation is about, so the key is a relation in play.
+    ⚠⚠⚠ **AND `_recall` IS NOT ON THE TABLE LOOP'S PATH.** Instrumented, a
+    `Machine.run` over this corpus calls `_recall` **zero** times -- the loop
+    shortlists through the attention table instead, and the budget knob reaches
+    it via `_widen`. `_recall` is still called by `ugm.quiescence`, so this is
+    not dead code; but what it narrows is no longer what the agent recalls when
+    it moves, and the checks below are about the knob rather than about the loop.
+    Recorded here rather than fixed, because deciding where narrowing belongs is
+    a design question and not a repair.
     """
     from .text import load
 
@@ -2153,13 +2163,6 @@ def recall_is_narrowable() -> None:
         "fact +p(a)",
         "",
     ])
-    table = chr(10).join([
-        "fact prefer(<a>, p, 5)",
-        "fact prefer(<b>, q, 5)",
-        "fact prefer(<c>, r, 5)",
-        "",
-    ])
-
     def run(src, budget):
         m = Machine()
         kb = load(m, src)
@@ -2171,17 +2174,15 @@ def recall_is_narrowable() -> None:
     check("§19", "the default is still exhaustive -- a fresh agent has learned nothing",
           m0.holds(kb0.term("s(a)")) == PLUS and m0.widenings == 0)
 
-    m1, kb1, _ = run(chain + table, 3)
+    m1, kb1, _ = run(chain, 3)
     check("§19", "a narrowed recall reaches the same conclusion",
           m1.holds(kb1.term("s(a)")) == PLUS)
-
-    m2, kb2, _ = run(chain, 3)
 
     # A ranking that ended in a set would make two runs of one corpus differ with
     # nothing recording why. This project has hit that bug; the tie-break is
     # authored order, the same one arbitration uses.
-    a, _, sa = run(chain + table, 3)
-    b, _, sb = run(chain + table, 3)
+    a, _, sa = run(chain, 3)
+    b, _, sb = run(chain, 3)
     check("§14", "and the same corpus recalls the same rules in the same order twice",
           [s.state for s in sa] == [s.state for s in sb] and a.widenings == b.widenings)
 
@@ -2233,12 +2234,19 @@ def recall_is_narrowable() -> None:
         m4.holds(kb4.term("pursued(water(kettle))")) == PLUS,
     )
 
-    # ...and the line is still load-bearing, on the fixture that can kill it.
-    m5 = Machine()
-    kb5 = load(m5, chain)
-    m5.recall_budget = 3
-    m5._widen = lambda: False  # type: ignore[assignment]
-    m5.run(limit=2000)
+    # ⚠⚠⚠ **A FIXTURE THAT WAS BUILT, RUN, AND NEVER ASSERTED ON.** It stood
+    # here as `m5` under the comment *the line is still load-bearing, on the
+    # fixture that can kill it*, with no `check` after it -- so the claim was
+    # made in a comment and tested by nothing. Measured when the retirement went
+    # past it, and **the claim is false on this fixture**: with the budget at 3
+    # and `_widen` forced to `False`, the chain still reaches `s(a)` in 0
+    # widenings, because `<a>`, `<b>` and `<c>` are authored first and fit
+    # inside the cap. Burying them behind three other rules does not change it
+    # either, because `_recall` is not on this loop's path at all (see above).
+    #
+    # Deleted rather than repaired: the fixture cannot kill the line, and a
+    # replacement that could would have to narrow what the TABLE loop shortlists,
+    # which is a different mechanism and belongs with attention.
 
 
 def the_better_move_wins() -> None:
@@ -6479,23 +6487,39 @@ def taking_one_way_passes_up_the_others() -> None:
 
 
 def doubt_is_a_tie() -> None:
-    """A preference is a **score**, and doubt is what a score makes sayable.
+    """Doubt is deposited when the agent has more than one move -- and what that
+    replaced was a SCORE.
 
-    An order alone cannot distinguish *one clear best* from *two I cannot
-    separate*, and those call for different behaviour: take the move, or think
-    harder about it. So `prefer` is scored on §10's ordinal grade scale -- the
-    entry's own grade, reused rather than invented -- and
+    ⚠⚠⚠ **THIS FUNCTION'S SUBJECT IS RETIRED, AND THE COST IS GATED BELOW.**
+    It used to argue that a preference is a score, that
 
-    > **two rules are close exactly when they tie.**
+    > two rules are close exactly when they tie,
 
-    Ordinal, so this needs no threshold constant, which a numeric score would.
-    §12 also says ordinals do not add, which is the other reason not to invent
-    a cardinal one here.
+    and that this needed no threshold constant because the scale was ordinal.
+    `_priority` was the only reader of that score; it is gone with `prefer`, and
+    so is `Machine._close`, the tolerance test that consumed it.
+
+    What deposits `close` now is the TABLE LOOP, on a different criterion:
+    `len(window) > 1` -- the agent had more than one candidate in front of it.
+    That is *I have a choice here*, not *I cannot separate these two*, and the
+    difference is the whole of what was lost. An agent can no longer say it is
+    doubtful **because two moves are equally recommended**, only that it has
+    more than one.
+
+    ⚠⚠ Measured before rewriting, six ways -- a bare tie, a `+prefer` row for
+    the loser, that row denied, that row vetoed by a `standing` rule, and the
+    tolerance knob at 9 and at 1. **All six gave the identical result**, first
+    move `byA` and doubted `True`. Six checks that could no longer fail. They
+    are replaced by three that can, one of which asserts the loss itself.
+
+    ⚠ `tolerance(n)` is still parsed and still readable as a knob (`_tolerance`),
+    and nothing acts on it any more. It is left standing rather than deleted
+    because the knob checks in §21 are about a corpus being able to SAY a
+    number, which is a separate claim -- but it steers nothing, and a corpus
+    that sets it is talking to no one.
     """
     from .text import load
 
-    # Two candidates, nothing to separate them: both merely FIT the goal, which
-    # `<relevant>` records `@possible`.
     tie = chr(10).join([
         "rule <byA> = implies( { +a(?x) }, { +at(?x) } )",
         "rule <byB> = implies( { +b(?x) }, { +at(?x) } )",
@@ -6504,13 +6528,18 @@ def doubt_is_a_tie() -> None:
         "fact +goal(at(p))",
         "",
     ])
+    # The control, and the reason the check above is not free: one candidate,
+    # so nothing to be in two minds about.
+    alone = chr(10).join([
+        "rule <byA> = implies( { +a(?x) }, { +at(?x) } )",
+        "fact +a(p)",
+        "fact +goal(at(p))",
+        "",
+    ])
+
     def first_corpus_move(src, ignore=()):
         machine = Machine()
         load(machine, src)
-        # `ignore` is for a corpus rule that is apparatus rather than a
-        # competitor -- a `standing` rule that denies a preference is not one of
-        # the moves being chosen between, and counting it as the first move
-        # measures the wrong thing.
         skip = {r.name for r in machine.bundle} | set(ignore)
         first = None
         for s in machine.run(limit=600):
@@ -6518,110 +6547,60 @@ def doubt_is_a_tie() -> None:
                 first = s.applied.rule.name
         return first, machine
 
+    def doubted(machine):
+        """`close` between two of the CORPUS's moves.
+
+        ⚠ Not any `close` at all. The bundle is in the table too, and it is in
+        two minds about its own apparatus on every run -- `close(<plan>,
+        <expand>)` and `close(<ask-recall>, <ask-check>)` are deposited even by
+        a corpus with a single rule. Counting those made the control below pass
+        for a reason that had nothing to do with the corpus, which is the same
+        mistake `first_corpus_move` already exists to avoid.
+        """
+        bundled = {r.name for r in machine.bundle}
+        for mm in machine.chain.moments:
+            for e in mm.delta:
+                if machine.g.relation_of(e.proposition) is not machine.CLOSE:
+                    continue
+                if e.sign != PLUS:
+                    continue
+                names = [machine.g.show(n).strip("<>")
+                         for n in machine.g.members(e.proposition)]
+                if not any(n in bundled for n in names):
+                    return True
+        return False
+
     _, m = first_corpus_move(tie)
-    closes = [
-        e for mm in m.chain.moments for e in mm.delta
-        if m.g.relation_of(e.proposition) is m.CLOSE and e.sign == PLUS
-    ]
-    check("§19", "two equally-recommended rules are recorded as close", bool(closes))
+    _, solo = first_corpus_move(alone)
+    check("§19", "an agent with two candidate moves deposits `close`, and one "
+          "with a single candidate does not -- so the doubt is about having a "
+          "CHOICE, not about a tie in any score",
+          doubted(m) and not doubted(solo))
     check(
         "§14",
-        "and the choice was still made -- arbitration stays total, it is just no longer silent",
+        "and the choice was still made -- arbitration stays total, it is just "
+        "no longer silent",
         first_corpus_move(tie)[0] == "byA",
     )
 
-    # A stronger claim breaks the tie, because a preference is a score and not a
-    # flag. `@certain` beats the `@possible` that mere candidacy earns.
-    stronger = tie + "fact +prefer(<byB>, at(p), 5)" + chr(10)
-    move, m2 = first_corpus_move(stronger)
-    def doubted(machine):
-        return any(
-            machine.g.relation_of(e.proposition) is machine.CLOSE and e.sign == PLUS
-            for mm in machine.chain.moments for e in mm.delta
-        )
-
-
-    # *How close is close* is a knob, so it is a fact. Zero by default, so the
-    # default is an exact tie and nothing depends on a constant nobody chose.
-    _, m3 = first_corpus_move(stronger + "fact +tolerance(9)" + chr(10))
-    check(
-        "§19",
-        "raising the tolerance makes a clear winner doubtful again",
-        doubted(m3),
-    )
-    _, m3b = first_corpus_move(stronger + "fact +tolerance(1)" + chr(10))
-
-    # The payoff: an agent that is harder to convince when the next step cannot
-    # be taken back. *How careful am I being* becomes a claim with a trail,
-    # rather than a threshold somebody chose once.
-    careful = chr(10).join([
-        "rule <byA> = implies( { +a(?x) }, { +doing(at(?x)) } )",
-        "rule <byB> = implies( { +b(?x) }, { +doing(at(?x)) } )",
-        "rule <care> = implies( { +goal(doing(?p)) }, { +tolerance(9) } )",
-        # ...and being careful must come BEFORE the move it is about, which is
-        # what `standing` says: apparatus ahead of opinions. Without it the
-        # agent commits and then decides to be careful, which is no use.
-        "fact standing(<care>)",
-        "fact +a(p)",
-        "fact +b(p)",
-        "fact +prefer(<byB>, doing(at(p)), 5)",
-        "fact +goal(doing(at(p)))",
-        "",
-    ])
-    _, m4 = first_corpus_move(careful)
-    check(
-        "R4",
-        "a rule can widen doubt when the step is irreversible -- the knob is arguable",
-        doubted(m4),
-    )
-
-    # ⚠⚠ Two properties of the table that the `forest` commit got wrong, measured
-    # here so the record cannot drift again.
-    #
-    # `_priority` resolves each row through the chain and requires `+`, so a
-    # preference is an ordinary DENIABLE claim. `forest` concluded that the
-    # ensemble "has a way for advice to accumulate and no way for it to be
-    # overruled"; the second half is false, and the experiment simply never
-    # reached for the mechanism.
-    denied = stronger + "fact -prefer(<byB>, at(p), 5)" + chr(10)
-    check(
-        "§12",
-        "a preference row is deniable -- advice can be overruled, not only outweighed",
-        first_corpus_move(denied)[0] == "byA",
-    )
-    vetoed = stronger + chr(10).join([
-        "rule <veto> = implies( { +b(?x) }, { -prefer(<byB>, at(?x), 5) } )",
-        "fact standing(<veto>)",
-        "",
-    ])
-    check(
-        "§19",
-        "...and by a rule, not only by a fact -- so overruling is itself arguable",
-        first_corpus_move(vetoed, ignore=("veto",))[0] == "byA",
-    )
-    # ⭐⭐ And the sharper reason bagging failed, which is R7 rather than the
-    # combination rule: propositions intern, so the SAME row twice is one node.
-    #
-    # > An ensemble's agreement is invisible and only its disagreement adds.
-    #
-    # Two trees that learned the same row contribute once; two that learned
-    # different scores accumulate. That is why the summation is left alone -- it
-    # is a representation fact, not a policy choice.
-    twice = stronger + chr(10).join([
-        "fact +prefer(<byA>, at(p), 3)",
-        "fact +prefer(<byA>, at(p), 3)",
-        "",
-    ])
-    distinct = stronger + chr(10).join([
-        "fact +prefer(<byA>, at(p), 3)",
-        "fact +prefer(<byA>, at(p), 4)",
-        "",
-    ])
-    check(
-        "§19",
-        "...while two DISTINCT rows do sum, and outweigh the stronger single row",
-        first_corpus_move(distinct)[0] == "byA",
-    )
+    # ⚠⚠⚠ THE LOSS, ASSERTED RATHER THAN FILED. Every one of these used to move
+    # the outcome; none of them moves anything now. Written as a check so that
+    # the day a score-keyed mechanism comes back, this FAILS and sends whoever
+    # brought it back to the paragraph above.
+    variants = [
+        tie + "fact +prefer(<byB>, at(p), 5)" + chr(10),
+        tie + "fact +prefer(<byB>, at(p), 5)" + chr(10)
+            + "fact -prefer(<byB>, at(p), 5)" + chr(10),
+        tie + "fact +tolerance(9)" + chr(10),
+        tie + "fact +tolerance(1)" + chr(10),
+    ]
+    outcomes = {(first_corpus_move(v)[0], doubted(first_corpus_move(v)[1]))
+                for v in variants}
+    check("§19", "⚠ and NOTHING a corpus can say about preference or tolerance "
+          "changes the move any more: a `prefer` row, its denial, and the "
+          "tolerance knob at 9 and at 1 all give the same first move and the "
+          "same doubt as the bare tie",
+          outcomes == {("byA", True)})
 
 
 def support_can_be_withdrawn() -> None:
@@ -7813,6 +7792,13 @@ def attention_is_about_a_node_not_a_rule() -> None:
     # the queue grades by POSITION, so three attended things still have an
     # order, and the run goes to `r10` rather than back to `r9`.
     #
+    # ⚠⚠⚠ And then a THIRD column, when retiring `prefer` un-reserved a name and
+    # shifted every node id: the run now goes to `r9` after all, so *the first
+    # rule differs from bare* is no longer true either. It was another
+    # coincidence -- `applied[0]` is one sample of an ordering. What is asserted
+    # below is the ordering and the COST, which is what *the lift still works*
+    # actually means and is not a fixture's luck.
+    #
     # ⭐⭐⭐ What naming everything actually loses is the ability to say WHICH
     # ONE MATTERS. Attend one thing and its rule goes first. Attend three and
     # the one you named does not -- some rule is still lifted, just not yours,
@@ -7823,9 +7809,14 @@ def attention_is_about_a_node_not_a_rule() -> None:
           "matters: attend one and its rule goes first, attend three and the "
           "one you named does not",
           lifted.applied[0] == "r11" and everything.applied[0] != "r11")
-    check("§19", "...and it is not that the lift stopped working -- something is "
-          "still brought forward, it is just not the thing the lesson was about",
-          everything.applied[0] != bare.applied[0])
+    check("§19", "...and it is not that the lift stopped working -- the order "
+          f"still moves ({bare.applied[:3]} bare, {everything.applied[:3]} "
+          f"attended) and it is still cheaper ({bare.tried} rules matched, "
+          f"{everything.tried} attended), it is just not the thing the lesson "
+          "was about that came forward",
+          everything.applied != bare.applied
+          and everything.tried < bare.tried
+          and everything.widenings < bare.widenings)
     check("§19", "⚠ and the STATE is what the lift is read through, not the "
           "graph: attending to a node the agent holds nothing about lifts "
           "nothing at all",
@@ -7917,17 +7908,26 @@ def attention_is_learned_from_what_the_move_bound() -> None:
           "than forgets -- so a focus that has moved on is on the record",
           both == taught and m2.holds(kb2.term("attention(goblin1)")) == MINUS)
 
-    # ...and a ranking-time trigger may not write, which is the one place the
-    # split between spending and depositing could have leaked.
-    m3 = Machine()
-    kb3 = load(m3, chr(10).join(base + [
-        "when { +leader(?z) } => attend(?z)", ""]))
-    table_run(m3, limit=12)
-    check("§19", "⚠⚠⚠ a RANKING-time trigger cannot attend: it runs on rules "
-          "that have not applied and may never apply, so a deposit from there "
-          "would be the agent claiming to think about what it considered "
-          "thinking about",
-          m3.holds(kb3.term("attention(goblin1)")) is None)
+    # ...and a ranking-time trigger is now REFUSED rather than ignored.
+    #
+    # ⚠⚠⚠ It used to be accepted and silently unable to write: `_rerank` ran it
+    # on rules that had not applied and may never apply, so a deposit from there
+    # would have been the agent claiming to think about what it merely
+    # considered thinking about. `_rerank` is retired with the buffs, so a `when`
+    # trigger now reaches NOTHING -- it would load and never run. A lesson that
+    # silently does nothing is the worst outcome available, so the surface
+    # refuses it and says where to put it instead.
+    from .text import ParseError
+    refused = None
+    try:
+        m3 = Machine()
+        load(m3, chr(10).join(base + ["when { +leader(?z) } => attend(?z)", ""]))
+    except ParseError as exc:
+        refused = str(exc)
+    check("§19", "⚠⚠⚠ a RANKING-time trigger is REFUSED, not quietly ignored -- "
+          "nothing runs one any more, and the error says to hang the lesson off "
+          "the rule that RUNS",
+          refused is not None and "after <R>" in refused)
 
 
 def a_lesson_about_attention_is_learned_from_play() -> None:
@@ -7952,7 +7952,13 @@ def a_lesson_about_attention_is_learned_from_play() -> None:
     src = chr(10).join([
         "rule <spot>   = implies( { +leader(?x), +side(?s) }, { +marked(?x) } )",
         "rule <strike> = implies( { +marked(?y), +side(?t) }, { +struck(?y) } )",
-        "after <spot> => boost(<strike>, 9)",
+        # ⚠ Was `after <spot> => boost(<strike>, 9)`. The buff's only job here
+        # was to INTERLEAVE the two rules, so that what `<spot>` bound carried
+        # into the next move and carry-over had something to count. `standing`
+        # is the authored floor-raise and produces the identical run -- measured,
+        # spot/strike three times either way -- so the fixture's subject (which
+        # VARIABLE the lesson is about) is untouched by the retirement.
+        "fact standing(<strike>)",
         "fact +side(red)",
         "fact +leader(g1)", "fact +leader(g2)", "fact +leader(g3)", ""])
 
@@ -8319,22 +8325,24 @@ def what_was_learned_is_a_document() -> None:
         (plain)     a person wrote it
         learned     play added it
 
-    ⚠⚠ And a learned lesson ADJUSTS rather than replaces. For a score that is
-    arithmetic -- two postconditions on one rule both spend, so an authored 5
-    beside a learned 2 is 7. For attention it is the absence of `unattend`: the
-    lesson says *and also this*.
+    ⚠⚠ And a learned lesson ADJUSTS rather than replaces. It used to be
+    arithmetic -- two postconditions on one rule both spend, so an authored
+    `boost(<R>, 5)` beside a learned `boost(<R>, 2)` was 7. With the buffs gone
+    it is the absence of `unattend`: three postconditions on one rule each
+    attend, and the queue ends up holding ALL of what they named. The lesson
+    says *and also this*, which is the same claim without the arithmetic.
     """
     from .machine import Machine as M
     from .text import load
 
     m = M()
     kb = load(m, chr(10).join([
-        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <a> = implies( { +p(?x), +s(?y) }, { +q(?x) } )",
         "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
-        "after <a> => boost(<b>, 5)",
-        "learned after <a> => boost(<b>, 2)",
-        "frozen after <a> => boost(<b>, 1)",
-        "fact +p(x)", ""]))
+        "after <a> => attend(?x)",
+        "learned after <a> => attend(?y)",
+        "frozen after <a> => attend(?x)",
+        "fact +p(x)", "fact +s(y)", ""]))
     posts = m.rules.triggers[kb.rules_by_name["a"].node]
     check("§20", "⭐ the surface tells an authored lesson from a learned one "
           "from a frozen one, over one construct and with no change to how any "
@@ -8342,15 +8350,16 @@ def what_was_learned_is_a_document() -> None:
           [(f, l) for _q, _b, f, l in posts] == [(False, False), (False, True),
                                                  (True, False)])
 
-    # ...and the adjustment is arithmetic nobody had to write: both spend.
+    # ...and the adjustment needs no arithmetic: each one attends, and the
+    # agent ends up thinking about everything they named.
     from .attention import Table, _standing, run as table_run
     t = Table(m.g, list(m.rules.rules), _standing(m))
-    was = t.score[kb.rules_by_name["b"].node]
-    table_run(m, limit=4, table=t)
+    table_run(m, limit=6, table=t)
+    attended = {m.g.show(n) for n in m._attended()}
     check("§20", "⭐⭐⭐ ...and a learned lesson ADJUSTS the authored one rather "
-          "than replacing it -- 5 authored plus 2 learned plus 1 frozen is 8, "
-          "because two postconditions on one rule both spend",
-          t.score[kb.rules_by_name["b"].node] == was + 8)
+          "than replacing it -- the authored post attends `?x`, the learned one "
+          "attends `?y`, and the agent is thinking about BOTH",
+          {"x", "y"} <= attended)
 
     # The round trip: emit, load into a machine that was never taught, and the
     # lessons are there and still marked.
@@ -8360,7 +8369,7 @@ def what_was_learned_is_a_document() -> None:
     src = chr(10).join([
         "rule <spot>   = implies( { +leader(?x), +side(?s) }, { +marked(?x) } )",
         "rule <strike> = implies( { +marked(?y), +side(?t) }, { +struck(?y) } )",
-        "after <spot> => boost(<strike>, 9)",
+        "fact standing(<strike>)",
         "fact +side(red)",
         "fact +leader(g1)", "fact +leader(g2)", "fact +leader(g3)", ""])
     played = M()
@@ -8458,15 +8467,15 @@ def attention_is_a_bounded_queue() -> None:
 def a_table_can_outlive_a_run() -> None:
     """§4: let a caller pass its table in.
 
-    A host driving the agent one tick at a time rebuilds the table per step, and
-    that is free EXACTLY while nothing has moved it -- with no postconditions a
-    table is its defaults plus a `prefer` lift recomputed every tick, so a
-    rebuilt table is the same table. Supply real postconditions and the rebuild
-    silently discards every spend, on the day something else changes.
+    A host driving the agent one tick at a time rebuilds the table per step.
+    With the buffs retired that is now free in general and not merely while
+    nothing has moved the table: a score is `STANDING` or `FLOOR` and only
+    `absorb` changes it, so a rebuilt table differs from the kept one exactly in
+    the rules the agent ADOPTED since -- which is the case this check is for.
 
-    ⚠ **The ticks continue rather than restarting**, or a lift born on tick 39
-    of the last call is younger than one born on tick 2 of this one, and
-    `rebuilt` -- asserted on every run -- is what would catch it.
+    ⚠ **The ticks continue rather than restarting.** Nothing decays any more, so
+    this no longer guards a lift's age; it is what keeps the count a host can
+    read monotone across calls.
     """
     from .text import load
     from .attention import Table, run as table_run, _standing
@@ -8487,8 +8496,9 @@ def a_table_can_outlive_a_run() -> None:
     check("§4", "...and a second run continues the same table rather than a "
           "fresh one",
           second.table is table and table.ticked > ticked)
-    check("§4", "...continuing the tick count, so a lift's age is not reset "
-          "under it -- the assertion inside `run` is the one that holds this",
+    check("§4", "...continuing the tick count rather than restarting it, so a "
+          "caller stepping one tick at a time sees a monotone count and not a "
+          "saw-tooth",
           table.now >= ticked)
     # A table nobody supplied is still built here, so the default path is
     # untouched -- the whole suite is the check for that, and this names it.

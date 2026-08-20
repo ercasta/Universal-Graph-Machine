@@ -20,10 +20,14 @@ IMPLIES = "implies"
 class _Stop:
     """The postcondition that ends the run, as a sentinel rather than a node.
 
-    ⭐ `boost` and `damp` move a score, `reset` returns the table to its
-    defaults, and this stops. All four are what an applied rule SPENDS, so all
-    four are rows in one vocabulary rather than branches -- which is the test
-    this design applies to connectives and applies here for the same reason.
+    ⭐ `attend` deposits a claim, `unattend` denies one, and this stops. All
+    three are what an applied rule SPENDS, so all three are rows in one
+    vocabulary rather than branches -- which is the test this design applies to
+    connectives and applies here for the same reason.
+
+    ⚠ There were three more -- `boost`, `damp` and `reset` -- and they moved a
+    SCORE. They named a rule, so they are retired with `prefer`. The vocabulary
+    got shorter and no branch appeared, which is the property that mattered.
 
     ⚠ Deliberately not `g.atom("stop")`. A corpus may name a rule `<stop>`, and
     a reserved atom would make the verb and the rule one node with two meanings
@@ -48,11 +52,11 @@ STOP = _Stop()
 class Attend:
     """The postcondition that deposits attention on what the move just bound.
 
-    ⭐⭐⭐ **The sixth row in the same vocabulary, and it is a different KIND of
-    row.** `boost` and `damp` move a score, `reset` returns the table to its
-    defaults, `stop` ends the run -- all four are the loop's own bookkeeping.
-    This one deposits an ordinary CLAIM, which nothing a postcondition could
-    spend has done before.
+    ⭐⭐⭐ **A different KIND of row from the ones it outlived.** `boost`,
+    `damp` and `reset` moved a score and `stop` ends the run -- all of them the
+    loop's own bookkeeping. This one deposits an ordinary CLAIM, which nothing
+    else a postcondition could spend has ever done, and it is why it is the one
+    that survived the retirement.
 
     ⚠ That is the point rather than a wrinkle. Attention is a fact about a node
     -- readable by rules, deniable, attributable, dated -- and a postcondition is
@@ -72,12 +76,12 @@ class Attend:
     which `stop` and `reset` do not. `term` is a node once the loader has built
     it, and the parser's own term before that.
     
-    ⭐⭐⭐ **And it carries a WEIGHT, which is what a learned buff now is.**
+    ⭐⭐⭐ **And it carries a WEIGHT, which is what a learned buff used to be.**
     `attend(?x, 3)` says *of the things this move touched, THAT one matters* --
     a multiplier on a node's place in the attention queue rather than a number
     added to some other rule's score.
 
-    That is the whole of the retirement `prefer` and `boost` were blocking: a
+    That is the whole of the retirement, now complete: a
     calibration that names a NODE goes stale for nothing, where one naming
     `<R>` goes stale the moment a rule is adopted, composed or renamed. And it
     is the differentiation the queue's position alone cannot supply, because

@@ -7,10 +7,12 @@ indistinguishable to it -- a flat tower, not a stacked one. There are no phases:
 every convention the loop used to enact is a bundled rule or a request answered
 at the write, so adding one adds rows rather than branches.
 
-Recall is narrowable but not yet learned. `prefer(<R>, k)` is a table of ordinary
-facts, and §15 is emphatic that this is the step where experience belongs and
-where being wrong is recoverable -- so the seam is here, the table is data, and
-the learning is not.
+Recall is narrowable, and what narrows it is LEARNED. `attention(x)` is an
+ordinary fact, and §15 is emphatic that this is the step where experience belongs
+and where being wrong is recoverable -- so the seam is here, and what sits in it
+is data a corpus can read, deny and edit. The rule-keyed table that used to sit
+here (`prefer(<R>, k)`) is retired: it named rule ids, which go stale the moment
+a rule is adopted, composed or renamed.
 """
 
 import inspect
@@ -362,46 +364,17 @@ class Machine:
         # a proposed rule still has to match, can still be defeated, and still
         # competes in arbitration. Nothing owns the loop (§18).
         self.DUE = self.g.atom("due")
-        # §19's table, as facts. `prefer(<R>, k)` says *when k is in play, bring
-        # R to mind* -- authored now, learnable later from the trail the
-        # machinery already deposits, and readable either way because it is an
-        # ordinary claim rather than a weight in an interpreter.
+        # Attention: what the agent is thinking about, said about a NODE.
         #
-        # The key is NOT the register. The register is where attention is, and it
-        # is a fresh moment every tick, so a table keyed on it would never see the
-        # same key twice. What recurs is what the situation is ABOUT, so the key
-        # is a relation in play.
-        # §19's table, as facts: `prefer(<R>, key, 3)`.
-        #
-        #     key      what the recommendation is keyed on -- a node
-        #     score    HOW MUCH it recommends, and this is a CARDINAL
-        #
-        # The score is the table's own quantity and has nothing to do with §10's
-        # grades. Grades are ordinal and stay ordinal -- an entry's grade still
-        # composes by §12's weakest link, and nothing here adds one. What adds is
-        # the score, which was always a magnitude: *how much experience
-        # recommends this*, summed over the recommendations that apply.
-        #
-        # Keeping them apart is what lets the entry's grade go on meaning
-        # something separate: `+prefer(<R>, k, 3) @possible` is a strong
-        # recommendation the agent is not sure of.
-        self.PREFER = self.g.atom("prefer")
-        # ...and the same table said about a NODE instead of about a rule.
-        #
-        #     prefer(<R>, key, n)     when `key` is in play, think of R
         #     attention(x)            think about x
-        #
-        # `prefer` can only ever name a rule, so it can say *swing more often*
-        # and cannot say *swing at THAT one*: the score is per rule, and among a
-        # rule's applications the loop takes the first survivor. So which BINDING
-        # wins is walk order -- authoring order, wearing a preference. Attention
-        # is the missing half, and it is the half no rule-keyed buff can express,
-        # because the thing being preferred is not a rule.
         #
         # ⭐ It is a claim about a NODE, so it survives what a rule id does not:
         # rules are adopted, composed and rewritten, and a lesson keyed on
         # `<R>` goes stale the moment they are. A lesson keyed on what is
-        # salient transfers to a rule authored afterwards.
+        # salient transfers to a rule authored afterwards. That is why the
+        # rule-keyed table this replaced -- `prefer(<R>, key, n)`, scored per
+        # rule and therefore unable to say *swing at THAT one* -- is retired
+        # rather than kept beside it.
         #
         # ⚠ And it is safe by construction under the action palette: `attention`
         # is a FACT, so a learned rule that sets it can redirect what the agent
@@ -551,7 +524,14 @@ class Machine:
         # still made this tick; the record is what lets the agent know it was
         # not a confident one.
         self.CLOSE = self.g.atom("close")
-        # ...and HOW CLOSE IS CLOSE is a knob, so it is a fact: `tolerance(2)`.
+        # ...and HOW CLOSE IS CLOSE was a knob, so it is a fact: `tolerance(2)`.
+        #
+        # ⚠⚠⚠ NOTHING READS IT ANY MORE. Its only consumer was `Machine._close`,
+        # which compared two `_priority` scores; both went with `prefer`. The
+        # table loop deposits `close` on having more than one candidate, which
+        # needs no threshold. Kept parseable because §21's knob checks are about
+        # a corpus being able to SAY a number -- but a corpus that sets this one
+        # is talking to no one. See `doubt_is_a_tie`.
         #
         # This is the design's first **cardinal** quantity, and it is a departure
         # rather than an oversight. §12 says the grade scale is ordinal and that
@@ -703,7 +683,7 @@ class Machine:
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "scoped": self.SCOPED, "loaded": self.LOADED,
             "again": self.AGAIN,
-            "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
+            "dormant": self.DORMANT, "due": self.DUE,
             "attention": self.ATTENTION,
             "attention_span": self.SPAN,
             "afforded": self.AFFORDED, "attempt": self.ATTEMPT,
@@ -884,7 +864,7 @@ class Machine:
                              self.FORGONE, self.EXERCISED, self.CONCLUDED,
                              self.ROOT, self.ROOTED,
                              self.COUNT, self.COUNTED, self.NEW,
-                             self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
+                             self.DUE, self.VERDICT, self.PURSUED,
                              self.ATTENTION, self.SPAN,
                              self.AFFORDED, self.ATTEMPT, self.DECLINED,
                              self.UNAFFORDED, self.UNATTENDED, self.CALL, self.STAGE, self.SPAWN,
@@ -968,8 +948,8 @@ class Machine:
         # recall request, and `<ask-fit>` keys on `recalled(?r, ?w)`, so nothing
         # asks `fit` about anything without it. Measured on a goal reachable
         # only backwards: 15 ticks and two subgoals becomes 4 ticks and none.
-        # The narrowing lives in the `prefer` table and the budget, which are
-        # separately deniable and were what the criterion was actually about.
+        # The narrowing lives in attention and the budget, which are separately
+        # deniable and were what the criterion was actually about.
         self.gate.on_write.append(self._adopt)
         # Refraction's cost, checked at the write: see `_contest`.
         self.gate.on_write.append(self._contest)
@@ -2115,16 +2095,6 @@ class Machine:
                 self.g.rel(self.DEFEATED, loser.node, winner.node),
                 licence=self.g.rel(self.APPLIED, winner.node),
             )
-
-    def _close(self, a: Tuple[int, int], b: Tuple[int, int]) -> bool:
-        """Are these two scores close enough to be doubt?
-
-        The knob, read as data: `tolerance(2)` says a gap of two or less is not
-        a difference the agent will rely on. Zero by default, so doubt is an
-        exact tie until something claims otherwise -- and `standing` never ties
-        with an ordinary rule, because a deliberate precedence is an answer.
-        """
-        return a[0] == b[0] and abs(a[1] - b[1]) <= self._tolerance()
 
     def _reaching(self, a: NodeId, b: NodeId) -> bool:
         """Does any rule say that `a` reaches `b`? (§11's containment, moved.)
@@ -3497,31 +3467,27 @@ class Machine:
         if self._widened:
             return live
 
-        # Preference does NOT narrow this step, and finding out why was the
-        # session's clearest negative result. Filtering recall by *what fits the
-        # current goal* starved a rule that reacted to a **blocked** goal --
+        # Nothing DERIVED narrows this step, and finding out why was a session's
+        # clearest negative result. Filtering recall by *what fits the current
+        # goal* starved a rule that reacted to a **blocked** goal --
         # `{+blocked(heat(?a, ?w))} => {+doing(heat(anna, ?w))}` is the most
         # useful rule in that corpus and it does not fit the goal at all.
         #
         # > **Relevance to a goal is one signal, and as a filter it is silent
         # > about everything it is not about.**
         #
-        # So preference orders (`arbitrate`) rather than excludes, where being
-        # wrong costs a worse choice this tick instead of a plan that stalls.
         # What narrows here stays what a corpus *claimed*: `dormant` unless
         # `due`. An optional cap is kept for measuring, and defaults to off.
+        #
+        # ⚠ The cap used to order by `prefer(<R>, key, n)` before cutting. That
+        # was rule-keyed advice and is retired; the cap now takes the rules in
+        # AUTHORED order, which is what a corpus can still argue with. Attention
+        # is the replacement and it does not belong here -- it decides which
+        # rules are matched at all, one step later.
         budget = self._knob(self.BUDGET, self.recall_budget)
         if budget is None:
             return live
-        keys = self._in_play()
-        # By preference alone, not by `_rank`: `standing` is a claim about
-        # PRECEDENCE once a rule has matched, not about being brought to mind,
-        # and letting it order this step filled every shortlist with apparatus.
-        ranked = sorted(
-            enumerate(live),
-            key=lambda pair: (-self._priority(pair[1], keys), pair[0]),
-        )
-        out = [r for _, r in ranked[:budget]]
+        out = list(live[:budget])
         for r in live:
             # Two things a cap may not starve, and they are §19's carve-out
             # arriving for the third and fourth time.
@@ -3585,44 +3551,6 @@ class Machine:
         # agent knows about is in play all the time, and being in play says
         # nothing about being useful. A live goal does.
         return play["rels"] | self._kept()["goals"].keys()
-
-    def _rank(self, rule: Rule, keys: set) -> Tuple[int, int]:
-        """The sort key arbitration uses after defeat. Lower is better.
-
-        `standing` first, so the reading apparatus keeps the authored precedence
-        it already had -- preference is about which of the agent's OWN moves is
-        the better one, never about whether to keep reading. Then preference,
-        then (in `arbitrate`) authored order."""
-        if self._claims(self.g.rel(self.STANDING, rule.node)):
-            return (0, 0)
-        return (1, -self._priority(rule, keys))
-
-    def _priority(self, rule: Rule, keys: set) -> int:
-        """**How much** this situation recommends this rule: the sum of the
-        scores of the `prefer` claims whose key is in play.
-
-        An order alone cannot distinguish *one clear best* from *two I cannot
-        separate*, and only a magnitude can say how far apart two candidates are.
-        So the table carries a score, and scores are compared as **cardinals**.
-
-        This adds nothing ordinal, and there is no longer anything ordinal for
-        it to be confused with: §10's grades are gone, and *how sure the agent
-        is* is a wrapper around a claim rather than a number beside one. How
-        strong a recommendation is and how sure the agent is of it were always
-        two quantities; now only one of them is a number.
-        """
-        score = 0
-        for node in self.g.instances_of(self.PREFER):
-            members = self.g.members(node)
-            if len(members) != 3 or members[0] != rule.node or members[1] not in keys:
-                continue
-            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
-            if e is None or e.sign != PLUS:
-                continue
-            name = self.g.show(members[2])
-            if name.isdigit():
-                score += int(name)
-        return score
 
     def _attended(self) -> List[NodeId]:
         """What the agent is thinking ABOUT: the nodes it claims `attention` of.
@@ -5517,11 +5445,12 @@ class Machine:
         `completes(?v0, ?v1), precious(?v0)` -- the join is what makes it a claim
         about a *kind* of situation rather than a longer way of naming this one.
 
-        ⭐ Generalising is unconstrained here, and that is a property of the
-        shape rather than luck: a preference consequent (`prefer(<R>, key, n)`)
-        contains **no variables at all**, so the loader's rule that a consequent
-        variable must be bound by the antecedent is satisfied by everything. A
-        learned rule that concluded about the world would not have that freedom.
+        ⭐ Generalising is nearly unconstrained here, and that is a property of
+        the shape rather than luck: an attention consequent contains exactly ONE
+        variable and the antecedent's binder is what bound it, so the loader's
+        rule that a consequent variable must be bound by the antecedent is
+        satisfied by construction. A learned rule that concluded about the world
+        would not have that freedom.
 
         ⚠ `names` is an OUT parameter, and it is not a convenience. An
         attention lesson concludes ABOUT A NODE -- `+attention(?v0)` -- so its
@@ -6037,7 +5966,8 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
 
     ⚠ It still cannot ADD a test no episode saw, nor merge two leaves into one.
     Those are mutation proper, and they are affordable for the same reason the
-    rest is: every leaf concludes `prefer`, so a bad candidate costs ticks.
+    rest is: every leaf concludes `attention`, which cannot act, so a bad
+    candidate costs ticks and nothing else.
     """
     # ⭐⭐⭐ WHAT EACH ROUTE COST, accumulated across episodes -- the second of the
     # two things `lesser_of_two_evils` showed were needed and neither of which
@@ -6078,12 +6008,13 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
         ⭐⭐⭐ **How sure is a WRAPPER, not a field**, and this was the argument
         that eventually deleted grades outright. §21's item 5 was that a grade
         is a Python field on the entry, so no rule can read one -- a confidence
-        unreadable by the very rules that would act on it. A wrapper is an ordinary node: `_priority` does not count it
-        (an unsure preference must not silently steer), and a corpus rule decides
-        whether to take it up:
+        unreadable by the very rules that would act on it. A wrapper is an
+        ordinary node, so the lift does not see a wrapped claim at all (an unsure
+        lesson must not silently steer), and a corpus rule decides whether to
+        take it up:
 
-            rule <venture> = implies( { +possible(prefer(?r, ?k, ?n)), +exploring },
-                                      { +prefer(?r, ?k, ?n) } )
+            rule <venture> = implies( { +possible(attention(?x, ?n)), +exploring },
+                                      { +attention(?x, ?n) } )
 
         So **explore/exploit stops being machinery and becomes a claim** --
         defeasible, deniable, on the trail, and switched by an ordinary fact. The
@@ -6152,43 +6083,36 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
 
 
 def forest(episodes, cost, trees: int = 3, score: int = 3) -> List[str]:
-    """Many trees over different episodes, and their DISAGREEMENT is the hedge.
+    """Many trees over different episodes, combined by union.
 
     `induce` grows one tree from everything the agent has been through, which
     means one unlucky episode is in every leaf it produces. Bagging is the usual
-    answer -- grow several trees from overlapping subsets and combine them -- and
-    two things make it fit here rather than merely be importable.
+    answer -- grow several trees from overlapping subsets and combine them.
 
-    ⚠⚠⚠ **MEASURED, AND IT DOES NOT PAY YET -- one tree beats the bag.** On the
-    situation-dependent fixture: one tree 1, forest 2, nothing 4. The reason
-    falsifies the claim this function was built on, so it is recorded here rather
-    than quietly fixed:
+    ⚠⚠⚠ **MEASURED, AND IT DOES NOT PAY -- one tree beats the bag.** On the
+    situation-dependent fixture: one tree 1, forest 2, nothing 4. The reason is
+    recorded in `ugm.learning`, which gates it:
 
-    > **`_priority` SUMS, and summation is not VOTING.** In a classifier forest a
-    > minority tree is outvoted. Here every tree's rows are ADDED, so a single
-    > over-general row -- one bag that pruned to an unconditional `prefer` --
-    > fires in every situation and cannot be outvoted by the two trees that
-    > learned the condition. The ensemble has a way for advice to accumulate and
-    > no way for it to be overruled.
-
-    ⚠ And the unanimity test is too coarse to catch it: the trees all advise the
-    same RULE and disagree about *when*, so nothing is hedged. Agreement has to be
-    about the condition, not the conclusion -- which is the same lesson `refine`
-    and `induce` each learned in their own way, that the interesting structure is
-    in the antecedent.
+    > **Attention is MONOTONE.** One over-general leaf attends the tap and the
+    > leaves that decline cannot take it back, because there is no sentence for
+    > *not this one, here* -- `unattend` clears the whole queue.
 
     What a forest here would need is a combination rule that can DEFEAT rather
     than only add -- §12's `overrides` is the obvious candidate and is untried.
     Left as a measured negative result with a gate, not deleted: the day
-    summation stops dominating, the gate fails and sends someone here.
+    ensembling starts paying, the gate fails and sends someone here.
 
-    ⭐⭐⭐ **And the spread is already sayable.** §15 settled that *two candidates
-    are close exactly when they tie*, needing no threshold; the same argument
-    gives confidence here for free. A route the trees **agree** about is asserted
-    (`prefer(...)`); one they **disagree** about is wrapped
-    (`possible(prefer(...))`), which `_priority` does not count until a corpus
-    rule ventures on it. So the forest does not need a confidence scale -- it
-    needs the wrapper it already has, and unanimity is the constant-free test.
+    ⚠⚠⚠ **THE UNANIMITY HEDGE IS GONE, and it had already stopped running.**
+    It grepped each row for `prefer(<` and wrapped what the trees disagreed
+    about as `possible(prefer(...))`, which `_priority` declined to count. When
+    lessons moved from `prefer` rows to `attention` rows the grep stopped
+    matching, so every row came through unwrapped and the unanimity test decided
+    nothing -- silently, for a whole session. Deleted rather than re-keyed onto
+    `attention`, because the argument it rested on is gone with `_priority`:
+    there is no reader that counts an asserted claim and declines a wrapped one,
+    so a hedge here would have to be obeyed by a corpus rule instead. `induce`
+    still hedges its own unobserved leaves (`advice`), which is a different
+    claim -- *never tried* rather than *my trees disagree*.
 
     ⚠ The subsets are contiguous slices, not random draws: §3 forbids reading a
     derived result out of an unseeded source, and a bagged forest whose bags are
@@ -6201,19 +6125,6 @@ def forest(episodes, cost, trees: int = 3, score: int = 3) -> List[str]:
     bags = [[eps[j] for j in range(len(eps)) if j % n != i] or eps for i in range(n)]
     grown = [induce(bag, cost, score=score) for bag in bags]
 
-    def advised(rows):
-        out = {}
-        for r in rows:
-            if "prefer(<" not in r:
-                continue
-            name = r.split("prefer(<", 1)[1].split(">", 1)[0]
-            out[name] = out.get(name, 0) + 1
-        return out
-
-    votes = [advised(rows) for rows in grown]
-    named = [n for v in votes for n in v]
-    unanimous = {x for x in named if all(x in v for v in votes)}
-
     out: List[str] = []
     for i, rows in enumerate(grown):
         for r in rows:
@@ -6223,15 +6134,6 @@ def forest(episodes, cost, trees: int = 3, score: int = 3) -> List[str]:
             # which is `<...>` doing its job: a name that does not resolve is an
             # error, where a silently-wrong reference would have been a bug.
             r = r.replace("learned-", f"t{i}-learned-")
-            if "prefer(<" in r:
-                name = r.split("prefer(<", 1)[1].split(">", 1)[0]
-                if name not in unanimous:
-                    # The one edit: what the trees could not agree on is offered,
-                    # not asserted, so the disagreement stays visible in the
-                    # corpus instead of being averaged away.
-                    head, _, tail = r.partition("+prefer(")
-                    r = head + "+possible(prefer(" + tail.rstrip()
-                    r = (r[:-2] + "))" + r[-2:]) if r.endswith(") )") else r + ")"
             if r not in out:
                 out.append(r)
     return out

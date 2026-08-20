@@ -26,14 +26,15 @@ Four things the engine knows here, and none of them is semantic:
     ...and STOP         if one of them said so, the run is over
 
 No goal, no completeness, no widening. Those are corpus rules whose
-postconditions reset buffs -- *refocusing* is a rule, *done* is the output of a
-rule that checks against the goal. Nothing in this file knows what either is.
+postconditions spend attention -- *refocusing* is a rule (`unattend`), *done* is
+the output of a rule that checks against the goal (`stop`). Nothing in this file
+knows what either is.
 
-⭐⭐⭐ **The fourth row is `stop`, and it is what made the third mean anything.**
-*Done is the output of a rule* was written here from the start and the loop had
-no way to obey one: a completion check concluded and the agent carried straight
-on to quiescence. `stop` is a postcondition beside `boost`, `damp` and `reset`,
-so it is a row rather than a branch, and the loop still knows nothing about
+⭐⭐⭐ **`stop` is what made *done is the output of a rule* mean anything.**
+It was written here from the start and the loop had no way to obey one: a
+completion check concluded and the agent carried straight on to quiescence.
+`stop` is a postcondition beside `attend` and `unattend`, so it is a row rather
+than a branch, and the loop still knows nothing about
 goals -- only that a rule spent one. Measured on `stopping()` below: **62 moves
 to 5.**
 
@@ -153,14 +154,19 @@ this is what it looks like without them.
 
 ## ...and where a lesson about it lives: a postcondition, never a rule
 
-`attend(?x)` is the sixth thing a postcondition can spend, and the first that
-DEPOSITS rather than moving a score:
+A postcondition can spend three things, and `attend` is the one that DEPOSITS:
 
-    boost / damp    move a rule's score
-    reset           back to the default table
-    stop            end the run
-    attend(?x)      think about what this move just bound
+    attend(?x, n)   think about what this move just bound, and how much
     unattend        stop thinking about whatever it was
+    stop            end the run
+
+⚠⚠⚠ **There were three more and they moved a SCORE**: `boost`, `damp` and
+`reset`. They named a RULE, which is what retired them -- a rule id goes stale
+the moment a rule is adopted, composed or renamed, so a corpus of experience
+written in them stops LOADING rather than going quietly wrong. Everything that
+kept them alive went too: `LIFE`, the saturation ceiling, the trace that rebuilt
+the table, `_rerank`, and the `reflex` calibration. What is left cannot decay,
+so there is nothing to tune.
 
 ⭐⭐⭐ **It has to be a postcondition, and that was measured before it was
 built.** `docs/HANDOFF.md` 2026-08-15 wrote a learned recogniser as a RULE and it
@@ -170,19 +176,19 @@ recognises a situation loses to the rule that acts in it, every time. A
 postcondition is evaluated for free after whatever applied. The same sentence
 decided where the bigram lives; this is it applying to attention.
 
-⚠ **The table does not run these.** `Table.spend`'s own docstring keeps `stop`
-out so the trace stays a pure account of scores, and a deposit is further
-outside that account than a stop is -- it writes a claim the corpus can read,
-deny and reason about. So `_spend_one` splits them: attention to the machine,
-scores to the table.
+⚠ **The table does not run these.** A deposit writes a claim the corpus can
+read, deny and reason about, and a table that could write claims would be an
+interpreter with a memory. So `_spend_one` splits them: attention to the machine,
+and only the stop recorded on the table.
 
-⚠⚠⚠ **And `_rerank` refuses them, which is the stronger case.** A ranking-time
-trigger runs on rules that have not applied and may never apply, so a deposit
-from there would be the agent claiming to think about something because it
-considered thinking about it. Ranking is not doing -- the same line
-`_is_defeated` draws between matched and survived.
+⚠⚠⚠ **And a ranking-time `when` trigger is REFUSED**, which used to be the
+stronger case and is now simply an error. Such a trigger ran on rules that had
+not applied and may never apply, so a deposit from there would be the agent
+claiming to think about something because it considered thinking about it.
+`_rerank` was the only thing that ran one and is retired, so the surface rejects
+it rather than accepting a lesson that silently does nothing.
 
-⚠ `unattend` is what bounds the mechanism. A buff has `LIFE` and a ceiling; a
+⚠ `unattend` is what bounds the mechanism. A buff had `LIFE` and a ceiling; a
 claim has neither, so a lesson that only ever attends accumulates until
 everything is attended -- which is measurably the same as attending to nothing.
 Spent as a pair, attention becomes a FOCUS: one thing at a time, and the
@@ -247,20 +253,6 @@ NORM = 6
 #
 # **Life.** A buff that never expires is what made the taught table run away:
 # `A` lifts `R`, `R` lifts `A`, and every lift is permanent, so the loop finds
-# work for ever. A lift is about what is going on NOW -- the author's *what I
-# was doing is part of my representation of the world* -- so it fades. What
-# survives is the postcondition, which re-applies whenever its query holds
-# again.
-#
-# **Saturation.** A boost shrinks as the rule is already lifted, which is the
-# useful half of a sigmoid: a monotone transform applied when the table is READ
-# cannot change any ordering, and ordering is all the table is for. Applied at
-# the UPDATE it bounds the scale -- and the scale has to be stable or
-# `tolerance` stops meaning anything. Measured: the runaway fired **0 doubts**
-# against 13 untaught, because nothing was ever close to anything again.
-LIFE = 12
-MAX_LIFT = 12
-
 # How far attention lifts a rule that could be about what is attended.
 #
 # Recomputed every move and kept nowhere, unlike a buff -- so there is no decay
@@ -279,65 +271,51 @@ PULL = 6
 
 # The default doubt-settling rule, and the author's correction to an earlier
 # sketch of mine: the loop does not need to HOLD a tick waiting for doubt to be
-# resolved, because a settling rule fires. Depositing the doubt IS the move;
-# this rule gets the next turn, and what it does is spend attention -- so the
-# settlement is a buff like every other, calibratable and learnable rather than
-# a branch. A corpus replaces it with something better (ask the user, apply a
-# domain criterion) by writing a rule that outscores it.
+# resolved, because a settling rule fires. Depositing the doubt IS the move and
+# this rule gets the next turn. A corpus replaces it with something better (ask
+# the user, apply a domain criterion) by writing a rule that outscores it.
 #
-# `?a` in the buff is the winner as the doubt named it. That is only writable
-# because rules are subjects here -- `close(<A>, <B>)` names them -- and because
-# `_note` deposits it as a MENTION, so a rule concluding about `?a` is not
-# dropped by quiescence as having nothing to deposit.
+# ⚠ It used to carry `frozen after <settle-doubt> => boost(?a, 1)` -- the
+# settlement was a buff, so it was calibratable. With the buffs retired it
+# concludes and nothing more, and the loop's own backstop is what makes
+# progress: the doubt already stands on the next tick, so `fresh` is false and
+# the winner applies. The boost was never what unblocked the run; it reinforced
+# a winner the loop had already chosen.
+#
+# `?a` is the winner as the doubt named it. That is only writable because rules
+# are subjects here -- `close(<A>, <B>)` names them -- and because `_note`
+# deposits it as a MENTION, so a rule concluding about `?a` is not dropped by
+# quiescence as having nothing to deposit.
 SETTLE = """
 rule <settle-doubt> = implies( { +close(?a, ?b) }, { +settled(?a, ?b) } )
-frozen after <settle-doubt> => boost(?a, 1)
 """
 SETTLING = ("settle-doubt",)
 
 
-class Buff(NamedTuple):
-    """What a postcondition does: move one rule's score.
-
-    `target` is a rule's name as `<...>` writes it -- or a VARIABLE the query
-    bound, which is what makes a doubt-settling rule writable at all: the doubt
-    is about two rules nobody knew when the postcondition was authored, so
-    `boost(?a, 1)` has to mean *the rule this query found*. That works because
-    rules are already subjects here: `close(<A>, <B>)` names them, and a
-    conclusion naming a rule is a mention -- the case that was invisible to the
-    matcher until this session.
-    """
-
-    target: str  # `<name>`, or `?var` bound by the postcondition's query
-    delta: int
-
-
 class Post(NamedTuple):
-    """A postcondition: a query, and what it does to the table if the query
-    holds. `query` is the name of a rule authored in the corpus whose
-    ANTECEDENT is the query -- so the surface parses it, and this file adds no
-    notation. Such rules never enter the table.
+    """A postcondition: a query, and what it SPENDS if the query holds.
+    `query` is the name of a rule authored in the corpus whose ANTECEDENT is the
+    query -- so the surface parses it, and this file adds no notation. Such
+    rules never enter the table.
+
+    ⚠ `spends` used to be `buffs`, and the rename is the retirement in one word:
+    what a postcondition may now say is `attend`, `unattend` and `stop`. None of
+    them moves a score, so there is no table to keep an account of and no trace
+    to keep it in.
 
     `frozen` marks what a calibration process may not touch. It changes nothing
-    about how the postcondition runs, and it is recorded on the trace.
+    about how the postcondition runs.
     """
 
     of: str  # the rule this hangs off
     query: Optional[str]
-    buffs: Tuple[Buff, ...]
+    spends: Tuple[object, ...]
     frozen: bool = False
 
 
-class Spend(NamedTuple):
-    tick: int
-    by: str
-    target: str
-    delta: int
-    frozen: bool
-
-
 class Table:
-    """Scores over rules, ordered, with the trace that rebuilds them."""
+    """Scores over rules, ordered. `STANDING` or `FLOOR`, and nothing moves
+    them after `absorb` -- the only thing that ever did was a buff."""
 
     def __init__(self, g, rules: Sequence[Rule], standing: set) -> None:
         self.g = g
@@ -364,20 +342,21 @@ class Table:
         # Attention's rule-side lookup, built once because a rule's antecedent
         # does not change. `absorb` is the only thing that can invalidate it.
         self.by_relation = _by_relation(self.rules, self.g)
-        self._defaults = dict(self.score)
-        self.trace: List[Spend] = []
         # Why the run ended, if a postcondition ended it. A name rather than a
         # flag, because *why did you stop?* has to be answerable -- the same
         # reason the shipped loop's `_enough` returns what was named.
         self.stopped: Optional[str] = None
-        # (born, rule, delta) -- the score is DERIVED from these and the
-        # defaults, so nothing has to be undone when one expires.
-        self.live: List[Tuple[int, NodeId, int]] = []
+        # ⚠ The score is now FIXED once built: `STANDING` or `FLOOR`, moved only
+        # by `absorb`. There is nothing to age, expire or rebuild, because the
+        # only thing that used to move it was a buff. What varies move to move is
+        # the attention lift, and `order` takes that as an argument and keeps it
+        # nowhere -- which is the whole of this file's line between the two kinds
+        # of attention.
         self.now = 0
-        # How many ticks this table has actually been aged through, which is
-        # NOT `now`: a table handed back for a second run has to continue the
-        # tick count, and `now == 0` cannot tell *never ran* from *ran tick 0*
-        # -- the exact case a host stepping one tick at a time produces.
+        # How many ticks this table has been run through. A table handed back for
+        # a second run continues the count, and `now == 0` cannot tell *never
+        # ran* from *ran tick 0* -- the exact case a host stepping one tick at a
+        # time produces.
         self.ticked = 0
 
     def absorb(self, rules: Sequence[Rule], standing: set) -> int:
@@ -388,9 +367,8 @@ class Table:
         described, and it never applied because nothing had a score for it. The
         round trip was open at the last step.
 
-        A new rule enters at the floor like any other rule nothing has boosted --
-        `standing` if the bundle says so. Nothing already in the table is
-        touched, so the trace still rebuilds it.
+        A new rule enters at the floor like any other -- `standing` if the bundle
+        says so. Nothing already in the table is touched.
         """
         added = 0
         for r in rules:
@@ -399,7 +377,6 @@ class Table:
             self.score[r.node] = (
                 STANDING if (r.node in standing or r.name in SETTLING) else FLOOR
             )
-            self._defaults[r.node] = self.score[r.node]
             # Ranked after everything present, which IS authored order: a rule
             # adopted on tick 40 was authored on tick 40.
             self.rank[r.node] = len(self.rules)
@@ -416,28 +393,6 @@ class Table:
             # round-trip defect one index along.
             self.by_relation = _by_relation(self.rules, self.g)
         return added
-
-    def age(self, tick: int) -> None:
-        """Drop what has expired and recompute. Cheap: the live list is short
-        by construction, because that is what a lift being about NOW means."""
-        self.now = tick
-        self.ticked += 1
-        self.live = [b for b in self.live if tick - b[0] < LIFE]
-        self.score = dict(self._defaults)
-        for _born, node, delta in self.live:
-            self.score[node] = self.score[node] + delta
-
-    def clear(self, tick: int, by: str) -> int:
-        """Refocusing: back to the default table. The author's own mechanism --
-        a rule whose postcondition resets the buffs -- and it needs no notion of
-        a goal here, because deciding when to refocus is the rule's business."""
-        dropped = len(self.live)
-        for _born, node, delta in self.live:
-            self.trace.append(Spend(tick, by, self.name_of.get(node, "?"),
-                                    -delta, False))
-        self.live = []
-        self.age(tick)
-        return dropped
 
     def order(self, extra=None) -> List[Rule]:
         """Highest score first, ties by declaration order. `extra` is the
@@ -458,63 +413,11 @@ class Table:
         run stayed green and the penguin kept flying."""
         return name[1:-1] if name.startswith("<") and name.endswith(">") else name
 
-    def spend(self, tick: int, by: str, buffs, frozen: bool, bindings) -> None:
-        for target, delta in buffs:
-            if target is STOP:
-                # Recorded here, obeyed by the loop. Keeping the decision out of
-                # `spend` is what lets the trace stay a pure account of scores --
-                # and a stop moves no score, so it must not pretend to.
-                self.stopped = by
-                self.trace.append(Spend(tick, by, "stop", 0, frozen))
-                continue
-            if target is None:  # a reset, not a buff
-                self.clear(tick, by)
-                continue
-            node = self._target(target, bindings)
-            if node is None or node not in self._defaults:
-                continue
-            # Saturating: how much of the intended lift is left to give. A rule
-            # already at the ceiling gains nothing from being taught again,
-            # which is what keeps the scale -- and therefore `tolerance` --
-            # meaningful.
-            lift = self.score[node] - self._defaults[node]
-            room = max(0, MAX_LIFT - abs(lift))
-            actual = max(-room, min(room, delta))
-            if not actual:
-                continue
-            self.live.append((tick, node, actual))
-            self.score[node] = self.score[node] + actual
-            self.trace.append(
-                Spend(tick, by, self.name_of.get(node, "?"), actual, frozen))
-
     def _target(self, target: NodeId, bindings) -> Optional[NodeId]:
         """A rule node, or a variable the query bound to one."""
         if self.g.is_var(target):
             return None if not bindings else bindings.get(target)
         return target
-
-    def rebuilt(self, upto: int) -> Dict[NodeId, int]:
-        """The table as it stood after `upto` ticks, from the defaults and the
-        trace alone.
-
-        This is what the author asked for in place of explaining a preference:
-        not a justification of the ordering, which is chemistry and owes none,
-        but a record from which any step's table can be reconstructed -- so that
-        *authority was in fact considered* is showable after the fact. Checked
-        against the live table on every run below, because a trace that has
-        quietly stopped being complete is a log, not a record.
-        """
-        out = dict(self._defaults)
-        for s in self.trace:
-            if s.tick > upto:
-                break
-            if s.tick < self.now - LIFE + 1 and s.delta > 0:
-                continue  # expired, and the trace records the life as well
-            t = self.by_name.get(self._bare(s.target))
-            if t is not None:
-                out[t.node] = out[t.node] + s.delta
-        return out
-
 
 class Report(NamedTuple):
     ticks: int
@@ -815,17 +718,16 @@ def _queries(m: Machine, posts: Sequence[Post]) -> set:
 
 
 def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
-        reflex: bool = False, chooser=None, watch=None,
+        chooser=None, watch=None,
         pool: Optional[Sequence[Rule]] = None,
         table: Optional["Table"] = None) -> Report:
     """The loop, in full. Everything else in this file is bookkeeping.
 
-    `reflex` is the cheapest calibration imaginable and it is here to answer one
-    question: can *rules matched per move* be moved at all? A rule that was
-    tried and did not match is damped by one; the rule that applied is boosted
-    by one. No model, no gold, no human -- just the fact that the table was
-    wrong about who was worth trying, which the loop already knows for free at
-    the moment it finds out. If this does not move the number, no learning will.
+    ⚠ `reflex` used to be a parameter here -- damp a rule that was tried and
+    missed, boost the one that applied, the cheapest calibration imaginable. It
+    went with the buffs, and with it the only thing in this file that wrote a
+    score from the loop's own experience. What survives is attention, which is
+    written by a rule rather than by the loop.
     """
     queries = _queries(m, posts)
     # ⭐ `pool` is what makes an EXPERT possible: one shared graph, one shared
@@ -851,12 +753,10 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     # the agent learned *within* a run -- and nothing says so, because from
     # here nothing went wrong.
     #
-    # ⚠ **The ticks continue from `table.now` rather than restarting at 0**, and
-    # that is not decoration. `age` expires a lift by `tick - born < LIFE` and
-    # `rebuilt` walks the trace in tick order; restart the count and a lift born
-    # on tick 39 of the last call is younger than one born on tick 2 of this
-    # one. The assertion below is what would have caught it, which is why it
-    # reads `table.now` too.
+    # ⚠ **The ticks continue from `table.now` rather than restarting at 0.**
+    # Nothing in the table decays any more, so this no longer guards a lift's
+    # age; it is what lets a caller stepping one tick at a time see a monotone
+    # tick count rather than a saw-tooth.
     if table is None:
         table = Table(m.g, pool, _standing(m))
     base = table.now + 1 if table.ticked else 0
@@ -864,7 +764,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     for p in posts:
         by_rule.setdefault(p.of, []).append(p)
 
-    index = _by_target(m)
     applied: List[str] = []
     steps: List[Step] = []
     arrivals = 0
@@ -925,7 +824,8 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             break
 
         state = m._situation()
-        table.age(tick)
+        table.now = tick
+        table.ticked += 1
 
         window: List[Application] = []
         top = None
@@ -977,15 +877,9 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # One shortlist at a time. Score decides WHO is matched, which is
             # the whole proposal: a rule below the cut costs nothing at all.
             chunk = ordered[cut:cut + SHORTLIST]
-            # ...and the shortlist is reordered by what is in front of the
-            # agent now. Ephemeral: recomputed for each shortlist and kept
-            # nowhere, so there is no decay to tune and no runaway to guard
-            # against -- the difference between the two kinds of attention.
-            chunk, tried = _rerank(m, table, state, chunk, index, tried)
             if cut:
                 widenings += 1
             cut += SHORTLIST
-            missed: List[Rule] = []
             for r in chunk:
                 if top is not None and table.score[r.node] < top - TOLERANCE:
                     break  # the prefix ends here, and the rest is not matched
@@ -1025,32 +919,15 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 # off the graph -- so match those rather than the pool. A join,
                 # not a scan, which is this repository's standing answer.
                 if _is_defeated(m, r, state):
-                    missed.append(r)
                     continue
-                hit = False
                 for a in found:
                     if m._survives(a) and not _is_superseded(m, a, state):
                         window.append(a)
-                        hit = True
                         if top is None:
                             top = table.score[r.node]
                         break
-                if not hit:
-                    missed.append(r)
                 if len(window) >= WINDOW:
                     break
-            if reflex:
-                for r in missed:
-                    # The DELTA ACTUALLY APPLIED goes on the trace, not the one
-                    # intended: the floor clamps it, and recording the intent
-                    # made the trace unable to rebuild the table. Caught by the
-                    # assertion below the first time it ran, which is what that
-                    # assertion is for.
-                    was = table.score[r.node]
-                    table.score[r.node] = max(0, was - 1)
-                    table.trace.append(
-                        Spend(tick, "reflex", r.name, table.score[r.node] - was,
-                              False))
         if not window:
             # Nothing in the table matched. The engine says so and nothing
             # more: `quiet(<seat>)` is a fact about the machinery, like the
@@ -1166,9 +1043,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # carries `wrote`, the entries the application itself deposited, so
             # the answer was here all along and nothing was handing it over.
             watch(m, table, window, chosen, tick, steps[-1])
-        if reflex:
-            table.score[chosen.rule.node] = table.score[chosen.rule.node] + 1
-            table.trace.append(Spend(tick, "reflex", chosen.rule.name, 1, False))
         _spend_posts(m, table, chosen, tick, state)
         if table.stopped is not None:
             steps.append(Step(arrivals, 0, tried, None, (), "stopped"))
@@ -1176,9 +1050,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # one. It knows a rule spent `stop`; it does not know what a goal is,
             # which is the line this file has held from the start.
             break
-    # The trace is held to the table on every run: same scores, rebuilt from
-    # the defaults and the spends alone.
-    assert table.rebuilt(base + limit) == table.score, "the trace cannot rebuild the table"
     # ⚠ **The loop ran out of ITERATIONS, not out of work.** The first version of
     # this asked whether the last `Step` was `applied`, and the last step is
     # never `applied` -- the loop appends a `quiescent` or `stopped` step when it
@@ -1205,117 +1076,20 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     )
 
 
-def _by_target(m: Machine) -> Tuple[Dict[NodeId, List], List]:
-    """Ranking-time triggers, indexed by the rule they lift.
-
-    §19's own trick for norms, one level up: `_forbid` is cheap because it looks
-    only at prohibitions whose relation matches what is about to be written, and
-    a reranker is cheap for the same reason -- a trigger about wounds costs
-    nothing on a move about doors. A trigger whose target is a VARIABLE cannot
-    be indexed, because which rule it lifts is what its query decides; those are
-    consulted whenever anything is.
-    """
-    by_target: Dict[NodeId, List] = {}
-    floating: List = []
-    for trig in m.rules.triggers.get(None, ()):
-        targets = [t for t, _d in trig[1]]
-        if any(t is None or m.g.is_var(t) for t in targets):
-            floating.append(trig)
-            continue
-        for t in targets:
-            by_target.setdefault(t, []).append(trig)
-    return by_target, floating
-
-
-def _rerank(m, table, state, chunk, index, tried: int):
-    """Reorder THE SHORTLIST, and pay only for it.
-
-    The author's restriction, and it is what makes reranking affordable: a
-    reranker looks at the options in front of the agent and nudges them. It
-    cannot pull a rule in from the bottom of the table -- widening is what
-    reaches those, and a reranker applies to each shortlist as it is reached.
-
-    Measured before the restriction: every trigger evaluated on every move cost
-    fifteen extra matches a move on a scan that did not shrink, and the cost
-    column read 42.7 against a 29.6 baseline.
-    """
-    by_target, floating = index
-    wanted = []
-    for r in chunk:
-        wanted.extend(by_target.get(r.node, ()))
-    lift: Dict[NodeId, int] = {}
-    for query, buffs, _frozen, _learned in wanted + floating:
-        tried += 1
-        hits = match(
-            m.g, m.chain, Rule(0, "implies", list(query), [], "when"),
-            m.focus.topic, m.focus.seat, state,
-            computes=m.rules.computes, structural=m.rules.skeleton(),
-        ) if query else [None]
-        for hit in hits:
-            bindings = {} if hit is None else hit.bindings
-            for target, delta in buffs:
-                if (target is None or target is STOP or target is UNATTEND
-                        or isinstance(target, Attend)):
-                    # A reset means nothing to a nudge that is not kept, and a
-                    # stop is not a nudge at all: a reranker reorders what is in
-                    # front of the agent, and ending the run is not an ordering.
-                    # A corpus that wants to stop hangs it off a rule that RAN.
-                    #
-                    # ⚠⚠⚠ **And an `attend` is refused here for a stronger
-                    # reason than the other two: it would WRITE.** `_rerank`
-                    # runs once per shortlist, on rules that have not applied
-                    # and may never apply, so a deposit from here would be the
-                    # agent claiming to think about something because it
-                    # considered thinking about it. Ranking is not doing --
-                    # which is the same line `_is_defeated` draws between
-                    # matched and survived.
-                    continue
-                node = table._target(target, bindings)
-                if node is not None and node in table.score:
-                    lift[node] = lift.get(node, 0) + delta
-    if not lift:
-        return chunk, tried
-    # ...and the shortlist is RENORMALISED before the nudge is added.
-    #
-    # A persistent lift runs to the saturation ceiling, so adding a nudge to it
-    # changes nothing: measured, teaching both kinds together scored exactly
-    # what the persistent half scored on its own while paying the reranker's
-    # cost. The alternative I proposed -- let the reranker set the order -- was
-    # wrong, and the author's objection is the right one: a trigger that names
-    # a POSITION has to know what it is competing against, and then triggers
-    # stop being independent and stop being separately learnable.
-    #
-    # So the scale is fixed where the comparison happens instead. Within a
-    # shortlist the base scores are mapped onto [0, NORM], which is not
-    # flattening -- a rule the table strongly prefers keeps its lead over one it
-    # barely prefers -- but it makes habit and situation commensurable, so a
-    # nudge can move something without a trigger knowing anything but its own
-    # query.
-    lo = min(table.score[r.node] for r in chunk)
-    hi = max(table.score[r.node] for r in chunk)
-    span = (hi - lo) or 1
-    based = {r.node: NORM * (table.score[r.node] - lo) / span for r in chunk}
-    return sorted(chunk, key=lambda r: (-(based[r.node] + lift.get(r.node, 0)),
-                                        table.rank[r.node])), tried
-
-
-def _spend_one(m: Machine, table: Table, tick: int, by: str, buffs, frozen,
+def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
                bindings, rule_node) -> None:
-    """Spend one postcondition's buffs: attention to the machine, scores to the
-    table.
+    """Spend one postcondition: attention to the machine, a stop to the table.
 
-    ⭐⭐⭐ **The split is the design, not plumbing.** `Table.spend`'s own
-    docstring says a stop is kept out of it so *the trace stays a pure account
-    of scores* -- and a deposit is further outside that account than a stop is,
-    because it writes a claim the corpus can read, deny and reason about. A
-    table that could write claims would be an interpreter with a memory.
+    ⭐⭐⭐ **The split is the design, not plumbing.** A deposit writes a claim the
+    corpus can read, deny and reason about, and a table that could write claims
+    would be an interpreter with a memory. A stop writes nothing and only says
+    the run is over, so it is the one thing recorded on the table.
 
     ⚠ The licence is the rule that spent it, so *why am I thinking about this*
     answers with a rule and a moment.
     """
-    rest = []
     licence = m.g.rel(m.APPLIED, rule_node)
-    for target, delta in buffs:
+    for target, _delta in spends:
         if isinstance(target, Attend):
             node = table._target(target.term, bindings)
             if node is None:
@@ -1334,9 +1108,11 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, buffs, frozen,
         if target is UNATTEND:
             m._unattend(licence)
             continue
-        rest.append((target, delta))
-    if rest:
-        table.spend(tick, by, rest, frozen, bindings)
+        if target is STOP:
+            # Recorded here, obeyed by the loop. Keeping the decision out of the
+            # spend is what lets *why did you stop?* answer with a rule's name
+            # rather than a flag.
+            table.stopped = by
 
 
 def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
@@ -1349,10 +1125,10 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
     bare `after` has no query and holds always.
     """
     name = chosen.rule.name or "?"
-    for query, buffs, frozen, _learned in m.rules.triggers.get(
+    for query, spends, frozen, _learned in m.rules.triggers.get(
             chosen.rule.node, ()):
         if not query:
-            _spend_one(m, table, tick, name, buffs, frozen, chosen.bindings,
+            _spend_one(m, table, tick, name, spends, frozen, chosen.bindings,
                        chosen.rule.node)
             continue
         probe = Rule(
@@ -1367,7 +1143,7 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
         ):
             bound = dict(chosen.bindings)
             bound.update(hit.bindings)
-            _spend_one(m, table, tick, name, buffs, frozen, bound,
+            _spend_one(m, table, tick, name, spends, frozen, bound,
                        chosen.rule.node)
 
 
@@ -1404,6 +1180,7 @@ fact bird(tweety)
 fact bird(pingu)
 fact penguin(pingu)
 fact asked(pingu)
+fact asked(tweety)
 
 rule <flies>      = implies( {{ +bird(?x), +considered(?x) }},    {{ +can_fly(?x) }} )
 rule <flightless> = implies( {{ +penguin(?x), +considered(?x) }}, {{ +grounded(?x) }} )
@@ -1411,7 +1188,6 @@ rule <classify>   = implies( {{ +asked(?x) }},                    {{ +considered
 {post}
 """
 
-CALIBRATED = "after <classify> { +penguin(?x) } => boost(<flightless>, 20)"
 
 def _load(name: str, settling: bool = False) -> Machine:
     m = Machine()
@@ -1421,7 +1197,6 @@ def _load(name: str, settling: bool = False) -> Machine:
     return m
 
 
-CALIBRATED = "after <classify> { +penguin(?x) } => boost(<flightless>, 20)"
 
 
 def _fight(run_it: bool):
@@ -1440,37 +1215,88 @@ def penguin() -> int:
     """The author's example, and it found the mechanism's real boundary.
 
     `<flies>` is declared first, so under declaration order it wins for every
-    bird, penguin included. Nothing about the tiebreak can fix that -- the
-    general rule IS the more foundational one, which is what declaration order
-    says. The specificity has to come from a buff.
+    bird, penguin included. The general rule IS the more foundational one, which
+    is what declaration order says.
 
     **But ordering alone is not defeasibility, and running it is how that
     showed.** A loop that continues to quiescence applies BOTH rules whatever
     the order: a low score delays a rule, it never removes one, and removal is
-    the thing this design refuses on purpose (preference orders, it does not
-    exclude). So the penguin comes out flying and grounded, twice, and the buff
-    changes nothing you can see.
+    the thing this design refuses on purpose. So the penguin comes out flying
+    AND grounded whichever rule went first.
 
-    What makes the order into a default is **stopping**: ask, take the first
-    rule that matches, act on it. That is the System-1 reading taken seriously,
-    and it is why *completion is the output of a rule* is not a detail of the
-    author's design -- it is what turns a score into a default. Below, one move
-    per question.
+    ⚠⚠⚠ **THE BUFF NEVER FIXED THE PENGUIN, AND RETIRING IT COSTS NOTHING
+    HERE.** This file used to say *the specificity has to come from a buff*, and
+    that was wrong in the way that matters: `boost(<flightless>, 20)` reordered
+    the two rules and `can_fly(pingu)` stayed true in both arms. Measured on the
+    way out. What a buff bought was the ORDER, and the order is not the answer to
+    the penguin -- the answer is that the specific rule DEFEATS the general one,
+    which §12 has said all along and which no score can say.
+
+    The four levers on one fixture, and **only the last one answers the
+    question** -- which the control is what shows:
+
+        lever              pingu flies   tweety flies
+        declaration order      yes           yes        an ordering, so both apply
+        standing               yes           yes        likewise -- and that is correct
+        overrides              no            NO         defeat, and TOO COARSE
+        representation         no            yes        the only one that works
+
+    ⚠⚠⚠ **`overrides` grounds tweety as well, and that was not expected.**
+    `overrides(<flightless>, <flies>)` is defeat per RULE: once `<flightless>`
+    matches anywhere, `<flies>` is out for everybody, so the ordinary bird stops
+    flying too. It solves the penguin by breaking flight, which is not solving
+    it. §12's defeat is the right KIND of answer and the wrong GRAIN -- the
+    claim needs to be about this binding, and `overrides` cannot say that.
+
+    ⭐ What does work is representation: state `-penguin(tweety)` and let
+    `<flies>` read it. The general rule keeps working for ordinary birds and
+    declines for this one, because the corpus said something it knew rather than
+    leaving it to a score. §9's positive tests, with the negative WRITTEN rather
+    than inferred from silence.
+
+    ⭐ `tweety` is the control and is the whole reason this table is worth
+    printing. Without it `overrides` and representation look identical, and the
+    lever that breaks flight passes.
     """
     print()
-    print("  the penguin -- ask, and take the first rule that matches")
+    print("  the penguin -- ordering is not defeasibility")
     wrong = 0
-    for post in ("", CALIBRATED):
+    DENIED = PENGUIN.replace(
+        "fact penguin(pingu)",
+        "fact penguin(pingu)" + chr(10) + "fact -penguin(tweety)").replace(
+        "+bird(?x), +considered(?x) }}",
+        "+bird(?x), +considered(?x), -penguin(?x) }}")
+    cases = (
+        ("declaration order alone", PENGUIN.format(post="")),
+        ("standing(<flightless>)",
+         PENGUIN.format(post="fact standing(<flightless>)")),
+        ("overrides(<flightless>, <flies>)",
+         PENGUIN.format(post="fact overrides(<flightless>, <flies>)")),
+        ("the KB states -penguin(tweety)", DENIED.format(post="")),
+    )
+    for label, src in cases:
         m = Machine()
-        load(m, PENGUIN.format(post=post))
+        kb = load(m, src)
         load(m, SETTLE)
-        r = run(m, limit=6)
-        first = next((x for x in r.applied if x in ("flies", "flightless")), "-")
-        answer = {"flies": "can_fly(pingu)", "flightless": "grounded(pingu)"}
-        label = "with the postcondition" if post else "declaration order alone"
-        print(f"    {label:24} {r.doubts} doubt(s), applied {r.applied}")
-        print(f"    {'':24} first answer -> {answer.get(first, '-')}")
-        if post and first != "flightless":
+        run(m, limit=12)
+        held = lambda t: m.holds(kb.term(t)) == "+"
+        pingu_flies, tweety_flies = held("can_fly(pingu)"), held("can_fly(tweety)")
+        print(f"    {label:32} pingu flies: {str(pingu_flies):5}  "
+              f"grounded: {str(held('grounded(pingu)')):5}  "
+              f"tweety flies: {tweety_flies}")
+        if label.startswith(("overrides", "the KB")):
+            # The two that claim to answer it: the penguin must not fly, and an
+            # ordinary bird must still be able to.
+            if pingu_flies:
+                print(f"    FAIL  {label} left the penguin flying")
+                wrong += 1
+            if label.startswith("the KB") and not tweety_flies:
+                print(f"    FAIL  {label} grounded tweety as well, which is not "
+                      f"solving the penguin but breaking flight")
+                wrong += 1
+        elif not pingu_flies:
+            print(f"    FAIL  {label} is an ORDERING and must not remove a "
+                  f"conclusion -- if it does, ordering has become defeat")
             wrong += 1
     return wrong
 
@@ -1523,8 +1349,8 @@ def stopping() -> int:
 
     This file's own design says *done is the output of a rule that checks
     against the goal* -- and the loop had no way to obey one: the check
-    concluded and the agent carried straight on to quiescence. `stop` is the
-    fourth thing a postcondition can spend, beside `boost`, `damp` and `reset`.
+    concluded and the agent carried straight on to quiescence. `stop` is one of
+    the three things a postcondition can spend, beside `attend` and `unattend`.
     A row, not a branch, and the loop still knows nothing about goals: it knows
     a rule said stop.
 
@@ -1538,19 +1364,21 @@ def stopping() -> int:
     buffed persistently in two places, and standing. The rows below keep that
     null result where the next person to propose it will find it.
 
-    ⚠⚠⚠ **It used to be bit-identical and it no longer is, because the
-    BUNDLE got one rule shorter.** Retiring `<relevant>` shifts the declaration
-    RANK of every rule in every corpus, and rank breaks the tie when scores are
-    equal at the floor -- so the trigger now moves the run by exactly one move,
-    and in opposite directions with and without `stop` (65 against 64, 8 against
-    9). That is rank noise, not the trigger working: it still does not let the
-    completion check apply any earlier, which is the claim.
+    ⚠⚠⚠ **TWO OF THE FIVE ROWS ARE GONE WITH THE BUFFS.** Both spent
+    `boost(<done>, 20)` from a `when` trigger, and a `when` trigger is now
+    refused outright -- nothing runs one. What remains of *raise the check's
+    priority* is the `standing` row, which is the strongest lever of the four
+    that were tried and still moves the run no earlier: a completion check that
+    cannot match until the thing is done has nobody to go before, whatever its
+    score. The null result is therefore still gated, by the arm that had the
+    best chance of breaking it.
 
-    So the check asserts the SHAPE of the null result rather than an equality
-    it can no longer have -- at most a move either way, against the 55 that
-    `stop` is worth. Equality was the sharper test and it is not available; a
-    bound that still excludes the effect being claimed is the honest
-    replacement, and it is written with the numbers in it so a drift shows.
+    ⚠ The check asserts the SHAPE of the null result rather than an equality:
+    at most a move either way, against the tens of moves `stop` itself is worth.
+    Written with the numbers in it so a drift shows. Equality was the sharper
+    test and stopped being available when retiring `<relevant>` shifted the
+    declaration RANK of every rule in every corpus -- rank breaks the tie when
+    scores are equal at the floor.
     """
     print()
     print("  stopping -- a cart to build, and a check that says when it is done")
@@ -1558,10 +1386,7 @@ def stopping() -> int:
     seen = {}
     cases = (
         ("", "no postcondition"),
-        ("when { +want(?w) } => boost(<done>, 20)", "a trigger, and no stop"),
         ("after <done> => stop", "stop, <done> at the floor"),
-        ("after <done> => stop\nwhen { +want(?w) } => boost(<done>, 20)",
-         "stop, and the trigger as well"),
         ("after <done> => stop\nfact standing(<done>)",
          "stop, and <done> standing"),
     )
@@ -1581,12 +1406,13 @@ def stopping() -> int:
     # ...and the null result, kept as a check so it cannot quietly come back.
     # ⚠ A BOUND, not an equality -- see the docstring. It has to stay far
     # tighter than what `stop` buys, or it would stop being able to fail.
-    drift = abs(seen["stop, and the trigger as well"]
+    drift = abs(seen["stop, and <done> standing"]
                 - seen["stop, <done> at the floor"])
     worth = seen["no postcondition"] - seen["stop, <done> at the floor"]
     if drift > 1 or drift * 10 >= worth:
-        print(f"    FAIL  the trigger changed the run by {drift} moves against "
-              f"{worth} for `stop` -- the null result moved")
+        print(f"    FAIL  raising the check's priority changed the run by "
+              f"{drift} moves against {worth} for `stop` -- the null result "
+              f"moved")
         bad += 1
 
     # ⚠⚠⚠ THE COST, measured rather than asserted. The shipped loop refuses to

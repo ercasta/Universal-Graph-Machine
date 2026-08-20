@@ -37,14 +37,20 @@ The reflex experiment in `ugm.attention` settled what a demonstration may
 produce: damping every rule that was tried and missed cost 125 conclusions,
 because *tried and missed* is not evidence a rule is unimportant -- it is
 evidence it did not apply **in that state**. So a demonstration has to produce
-something conditional, and the smallest conditional thing that carries a
-sequence is a bigram on the rule that just applied:
+something CONDITIONAL, keyed on what was true at the time:
 
     rule <A> = ...
-      after => boost(<R>, n)          after A, prefer R
+      learned after <A> { ... } => attend(?x, n)
 
-...with a query added later, by anti-unification, when the same `A` is taught
-towards different `R` in different situations.
+⚠⚠⚠ **The bigram arms are gone, and the measurement is why.** The smallest
+conditional thing that carries a sequence used to be a bigram on the rule that
+just applied -- `after <A> => boost(<R>, n)`, *after A, prefer R* -- with a query
+added by anti-unification. Three arms were built on it (`bigram`, `query`,
+`occasion`) and every one named a RULE. On the dungeon the node-keyed arm beat
+all three (13.0 matched/move against 17.2, 32.8 and 44.4, the last WORSE than
+doing nothing), so they are retired with the buffs they spent. What survives is
+`focus`, and the anti-unification that built their queries survives with it --
+it is `_query`, and it now conditions an attention lesson instead.
 
 **And the mechanism can be validated with no human at all.** The shipped loop's
 arbitration already picks a move at every step, deterministically, over the full
@@ -122,8 +128,11 @@ def teacher(m: Machine, table: Table, window, state: Situation):
     everything = m._materialise(m.rules.rules, state)
     if not everything:
         return window[0] if window else None
-    keys = m._in_play()
-    chosen = arbitrate(m.rules, everything, lambda r: m._rank(r, keys))
+    # ⚠ No priority key. `_rank` used to put `standing` rules first and then sort
+    # by the `prefer` table; both are retired, so the gold teacher chooses by
+    # defeat and then authored order -- which is what `arbitrate` does with no
+    # key at all, and is simpler than what it replaced.
+    chosen = arbitrate(m.rules, everything)
     return chosen or (window[0] if window else None)
 
 
@@ -241,45 +250,6 @@ class Lesson:
 
     # -- what a demonstration becomes -------------------------------------
 
-    def lessons(self, m: Machine, conditional: bool = True) -> dict:
-        """What was learned, as TEXT.
-
-        A node id means nothing outside the graph that minted it, and the
-        lesson is learned on the teacher's machine and applied on the student's
-        -- so what crosses is an **utterance**, rendered here and re-read in the
-        receiver's own name scope. That is this repo's own rule for what may
-        cross between machines (`ugm/table.py`), arriving from the learning
-        side, and it makes a lesson a document: savable, diffable, arguable,
-        and loadable into a corpus that was never taught.
-
-        The whole query is rendered as ONE term, because `Loader.term` gives
-        each call a fresh scope -- two members parsed separately would not
-        share `?g0`, and a query whose variables do not co-refer is a different
-        and much weaker claim.
-        """
-        out = {"posts": {}, "declined": 0, "collided": 0}
-        for (first, then), seen in self.pairs.items():
-            if first == then:
-                continue
-            text = ""
-            if conditional:
-                query = _query(m, self.examples.get((first, then), []))
-                if not query:
-                    # It generalised to nothing that says anything. Emitting an
-                    # unconditional buff instead is exactly the failure already
-                    # measured twice, so the lesson is declined.
-                    out["declined"] += 1
-                    continue
-                if _collides(m, query, self.examples, first, then):
-                    # The query also holds where the teacher chose otherwise
-                    # after the same rule, so it is too general to be a reason.
-                    out["collided"] += 1
-                    continue
-                text = "q(" + ", ".join(m.g.show(x.pattern) for x in query) + ")"
-            out["posts"][(first, then)] = (text, 3 * min(seen, 3))
-        return out
-
-
     def focuses(self, m: Machine, conditional: bool = False) -> dict:
         """What to think ABOUT after each rule: one variable per rule, learned
         from what carried into the following move.
@@ -329,75 +299,6 @@ class Lesson:
             text = "q(" + ", ".join(m.g.show(x.pattern) for x in query) + ")"
             out["rules"][rule] = (var, n, text)
         return out
-
-    def recognisers(self, m: Machine, ldr) -> dict:
-        """The demonstrations keyed on the situation: for each rule taught,
-        what the situations it was taught in have in common.
-
-        The example is the same one -- what made the move available -- but
-        UNANCHORED, because there is no predecessor to anchor to and that is the
-        point: the query binds its own variables, so it holds whenever a
-        situation of that shape arises.
-        """
-        out = {"rules": {}, "declined": 0, "unspeakable": 0}
-        for name, examples in self.occasions.items():
-            read = []
-            for ex in examples:
-                if not ex:
-                    continue
-                try:
-                    # One term per example, so its own variables co-refer and
-                    # two examples share nothing by accident.
-                    whole = ldr.term("q(" + ", ".join(ex) + ")")
-                except ParseError:
-                    out["unspeakable"] += 1
-                    continue
-                read.append(tuple(m.g.members(whole)))
-            if len(read) < 2:
-                # One example generalises to itself, which is a query about one
-                # goblin. Two is the least that can say anything general, and
-                # `generalise` decides what they share.
-                out["declined"] += 1
-                continue
-            query = _query(m, read)
-            if not query:
-                out["declined"] += 1
-                continue
-            out["rules"][name] = (
-                "q(" + ", ".join(m.g.show(x.pattern) for x in query) + ")",
-                3 * min(len(read), 3),
-            )
-        return out
-
-
-def install_recognisers(m: Machine, ldr, learned: dict) -> int:
-    """The situation-keyed lessons, as RERANKERS.
-
-    They were learned rules first -- `<when-N>` concluding `noticing(<R>)` --
-    and that failed for a structural reason worth keeping: in a one-move-per-
-    tick loop a rule that recognises a situation has to WIN A MOVE to be heard,
-    and it never does (2 firings out of 16 installed). A ranking-time trigger is
-    heard without winning anything, costs no move, and adds nothing to the pool.
-    """
-    by_name = {r.name: r for r in m.rules.rules if r.name}
-    added = 0
-    for name, (text, weight) in sorted(learned["rules"].items()):
-        if by_name.get(name) is None:
-            continue
-        try:
-            whole = ldr.term(text)
-        except ParseError:
-            learned["unspeakable"] = learned.get("unspeakable", 0) + 1
-            continue
-        members = ", ".join("+" + m.g.show(x) for x in m.g.members(whole))
-        try:
-            ldr.load(WHEN % (members, name, weight))
-        except ParseError:
-            learned["unspeakable"] = learned.get("unspeakable", 0) + 1
-            continue
-        added += 1
-    return added
-
 
 def install_focuses(m: Machine, ldr, learned: dict) -> int:
     """The attention lessons, as postconditions.
@@ -482,42 +383,6 @@ def emit(m: Machine, ldr, learned: dict, note: str = "") -> str:
         focus_lines(m, ldr, learned))
 
 
-def install(m: Machine, ldr, lessons: dict) -> int:
-    """Read the lessons back in the student's own scope, as trigger documents.
-
-    Nothing is written into a rule: what a rule MEANS and when it is worth
-    reaching for are different claims, and they now live in different
-    statements. A corpus loads its experience or does not.
-    """
-    added = 0
-    for (first, then), (text, weight) in lessons["posts"].items():
-        names = {r.name for r in m.rules.rules if r.name}
-        if first not in names or then not in names:
-            continue
-        query = ""
-        if text:
-            try:
-                whole = ldr.term(text)
-            except ParseError:
-                # The lesson cannot be WRITTEN DOWN. A sign atom renders as `+`
-                # and `+` opens a member, so a premise that mentions one is a
-                # fact the graph holds and the surface cannot say. Counted
-                # rather than worked around: a calibration nobody can read
-                # cannot be argued with or frozen, which is why it belongs in
-                # the corpus in the first place.
-                lessons["unspeakable"] = lessons.get("unspeakable", 0) + 1
-                continue
-            query = " { %s } " % ", ".join(
-                "+" + m.g.show(x) for x in m.g.members(whole))
-        try:
-            ldr.load(AFTER % (first, query or " ", then, weight))
-        except ParseError:
-            lessons["unspeakable"] = lessons.get("unspeakable", 0) + 1
-            continue
-        added += 1
-    return added
-
-
 def _say(m: Machine, node: NodeId) -> str:
     """Render a proposition so the surface can read it back.
 
@@ -588,23 +453,13 @@ def _query(m: Machine, examples: List[Tuple]):
     return tuple(out)
 
 
-def _collides(m: Machine, query, examples, first: str, then: str) -> bool:
-    """Does this query also hold where the same rule was followed by a
-    DIFFERENT one? The negatives are free -- the teacher's own run recorded
-    them -- and a reason that is equally true of the alternative is not one."""
-    for (a, b), other in examples.items():
-        if a != first or b == then:
-            continue
-        for ex in other:
-            if all(any(unify(m.g, mem.pattern, p, {}) is not None for p in ex)
-                   for mem in query):
-                return True
-    return False
 EXTRA_SEEDS = (11, 13, 17)
 
-# The two trigger forms, as text: a lesson is a document.
-WHEN = "when { %s } => boost(<%s>, %d)" + chr(10)
-AFTER = "after <%s>%s => boost(<%s>, %d)" + chr(10)
+# The trigger form, as text: a lesson is a document.
+#
+# ⚠ There were two more -- `WHEN` and `AFTER`, both writing `boost(<R>, n)`.
+# They are retired with the buffs, and with them `Lesson.lessons`,
+# `Lesson.recognisers`, `install` and `install_recognisers`.
 # ⭐⭐⭐ **A learned lesson ADJUSTS rather than replaces**, and for attention that
 # is the absence of `unattend`: the lesson says *and also think about this*,
 # adding to whatever else is attended rather than clearing the field first.
@@ -728,11 +583,18 @@ def measure(name: str, limit: int = 400) -> dict:
     # and `dungeon` was never measured at all. A gate that crashes reports the
     # same thing as a gate that passes -- nothing -- and it does it loudly
     # enough that nobody reads the rest.
-    for label in ("none", "bigram", "query", "occasion", "focus", "both"):
+    # ⚠⚠⚠ **THREE ARMS ARE GONE WITH THE BUFFS**: `bigram`, `query` and
+    # `occasion` all installed `boost(<R>, n)` rows, and `both` was `focus`
+    # plus `bigram`. Every one of them named a RULE, which is what the
+    # retirement is about -- and the measurement that motivated it is on the
+    # record: on the dungeon, focus scored 13.0 matched/move against bigram
+    # 17.2, query 32.8 and occasion 44.4, so the node-keyed arm beat all three
+    # and `occasion` was worse than doing nothing.
+    for label in ("none", "focus"):
         m, ldr = _machine(name)
         if label == "none":
             taught, added, declined, collided = {"unspeakable": 0}, 0, 0, 0
-        elif label == "focus":
+        else:
             # ⭐⭐⭐ **Keyed on a THING, not on a rule.** Every arm above teaches
             # the table which RULE to reach for. This one teaches the agent what
             # to think ABOUT -- and so it is the only one that can reach the
@@ -741,34 +603,6 @@ def measure(name: str, limit: int = 400) -> dict:
             added = install_focuses(m, ldr, learned)
             declined, collided = learned["declined"], 0
             taught = {"unspeakable": learned.get("unspeakable", 0)}
-        elif label == "both":
-            # The two kinds of attention doing their own jobs: persistent
-            # buffs decide WHO IS IN the shortlist, which is speed, and
-            # rerankers decide who wins INSIDE it, which is accuracy. The
-            # shortlist restriction is what makes that division of labour
-            # necessary rather than merely tidy -- a reranker cannot shorten a
-            # scan whose chunks were chosen before it ran.
-            taught = lesson.lessons(gold_m, conditional=False)
-            added = install(m, ldr, taught)
-            learned = lesson.recognisers(gold_m, gold_ldr)
-            added += install_recognisers(m, ldr, learned)
-            declined = taught["declined"] + learned["declined"]
-            collided = taught["collided"]
-        elif label == "occasion":
-            # Keyed on the SITUATION: a learned recogniser that concludes
-            # `noticing(<R>)` and spends its attention on R, so the lift arrives
-            # whenever the occasion arises rather than only after one
-            # particular predecessor.
-            learned = lesson.recognisers(gold_m, gold_ldr)
-            added = install_recognisers(m, ldr, learned)
-            declined = learned["declined"]
-            collided = 0
-            taught = {"unspeakable": learned.get("unspeakable", 0)}
-        else:
-            taught = lesson.lessons(
-                gold_m, conditional=(label == "query"))
-            added = install(m, ldr, taught)
-            declined, collided = taught["declined"], taught["collided"]
         r = run(m, limit=limit)
         # ⚠ The learned recognisers are moves the teacher never made, so they
         # SHIFT the sequence and a positional comparison counts every later
@@ -809,7 +643,7 @@ def main() -> int:
         print(f"  {c['corpus']}  -- {c['pairs']} bigrams from one taught run; "
               f"the teacher took the table's top choice "
               f"{c['teacher_took_the_top']}/{c['gold_moves']} times")
-        for label in ("none", "bigram", "query", "occasion", "focus", "both"):
+        for label in ("none", "focus"):
             d = c[label]
             print(f"    {label:7} {d['posts']:>3} posts "
                   f"({d['declined']} said nothing, {d['collided']} too general, "
@@ -838,7 +672,7 @@ def main() -> int:
             for line in doc.splitlines():
                 print("    " + line)
             print()
-        for label in ("bigram", "query", "occasion", "focus", "both"):
+        for label in ("focus",):
             if c[label]["lost"] > c["none"]["lost"]:
                 print(f"    FAIL  {label} lost {c[label]['lost']} against "
                       f"{c['none']['lost']} uncalibrated")

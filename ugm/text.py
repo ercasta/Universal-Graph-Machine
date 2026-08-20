@@ -174,11 +174,11 @@ class RuleMember(NamedTuple):
 
 
 class PostClause(NamedTuple):
-    """A postcondition, as written: a query, and what it does to the table.
+    """A postcondition, as written: a query, and what it spends if it holds.
 
         rule <classify> = implies( { +asked(?x) }, { +considered(?x) } )
-          after { +penguin(?x) } => boost(<flightless>, 3), damp(<flies>, 2)
-          frozen after => boost(?a, 1)
+          after { +penguin(?x) } => attend(?x, 3)
+          frozen after => unattend
 
     The query is an ordinary antecedent -- no new notation, and the same
     matcher -- and it is matched with the rule's OWN bindings already in hand,
@@ -199,14 +199,13 @@ class PostClause(NamedTuple):
         learned     play added it, and re-learning may replace it
 
     ⚠ And learning ADJUSTS rather than replaces, which needs no arithmetic at
-    all: two postconditions on one rule both spend, so an authored `boost(<R>,
-    5)` beside a learned `boost(<R>, 2)` is a score of 7. Measured. Strip every
-    `learned` line and the bootstrap is exactly what is left; change the 5 to a
-    3 and the learned +2 still applies, to 3.
+    all: two postconditions on one rule both spend, so an authored `attend(?x)`
+    beside a learned `attend(?y)` leaves the agent thinking about both. Measured.
+    Strip every `learned` line and the bootstrap is exactly what is left.
     """
 
     query: Tuple[RuleMember, ...]
-    buffs: Tuple[Tuple["Term", int], ...]
+    spends: Tuple[Tuple["Term", int], ...]
     frozen: bool
     learned: bool = False
 
@@ -373,11 +372,20 @@ class Parser:
                          line)
 
     def trigger(self, t: Tok) -> Statement:
-        """`after <A> { ... } => boost(<R>, 3)`, or `when { ... } => ...`.
+        """`after <A> { ... } => attend(?x, 3)`.
 
-        `after` fires when its rule applies and its query holds; `when` fires at
-        ranking time and belongs to no rule. `frozen` marks what a calibration
-        process may not touch.
+        `after` fires when its rule applies and its query holds. `frozen` marks
+        what a calibration process may not touch.
+
+        ⚠⚠⚠ **`when` IS REFUSED, and that is a change from a silent no-op.** A
+        `when` trigger fired at RANKING time and belonged to no rule; the only
+        thing that ran one was `_rerank`, which reordered a shortlist by the
+        buffs the trigger spent. Both are retired, so a `when` trigger now
+        reaches nothing at all -- it would parse, load, and never run. A corpus
+        whose lesson silently does nothing is the worst outcome available here,
+        so it is an error instead. Everything a reranker could say, an `after`
+        trigger on the rule that RAN can say, and it says it about a move that
+        actually happened.
         """
         frozen = t.text == "frozen"
         learned = t.text == "learned"
@@ -389,6 +397,13 @@ class Parser:
                     f"written `{t.text} after <R> ... => ...`"
                 )
             t = self.next()
+        if t.text == "when":
+            raise ParseError(
+                f"line {t.line}: a ranking-time `when` trigger no longer reaches "
+                f"anything -- `_rerank` and the buffs it spent are retired. Hang "
+                f"the lesson off the rule that RUNS it: `after <R> {{ ... }} => "
+                f"attend(?x, n)`"
+            )
         host = ""
         if t.text == "after":
             name = self.next()
@@ -401,25 +416,32 @@ class Parser:
         query = self.block() if self.at("{") else ()
         self.expect("=")
         self.expect(">")
-        buffs = [self.buff()]
+        spends = [self.spend()]
         while self.at(","):
             self.next()
-            buffs.append(self.buff())
+            spends.append(self.spend())
         return Statement("trigger", host, "", query, (), None, "", t.line,
-                         (PostClause(query, tuple(buffs), frozen, learned),))
+                         (PostClause(query, tuple(spends), frozen, learned),))
 
-    def buff(self) -> Tuple["Term", int]:
-        """`boost(<R>, 3)` or `damp(?a, 2)`. The target may be a rule name or a
-        variable the query bound -- a doubt is about rules nobody knew when the
-        postcondition was written, so `boost(?a, 1)` has to be sayable."""
+    def spend(self) -> Tuple["Term", int]:
+        """What a postcondition spends: `attend(...)`, `unattend` or `stop`.
+
+        ⚠⚠⚠ **`boost(<R>, n)` AND `damp(<R>, n)` ARE GONE, AND SO IS `reset`.**
+        They named a RULE, which is what the whole retirement is about: a rule
+        id goes stale the moment a rule is adopted, composed or renamed, and a
+        corpus of experience written in them stops loading rather than going
+        quietly wrong. `attend(?x, n)` names a NODE the move itself bound.
+
+        ⚠ The delta in the return type is now always 0 and is kept only so the
+        three surviving spends share one shape. Nothing reads it.
+        """
         t = self.next()
         if t.kind == "name" and t.text == "stop":
             # ⭐ *Done is the output of a rule that checks against the goal* --
             # which the table loop's own design says, and had no way to obey.
             # A rule concludes that here is over; its postcondition is what
             # ends the run. The loop still knows nothing about goals: it knows
-            # a rule spent attention by saying stop, exactly as it knows one
-            # said `reset`.
+            # a rule spent attention by saying stop.
             return (STOP, 0)
         if t.kind == "name" and t.text == "unattend":
             # `reset` for attention: the agent stops thinking about what it was
@@ -448,26 +470,10 @@ class Parser:
                 weight = int(n.text)
             self.expect(")")
             return (Attend(target, weight), 0)
-        if t.kind == "name" and t.text == "reset":
-            # Back to the default table. The author's mechanism for refocusing,
-            # and it is a postcondition like any other: nothing in the engine
-            # knows what a goal is, so deciding when to refocus is a rule's
-            # business and this is only what happens when it does.
-            return (None, 0)
-        if t.kind != "name" or t.text not in ("boost", "damp"):
-            raise ParseError(
-                f"line {t.line}: a postcondition spends attention, so it says "
-                f"`boost(...)`, `damp(...)`, `attend(...)`, `reset`, `unattend` "
-                f"or `stop`, not {t.text!r}"
-            )
-        self.expect("(")
-        target = self.term()
-        self.expect(",")
-        n = self.next()
-        if not n.text.isdigit():
-            raise ParseError(f"line {n.line}: how much to {t.text} is a numeral")
-        self.expect(")")
-        return (target, int(n.text) * (1 if t.text == "boost" else -1))
+        raise ParseError(
+            f"line {t.line}: a postcondition spends attention, so it says "
+            f"`attend(...)`, `unattend` or `stop`, not {t.text!r}"
+        )
 
     def block(self) -> Tuple[RuleMember, ...]:
         self.expect("{")
@@ -837,20 +843,18 @@ class Loader:
                    self.build(mm.binds, scope) if mm.binds else None)
             for mm in clause.query
         )
-        buffs = tuple(
-            # `None` is a reset, `STOP` a stop and `UNATTEND` a clearing; none
-            # is a term, so none goes through `build`. An `attend` IS one, and
-            # it is built in the host rule's scope like everything else here --
-            # which is what makes `attend(?x)` *that* `?x`.
-            (t if t is None or t is STOP or t is UNATTEND
-             else Attend(self.build(t.term, scope), t.weight)
-             if isinstance(t, Attend)
-             else self.build(t, scope), delta)
-            for t, delta in clause.buffs
+        spends = tuple(
+            # `STOP` is a stop and `UNATTEND` a clearing; neither is a term, so
+            # neither goes through `build`. An `attend` IS one, and it is built
+            # in the host rule's scope like everything else here -- which is what
+            # makes `attend(?x)` *that* `?x`.
+            (t if t is STOP or t is UNATTEND
+             else Attend(self.build(t.term, scope), t.weight), delta)
+            for t, delta in clause.spends
         )
         self.m.rules.triggers.setdefault(
             None if host is None else host.node, []
-        ).append((query, buffs, clause.frozen, clause.learned))
+        ).append((query, spends, clause.frozen, clause.learned))
 
     def rule_ref(self, name: str) -> NodeId:
         """What `<n>` denotes: a rule node, or a named fact's proposition.

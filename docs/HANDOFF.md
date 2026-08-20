@@ -1,3 +1,130 @@
+# Handoff — 2026-08-20p (the buffs retired, and `prefer` finished off)
+
+On top of `1d402b2`. **+656 lines, -1,862.** The retirement 20m costed and 20o
+half-executed is complete: nothing rule-keyed is left in the loop.
+
+    selftest         646/0  (was 650; six vacuous checks replaced by three)
+    ./tools_sweep.sh 1 failing -- `vocabulary`, the pre-existing 18/2
+
+## What went
+
+    ugm/melee.py            251 lines   its whole corpus was boost/damp
+    ugm/acting.py           331 lines   ⚠ see below -- this one cost something
+    melee-p1.ugm/-dm.ugm    298 lines
+    PREFER, _priority, _rank, _close                        machine.py
+    Buff, Spend, LIFE, MAX_LIFT, NORM, Table.age/clear/
+      spend/rebuilt/_defaults/live/trace, _rerank,
+      _by_target, `reflex`                                  attention.py
+    boost / damp / reset                                    text.py, surface
+    Lesson.lessons, Lesson.recognisers, install,
+      install_recognisers, WHEN, AFTER, _collides           teaching.py
+    the bigram / query / occasion / both arms               teaching.measure
+
+## ⚠⚠⚠ The penguin: this file has been WRONG about it, and the retirement is
+what found out
+
+`attention.py` said *the specificity has to come from a buff*, and rank "can
+only BE the tiebreak because buffs do the specificity work". Both are false.
+Measured on the way out, with `tweety` added as the control that makes the table
+able to fail:
+
+    lever              pingu flies   tweety flies
+    declaration order      yes           yes        an ordering, so both apply
+    BUFF boost(20)         yes           yes        ⭐ IT NEVER FIXED THE PENGUIN
+    standing               yes           yes        likewise, and correctly so
+    overrides              no            NO         defeat, and TOO COARSE
+    representation         no            yes        the only one that works
+
+> **The buff only ever bought ORDER, and order is not the answer to the
+> penguin.** Both rules applied in both arms; `can_fly(pingu)` stayed true.
+
+⭐ And `overrides(<flightless>, <flies>)` grounds tweety as well, which was not
+expected: defeat is per RULE, so once `<flightless>` matches anywhere `<flies>`
+is out for everybody. §12's defeat is the right KIND of answer at the wrong
+GRAIN. What works is stating `-penguin(tweety)` and letting `<flies>` read it --
+§9's positive tests with the negative WRITTEN rather than inferred from silence.
+`penguin()` is now that table, and tweety is why it can fail.
+
+## ⚠⚠ What `acting.py` cost, recorded because deleting it was a judgement call
+
+Its five-row lever table was buff-keyed, but its SIX marker gates were not, and
+they carried the module's actual subject: **an action is a rule, its bindings,
+and a free marker.** That representation result went with the file. It was
+flagged before deletion and deleted deliberately; nothing replaced it.
+
+⭐ Measured first, and worth keeping: a standing `attention(g2, 20)` fact steers
+that fixture, and the LEARNABLE form -- the `attend(?x, n)` postcondition -- does
+not. It fires (the claim is deposited) and is then clobbered back to weight 1 by
+auto-attention before the deciding tick. *Lasting and recent are different
+claims*, and the learnable one is the recent one.
+
+## ⚠⚠⚠ Four things that had stopped being able to fail
+
+Found by walking into them, not by looking:
+
+    machine.forest      its unanimity hedge grepped rows for `prefer(<`. `induce`
+                        moved to `attention(...)` rows in 20n, so the grep
+                        stopped matching and NOTHING was ever wrapped -- silently,
+                        for a whole session. Deleted.
+    recall_is_narrowable  `m5` was built, run, and asserted on by NOTHING, under a
+                        comment claiming the line was load-bearing. Measured: the
+                        claim is FALSE there -- budget 3 with `_widen` forced off
+                        still reaches `s(a)` in 0 widenings.
+    doubt_is_a_tie      all SIX arms identical. A bare tie, a `+prefer` row, that
+                        row denied, that row vetoed by a standing rule, and
+                        tolerance at 9 and at 1 -- every one gave `byA`/doubted.
+    the `when` trigger  a ranking-time trigger reached nothing once `_rerank`
+                        went. It would parse, load, and never run.
+
+The last is now a **ParseError** that says where to put the lesson instead. A
+lesson that silently does nothing is the worst outcome available here.
+
+## ⚠⚠⚠ `_recall` IS NOT ON THE TABLE LOOP'S PATH
+
+Instrumented: a `Machine.run` calls `_recall` **zero** times. The loop shortlists
+through the attention table; the budget knob reaches it via `_widen`.
+`ugm.quiescence` still calls it, so it is not dead -- but what it narrows is not
+what the agent recalls when it moves. Recorded in `recall_is_narrowable` rather
+than repaired, because where narrowing belongs is a design question.
+
+## ⚠ `_in_play` now has NO production caller
+
+Kept deliberately when the fork was taken, at which point `_recall`'s preference
+sort and `teaching.teacher` both read it. Both are gone. It is now defined, held
+to a slow definition by `ugm.state`'s floor gate, and measured five ways by a
+selftest function -- with nothing in the loop calling it. That is 20l's *a floor
+gate over a path nothing executes is measuring nothing*, and it is the next
+thing to decide.
+
+## What survives, deliberately
+
+`stop`, and it is sharper than it was: the null result is now EXACT (9 moves
+against 9) rather than the bound 20o had to retreat to. `attend`/`unattend`.
+`arbitrate` and `_materialise`. `fits` and the backward reader. `Table.order`'s
+`extra`, which is how attention lifts. `ugm/forest.py`, which is a different
+forest entirely -- a tool-backed classifier, never buff-keyed.
+
+`tolerance(n)` still parses and **nothing acts on it**. Left standing because
+§21's knob checks are about a corpus being able to SAY a number; a corpus that
+sets it is talking to no one. Said out loud in `machine.py` and `doubt_is_a_tie`.
+
+## Standing lessons
+
+**A control is what makes a table worth printing.** Without `tweety`, `overrides`
+and representation look identical and the lever that breaks flight passes.
+
+**Measure the replacement before conceding the loss.** *Retiring the buffs costs
+specificity* was written, argued, and wrong -- one probe with a control killed it.
+
+**Un-reserving a name shifts node ids.** Removing `"prefer"` from the reserved
+map moved a fixture that had already been wrong in two other columns. Third time.
+
+## Next
+
+`_in_play`. Then `docs/todo.md`, which now carries a costed, measured proposal to
+**retire situations** and manage hypotheses explicitly -- surveyed, with the leak
+measured at 95 nodes per supposition and the two hazards named.
+
 # Handoff — 2026-08-20o (`prefer` retired: the lift, `<relevant>`, and what it cost)
 
 Landed as `eb24325 wip`, on top of `6680954`. 20m's costed plan, executed.
