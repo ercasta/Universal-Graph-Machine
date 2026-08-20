@@ -263,9 +263,17 @@ def main() -> int:
     print(f"  taken   {taken}")
     print(f"  forgone {forgone}")
     print()
+    # ⚠⚠⚠ **DISTINCT routes, not occasions.** This read `len(forgone) == 1` and
+    # broke when the attention queue changed how many moves the rehearsal takes:
+    # the same route was passed up twice, on two moments, and `_forgo` writes
+    # directly with no dedupe because *this happened here* is what an entry
+    # says. Two records of one alternative is not two alternatives, and the
+    # claim being made is about the CHOICE -- one route taken, one other named.
+    # Counting deposits was measuring the length of the run.
     gate("⭐ forgoing works inside a supposition, so a rehearsal is a CHOICE -- "
-         "one route taken, the other passed up and named",
-         len(taken) == 1 and len(forgone) == 1)
+         "one route taken, the other passed up and named (%d record(s) of it)"
+         % len(forgone),
+         len(taken) == 1 and len(set(forgone)) == 1)
 
     # -- practice, and the exploration nobody wrote ------------------------
     print("\nFour rehearsals, each loading what the last one worked out:\n")
