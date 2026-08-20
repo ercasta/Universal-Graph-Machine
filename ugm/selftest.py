@@ -357,6 +357,22 @@ def matching() -> None:
     )
 
 
+def _move(m, limit: int = 20):
+    """Step until something APPLIES, and hand back that step.
+
+    ⚠ `Machine.tick` is one move of the table loop, and a move is not always an
+    application: the loop spends a tick DEPOSITING a doubt when two rules score
+    within tolerance, which is its own documented behaviour -- *depositing is
+    the move*. A check about what arbitration answered wants the answer, not the
+    tick it happened on.
+    """
+    for _ in range(limit):
+        one = m.tick()
+        if one.applied is not None or one.state in ("quiescent", "stopped"):
+            return one
+    return one
+
+
 def arbitration_is_total() -> None:
     m = Machine()
     g = m.g
@@ -366,7 +382,7 @@ def arbitration_is_total() -> None:
     r2 = m.rules.rule(IMPLIES, [Member(PLUS, g.rel(lit, p))], [Member(MINUS, g.rel(lit, q))], "R2")
     m.gate.write(m.focus, g.rel(lit, p), PLUS)
 
-    step = m.tick()
+    step = _move(m)
     check("§14", "with two rules matching, arbitration still answers", step.applied is not None)
     check("§14", "and it answers by authored order when nothing overrides", step.applied.rule is r1)
 
@@ -381,7 +397,7 @@ def arbitration_is_total() -> None:
     m2.gate.write(m2.focus, g2.rel(m2.OVERRIDES, a2.node, a1.node), PLUS,
                   source=m2.KB, mention=True)
     m2.gate.write(m2.focus, g2.rel(lit2, p2), PLUS)
-    step2 = m2.tick()
+    step2 = _move(m2)
     check("§14", "authored precedence beats authored order", step2.applied.rule is a2)
 
     # Defeat, not ranking: ordering alone would let the loser apply next tick and
@@ -630,7 +646,7 @@ def the_bundle() -> None:
         "but what it MEANS still waits for a rule to be selected",
         m5.holds(g5.rel(m5.SAYS, chan, hot, m5.rules.SIGN[PLUS])) is None,
     )
-    step = m5.tick()
+    step = _move(m5)
     check("§19", "and the tick can still name which silence it was", step.arrivals == 1)
     check(
         "§5",
@@ -1597,7 +1613,7 @@ def supposing() -> None:
         "",
     ]))
     f3 = m3.suppose(kb3.term("p(x)"), wrap=kb3.term("likely"))
-    one = m3.tick()
+    one = _move(m3)
     check("§18", "one tick inside a supposition applies exactly one rule", one.state == "applied")
     check("§18", "and the caller has control back between ticks", m3.focus is f3)
     rest = m3.run(limit=20)
@@ -3008,40 +3024,12 @@ def experience_is_offline() -> None:
           "the agent learned about `boiling(kettle)` is available for `boiling(pot)`",
           rows and all("(<" in r and ", " in r for r in rows)
           and not any("(" in r.split(", ")[1] for r in rows))
-
-    # ...and the honest half. §13's blocker is measured, not assumed: it is why
-    # an exact table buys nothing, and why this cannot yet be shown to pay.
-    import ugm.machine as MM
-    from .workload import corpus, stopping
-
-    # ⚠ Spying on `arbitrate` is what this used to do, and the chooser stopped
-    # calling it -- so the tally went to zero and the check failed VACUOUSLY
-    # rather than reporting anything. An instrument keyed on which function the
-    # loop happens to call is keyed on the implementation; keyed on the move
-    # that was made, it survives the implementation changing under it. The
-    # property is unchanged: `arbitrate` picks the minimum rank, so *the best
-    # available rank was apparatus* and *the winner was apparatus* are the same
-    # claim.
-    tally = {"arb": 0, "apparatus": 0}
-    orig = Machine._choose
-
-    def spy(self, proposed, keys):
-        chosen, rivals, sharing = orig(self, proposed, keys)
-        if chosen is not None:
-            tally["arb"] += 1
-            if self._rank(chosen.rule, keys)[0] == 0:
-                tally["apparatus"] += 1
-        return chosen, rivals, sharing
-
-    Machine._choose = spy
-    try:
-        m3 = Machine()
-        load(m3, corpus(4, 4, 0, True) + stopping(4))
-        m3.recall_budget = 4
-        m3.run(limit=9999)
-    finally:
-        Machine._choose = orig
-
+    # ⚠⚠⚠ **The second half of this check is DELETED with the option-set loop.**
+    # It measured `_choose`'s recall budget -- how a narrowed shortlist ranked
+    # the apparatus -- by spying on a method the table loop does not call, using
+    # `ugm.workload` as its corpus. Both are gone (20l). What remains is the
+    # half about the LESSON, which is about what was learned rather than about
+    # which function the loop happened to call.
 
 def a_root_goal_is_askable() -> None:
     """§6's *a root goal is never checked*, closed the way `blocked` was (§12).

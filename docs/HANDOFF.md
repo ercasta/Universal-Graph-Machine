@@ -1,3 +1,58 @@
+# Handoff — 2026-08-20l (the option-set loop is gone, and three instruments with it)
+
+On top of `4ec6f4c`. **-1,093 lines, +51.**
+
+    selftest         645/0
+    ./tools_sweep.sh 1 failing -- `vocabulary`, the pre-existing 18/2
+
+## What went
+
+    Machine.tick        129 lines -> 25   one move of the TABLE loop
+    Machine._choose     131 lines         gone; nothing called it
+    Machine._note_doubt  31 lines         gone; nothing called it
+    ugm/arbitration.py  175 lines         gone
+    ugm/harmony.py      201 lines         gone
+    ugm/workload.py     388 lines         gone
+
+`tick` is now `run` bounded to one move, keeping its table between calls so a
+caller stepping by hand is not measuring a different agent each tick.
+
+## Why the three instruments went
+
+They were not incidental casualties — they measured the loop that was deleted:
+
+    arbitration   installs over `_choose`/`arbitrate`; the table loop calls
+                  neither. It reported *NOTHING had a rival: this run compared a
+                  chooser with nothing to choose.*
+    harmony       measures defeat the same way: *NOTHING was ever defeated.*
+    workload      its whole measurement is `recall_budget` narrowing, which only
+                  the option-set loop used
+
+⭐⭐⭐ **A floor gate over a path nothing executes is measuring nothing**, which
+is exactly what the deleted loop comparison turned out to be (20k). Two of these
+announced it themselves, in their own kill-probe language, the moment the path
+went cold.
+
+⚠ I said the `tick` callers only wanted *step once and look*. True of
+`quiescence` and the selftest; **false of these three**, and the sweep is what
+said so. The claim was made before the measurement, which is the order this
+repository keeps recording as the mistake.
+
+## What survives, and why
+
+`agreement` and `state` — genuine floor gates, each holding a fast
+implementation to the slow definition of the SAME thing, both over paths the
+loop still takes. `ugm.selftest` at 645 checks. `arbitrate` and `_materialise`
+stay: they are the gold teacher in `teaching.py` and the chooser in `ugm.hanoi`,
+which is a legitimate offline use.
+
+## What was cut from the suite
+
+The second half of `experience_is_offline`, which spied on `_choose` and used
+`ugm.workload` as its corpus. Its own comment already recorded the lesson it
+died of: *an instrument keyed on which function the loop happens to call is
+keyed on the implementation.* The half about the LESSON survives.
+
 # Handoff — 2026-08-20k (the loop comparison is deleted)
 
 On top of `8434031`. **-159 lines from `ugm/attention.py`.**
