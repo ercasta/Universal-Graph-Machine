@@ -71,10 +71,14 @@ ROLES: Dict[str, List[str]] = {
         # `unsupported` above are each a threshold on: a rule sees one binding
         # at a time, so *how many* is the machinery's to answer.
         "count", "counted",
-        # `attention` sits beside `prefer` because it is the same claim about a
-        # NODE rather than about a rule -- *think about this one* -- and it is
-        # the agent's own deliberation for the same reason `prefer` is.
-        "prefer", "attention", "attention_span", "excluded", "ticks",
+        # `attention` is a claim about a NODE -- *think about this one* -- and it
+        # is the agent's own deliberation rather than anything a world says.
+        #
+        # ⚠ It used to sit beside `prefer`, which said the same thing about a
+        # RULE. `prefer` is retired: a rule id goes stale the moment a rule is
+        # adopted, composed or renamed, so a corpus of experience written in it
+        # stops LOADING rather than going quietly wrong.
+        "attention", "attention_span", "excluded", "ticks",
         # §18's call stack: the plumbing under a recursive plan, and not a way
         # of making one. Deliberation words, chosen so they are not words a
         # WORLD uses -- `awaits`/`returned`/`advances` rather than the obvious
