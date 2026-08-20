@@ -130,6 +130,28 @@ is conditional on table position. **Not fixed: the fix changes the loop every
 rule runs through** -- keep widening while the next chunk's top is within
 `TOLERANCE` of the window's, so a tie is finished before the loop stops.
 
+## The state of the code
+
+45 modules, ~23.8k lines, ~8.6k of it the engine (`ugm/core`). Two probes fewer
+than the last handoff: `hindsight` and `walkers` are gone, and their design docs
+are kept with a header saying so, because five other documents cite what they
+measured.
+
+    18 bundled rules   intake, did, taken, assert-act, denial, four
+                       deviation-*, the three call-stack rules, and backward
+                       reading's ask-fit, ask-recall, plan, expand, ask-check,
+                       give-up. ⚠ `resuming` and `cross` went with situations.
+    5 write-time hooks _adopt, _contest, _dispatch, _answer, _unafforded --
+                       still Python callables, still §21's honest debt
+    1 veto             `_forbid`, §19's carve-out, still before the deposit
+    9 answerers        and the protocol is `(machine, entry)` now
+
+**No frame, no seat, no topic, no locus, no span.** `Chain.now` is the chain's
+own end; nothing assigns it, so nothing can assign it wrongly. A deposit lands
+there and the ONLY thing that decides where is the order the writes are issued
+in -- which is now a property of every fixture in the tree, and is what several
+of the converted groups had to be rewritten around.
+
 ## Where to pick up
 
     1. `believed(p)`, item 2 of the previous handoff, and it is UNTOUCHED.
@@ -139,8 +161,16 @@ rule runs through** -- keep widening while the next chunk's top is within
     2. the queued `at ?m` conversion (§4 above), which is one conversion and
        not six
     3. §5's chunk boundary, if doubt-noticing is to be trustworthy
+    4. `<silent>`, if the quiescence gate is to be worth its 6 minutes (§3)
 
-# Handoff — 2026-08-20v (SUPERSEDED — the tree is green, see the top)
+⚠ **The habit that earned its keep again, twice.** Every gate must be able to
+fail, and both times the check was *run it against something else and see*.
+`ugm.gates.state` was comparing an index against itself and reporting 0
+disagreements. The quiescence gate's 5/6 was going to be blamed on this branch
+until `6c370d2` was checked out and printed the same 5/6. **Neither was
+readable. Both were one run away.**
+
+# Handoff — 2026-08-20v (SUPERSEDED — the cut is finished, see the top)
 
 **The tree is RED.** Last fully green commit: `6c370d2` (situations retired,
 `practice` rewritten, 534/0, one known `gates.state` bug).
