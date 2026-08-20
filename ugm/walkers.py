@@ -576,12 +576,26 @@ def main() -> int:
           f"    no precedence      ticks {plain['ticks']:3}  B reached {len(b_plain)}\n"
           f"    grab over spread   ticks {ordered['ticks']:3}  B reached {len(b_order)}\n")
 
+    # ⚠⚠⚠ **THE TICK COUNT IS NOT ASSERTED, and that is the third time this
+    # fixture has been moved by an edit somewhere else.** It read
+    # `ordered["ticks"] != plain["ticks"]` -- *ordering changed WHEN* -- and the
+    # two counts now coincide at 18, because retiring `<relevant>` made the
+    # bundle one rule shorter and declaration RANK is what breaks the tie when
+    # scores are equal at the floor. The call-stack rules did the same in 20e,
+    # and a bundled `<unattended>` did it again.
+    #
+    # > **A check on a tick count in this fixture is measuring the size of the
+    # > bundle, not the thing it names.**
+    #
+    # What the claim is actually about survives untouched and is what is gated:
+    # nothing was destroyed, so the unrelated corridor is fully explored either
+    # way. The counts are printed above, where a drift is visible without being
+    # load-bearing.
     gate("PRECEDENCE ONLY BITES WHEN THE LOSER'S PREMISE CAN BE DESTROYED: with "
          "monotone rules the unrelated corridor is explored either way, so "
-         f"ordering changed WHEN and not WHAT ({plain['ticks']} ticks vs "
+         f"ordering changed nothing about WHAT ({plain['ticks']} ticks vs "
          f"{ordered['ticks']}, both reaching {len(b_plain)} rooms in B)",
-         b_plain == b_order and len(b_plain) == 2
-         and ordered["ticks"] != plain["ticks"])
+         b_plain == b_order and len(b_plain) == 2)
 
 
     print(f"\n{ran} checks, {failing} failing")

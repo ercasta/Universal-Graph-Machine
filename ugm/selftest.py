@@ -2249,12 +2249,24 @@ def the_better_move_wins() -> None:
     order they happened to be written in**. That is an accident of authoring
     deciding which move an agent makes, including the moves it cannot take back.
 
-    What it is replaced by was already being computed and thrown away.
+    What it was replaced by was already being computed and thrown away.
     `fits(<R>, w)` is `_fit`'s answer to *could this rule produce what you want*,
-    so `<relevant>` turns it into a preference in one line -- and means-ends
-    analysis is a bundled rule rather than a policy in the loop.
+    so `<relevant>` turned it into a preference in one line -- and means-ends
+    analysis was a bundled rule rather than a policy in the loop.
 
-    Two limits, both found by breaking something:
+    ⚠⚠⚠ **`<relevant>` IS GONE WITH `prefer`, AND THE MOVE GOES BACK TO
+    AUTHORED ORDER.** This is the sharpest thing the retirement costs, so it is
+    checked rather than filed. What survives is the KNOWLEDGE: the backward
+    reader still works out which rule serves the goal and still says so, in
+    `fits(<toward>, nearer(a))`. What went is the translation of that into a
+    number attached to a rule id -- and with it, the agent acting on it.
+
+    Nothing replaced it because nothing could. Attention names a NODE and `fits`
+    names a RULE, so *prefer the rules serving my goal* is not a sentence
+    attention can say. An agent that wants it back writes the one-line rule into
+    its own corpus, which is the same recourse it always had.
+
+    Two limits it had, kept because they are what any replacement must respect:
 
     **Preference orders; it must not exclude.** Used to filter recall it starved
     `{+blocked(heat(?a, ?w))} => {+doing(heat(anna, ?w))}` -- the most useful rule
@@ -2290,21 +2302,22 @@ def the_better_move_wins() -> None:
     move = first_corpus_move(m)
     check(
         "§19",
-        "the agent works out for itself which rule serves its goal",
-        m.holds(kb.term("prefer(<toward>, nearer(a), 1)")) == PLUS
-        and m.holds(kb.term("prefer(<wander>, nearer(a), 1)")) is None,
+        "the agent still works out for itself which rule serves its goal -- the "
+        "backward reader says so in `fits`, and that is untouched",
+        m.holds(kb.term("fits(<toward>, nearer(a))")) == PLUS
+        and m.holds(kb.term("fits(<wander>, nearer(a))")) is None,
     )
-
-    # Could that have failed? Delete the rule that derives the preference and the
-    # accident of authoring decides again.
-    m2 = Machine()
-    load(m2, src)
-    m2.rules.rules = [r for r in m2.rules.rules if r.name != "relevant"]
-    m2.bundle = [r for r in m2.bundle if r.name != "relevant"]
+    # ⚠⚠⚠ ...and it no longer ACTS on it. This check used to read *and without
+    # `<relevant>` the authored order picks the useless one* and was the
+    # control; the control is now the behaviour. Stated as a loss, in the
+    # fixture that used to demonstrate the gain, because a retirement whose cost
+    # is only in a handoff is a retirement nobody can measure later.
     check(
         "§14",
-        "and without `<relevant>` the authored order picks the useless one",
-        first_corpus_move(m2) == "wander",
+        "⚠⚠⚠ ...and with `<relevant>` retired it does NOT act on it: knowing "
+        "which rule serves the goal and preferring it were two things, and only "
+        "the first survives keying on nodes",
+        move == "wander",
     )
 
 
@@ -7789,20 +7802,30 @@ def attention_is_about_a_node_not_a_rule() -> None:
           f"stopped widening past it ({bare.tried} rules matched over the run, "
           f"{lifted.tried} with attention)",
           lifted.tried < bare.tried and lifted.widenings < bare.widenings)
-    # ⚠⚠⚠ **This asserted the COST and the cost was the wrong column.** It read
-    # `tried` -- attending to all three cost 157 against 143 for one -- and that
-    # gap was an accident of how much apparatus happened to sit in the table:
-    # growing the bundle by three rules turned it into 193 against 195, a 1%
-    # difference pointing the other way, and the check failed while nothing it
-    # was about had changed. What attention that names everything actually
-    # loses is DISCRIMINATION, and that is what is asserted now: it cannot bring
-    # any one thing forward, so the move is the untaught one.
+    # ⚠⚠⚠ **This has now been wrong TWICE, in two different columns, and both
+    # times it read as a finding.** First it asserted the COST, `tried` --
+    # attending to all three ran 157 against 143 for one -- and that gap was an
+    # accident of how much apparatus sat in the table: three more bundle rules
+    # turned it into 193 against 195, pointing the other way, and the check
+    # failed while nothing it was about had changed.
+    #
+    # Then it asserted *the untaught move comes back*, and that is false too:
+    # the queue grades by POSITION, so three attended things still have an
+    # order, and the run goes to `r10` rather than back to `r9`.
+    #
+    # ⭐⭐⭐ What naming everything actually loses is the ability to say WHICH
+    # ONE MATTERS. Attend one thing and its rule goes first. Attend three and
+    # the one you named does not -- some rule is still lifted, just not yours,
+    # which is worse than no lift for a lesson trying to teach something.
     everything = run(["fact +attention(thing9)", "fact +attention(thing10)",
                       "fact +attention(thing11)"])
-    check("§19", "⚠ attention that names everything discriminates nothing: it "
-          "moves no rule ahead of any other, so the first move is the one the "
-          "untaught table would have made",
-          everything.applied[0] == bare.applied[0] != lifted.applied[0])
+    check("§19", "⚠ attention that names everything cannot say which one "
+          "matters: attend one and its rule goes first, attend three and the "
+          "one you named does not",
+          lifted.applied[0] == "r11" and everything.applied[0] != "r11")
+    check("§19", "...and it is not that the lift stopped working -- something is "
+          "still brought forward, it is just not the thing the lesson was about",
+          everything.applied[0] != bare.applied[0])
     check("§19", "⚠ and the STATE is what the lift is read through, not the "
           "graph: attending to a node the agent holds nothing about lifts "
           "nothing at all",

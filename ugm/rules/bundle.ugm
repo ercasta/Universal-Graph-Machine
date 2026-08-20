@@ -188,25 +188,21 @@ rule <ask-check> = implies(
 #
 # `fits(<R>, w)` says *this rule could produce what you want* -- it is the answer
 # to a match request the backward reader made, and it is exactly the claim a
-# preference wants. So the table §19 hoped would be learned is, for goal-directed
-# work, **derived**: one rule, over facts already deposited.
+# preference wants.
 #
-# That is means-ends analysis, and putting it here rather than in the loop is
-# what makes it arguable. An agent that should NOT prefer the rules serving its
-# current goal -- one exploring, or one whose goal is a guess -- deletes this rule
-# and gets its old behaviour back.
+# ⚠⚠⚠ **`<relevant>` USED TO TRANSLATE IT INTO A SCORE, and that rule is gone
+# with `prefer`.** It read `fits(?r, ?wanted)` and concluded
+# `prefer(?r, ?wanted, 1)` -- means-ends analysis as a rule-keyed buff. The
+# KNOWLEDGE is untouched: the backward reader still works out which rule serves
+# the goal and still says so, in `fits`. What went is only the translation into
+# a number attached to a rule id, which is what could not survive a rule being
+# adopted, composed or renamed.
 #
-# It is a preference and not a defeat (§12): the rules it does not prefer are
-# still applicable, still reachable when recall widens, and still there if this
-# one is wrong. Being wrong in recall is recoverable, which is §19's whole reason
-# for putting learning here.
-#
-# Score 1: candidacy is the weakest evidence of usefulness there is, so anything
-# experience has actually learned outranks it, and two mere candidates tie --
-# which is what doubt is.
-rule <relevant> = implies(
-    { +fits(?r, ?wanted) },
-    { +prefer(?r, ?wanted, 1) } )
+# ⚠ Nothing replaced it, because nothing could: attention names a NODE and
+# `fits` names a RULE, so *prefer the rules serving my goal* is not a sentence
+# attention can say. That is a real loss of a bundled behaviour and it is
+# recorded rather than papered over -- an agent wanting it back writes the rule
+# above into its own corpus.
 
 
 # -- the verdict -----------------------------------------------------------

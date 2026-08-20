@@ -93,7 +93,7 @@ fourth time.
 right amount of wrong: the lift decides who is MATCHED, and being roughly right
 about a shortlist costs a slot. Exactness arrives one layer up, for free.
 
-⚠ **Ranking-time and kept nowhere**, like `prefer`'s lift and unlike a buff.
+⚠ **Ranking-time and kept nowhere**, unlike a buff.
 This file's own line between the two kinds of attention is *what I was doing
 persists and fades, what is in front of me is recomputed* -- and a claim the
 agent is currently making about what it is thinking about is plainly the second.
@@ -263,8 +263,8 @@ MAX_LIFT = 12
 
 # How far attention lifts a rule that could be about what is attended.
 #
-# Recomputed every move and kept nowhere, like `prefer`'s lift and unlike a
-# buff -- so there is no decay to tune and no runaway to guard against. That is
+# Recomputed every move and kept nowhere, unlike a buff -- so there is no decay
+# to tune and no runaway to guard against. That is
 # this file's own line between the two kinds of attention, and a claim the agent
 # is currently making about what it is thinking about is plainly the second
 # kind: *what is in front of me is recomputed*.
@@ -844,8 +844,9 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     # §4 is right that the day it matters is the day something else changes.**
     # A host driving the agent one tick at a time calls this per `/step`, and a
     # table built here is free EXACTLY while no postcondition has moved it: with
-    # no posts supplied a table is its defaults plus a `prefer` lift recomputed
-    # from the graph every tick, so a rebuilt table is the same table. Supply
+    # no posts supplied a table is its defaults plus an ATTENTION lift
+    # recomputed from the graph every tick, so a rebuilt table is the same
+    # table. Supply
     # real postconditions and the rebuild silently discards every spend -- what
     # the agent learned *within* a run -- and nothing says so, because from
     # here nothing went wrong.
@@ -938,36 +939,20 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # ⚠ Read every tick and at the register's own position, never once when
         # the pool is built: `due` can be concluded mid-run, and a callback
         # attached inside a hypothesis must wake only there.
-        # ⭐⭐⭐ **`prefer` IS a buff, so the table reads it as one.** Offline
-        # learning writes `prefer(<R>, key, score)` -- *when this is in play,
-        # think of R* -- which is exactly what a buff says, in the notation that
-        # existed before there was a table. Rather than translating the notation
-        # the table absorbs the claim, so the two mechanisms become one and a
-        # learned preference steers the loop that is actually running.
+        # ⭐⭐⭐ **THE `prefer` LIFT IS GONE, and what is left is the same lift
+        # by a better key.** The table used to read `prefer(<R>, key, score)`
+        # as a buff, which it is -- *when this is in play, think of R*. What is
+        # wrong with it is not the arithmetic, it is the subject: it can only
+        # ever name a RULE, so it cannot tell two goblins apart, and a lesson
+        # keyed on `<R>` is stale the moment that rule is adopted, composed or
+        # renamed. Measured on the dungeon, every rule-naming arm lost to the
+        # node-naming one, and `occasion` was worse than doing nothing.
         #
-        # ⚠ Not translated to a `when` trigger, and three things say why. A
-        # `when` trigger is a RERANKER -- ephemeral, shortlist-only, and it
-        # cannot lift a rule off the floor -- so a learned preference written
-        # that way could never bring a rule into consideration. A key is not a
-        # query: `prefer(<R>, water, 3)` keys on a relation being IN PLAY, which
-        # includes keys derived from goals, and rebuilding it as `{ +water(?x) }`
-        # needs an arity nobody recorded and means something narrower. And buffs
-        # FADE and SATURATE by design, where a learned preference is meant to
-        # stay taught.
-        lift = None
-        if any(m.holds(n) == PLUS for n in m.g.instances_of(m.PREFER)):
-            keys = m._in_play()
-            lift = {r.node: m._priority(r, keys) for r in table.rules}
-            lift = {k: v for k, v in lift.items() if v}
-        # ⭐⭐⭐ **Attention, and it is the same lift by a different key.**
-        # `prefer` keys on a RELATION being in play and so cannot tell two
-        # goblins apart; this keys on a NODE. Both are read on the same move and
-        # added to the same dict, because they are two axes of one question and
-        # not two mechanisms -- what the situation is about, and what the agent
-        # is thinking about.
+        # Attention keys on a NODE, is read at the same point in the move, and
+        # is what `learned` now writes. Nothing else about the lift changed.
         #
-        # ⚠ Ranking-time and kept nowhere, exactly like `prefer`'s lift: an
-        # attention claim is a fact the corpus is currently making, so the lift
+        # ⚠ Ranking-time and kept nowhere: an attention claim is a fact the
+        # corpus is currently making, so the lift
         # is a function of the state and re-deriving it is the whole of keeping
         # it current. Making it a buff would give it a life and a saturation
         # ceiling on top of a claim that already has both -- the claim is
@@ -982,15 +967,10 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         #
         # So the lift is driven by what a LESSON asked for -- a weighted
         # `attend(?x, n)` -- and the whole queue orders bindings.
+        lift = None
         asked = m._attention_asked()
         if asked:
-            pull = _pull(m, table, state, asked)
-            if pull:
-                if lift is None:
-                    lift = pull
-                else:
-                    for k, v in pull.items():
-                        lift[k] = lift.get(k, 0) + v
+            lift = _pull(m, table, state, asked) or None
         ordered = [r for r in table.order(lift) if not _dormant(m, r)]
         cut = 0
         while cut < len(ordered) and not window:
@@ -1555,9 +1535,22 @@ def stopping() -> int:
     instant it can, widening reaches it in the same move. Score decides which of
     several MATCHING rules wins; a check that can only match at the finish line
     has nobody to go before. Measured with the check at the floor, reranked,
-    buffed persistently in two places, and standing -- identical every time,
-    before `stop` existed and after. The rows below keep that null result where
-    the next person to propose it will find it.
+    buffed persistently in two places, and standing. The rows below keep that
+    null result where the next person to propose it will find it.
+
+    ⚠⚠⚠ **It used to be bit-identical and it no longer is, because the
+    BUNDLE got one rule shorter.** Retiring `<relevant>` shifts the declaration
+    RANK of every rule in every corpus, and rank breaks the tie when scores are
+    equal at the floor -- so the trigger now moves the run by exactly one move,
+    and in opposite directions with and without `stop` (65 against 64, 8 against
+    9). That is rank noise, not the trigger working: it still does not let the
+    completion check apply any earlier, which is the claim.
+
+    So the check asserts the SHAPE of the null result rather than an equality
+    it can no longer have -- at most a move either way, against the 55 that
+    `stop` is worth. Equality was the sharper test and it is not available; a
+    bound that still excludes the effect being claimed is the honest
+    replacement, and it is written with the numbers in it so a drift shows.
     """
     print()
     print("  stopping -- a cart to build, and a check that says when it is done")
@@ -1586,8 +1579,14 @@ def stopping() -> int:
         print("    FAIL  `stop` did not shorten the run")
         bad += 1
     # ...and the null result, kept as a check so it cannot quietly come back.
-    if seen["stop, and the trigger as well"] != seen["stop, <done> at the floor"]:
-        print("    FAIL  the trigger changed the run -- the null result moved")
+    # ⚠ A BOUND, not an equality -- see the docstring. It has to stay far
+    # tighter than what `stop` buys, or it would stop being able to fail.
+    drift = abs(seen["stop, and the trigger as well"]
+                - seen["stop, <done> at the floor"])
+    worth = seen["no postcondition"] - seen["stop, <done> at the floor"]
+    if drift > 1 or drift * 10 >= worth:
+        print(f"    FAIL  the trigger changed the run by {drift} moves against "
+              f"{worth} for `stop` -- the null result moved")
         bad += 1
 
     # ⚠⚠⚠ THE COST, measured rather than asserted. The shipped loop refuses to
