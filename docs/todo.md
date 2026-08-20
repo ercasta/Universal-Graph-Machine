@@ -792,3 +792,60 @@ Whether the loop can read a rule straight off the subgraph -- matching reads
 `Rule.antecedent`, and nothing has been measured about doing it from
 `moment(entry(...))` instead. That is the load-bearing experiment and it was not
 run here.
+
+## MEASURED: the two kinds of rule are two different representations
+
+    a LOADED rule's node   <compile>   2 members
+        implies( moment(entry(recipe(?d,?a,?c), +)),
+                 moment(entry(rule(new(r)), +), entry(conn(new(r), implies), +),
+                        entry(ant(new(r), ?a, +, 0), +), ... ) )
+
+    an ADOPTED rule's node   #1554     relation None, 0 members
+        live members: seen(?x) => known(?x)
+
+⭐⭐⭐ **A loaded rule IS its subgraph. An adopted rule is a BARE NODE.** Its
+content lives only in the reified `ant`/`con` facts and in the Python object.
+Anything that reads a rule's structure off its node works for one kind and
+returns nothing for the other -- and nothing in the engine reads it, which is
+why this has never shown.
+
+## ⚠⚠⚠ ...and reusing a node leaves BOTH readable forms describing the OLD rule
+
+Re-making a rule on an existing node, which is what `adopt` does with the node
+the graph named:
+
+    live members  p(?y) => z(?y)
+    its subgraph  moment(entry(p(?x), +)) => moment(entry(q(?x), +))
+    reified       ant(<r>, p(?x), +, 0)   con(<r>, q(?x), +, 0)
+
+All three disagree, and the two a corpus can read are both wrong. `RuleSet.rule`
+mints the moments only when `node is None`, and `reify` returns early on a node
+it has seen -- so a supplied node updates neither.
+
+⚠ Not reachable today: `_adopt` declines a node that is already live
+(*restating is not revising*). **It becomes reachable the moment revision is
+allowed**, which is exactly what deposit-as-install does. That measurement
+already found revision must MUTATE the `Rule`; this adds that it must rebuild
+the subgraph and re-reify, or the node stops describing the rule.
+
+## What the collapse would buy, and the one thing that blocks it
+
+**Buys:** loaded and adopted rules stop being two representations; the node
+cannot go stale against the rule because there is nothing left to disagree with;
+`ant`/`con`/`at`/`names` and the position argument all become structure.
+
+**Blocks:** ⭐⭐⭐ **a rule cannot build a node of runtime arity.** A moment has one
+entry per member, and a consequent writes terms of arity fixed at authoring.
+That is why `ant(?r, ?p, ?s, ?i)` exists as scattered facts with position as an
+ARGUMENT: it is the variable-arity structure, spelled as N ground facts because N
+ground facts is the only variable-arity thing a rule can produce.
+
+> So the reified vocabulary is not a redundant second representation -- it is
+> the workaround for the missing constructor. **`_rel` earns its place exactly
+> here**: to make a rule a subgraph, a rule must be able to build one, and that
+> needs a constructor taking a relation and a *collection* of members, not a
+> term of fixed shape. Explicit composition is the requirement, not a
+> preference.
+
+⚠ Nothing in the tree has a list or `cons` idiom to build such a collection from.
+That is the thing to design, and it is upstream of everything above.
