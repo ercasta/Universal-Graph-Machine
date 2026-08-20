@@ -73,7 +73,45 @@ at every size. And the transfer result is the strongest form there is -- **the
 same rules, unchanged, are optimal at every size, and not one of them names an
 individual.** Nothing was retuned, and there is nothing in them that could be.
 
-⚠ The recursion here is AUTHORED, not learned. What this fixture provides is the
+## ...and the recursion is LEARNED, not only authored
+
+Watching the authored solve on 3 and 4 disks and anti-unifying each rule's own
+firings recovers **10 of the 12 rules exactly**, modulo what a person called a
+variable -- including the two that matter:
+
+    <descend>  parent tower(?d,?f,?t,?s)  spawns  tower(?e,?f,?s,?t)
+    <ascend>   parent tower(?d,?f,?t,?s)  spawns  tower(?e,?s,?t,?f)
+
+That permutation IS Hanoi. Nothing here searches: `generalise` is the dual of
+`unify` and it reads the mapping straight off two examples.
+
+**The learned rules alone -- nothing authored but the puzzle itself -- solve 5,
+6 and 7 disks in the optimal sequence, having seen only 3 and 4.**
+
+⚠⚠⚠ **Two demonstrations, and ONE is not enough** -- which is what makes the
+result mean anything. Taught on 3 alone, two rules fire once and are declined
+outright, and what is induced does not solve even the size it was taught on.
+Taught on 3 and 4, nothing is declined. The repo already had this as *experience
+means more than one fight*; here it is a pass/fail rather than a degradation.
+
+⚠ **The two rules it does NOT recover are the sharp finding.** `<base>` and
+`<leaf>` keep `d1` where a person wrote `?d`, and no number of SIZES fixes it:
+the smallest disk is called `d1` at every size, so varying `n` never varies that
+argument. Varying the size does not vary everything, and what a demonstration
+holds constant is what a learner will believe is necessary. They still solve --
+`d1` is genuinely the smallest in every puzzle this generator makes -- so the
+defect is invisible in the outcome and visible only in the diff against what a
+person wrote. Which is the reason to compare against the authored rule at all,
+rather than only against the behaviour.
+
+⚠ What is NOT learned is the plumbing: `<call-spawn>`, `<call-advance>` and
+`<call-return>` are the bundle's, and the demonstration teaches the domain.
+
+⚠ And the teacher demonstrates CALLS, not only moves. Inferring the call tree
+from a bare move trace is program induction and is not attempted here -- stated
+because the difference is the whole of what this result claims.
+
+⚠ The recursion below is AUTHORED, and learning it is measured against it. What this fixture provides is the
 target: a corpus whose knowledge is entirely structural, on a task where an
 identity-keyed version cannot work at all, and a teacher that CAN supervise a
 binding -- which `ugm.teaching`'s cannot, because `arbitrate` keys on
@@ -82,7 +120,8 @@ first in walk order wins. Asked where the table took a binding it would not
 have, it answered 0 times in 148 dungeon moves.
 """
 
-from typing import List, Tuple
+import re
+from typing import Dict, List, Tuple
 
 PEGS = ("x", "y", "z")
 
@@ -276,6 +315,209 @@ def solve(n: int, without: str = "", limit: int = 20000) -> dict:
     }
 
 
+
+# -- learning the recursion from watching it -------------------------------
+#
+# ⭐⭐⭐ **What is learned is the PERMUTATION**, and it is the whole insight of
+# Hanoi: a parent call `tower(?d, ?f, ?t, ?s)` spawns `tower(?e, ?f, ?s, ?t)` on
+# the way down and `tower(?e, ?s, ?t, ?f)` on the way back. Anti-unification --
+# `generalise`, the dual of `unify`, which this repository already had -- reads
+# both straight off two demonstrations.
+#
+# ⚠ **Examples cross as TEXT.** A node id means nothing outside the graph that
+# minted it, so two demonstrations on two machines cannot share one, and this is
+# the repo's own rule for what may cross (`ugm/table.py`) arriving on the
+# learning side.
+#
+# ⚠⚠⚠ **A minted node has no name, and the whole call stack is minted**, so
+# every example about `stage(?c, ...)` was unsayable -- which is every example
+# about the recursion. `_sayable` gives one a placeholder, and the placeholder
+# has to be UNIQUE PER EXAMPLE: the same within an example so `?c` co-refers,
+# and different across them, or two unrelated calls anti-unify to a constant and
+# the rule is about one call for ever.
+
+# What is not the corpus's own: the apparatus, and the stack the bundle now
+# supplies. A demonstration teaches the domain, and the plumbing was never the
+# domain's to learn.
+NOT_THE_DOMAIN = frozenset({
+    "plan", "relevant", "call-spawn", "call-advance", "call-return",
+    "deviation-+-contradicted", "deviation---contradicted", "intake",
+    "assert-act", "taken", "did", "denial", "resuming", "give-up",
+    "ask-fit", "ask-check", "expand", "settle-doubt",
+})
+
+
+def _sayable(m, node, names, tag: str) -> str:
+    """Render a proposition so the surface can read it back, minting a
+    placeholder for anything that has no name of its own."""
+    from .teaching import _say
+    if node not in names and m.g.relation_of(node) is None and not m.g.members(node):
+        shown = m.g.show(node)
+        if not shown or shown.startswith("#"):
+            names[node] = "n%s_%d" % (tag, len(names))
+    if node in names:
+        return names[node]
+    members = m.g.members(node)
+    if not members:
+        return _say(m, node)
+    rel = m.g.relation_of(node)
+    return "%s(%s)" % (_sayable(m, rel, names, tag) if rel is not None else "?",
+                       ", ".join(_sayable(m, x, names, tag) for x in members))
+
+
+def demonstrate(sizes: Tuple[int, ...] = (3, 4)) -> Tuple[dict, List[str]]:
+    """Watch authored solves, and write down what each rule did."""
+    from .attention import run
+    from .chain import PLUS
+    from .machine import Machine
+    from .teaching import _say
+    from .text import load
+
+    out: dict = {}
+    data: set = set()
+    for n in sizes:
+        m = Machine()
+        load(m, corpus(n))
+
+        def watch(mm, table, window, chosen, tick, step=None):
+            # The strategy as DATA, read off every move -- including the
+            # stack's own, which is where `advances`/`closes` are consumed.
+            for e in chosen.consumed:
+                txt = _say(mm, e.proposition)
+                if txt.startswith("advances(") or txt.startswith("closes("):
+                    data.add(txt)
+            if chosen.rule.name in NOT_THE_DOMAIN:
+                return
+            tag, names = "%d_%d" % (n, tick), {}
+            prem = [_sayable(mm, e.proposition, names, tag)
+                    for e in chosen.consumed]
+            conc = [(e.sign, _sayable(mm, e.proposition, names, tag))
+                    for e in (step.wrote or ())]
+            if prem and conc:
+                out.setdefault(chosen.rule.name, []).append(
+                    (chosen.rule.connective, prem, conc))
+
+        run(m, limit=20000, watch=watch)
+    return out, sorted(data)
+
+
+def induce(examples: dict) -> Tuple[dict, dict]:
+    """Anti-unify each rule's own firings into a rule. One scope for every
+    example, so two demonstrations share variables; ONE mapping across premises
+    and conclusions, which is what makes the conclusion about what the premises
+    bound rather than about something nothing binds."""
+    from .chain import PLUS
+    from .machine import Machine
+    from .rules import generalise
+    from .text import Loader, ParseError
+
+    m = Machine()
+    ldr = Loader(m)
+    g = m.g
+    learned: dict = {}
+    declined: dict = {}
+    for name, ex in sorted(examples.items()):
+        if len(ex) < 2:
+            declined[name] = "one firing -- an example generalises to itself"
+            continue
+        if len({(len(p), len(c)) for _k, p, c in ex}) > 1:
+            declined[name] = "arity varies between firings"
+            continue
+        try:
+            packed = [ldr.term("q(%s)" % ", ".join(
+                p + ["s%s(%s)" % ("p" if sg == PLUS else "m", t) for sg, t in cs]))
+                for _k, p, cs in ex]
+        except ParseError:
+            declined[name] = "the example cannot be written down"
+            continue
+        mapping: dict = {}
+        lgg = packed[0]
+        for other in packed[1:]:
+            lgg = generalise(g, lgg, other, mapping)
+        if g.is_var(lgg):
+            declined[name] = "generalised to a bare variable"
+            continue
+        members = list(g.members(lgg))
+        cut = len(ex[0][1])
+        ant, con = members[:cut], members[cut:]
+        if any(g.is_var(x) for x in ant):
+            declined[name] = "a premise generalised to a bare variable"
+            continue
+        parts = [("+" if g.show(g.relation_of(t)) == "sp" else "-")
+                 + g.show(g.member(t, 0)) for t in con]
+        learned[name] = "rule <%s> = %s( { %s }, { %s } )" % (
+            name, ex[0][0], ", ".join("+" + g.show(x) for x in ant),
+            ", ".join(parts))
+    return learned, declined
+
+
+def solve_learned(n: int, learned: dict, data: List[str],
+                  limit: int = 20000) -> dict:
+    """Run a machine that has ONLY what was learned."""
+    from .attention import run
+    from .chain import PLUS
+    from .machine import Machine
+    from .text import load
+
+    src = (facts(n) + chr(10).join("fact +" + d for d in data) + chr(10)
+           + chr(10).join(learned[k] for k in sorted(learned)) + chr(10))
+    m = Machine()
+    kb = load(m, src)
+    moves: List[Tuple[str, str]] = []
+
+    def watch(mm, table, window, chosen, tick, step=None):
+        # ⚠ Read off what the move DEPOSITED, never off its bindings: a learned
+        # rule's variables are `?g47`, so nothing outside it can name them.
+        # `at(?d, ?p)` says the same thing in the corpus's own vocabulary, which
+        # is the only part that survives being learned.
+        for e in (step.wrote or ()):
+            if e.sign == PLUS and mm.g.show(mm.g.relation_of(e.proposition)) == "at":
+                d, p = mm.g.members(e.proposition)
+                moves.append((mm.g.show(d), mm.g.show(p)))
+
+    report = run(m, limit=limit, watch=watch)
+    return {"moves": moves, "solved": m.holds(kb.term("enough(solved)")) == PLUS,
+            "optimal": [(d, t) for d, _f, t in optimal(n)],
+            "ticks": report.ticks}
+
+
+def _canonical(text: str) -> str:
+    """A rule with its variables renamed in order of first appearance, so two
+    rules that differ only in what a person called a variable compare equal."""
+    seen: dict = {}
+    def sub(mo):
+        v = mo.group(0)
+        if v not in seen:
+            seen[v] = "?v%d" % len(seen)
+        return seen[v]
+    flat = " ".join(text.split())
+    # ⚠ Spacing is not a difference. A person writes `?a,?b` and the renderer
+    # writes `?g6, ?g7`; comparing those as strings reported two rules as
+    # DIFFERING from themselves.
+    for ch in ",(){}":
+        flat = flat.replace(" " + ch, ch).replace(ch + " ", ch)
+    return re.sub(r"\?[A-Za-z_][A-Za-z0-9_]*", sub, flat)
+
+
+def _authored() -> Dict[str, str]:
+    """The authored rules, by name.
+
+    ⚠ Split rather than matched. A regex over `rule <...> = ... } )` silently
+    missed two of the twelve -- one written with two spaces before the `=` and
+    one spanning lines -- and a comparison that quietly drops what it cannot
+    parse reports agreement it never checked.
+    """
+    out: Dict[str, str] = {}
+    for chunk in RULES.split("rule <")[1:]:
+        name = chunk.split(">", 1)[0]
+        body = chunk
+        cut = body.rfind("} )")
+        if cut != -1:
+            body = body[:cut + 3]
+        out[name] = "rule <" + body
+    return out
+
+
 def main() -> int:
     import re
     import sys
@@ -347,6 +589,54 @@ def main() -> int:
         print("    FAIL  solved without %s -- not load-bearing, so this fixture "
               "is not measuring them" % survivors)
         bad += 1
+
+    # ⭐⭐⭐ **And now the recursion is LEARNED rather than authored.**
+    print()
+    print("  learned by watching the authored solves on 3 and 4 disks:")
+    examples, data = demonstrate((3, 4))
+    learned, declined = induce(examples)
+    print("      %d rules induced, %d declined; the strategy as data: %s"
+          % (len(learned), len(declined), data))
+    if declined:
+        for k, why in sorted(declined.items()):
+            print("      declined <%s>: %s" % (k, why))
+
+    # Which of them is what a person wrote, modulo what they called a variable.
+    authored = _authored()
+    same = [k for k in learned
+            if k in authored and _canonical(learned[k]) == _canonical(authored[k])]
+    differs = sorted(set(learned) & set(authored) - set(same))
+    print("      %d of %d match the authored rule exactly (modulo variable names)"
+          % (len(same), len(set(learned) & set(authored))))
+    for k in differs:
+        print("      <%s> differs: %s" % (k, learned[k]))
+
+    print()
+    print("  the LEARNED rules alone -- nothing authored but the puzzle:")
+    for n in (3, 4, 5, 6, 7):
+        r = solve_learned(n, learned, data)
+        tag = "identical" if r["moves"] == r["optimal"] else "DIFFERS"
+        seen = "demonstrated" if n in (3, 4) else "NEVER SEEN"
+        print("  %5d %8d %7d %12s %7d  %s"
+              % (n, len(r["optimal"]), len(r["moves"]), tag, r["ticks"], seen))
+        if not r["solved"] or r["moves"] != r["optimal"]:
+            print("    FAIL  learned rules did not solve %d disks optimally" % n)
+            bad += 1
+
+    # ⚠ And the gate can fail: ONE demonstration is not experience.
+    print()
+    print("  ...and one demonstration is not enough, which is what makes the "
+          "two-demonstration result mean anything:")
+    for sizes in ((3,), (4,)):
+        ex1, d1 = demonstrate(sizes)
+        l1, dec1 = induce(ex1)
+        r = solve_learned(5, l1, d1, limit=8000) if l1 else {"solved": False}
+        print("      taught on %s only: %d rules, %d declined, solves 5 disks: %s"
+              % (sizes, len(l1), len(dec1), r["solved"]))
+        if r["solved"]:
+            print("    FAIL  one demonstration sufficed, so the second proves "
+                  "nothing")
+            bad += 1
     return bad
 
 

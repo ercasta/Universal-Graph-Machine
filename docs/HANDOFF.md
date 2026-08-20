@@ -1,3 +1,76 @@
+# Handoff — 2026-08-20 (the recursion is learned, and two rules are not)
+
+Built on top of `049ab17`.
+
+    selftest    624/0  (was 618; 6 added)
+    hanoi       exit 0 — authored AND learned arms both optimal at 3..7
+    vocabulary  18/2 — unchanged
+    modules     all green; bundle 22/22, 0 anomalies
+
+## What was built
+
+Watching the authored Hanoi solve on **3 and 4 disks** and anti-unifying each
+rule's own firings recovers **10 of the 12 rules exactly**, modulo what a person
+called a variable — including the two that are the whole insight:
+
+    <descend>  tower(?d,?f,?t,?s)  spawns  tower(?e,?f,?s,?t)
+    <ascend>   tower(?d,?f,?t,?s)  spawns  tower(?e,?s,?t,?f)
+
+**The learned rules alone — nothing authored but the puzzle — solve 5, 6 and 7
+disks in the optimal sequence, having seen only 3 and 4.** Nothing searches:
+`generalise` is the dual of `unify` and reads the permutation off two examples.
+
+The strategy comes off the demonstration as DATA — `advances(unstacking,
+placing)`, `closes(waiting)` — because the order of the steps is a fact.
+
+## ⚠⚠⚠ Two rules it does NOT recover, and that is the finding
+
+`<base>` and `<leaf>` keep `d1` where a person wrote `?d`. **No number of SIZES
+fixes it**: the smallest disk is called `d1` at every size, so varying `n` never
+varies that argument.
+
+> What a demonstration holds constant is what a learner will believe is
+> necessary.
+
+And it is **invisible in the outcome** — `d1` really is the smallest in every
+puzzle this generator makes, so the learned rules solve perfectly. It shows up
+only in the diff against what a person wrote, which is the argument for
+comparing against the authored rule and not only against the behaviour.
+
+## ⚠ One demonstration is not experience, and it is now pass/fail
+
+    taught on 3 alone   10 rules, 2 declined, solves 5 disks: False
+    taught on 4 alone   11 rules, 1 declined, solves 5 disks: False
+    taught on 3 and 4   12 rules, 0 declined, solves 3..7 optimally
+
+Taught on one size it does not solve even the size it was taught on. The repo
+had this as *experience means more than one fight*; here it is a gate.
+
+## Three obstacles worth not rediscovering
+
+**A minted node has no name, so the whole call stack was unsayable.** Every
+example about `stage(?c, ...)` failed to render — which is every example about
+the recursion. `_sayable` gives one a placeholder, and the placeholder must be
+UNIQUE PER EXAMPLE: the same within one so `?c` co-refers, different across them,
+or two unrelated calls anti-unify to a constant and the rule is about one call
+for ever.
+
+**Examples cross as TEXT.** Two demonstrations are two machines and a node id
+means nothing outside the graph that minted it — the repo's own rule for what
+may cross, arriving on the learning side.
+
+**A regex over the authored rules silently missed two of twelve** (one written
+with two spaces before `=`, one spanning lines) and the comparison reported
+agreement it had never checked. Replaced with a splitter. Same shape as the
+`_canonical` bug beside it, where `?a,?b` against `?g6, ?g7` reported two rules
+as differing from themselves.
+
+## What is NOT claimed
+
+The teacher demonstrates **calls**, not only moves. Inferring the call tree from
+a bare move trace is program induction and was not attempted. And the plumbing is
+not learned: `<call-spawn>`, `<call-advance>`, `<call-return>` are the bundle's.
+
 # Handoff — 2026-08-19g (the call stack leaves Hanoi and enters the bundle)
 
 Built on top of `f3514c4`.

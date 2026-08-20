@@ -8021,6 +8021,56 @@ def a_recursion_is_a_node_with_a_phase() -> None:
           blind["moves"] == blind["optimal"] and not blind["solved"])
 
 
+def a_recursion_can_be_learned_from_watching_it() -> None:
+    """§17: two demonstrations in, the recursion out.
+
+    ⭐⭐⭐ What is learned is the PERMUTATION, which is the whole insight of
+    Hanoi: `tower(?d,?f,?t,?s)` spawns `tower(?e,?f,?s,?t)` going down and
+    `tower(?e,?s,?t,?f)` coming back. `generalise` reads both off two examples;
+    nothing searches.
+
+    ⚠ ONE demonstration is not experience -- rules that fire once are declined,
+    and what is induced does not solve even the size it was taught on. That is
+    the check that makes the two-demonstration result mean anything.
+    """
+    from .hanoi import (RULES, _authored, _canonical, demonstrate, induce,
+                        solve_learned)
+
+    examples, data = demonstrate((3, 4))
+    learned, declined = induce(examples)
+    check("§17", "⭐ watching two authored solves induces every domain rule, "
+          "with nothing declined",
+          len(learned) == 12 and declined == {})
+    check("§17", "...and the strategy comes off the demonstration as DATA, "
+          "because the order of the steps is a fact and not a rule",
+          data == ["advances(unstacking, placing)", "closes(waiting)"])
+
+    authored = _authored()
+    same = [k for k in learned
+            if k in authored and _canonical(learned[k]) == _canonical(authored[k])]
+    check("§17", "⭐⭐⭐ ten of the twelve are the rule a PERSON wrote, modulo "
+          "what they called a variable -- including <descend> and <ascend>, "
+          "whose peg permutation is the whole of Hanoi",
+          len(same) == 10 and "descend" in same and "ascend" in same)
+    check("§17", "⚠ and the two it misses are `d1` where a person wrote `?d`: "
+          "the smallest disk is called d1 at EVERY size, so varying n never "
+          "varies that argument -- what a demonstration holds constant is what "
+          "a learner believes is necessary",
+          sorted(set(learned) - set(same)) == ["base", "leaf"])
+
+    five = solve_learned(5, learned, data)
+    check("§17", "⭐⭐⭐ the LEARNED rules alone solve five disks -- a size never "
+          "demonstrated -- in the optimal sequence",
+          five["solved"] and five["moves"] == five["optimal"])
+
+    thin, thin_data = demonstrate((3,))
+    only, thin_declined = induce(thin)
+    check("§17", "⚠⚠⚠ ONE demonstration is not experience: rules that fire once "
+          "are declined, and what is induced does not solve even three disks",
+          thin_declined != {}
+          and not solve_learned(3, only, thin_data, limit=4000)["solved"])
+
+
 def a_table_can_outlive_a_run() -> None:
     """§4: let a caller pass its table in.
 
@@ -8617,6 +8667,7 @@ def main() -> int:
     a_lesson_about_attention_is_learned_from_play()
     a_teacher_cannot_supervise_what_it_cannot_see()
     a_recursion_is_a_node_with_a_phase()
+    a_recursion_can_be_learned_from_watching_it()
 
     failed = 0
     group = None
