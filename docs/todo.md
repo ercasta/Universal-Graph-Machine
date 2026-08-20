@@ -290,3 +290,66 @@ more honest, but it is a real capability change and should be named as one.
 
 How many places actually read an AGGREGATE across a situation boundary. That
 number decides how much of the second warning is theoretical.
+
+## MEASURED 2026-08-20, on `5c0a92f` — and the second warning is almost entirely theoretical
+
+Instrumented `Machine._root`/`_count`/`_supported`/`_verdict` and `Graph._bucket`,
+then ran the whole suite. Nothing about the engine changed to take these.
+
+### The aggregates: 15 of 271, and all of ONE kind
+
+    ask          outside a hypothesis   inside one
+    _count                6                  0
+    _root                12                  0
+    _supported            7                  0
+    _verdict            231                 15
+
+⭐⭐⭐ **The two the warning names -- counting and negation-as-failure -- never
+run inside a hypothesis at all.** `count`, `root` and `support` are 25 asks and
+every one of them is at the root situation. The warning's sentence *every
+`unsupported` / `blocked` / count asked during it answers about the mutated
+world* is, measured, about `blocked` alone.
+
+And the 15 `_verdict` asks live in exactly two groups:
+
+    rule_driven_supposition       13
+    crossing_opens_hypotheses      2
+
+Both are checks ABOUT supposing, so they go with the mechanism rather than
+surviving to be broken by it. **No check that is about something else asks an
+aggregate inside a hypothesis.**
+
+### The concurrent read: exactly ONE, and it is `_deliver`
+
+The warning's real claim is *wrong the moment anything concurrent reads*. Over
+the whole suite:
+
+    suppositions opened                              221
+    discharged                                       212
+    arrivals delivered                                17
+      ...while the register was inside a hypothesis    1
+    `standing_in` crossings                          499
+      ...OUT of a hypothesis, to root                  1
+
+⭐ 498 of the 499 crossings are `Graph.rebuild` carrying a conclusion out at
+discharge -- the discharge path, not a concurrent reader. The single genuine
+concurrent read is `Machine._deliver`, which stands in the agent's own situation
+because the world speaks while the register is inside a hypothesis. That is
+**one call site**, not a class of them: `probes/experts` and `core/channels`
+were named as suspects in the warning and neither reads across a boundary.
+
+> So the answer to *how much of the second warning is theoretical* is: the
+> aggregate half is theoretical for `count`/`root`/`support` and real for
+> `blocked` in two checks that are themselves about supposing; the concurrent
+> half is one call site, `_deliver`.
+
+### For scale, since the same instrument reports it
+
+    index reads through `_bucket`     463,864
+      inside a hypothesis, spanning    59,783   (12.9%)
+
+That is ordinary matching, not aggregation -- it is what stops being scoped for
+free, and it is what the proposal INTENDS to stop scoping.
+
+⚠ Instrumented in-process, so the counters do not follow the probes that fork
+(`learning/forest`, `learning/practice`). The numbers above are the selftest's.
