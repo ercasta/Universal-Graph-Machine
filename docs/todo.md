@@ -473,3 +473,81 @@ procedure's own bookkeeping rather than about the world.
 **the revert must be CHECKED, not trusted** -- *are we back where we started* is
 computable, and one engine check that refuses to continue otherwise is a row,
 not a mechanism.
+
+---
+
+# ⭐⭐⭐ THE GRAPH IS A MUTABLE SCRATCHPAD — the author's, and it reframes the lot
+
+Stated 2026-08-20, after the situations deletion and after the un-claim question
+above was answered the wrong way twice:
+
+> *The engine used to provide a VIEW of the current state based on the chain of
+> changes. I don't want this any more. I DO want to record what changed so the
+> agent can read what changed, but there is always a SINGLE GRAPH, that is a
+> single scratchpad, and everything happens in it.*
+
+## What this replaces
+
+    today       the GRAPH holds structure; the CHAIN holds belief as signed
+                entries; `resolve` computes a VIEW over the chain -- *the last
+                claim about this proposition wins*. `holds(p)` asks the chain.
+    proposed    the GRAPH holds belief. It is the state. The CHAIN becomes a LOG
+                of what changed, which the agent READS -- not a thing the state
+                is computed from.
+
+⭐⭐⭐ **And then DELETE is the un-claim.** Every attempt above to get back to
+`None` failed for one reason: an append-only chain can only be added to. A
+scratchpad can be erased. *A proposition never considered* and *one considered
+and rejected* stop being hard to tell apart, because the first has nothing in
+the graph and the second has a denial in it.
+
+## Why this is closer than it looks
+
+    an entry IS already a node    `instance(ENTRY, proposition, sign)`, so
+                                  belief is already IN the graph -- it is just
+                                  also indexed in `_claims`, and `_claims` is
+                                  what `resolve` reads.
+    deletion is half built        `Graph._drop_from_index(n, kr, km)` already
+                                  takes a node out of `_interned`, `_by_rel` and
+                                  `_by_arg`. It was written for `merge`.
+    the log is already reified    `in_delta`, `delta_next`, `pred`, `anc`,
+                                  `entry_of`, `rests_on`, `licensed_by` are
+                                  ordinary relations. *What changed* is already
+                                  readable by rules.
+
+⚠ **Presence cannot mean belief on its own**, and this is the trap to design
+against: `boiling(?w)` is in the graph as a rule's stored pattern and is not
+believed. That is §14's use/mention distinction, and it is why the ENTRY node --
+not the proposition node -- has to be the thing that is present or absent.
+Deleting the entry retracts the belief; the proposition stays as structure, as
+it must, because rules mention it.
+
+## What it costs, and it is not small
+
+    resolve / holds        become *is there a surviving entry about p*
+    _claims                stops being an append-only index and needs deletion
+    _kept                  is maintained incrementally against `len(seat.delta)`;
+                           deletion breaks that stamp
+    trail / rests_on       an entry deleted out from under a trail
+    gates.state            compares kept-state against a walk; the walk is the
+                           thing being retired
+
+⚠⚠⚠ **And the one real question to settle first: what does DELETE mean for
+anything that pointed at the deleted node?** `merge` had to answer this and its
+answer was the repoint -- *without it, everything said before the merge is
+LOST*. Deletion has no repoint available. A rule that consumed an entry, a
+`rests_on` edge, an `applied(...)` licence: each is a dangling reference the
+moment its target goes. **Decide it before building**, or the first corpus that
+retracts will read as a corpus that corrupts.
+
+## Where the in-flight work stands relative to this
+
+The situations deletion and the `seat`/`topic`/`locus` cut are **prerequisites,
+not detours**: both remove the view-computation apparatus this proposal is
+replacing. `resolve` is already down from *greatest (locus depth, seat depth,
+position) filtered by two ancestry walks* to *the last claim*. The next step is
+that the last claim stops being a claim at all and becomes a node that is either
+there or not.
+
+⚠ The suite conversion for that cut is INCOMPLETE and the tree is red. Last
+fully green commit: `6c370d2`.
