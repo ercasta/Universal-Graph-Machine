@@ -74,7 +74,7 @@ ROLES: Dict[str, List[str]] = {
         # `attention` sits beside `prefer` because it is the same claim about a
         # NODE rather than about a rule -- *think about this one* -- and it is
         # the agent's own deliberation for the same reason `prefer` is.
-        "prefer", "attention", "excluded", "ticks",
+        "prefer", "attention", "attention_span", "excluded", "ticks",
         # §18's call stack: the plumbing under a recursive plan, and not a way
         # of making one. Deliberation words, chosen so they are not words a
         # WORLD uses -- `awaits`/`returned`/`advances` rather than the obvious

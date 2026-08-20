@@ -1,3 +1,71 @@
+# Handoff — 2026-08-20g (attention is a bounded queue, and position is weight)
+
+On top of `e1da382`.
+
+    selftest    645/0  (was 641; 4 added)
+    teaching    exit 0 — and the focus arm MOVES for the first time
+    modules     all green; vocabulary 18/2 unchanged
+
+## What was built
+
+Attention is a **bounded queue, newest first**. Pushing puts a node on top;
+re-attending something already held moves it up rather than duplicating it; the
+bottom falls off at `attention_span` (default 7, and a knob a corpus can turn).
+
+⭐⭐⭐ **Position IS the strength**, and that is the whole point. The rule lift is
+`max(1, PULL - i)` by queue position, so what the agent turned to last lifts
+hardest and what is about to be forgotten barely lifts at all.
+
+## Why this is the retry of step 3 that works
+
+20d recorded the failure: a FLAT lift moved **34% of the pool by the same amount
+every tick**, which reorders nothing inside that third. Counting was tried to buy
+the differentiation back and cost the dungeon **44 conclusions against 3**.
+
+The ordering gives it away for nothing. And the first measurable result:
+
+    dungeon, focus arm    matched/move    conclusions lost
+    before (flat)         34.8 = none     3 = none
+    now (graded)          32.6            3
+
+Before, the focus arm scored **exactly** what the uncalibrated table scored — a
+learned attention lesson was doing nothing at all. It now bites, and loses
+nothing.
+
+## Three mechanisms it replaces
+
+    unattend    unnecessary -- eviction IS displacement
+    LIFE        unnecessary -- decay is by displacement too
+    accumulation cannot arise -- the queue is bounded
+
+⭐ Decay by displacement is the better notion than a timer: ten quiet ticks
+should not forget what you were doing, and ten busy ones should. `LIFE` could
+never say that.
+
+⚠ A standing `fact +attention(x)` is not lost -- it ranks BELOW the queue.
+Lasting and recent are different claims, and the queue is about the second.
+
+⚠ The rule lift takes the STRONGER of two reachable positions, not the sum;
+`_attended_first` SUMS, because a binding is the whole move rather than a reason
+to look.
+
+## Measured, before assuming
+
+Profiled a Hanoi n=5 solve to decide whether to recompute the table
+incrementally:
+
+    unify        3.21s     matching
+    step         1.79s     matching
+    is_var       1.41s     matching
+    _priority    0.106s    the table
+    age/order/_pull        not in the top 12
+
+**Matching is ~95% of the loop and the whole table apparatus about 1%**, so
+incremental recomputation would optimise something that is not costing anything.
+Deferred deliberately -- *a saving that was only moved between columns* is a trap
+this repo has recorded twice. Worth revisiting only if inverse-frequency
+weighting makes the lift genuinely expensive.
+
 # Handoff — 2026-08-20f (a lesson becomes a document, and gets a marker)
 
 On top of `5c961f7`.

@@ -8343,6 +8343,66 @@ def what_was_learned_is_a_document() -> None:
           added == doc.count("learned after"))
 
 
+def attention_is_a_bounded_queue() -> None:
+    """§19: what the agent is thinking about is a QUEUE, and position is weight.
+
+    ⭐⭐⭐ It replaces three things at once. `unattend` is unnecessary because
+    eviction is displacement; `LIFE` is unnecessary because decay is by
+    displacement too; and the accumulation problem cannot arise because the
+    queue is bounded.
+
+    ⭐ And the gradient is the point. `docs/HANDOFF.md` 20d measured a FLAT lift
+    moving 34% of the pool by the same amount every tick -- which reorders
+    nothing inside that third. Counting was tried to buy the differentiation
+    back and cost the dungeon 44 conclusions; ordering gives it away for free.
+
+    ⚠ Decay by displacement is the better notion than a timer: ten quiet ticks
+    should not forget what you were doing, and ten busy ones should.
+    """
+    from .machine import ATTENTION_SPAN
+    from .text import load
+
+    m = Machine()
+    ns = [m.g.atom("n%d" % i) for i in range(ATTENTION_SPAN + 3)]
+    for n in ns:
+        m._push_attention(n)
+    check("§19", "the queue is BOUNDED, and what fell off the bottom is "
+          "forgotten -- no `unattend`, no timer, and nothing to tune but the "
+          "span",
+          len(m._attention) == ATTENTION_SPAN
+          and m._attention[0] is ns[-1] and ns[0] not in m._attention)
+
+    m._push_attention(ns[-3])
+    check("§19", "⚠ re-attending something already held MOVES it up rather than "
+          "adding it twice, or one node would crowd out everything else the "
+          "agent knows it is doing",
+          m._attention[0] is ns[-3]
+          and len(set(m._attention)) == len(m._attention))
+
+    # The span is a knob a corpus can turn, the way `tolerance` already is.
+    narrow = Machine()
+    load(narrow, "fact +attention_span(2)" + chr(10))
+    for n in [narrow.g.atom("a"), narrow.g.atom("b"), narrow.g.atom("c")]:
+        narrow._push_attention(n)
+    check("§19", "...and the span is a KNOB a corpus turns, so concentrating -- "
+          "a steeper gradient over fewer things -- is something a corpus can "
+          "say rather than something the engine decides",
+          len(narrow._attention) == 2)
+
+    # A standing claim still counts, and ranks below what is recent.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "rule <r> = implies( { +enemy(?x) }, { +struck(?x) } )",
+        "fact +enemy(a)", "fact +enemy(b)",
+        "fact +attention(a)", ""]))
+    m2._push_attention(kb2.term("b"))
+    order = m2._attended()
+    check("§19", "⭐ a standing `attention(...)` claim is not lost, and ranks "
+          "BELOW what the agent was just doing -- lasting and recent are "
+          "different claims and the queue is about the second",
+          order[0] is kb2.term("b") and kb2.term("a") in order)
+
+
 def a_table_can_outlive_a_run() -> None:
     """§4: let a caller pass its table in.
 
@@ -8944,6 +9004,7 @@ def main() -> int:
     a_bad_attempt_is_declined_rather_than_ignored()
     outstanding_business_is_not_dropped_in_silence()
     what_was_learned_is_a_document()
+    attention_is_a_bounded_queue()
 
     failed = 0
     group = None

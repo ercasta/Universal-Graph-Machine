@@ -78,6 +78,12 @@ class Answerer(NamedTuple):
     fn: object  # fn(machine, frame, entry) -> NodeId | None
 
 
+#: How many things may be attended at once. A knob, so `attention_span(3)` in a
+#: corpus narrows it -- and a narrower span is a STEEPER gradient over fewer
+#: things, which is what *concentrating* would mean here.
+ATTENTION_SPAN = 7
+
+
 class Machine:
     def __init__(self, clock: bool = False) -> None:
         self.g = Graph()
@@ -401,6 +407,10 @@ class Machine:
         # is a FACT, so a learned rule that sets it can redirect what the agent
         # considers and can never act. A learned rule still cannot mint.
         self.ATTENTION = self.g.atom("attention")
+        # How many things may be attended at once -- a knob, so a corpus can say
+        # it, the way `tolerance(2)` already is one. Shrinking it is forgetting
+        # sooner; growing it is holding more in mind at a weaker gradient.
+        self.SPAN = self.g.atom("attention_span")
         # §18's call stack, as facts -- the plumbing under a recursive plan, and
         # deliberately NOT a strategy for making one.
         #
@@ -695,6 +705,7 @@ class Machine:
             "again": self.AGAIN,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "attention": self.ATTENTION,
+            "attention_span": self.SPAN,
             "afforded": self.AFFORDED, "attempt": self.ATTEMPT,
             "declined": self.DECLINED, "unafforded": self.UNAFFORDED,
             "unattended": self.UNATTENDED,
@@ -874,7 +885,7 @@ class Machine:
                              self.ROOT, self.ROOTED,
                              self.COUNT, self.COUNTED, self.NEW,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
-                             self.ATTENTION,
+                             self.ATTENTION, self.SPAN,
                              self.AFFORDED, self.ATTEMPT, self.DECLINED,
                              self.UNAFFORDED, self.UNATTENDED, self.CALL, self.STAGE, self.SPAWN,
                              self.AWAITS, self.RETURNED,
@@ -1002,6 +1013,16 @@ class Machine:
                 )
         self.gate.veto.append(self._forbid)
         self.gate.on_write.append(self._unafforded)
+        # ⭐⭐⭐ **Attention is a bounded QUEUE, newest first** -- what replaces
+        # `unattend`, `LIFE` and the accumulation problem at once. Position IS
+        # the strength, so the lift is not flat: `docs/HANDOFF.md` 20d measured
+        # a flat one moving 34% of the pool by the same amount every tick,
+        # which reorders nothing inside that third.
+        #
+        # ⚠ And it decays by DISPLACEMENT rather than by a timer, which is the
+        # better notion: ten quiet ticks should not forget what you were doing,
+        # and ten busy ones should. `LIFE` could never say that.
+        self._attention: List[NodeId] = []
         self._booting = False
         # The boundary calls in. Anything delivered before now was queued because
         # nobody was listening yet, so it is drained once, here.
@@ -2217,11 +2238,27 @@ class Machine:
         answers with a rule and a moment, which is the whole reason attention is
         a claim rather than a field on the loop.
         """
+        self._push_attention(node)
         prop = self.g.rel(self.ATTENTION, node)
         if self._claims(prop):
             return False
         self._note(prop, licence)
         return True
+
+    def _push_attention(self, node: NodeId) -> None:
+        """To the top, and whatever falls off the bottom is forgotten.
+
+        ⚠ Re-attending something already in the queue MOVES it up rather than
+        adding it twice: a thing thought about twice is one thing thought about
+        recently, and a queue that held duplicates would let one node crowd out
+        everything else the agent knows it is doing.
+        """
+        if node in self._attention:
+            self._attention.remove(node)
+        self._attention.insert(0, node)
+        span = self._knob(self.SPAN, ATTENTION_SPAN)
+        if span is not None and span > 0:
+            del self._attention[span:]
 
     def _unattend(self, licence: Optional[NodeId] = None) -> int:
         """Stop thinking about whatever it was -- `reset`, for attention.
@@ -2237,6 +2274,7 @@ class Machine:
         and a corpus decides when.
         """
         dropped = 0
+        self._attention = []
         for node in self._attended():
             self.gate.write(
                 self.focus, self.g.rel(self.ATTENTION, node), MINUS,
@@ -3704,7 +3742,13 @@ class Machine:
         ⚠ Insertion-ordered like everything else here, because a caller ranks
         with it: a set would hand the tie-break to a hash. §3.
         """
-        out: List[NodeId] = []
+        # ⭐ The QUEUE first, newest at the front, because position is the
+        # gradient: what the agent turned to last is what it is most about.
+        out: List[NodeId] = list(self._attention)
+        # ...and a standing claim not in the queue goes at the BOTTOM. A corpus
+        # writing `fact +attention(goblin1)` has said something lasting rather
+        # than something recent, so it ranks below whatever the agent was just
+        # doing -- and it is not lost.
         for node in self.g.instances_of(self.ATTENTION):
             members = self.g.members(node)
             if len(members) != 1 or self.g.has_var(members[0]):

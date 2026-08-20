@@ -721,10 +721,24 @@ def _pull(m: Machine, table: "Table", state: Situation,
     count over whatever the corpus happened to attend to.
     """
     lift: Dict[NodeId, int] = {}
-    for node in attended:
+    # ⭐⭐⭐ **POSITION is the strength.** `attended` arrives newest-first, so
+    # what the agent turned to last lifts hardest and what is about to fall off
+    # the bottom barely lifts at all. That gradient is the whole reason the
+    # queue exists: a FLAT lift moved 34% of the pool by the same amount every
+    # tick (20d), which reorders nothing inside that third -- and counting, then
+    # inverse frequency, were both attempts to buy back a differentiation the
+    # ordering gives away for nothing.
+    #
+    # ⚠ A rule reachable from two attended nodes takes the STRONGER, not the
+    # sum. Being about two things the agent is thinking of does not make a rule
+    # twice as relevant, and summing would make the lift a popularity count over
+    # whatever the corpus happened to attend to.
+    for i, node in enumerate(attended):
+        weight = max(1, PULL - i)
         for rel in state.relations_of(node):
             for r in table.by_relation.get(rel, ()):
-                lift[r] = PULL
+                if weight > lift.get(r, 0):
+                    lift[r] = weight
     return lift
 
 
@@ -758,8 +772,15 @@ def _attended_first(found: List[Application],
         return found
     at = set(attended)
 
+    rank = {node: len(attended) - i for i, node in enumerate(attended)}
+
     def weight(a: Application) -> int:
-        return sum(1 for v in a.bindings.values() if v in at)
+        # ⚠ Weighted by POSITION here too, so an application binding what the
+        # agent just turned to beats one binding what it is about to forget.
+        # Summed, unlike the rule lift: binding two attended things really is
+        # more about them than binding one, because a binding is the whole
+        # move rather than a reason to look.
+        return sum(rank.get(v, 0) for v in a.bindings.values() if v in at)
 
     scored = [(weight(a), i, a) for i, a in enumerate(found)]
     if not any(w for w, _i, _a in scored):
