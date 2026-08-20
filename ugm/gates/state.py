@@ -22,7 +22,6 @@ _tally = {
     "with_a_goal": 0,
     "state": 0,
     "index": 0,
-    "keys": 0,
     "mentions": 0,
 }
 _examples = []
@@ -38,24 +37,6 @@ def _slow_state(m):
     ]
 
 
-def _slow_keys(m, state):
-    """What `_in_play` said before it was accumulated: a scan of the seat's
-    whole delta, and a scan of the whole state for live goals."""
-    out = set()
-    for e in m.focus.seat.delta:
-        rel = m.g.relation_of(e.proposition)
-        if rel is not None:
-            out.add(rel)
-    for s in state:
-        if s.sign == PLUS and m.g.relation_of(s.proposition) is m.GOAL:
-            wanted = m.g.member(s.proposition, 0)
-            out.add(wanted)
-            rel = m.g.relation_of(wanted)
-            if rel is not None:
-                out.add(rel)
-    return out
-
-
 def _note(what, detail):
     _tally[what] += 1
     if len(_examples) < 6:
@@ -64,20 +45,11 @@ def _note(what, detail):
 
 def install() -> None:
     original = Machine._kept
-    # ⚠⚠⚠ **The SHIPPED `_in_play`, captured now.** The suite contains a check
-    # that measures `_in_play` five ways by swapping the method out, and read
-    # through `self`, this instrument compared each deliberate mutant against
-    # the definition -- 90 disagreements, every one of them a fixture doing its
-    # job. `ugm.bundle`'s trap from the other side: *a comparison instrument
-    # cannot read a mutation the fixture already talks about.*
-    in_play = Machine._in_play
-
     def compared(self):
         cache = original(self)
         # ⚠ The comparison reads the state, and reading the state is what is
-        # being compared: `_in_play` asks for the keys off this very cache. So
-        # the instrument stands aside while it is running, or it is measuring
-        # its own recursion.
+        # being compared, so the instrument stands aside while it is running or
+        # it is measuring its own recursion.
         if _tally.get("inside"):
             return cache
         _tally["inside"] = 1
@@ -145,11 +117,6 @@ def install() -> None:
                                       "the walk says it is spoken of")
                     break
 
-        f, sl = in_play(self), _slow_keys(self, slow)
-        if f != sl:
-            _note("keys", "extra=%s missing=%s" % (
-                sorted(self.g.show(k) for k in f - sl),
-                sorted(self.g.show(k) for k in sl - f)))
         return cache
 
     Machine._kept = compared
@@ -174,11 +141,10 @@ def main() -> int:
     print()
     print(f"  {_tally['looks']:6} looks at the state compared")
     print(f"  {_tally['with_a_supersession']:6} of them after something was superseded")
-    print(f"  {_tally['with_a_goal']:6} with a live goal, so the keys say something")
+    print(f"  {_tally['with_a_goal']:6} of them with a live goal")
     print()
-    disagreed = (_tally["state"] + _tally["index"] + _tally["keys"]
-                 + _tally["mentions"])
-    for what in ("state", "index", "keys", "mentions"):
+    disagreed = _tally["state"] + _tally["index"] + _tally["mentions"]
+    for what in ("state", "index", "mentions"):
         print(f"  {_tally[what]:6} disagreements about the {what}")
     for e in _examples:
         print(f"         {e}")

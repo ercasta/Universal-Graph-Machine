@@ -1,3 +1,69 @@
+# Handoff — 2026-08-20s (`_in_play`, the `tolerance` knob, and `modality` retired)
+
+On top of `d3d802e`. **-554 lines, +36.**
+
+    selftest          641/0   (was 646; the five `_in_play` checks went with it)
+    ./tools_sweep.sh  0 failing, 25 run    (was 26 -- `modality` is gone)
+
+## What went, and what each one cost
+
+    probes/modality.py + its design note        -324   a probe that said in its
+                                                       own header that its
+                                                       question was ANSWERED
+    Machine._in_play                             -28
+      gates/state.py's "keys" column             -44
+      selftest.what_the_situation_is_about      -109
+    TOLERANCE atom, _tolerance, the reserved      -65
+      map and vocabulary entries, knob checks
+
+⭐ `gates.state` now compares **three columns instead of four** and still reports
+0 disagreements over 7,359 looks. The keys column was `_in_play`'s only consumer
+outside the suite, and `_in_play` was the loop's last caller-less method.
+
+## ⚠ Un-reserving a name shifts node ids, and this time nothing moved
+
+Third un-reserving this session (`prefer`, then `tolerance`). The first moved a
+fixture that had already been wrong in two other columns; this one moved
+nothing. **That is worth recording as a measurement rather than as luck** -- the
+hazard is real and it did not fire here, which is a different fact from *the
+hazard is not real*.
+
+The suite went 646 -> 641 entirely from the five deleted `_in_play` checks.
+
+## ⚠⚠ Four places still described `tolerance` as LIVE
+
+Including `the_knobs_are_claims`, whose docstring OPENED by arguing why
+tolerance is a fact -- the check's own subject was the retired thing. Also
+`machine.py`'s attention-span comment and a selftest comment, both of the form
+*the way `tolerance` already is one*. All re-pointed at `budget`, which is a
+knob something still reads.
+
+> This is the repo's own recurring defect, for the third time in two sessions: a
+> comparison to a deleted mechanism reads as a description of a live one.
+
+## The state of the retirement
+
+A dead-code rescan across the whole tree now reports **0 definitions with no
+use**. Every item on the 1.0 code list is done:
+
+    the buffs, prefer, and everything keyed on a rule id        20o-20p
+    nine dead definitions + the core->probes layering violation 20r
+    gates.vocabulary green                                      20r
+    _in_play, the tolerance knob, modality                      this one
+
+## What is left for 1.0, and it is all docs
+
+    docs/HANDOFF.md      462 KB, a session log
+    docs/observations.md 165 KB
+    three feedback/reply pairs, ~60 KB of correspondence
+    docs/loop-migration.md   a migration that is finished
+    docs/release-audit.md    worth re-running before it is trusted
+    docs/design/            42 notes, ~10.5 KLOC -- a FOURTH kind of doc, while
+                            CLAUDE.md still says rules-design.md is "the only
+                            doc". Reconcile that before shipping.
+
+And `docs/todo.md` carries the costed proposal to retire situations.
+
 # Handoff — 2026-08-20r (dead code, the sweep goes green, and the prose moves out)
 
 On top of `ec47d28`. Three commits: `dead`, `vocabulary`... and this.

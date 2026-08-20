@@ -246,7 +246,7 @@ class Machine:
         # docs/design/machine.md#attention-what-the-agent-is-thinking-about-sai
         self.ATTENTION = self.g.atom("attention")
         # How many things may be attended at once -- a knob, so a corpus can say
-        # it, the way `tolerance(2)` already is one. Shrinking it is forgetting
+        # it, the way `budget(3)` already is one. Shrinking it is forgetting
         # sooner; growing it is holding more in mind at a weaker gradient.
         self.SPAN = self.g.atom("attention_span")
         # §18's call stack, as facts -- the plumbing under a recursive plan,
@@ -294,12 +294,9 @@ class Machine:
         # §19's carve-out.
         # → docs/design/machine.md#19-s-carve-out-forbidden-pattern-is-a-nor
         self.CLOSE = self.g.atom("close")
-        # ...and HOW CLOSE IS CLOSE was a knob, so it is a fact: tolerance(2).
-        # ⚠⚠⚠ NOTHING READS IT ANY MORE.
-        # → docs/design/machine.md#and-how-close-is-close-was-a-knob-so-it-is-a
-        self.TOLERANCE = self.g.atom("tolerance")
-        # ⭐⭐ The other three knobs, by the SAME argument tolerance was made a
-        # fact for: *how careful am I being is a claim with a trail, and a rule
+        # ⭐⭐ Three knobs, each a FACT rather than a Python field, because
+        # *how careful am I being* is a claim with a trail and a rule can raise
+        # it before an irreversible step: *how careful am I being is a claim with a trail, and a rule
         # can raise it before an irreversible step.* They were Python fields,
         # which made them the one kind of decision this design does not allow
         # -- one nobody can ask about or argue with.
@@ -415,7 +412,7 @@ class Machine:
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
-            "close": self.CLOSE, "tolerance": self.TOLERANCE,
+            "close": self.CLOSE,
             "defeated": self.DEFEATED, "adopt": self.ADOPT,
             "spent": self.SPENT, "premises": self.PREMISES,
             "contested": self.CONTESTED,
@@ -569,7 +566,7 @@ class Machine:
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
                              self.FORBIDDEN, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
-                             self.TOLERANCE, self.BUDGET, self.DEPTH,
+                             self.BUDGET, self.DEPTH,
                              self.HYPOTHESES, self.WIDENED, self.REACHED,
                              self.BOUNDED, self.DEFEATED, self.ADOPT,
                              self.SPENT, self.PREMISES, self.CONTESTED,
@@ -1560,8 +1557,7 @@ class Machine:
     def _knob(self, relation: NodeId, default):
         """A knob a corpus can turn, read from the graph.
 
-        Generalised out of `_tolerance`, which had this shape and this argument
-        first: a numeral is an ordinary atom whose *name* reads as a number, so
+        A numeral is an ordinary atom whose *name* reads as a number, so
         nothing in the graph learns arithmetic and only the reader that wants one
         does. Highest wins, so raising a bound is a claim and lowering it is a
         different claim about the same thing, settled by §12's ordinary defeat.
@@ -1575,25 +1571,6 @@ class Machine:
             if name.isdigit() and (best is None or int(name) > best):
                 best = int(name)
         return default if best is None else best
-
-    def _tolerance(self) -> int:
-        """How far apart two scores may be and still count as close -- read from
-        the graph, so the agent can raise it and can be asked why.
-
-        Zero unless something says otherwise, which is what keeps the default
-        free of a constant nobody chose. A numeral is an ordinary atom whose
-        *name* reads as a number: nothing in the graph learns arithmetic, and
-        this is the only reader that wants any.
-        """
-        best = 0
-        for node in self.g.instances_of(self.TOLERANCE):
-            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
-            if e is None or e.sign != PLUS:
-                continue
-            name = self.g.show(self.g.member(node, 0))
-            if name.isdigit():
-                best = max(best, int(name))
-        return best
 
     def _widen(self) -> bool:
         """A shortlist that ran dry is not a search that finished (§15, §19).
@@ -2330,34 +2307,6 @@ class Machine:
             ):
                 out.append(r)
         return out
-
-    def _in_play(self) -> set:
-        """What the situation is about, as a set of relation nodes.
-
-        The current moment's delta -- *what just changed* -- rather than the
-        whole state, because a key that matches everything ranks nothing. ⚠
-        Both halves are accumulated rather than scanned, and they accumulate
-        for different reasons -- which is the same asymmetry named measured
-        when it asked...
-
-        See docs/design/machine.md#in-play.
-        """
-        seat = self.focus.seat
-        play = self._play_cache.get(seat.node)
-        if play is None:
-            play = {"pos": 0, "rels": set()}
-            self._play_cache = {seat.node: play}  # one seat at a time
-        for i in range(play["pos"], len(seat.delta)):
-            rel = self.g.relation_of(seat.delta[i].proposition)
-            if rel is not None:
-                play["rels"].add(rel)
-        play["pos"] = len(seat.delta)
-        # ...and what the agent is TRYING TO DO, which is not the same question
-        # and turned out to be the one that matters. Keyed only on what changed,
-        # a table cannot discriminate on goal-directed work: every domain the
-        # agent knows about is in play all the time, and being in play says
-        # nothing about being useful. A live goal does.
-        return play["rels"] | self._kept()["goals"].keys()
 
     def _attended(self) -> List[NodeId]:
         """What the agent is thinking ABOUT: the nodes it claims `attention` of.

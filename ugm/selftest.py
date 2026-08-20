@@ -2089,115 +2089,6 @@ def the_better_move_wins() -> None:
     )
 
 
-def what_the_situation_is_about() -> None:
-    """`_in_play` -- the one judgement in the loop that nothing argued for.
-
-    §19 says a preference row is *matched when that key is in play* and never
-    says what in play means. ⚠ And the two halves are not one idea.
-
-    See docs/design/selftest.md#what-the-situation-is-about.
-    """
-    from .core.text import load
-
-    src = chr(10).join([
-        "rule <wander> = implies( { +at(?x) }, { +wandered(?x) } )",
-        "rule <toward> = implies( { +at(?x) }, { +nearer(?x) } )",
-        "fact +at(a)",
-        "fact +goal(nearer(a))",
-        "",
-    ])
-
-    def move() -> str:
-        machine = Machine()
-        load(machine, src)
-        bundled = {r.name for r in machine.bundle}
-        for s in machine.run(limit=400):
-            if s.applied and s.applied.rule.name not in bundled:
-                return s.applied.rule.name
-        return None
-
-    def nothing(self):
-        return set()
-
-    def delta_only(self):
-        out = set()
-        for e in self.focus.seat.delta:
-            rel = self.g.relation_of(e.proposition)
-            if rel is not None:
-                out.add(rel)
-        return out
-
-    def goals_only(self):
-        out = set()
-        for s in self._state():
-            if s.sign == PLUS and self.g.relation_of(s.proposition) is self.GOAL:
-                wanted = self.g.member(s.proposition, 0)
-                out.add(wanted)
-                rel = self.g.relation_of(wanted)
-                if rel is not None:
-                    out.add(rel)
-        return out
-
-    def everything_asserted(self):
-        out = set()
-        for s in self._state():
-            rel = self.g.relation_of(s.proposition)
-            if rel is not None:
-                out.add(rel)
-            out.add(s.proposition)
-        return out
-
-    original = Machine._in_play
-    moves = {}
-    try:
-        for name, fn in (
-            ("shipped", original),
-            ("nothing", nothing),
-            ("delta-only", delta_only),
-            ("goals-only", goals_only),
-            ("everything-asserted", everything_asserted),
-        ):
-            Machine._in_play = fn
-            moves[name] = move()
-    finally:
-        # In a `finally`, because a probe that mutates and crashes before
-        # restoring is how a whole turn's edits were once thrown away. Here it
-        # would leave every later check in this run measuring a mutant.
-        Machine._in_play = original
-
-    check("§19", "an empty key ranks nothing, and authored order decides again",
-          moves["nothing"] == "wander")
-    check("§19", "the GOAL half is what decides -- drop it and the useless rule wins",
-          moves["delta-only"] == "wander")
-    check(
-        "§19",
-        "⭐ the key is not a subset of what is asserted: every proposition in the "
-        "state is strictly more, and still misses the goal's content",
-        moves["everything-asserted"] == "wander",
-    )
-
-    # ...and the key set FORGETS, which is the half nothing else here can see.
-    # ⚠ Each machine's OWN node, and the first version of this shared one.
-    # → docs/design/selftest.md#and-the-key-set-forgets-which-is-the-half-no
-    def in_play(extra: str) -> bool:
-        machine = Machine()
-        kb = load(machine, src + extra)
-        machine.run(limit=400)
-        return kb.term("nearer(a)") in machine._in_play()
-
-    kept = in_play("")
-    forgotten = in_play(
-        "rule <done> = implies( { +nearer(?x) }, { -goal(nearer(?x)) } )" + chr(10)
-    )
-    check("§19", "a live goal puts its content in play", kept)
-    check(
-        "§19",
-        "...and denying the goal takes it out again: the key set is maintained, "
-        "so it has to forget as well as accumulate",
-        not forgotten,
-    )
-
-
 def crossing_opens_hypotheses() -> None:
     """Crossing a modality is **one hypothesis, and more when something says so**
 
@@ -3279,33 +3170,37 @@ def its_own_effort_is_reasonable_over() -> None:
 def the_knobs_are_claims() -> None:
     """§21's hidden state, for the knobs -- and the argument was already written.
 
-    `tolerance` is a **fact** for a reason the design states out loud: *how
-    careful am I being is a claim with a trail, and a rule can raise it before an
-    irreversible step.* Three other knobs -- how many rules recall may propose,
-    how deep a hypothesis may nest, how many may be open -- stayed Python
-    fields, which made them the one kind of decision this design does not allow:
-    one nobody can ask about or argue with.
+    Three knobs are FACTS -- how many rules recall may propose, how deep a
+    hypothesis may nest, how many may be open -- for a reason the design states
+    out loud: *how careful am I being is a claim with a trail, and a rule can
+    raise it before an irreversible step.* As Python fields they were the one
+    kind of decision this design does not allow: one nobody can ask about.
 
-    ⚠ The DEFAULT stays in Python, exactly as `tolerance`'s zero does. A default
-    nobody has to choose is not a hidden decision; it is the absence of one.
+    ⚠ `tolerance(n)` was the fourth and is RETIRED. Its only reader was
+    `_close`, which compared two `prefer` scores, and both went with the buffs.
+    It was left parseable for a while on the argument that a corpus should be
+    able to say a number -- but a number nothing reads is not a claim, it is
+    decoration, so it is gone.
+
+    ⚠ The DEFAULT stays in Python. A default nobody has to choose is not a
+    hidden decision; it is the absence of one.
     """
     from .core.text import load
 
     m = Machine()
     load(m, "fact +x(a)" + chr(10))
     check("§15", "with nothing said, the defaults hold and no constant was chosen",
-          m._tolerance() == 0
-          and m._knob(m.BUDGET, m.recall_budget) is None)
+          m._knob(m.BUDGET, m.recall_budget) is None
+          and m._knob(m.DEPTH, m.max_depth) == m.max_depth)
 
     c = Machine()
     load(c, chr(10).join([
-        "fact tolerance(2)", "fact budget(3)", "fact depth(9)",
-        "fact hypotheses(7)", ""]))
+        "fact budget(3)", "fact depth(9)", "fact hypotheses(7)", ""]))
     check("§21", "⭐ a corpus can turn every one of them, so *how careful am I "
           "being* is answerable rather than compiled in",
-          (c._tolerance(), c._knob(c.BUDGET, c.recall_budget),
+          (c._knob(c.BUDGET, c.recall_budget),
            c._knob(c.DEPTH, c.max_depth),
-           c._knob(c.HYPOTHESES, c.supposition_budget)) == (2, 3, 9, 7))
+           c._knob(c.HYPOTHESES, c.supposition_budget)) == (3, 9, 7))
 
     # ...and it really steers: a budget written as a fact narrows recall, which
     # is what `m.recall_budget = 3` did from Python and nothing could argue with.
@@ -4969,7 +4864,7 @@ def the_agent_harmonizes_itself() -> None:
     # first machine's. A name resolved through `kb.atom` is a node in THAT
     # machine's graph, so the second machine got node ids from the first --
     # ints that mean something else. The twin trap across two graphs, which is
-    # the same mistake the `_in_play` denial check made an hour earlier.
+    # the same mistake a denial check in this suite made an hour earlier.
     def make_learner(kb):
         def learn(machine, frame, entry):
             gg = machine.g
@@ -5772,15 +5667,12 @@ def doubt_is_a_tie() -> None:
         tie + "fact +prefer(<byB>, at(p), 5)" + chr(10),
         tie + "fact +prefer(<byB>, at(p), 5)" + chr(10)
             + "fact -prefer(<byB>, at(p), 5)" + chr(10),
-        tie + "fact +tolerance(9)" + chr(10),
-        tie + "fact +tolerance(1)" + chr(10),
     ]
     outcomes = {(first_corpus_move(v)[0], doubted(first_corpus_move(v)[1]))
                 for v in variants}
-    check("§19", "⚠ and NOTHING a corpus can say about preference or tolerance "
-          "changes the move any more: a `prefer` row, its denial, and the "
-          "tolerance knob at 9 and at 1 all give the same first move and the "
-          "same doubt as the bare tie",
+    check("§19", "⚠ and NOTHING a corpus can say about preference changes the "
+          "move any more: a `prefer` row and its denial both give the same "
+          "first move and the same doubt as the bare tie",
           outcomes == {("byA", True)})
 
 
@@ -7426,7 +7318,7 @@ def attention_is_a_bounded_queue() -> None:
           m._attention[0][0] is ns[-3]
           and len({n for n, _w in m._attention}) == len(m._attention))
 
-    # The span is a knob a corpus can turn, the way `tolerance` already is.
+    # The span is a knob a corpus can turn, the way `budget` already is.
     narrow = Machine()
     load(narrow, "fact +attention_span(2)" + chr(10))
     for n in [narrow.g.atom("a"), narrow.g.atom("b"), narrow.g.atom("c")]:
@@ -7918,7 +7810,6 @@ def main() -> int:
     rival_hypotheses_are_comparable()
     recall_is_narrowable()
     the_better_move_wins()
-    what_the_situation_is_about()
     crossing_opens_hypotheses()
     a_hypothesis_does_not_happen()
     an_action_is_substituted_by_its_outcome()

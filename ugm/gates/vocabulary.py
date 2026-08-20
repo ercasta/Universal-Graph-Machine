@@ -41,7 +41,7 @@ ROLES: Dict[str, List[str]] = {
         "verdict", "blocked", "pursued", "expands", "need", "recall",
         "recalled", "achieved", "enough", "stopped", "quiet", "open", "left",
         "resume", "again", "suppose", "hypotheses", "budget", "depth",
-        "tolerance", "close", "forgone", "helped", "harmed", "concluded",
+        "close", "forgone", "helped", "harmed", "concluded",
         "reached", "bounded", "widened", "support", "unsupported", "root",
         "rooted", "scoped", "loaded", "kb", "dormant", "due", "standing",
         # The aggregate over bindings, which is what `blocked`, `rooted` and
