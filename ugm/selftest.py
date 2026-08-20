@@ -7929,7 +7929,7 @@ def a_lesson_about_attention_is_learned_from_play() -> None:
           "as a postcondition and not as a rule",
           added == 2
           and any(any(repr(t).startswith("attend") for t, _d in buffs)
-                  for _q, buffs, _f in student.rules.triggers.get(
+                  for _q, buffs, _f, _l in student.rules.triggers.get(
                       ldr.rules_by_name["spot"].node, ()))) 
 
 
@@ -8250,6 +8250,97 @@ def outstanding_business_is_not_dropped_in_silence() -> None:
           "what stands -- the watchdog is the last word, not the first",
           own.holds(kown.term("declined(move(d3, y), covered)")) == PLUS
           and own.holds(kown.term("declined(move(d3, y), unattended)")) is None)
+
+
+def what_was_learned_is_a_document() -> None:
+    """§20: a lesson you cannot read is a lesson you cannot argue with.
+
+    ⭐⭐⭐ `ugm.teaching` has claimed since it was written that a lesson is *a
+    document -- savable, diffable, arguable, and loadable into a corpus that was
+    never taught* -- and it had no `open` and no `write` in it. The text was
+    built, loaded, and dropped. This is the half that was missing, and the check
+    is the ROUND TRIP: what is written out is what runs.
+
+    ⚠ Three provenance levels over one construct, and only the marker tells them
+    apart once they are in one file:
+
+        frozen      the machinery may not touch this
+        (plain)     a person wrote it
+        learned     play added it
+
+    ⚠⚠ And a learned lesson ADJUSTS rather than replaces. For a score that is
+    arithmetic -- two postconditions on one rule both spend, so an authored 5
+    beside a learned 2 is 7. For attention it is the absence of `unattend`: the
+    lesson says *and also this*.
+    """
+    from .machine import Machine as M
+    from .text import load
+
+    m = M()
+    kb = load(m, chr(10).join([
+        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "after <a> => boost(<b>, 5)",
+        "learned after <a> => boost(<b>, 2)",
+        "frozen after <a> => boost(<b>, 1)",
+        "fact +p(x)", ""]))
+    posts = m.rules.triggers[kb.rules_by_name["a"].node]
+    check("§20", "⭐ the surface tells an authored lesson from a learned one "
+          "from a frozen one, over one construct and with no change to how any "
+          "of them runs",
+          [(f, l) for _q, _b, f, l in posts] == [(False, False), (False, True),
+                                                 (True, False)])
+
+    # ...and the adjustment is arithmetic nobody had to write: both spend.
+    from .attention import Table, _standing, run as table_run
+    t = Table(m.g, list(m.rules.rules), _standing(m))
+    was = t.score[kb.rules_by_name["b"].node]
+    table_run(m, limit=4, table=t)
+    check("§20", "⭐⭐⭐ ...and a learned lesson ADJUSTS the authored one rather "
+          "than replacing it -- 5 authored plus 2 learned plus 1 frozen is 8, "
+          "because two postconditions on one rule both spend",
+          t.score[kb.rules_by_name["b"].node] == was + 8)
+
+    # The round trip: emit, load into a machine that was never taught, and the
+    # lessons are there and still marked.
+    from .teaching import Lesson, emit, install_focuses
+    from .attention import run as loop
+
+    src = chr(10).join([
+        "rule <spot>   = implies( { +leader(?x), +side(?s) }, { +marked(?x) } )",
+        "rule <strike> = implies( { +marked(?y), +side(?t) }, { +struck(?y) } )",
+        "after <spot> => boost(<strike>, 9)",
+        "fact +side(red)",
+        "fact +leader(g1)", "fact +leader(g2)", "fact +leader(g3)", ""])
+    played = M()
+    pldr = load(played, src)
+    lesson = Lesson()
+    loop(played, limit=30, watch=lesson.watching)
+    learned = lesson.focuses(played, conditional=True)
+    doc = emit(played, pldr, learned, "a note")
+
+    check("§20", "what was learned is ORDINARY CORPUS TEXT -- `learned after "
+          "<R> ... => attend(?v)`, readable and editable",
+          "learned after <spot>" in doc and "attend(" in doc
+          and "# a note" in doc)
+
+    student = M()
+    sldr = load(student, src)
+    sldr.load(doc)
+    host = sldr.rules_by_name["spot"].node
+    marks = [l for _q, _b, _f, l in student.rules.triggers.get(host, ())]
+    check("§20", "⭐⭐⭐ ...and it LOADS BACK into a machine that was never "
+          "taught, still marked as learned -- a document that cannot be read "
+          "back is a log, not a lesson",
+          marks.count(True) == 1)
+
+    # And what the installer runs is what the document says, from one renderer.
+    twin = M()
+    tldr = load(twin, src)
+    added = install_focuses(twin, tldr, lesson.focuses(played, conditional=True))
+    check("§20", "⚠ the installer and the document come from ONE renderer, so "
+          "the lesson that is inspectable is the lesson that ran",
+          added == doc.count("learned after"))
 
 
 def a_table_can_outlive_a_run() -> None:
@@ -8852,6 +8943,7 @@ def main() -> int:
     the_action_palette_is_declared_and_discoverable()
     a_bad_attempt_is_declined_rather_than_ignored()
     outstanding_business_is_not_dropped_in_silence()
+    what_was_learned_is_a_document()
 
     failed = 0
     group = None

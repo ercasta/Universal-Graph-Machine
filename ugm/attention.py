@@ -1210,7 +1210,7 @@ def _rerank(m, table, state, chunk, index, tried: int):
     for r in chunk:
         wanted.extend(by_target.get(r.node, ()))
     lift: Dict[NodeId, int] = {}
-    for query, buffs, _frozen in wanted + floating:
+    for query, buffs, _frozen, _learned in wanted + floating:
         tried += 1
         hits = match(
             m.g, m.chain, Rule(0, "implies", list(query), [], "when"),
@@ -1311,7 +1311,8 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
     bare `after` has no query and holds always.
     """
     name = chosen.rule.name or "?"
-    for query, buffs, frozen in m.rules.triggers.get(chosen.rule.node, ()):
+    for query, buffs, frozen, _learned in m.rules.triggers.get(
+            chosen.rule.node, ()):
         if not query:
             _spend_one(m, table, tick, name, buffs, frozen, chosen.bindings,
                        chosen.rule.node)

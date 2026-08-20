@@ -414,8 +414,28 @@ def install_focuses(m: Machine, ldr, learned: dict) -> int:
     supposed to move, and marking learned experience unmovable would be the
     calibrator protecting its own output from the next demonstration.
     """
-    by_name = {r.name for r in m.rules.rules if r.name}
+    lines = focus_lines(m, ldr, learned)
     added = 0
+    for line in lines:
+        try:
+            ldr.load(line)
+        except ParseError:
+            learned["unspeakable"] = learned.get("unspeakable", 0) + 1
+            continue
+        added += 1
+    return added
+
+
+def focus_lines(m: Machine, ldr, learned: dict) -> List[str]:
+    """The learned attention lessons, as SURFACE TEXT -- one line each.
+
+    ⭐⭐⭐ **One renderer for the document and for what runs**, so the two cannot
+    drift. `install_focuses` loads exactly these lines and `emit` writes exactly
+    these lines; a lesson that is inspectable but not the lesson that ran would
+    be worse than none.
+    """
+    by_name = {r.name for r in m.rules.rules if r.name}
+    out: List[str] = []
     for name, (var, _n, text) in sorted(learned["rules"].items()):
         if name not in by_name:
             continue
@@ -428,13 +448,38 @@ def install_focuses(m: Machine, ldr, learned: dict) -> int:
                 continue
             query = " { %s } " % ", ".join(
                 "+" + m.g.show(x) for x in m.g.members(whole))
-        try:
-            ldr.load(FOCUS % (name, query, var))
-        except ParseError:
-            learned["unspeakable"] = learned.get("unspeakable", 0) + 1
-            continue
-        added += 1
-    return added
+        out.append(FOCUS % (name, query, var))
+    return out
+
+
+def emit(m: Machine, ldr, learned: dict, note: str = "") -> str:
+    """What was learned about ATTENTION, as a document a person can read.
+
+    ⭐⭐⭐ **This file has claimed since it was written that a lesson is a
+    document** -- *savable, diffable, arguable, and loadable into a corpus that
+    was never taught* -- and it had no `open` and no `write` in it. The text was
+    built, loaded, and dropped on the floor. This is the missing half.
+
+    ⚠ It is the ORDINARY SURFACE, so it round-trips by construction: `Loader`
+    reads it back with no special path, a person can edit a line in place, and
+    an edited line and a learned one are indistinguishable to the machine. That
+    is the property wanted for *bootstrapped by authors, refined by play, edited
+    again* -- and it is why the marker exists, since it is the only thing that
+    then tells them apart.
+
+    ⚠⚠ Only attention. `prefer` and the score buffs are not emitted, because
+    they name other rules and are on their way out for exactly that reason.
+    """
+    head = ["# Learned by `ugm.teaching`. Ordinary corpus text: edit it, diff",
+            "# it, delete a line you disagree with, or load it into a corpus",
+            "# that was never taught.",
+            "#",
+            "# `learned` marks what play added. Strip those lines and what is",
+            "# left is exactly what a person wrote."]
+    if note:
+        head.append("# " + note)
+    return chr(10).join(head) + chr(10) + chr(10) + "".join(
+        focus_lines(m, ldr, learned))
 
 
 def install(m: Machine, ldr, lessons: dict) -> int:
@@ -560,9 +605,17 @@ EXTRA_SEEDS = (11, 13, 17)
 # The two trigger forms, as text: a lesson is a document.
 WHEN = "when { %s } => boost(<%s>, %d)" + chr(10)
 AFTER = "after <%s>%s => boost(<%s>, %d)" + chr(10)
-# ⚠ The order inside one postcondition is the order it is spent in, so the
-# clearing has to come first or the lesson denies what it has just claimed.
-FOCUS = "after <%s>%s=> unattend, attend(%s)" + chr(10)
+# ⭐⭐⭐ **A learned lesson ADJUSTS rather than replaces**, and for attention that
+# is the absence of `unattend`: the lesson says *and also think about this*,
+# adding to whatever else is attended rather than clearing the field first.
+#
+# ⚠ It was `unattend, attend(?v)` and the clearing was doing real work -- a
+# claim has no `LIFE`, so attention accumulates without something to take it
+# back. What replaces it is the automatic half, which is not built:
+# `docs/HANDOFF.md` 20d records attending the last move's right-hand side being
+# tried and backed out. Until that lands this is the only thing bounding the
+# set, and the measurement below is what says whether it matters.
+FOCUS = "learned after <%s>%s=> attend(%s)" + chr(10)
 
 
 def _agree(mine: List[str], theirs: List[str]) -> int:
@@ -767,6 +820,20 @@ def main() -> int:
         # uncalibrated table already reached. It may cost MOVES -- that is the
         # point of it -- and it may disagree with the teacher, who is one
         # person on one run. Losing an answer is the failure.
+        # ⭐ What was learned about ATTENTION, as a document. Printed rather
+        # than written to a path: a module run that leaves files behind is a
+        # side effect nobody asked for, and `open(p,"w").write(emit(...))` is
+        # the whole of saving it.
+        if name == "dungeon":
+            gm2, gl2 = _machine(name)
+            lesson2 = Lesson()
+            run(gm2, limit=400, chooser=teacher, watch=lesson2.watching)
+            doc = emit(gm2, gl2, lesson2.focuses(gm2, conditional=True),
+                       "%s, one taught fight" % name)
+            print()
+            for line in doc.splitlines():
+                print("    " + line)
+            print()
         for label in ("bigram", "query", "occasion", "focus", "both"):
             if c[label]["lost"] > c["none"]["lost"]:
                 print(f"    FAIL  {label} lost {c[label]['lost']} against "

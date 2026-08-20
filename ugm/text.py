@@ -185,15 +185,30 @@ class PostClause(NamedTuple):
     so `?x` above is the `?x` the rule bound. A bare `after` is the query that
     asks nothing and always holds.
 
-    `frozen` marks what a calibration process may not touch. It changes nothing
-    about how the postcondition runs, which is the point: an authority rule and
-    a learned one are the same construct, and only the learner treats them
+    `frozen` marks what a calibration process may not touch, and `learned` its
+    complement -- what play added rather than what a person wrote. Neither
+    changes how the postcondition RUNS, which is the point: an authored lesson
+    and a learned one are the same construct, and only the learner treats them
     differently.
+
+    ⭐⭐⭐ **Three provenance levels over one mechanism**, and they are what make
+    the learned half separable:
+
+        frozen      the machinery may not touch this
+        (plain)     a person wrote it
+        learned     play added it, and re-learning may replace it
+
+    ⚠ And learning ADJUSTS rather than replaces, which needs no arithmetic at
+    all: two postconditions on one rule both spend, so an authored `boost(<R>,
+    5)` beside a learned `boost(<R>, 2)` is a score of 7. Measured. Strip every
+    `learned` line and the bootstrap is exactly what is left; change the 5 to a
+    3 and the learned +2 still applies, to 3.
     """
 
     query: Tuple[RuleMember, ...]
     buffs: Tuple[Tuple["Term", int], ...]
     frozen: bool
+    learned: bool = False
 
 
 class Statement(NamedTuple):
@@ -293,7 +308,7 @@ class Parser:
             # not a statement -- it is a term the agent may deposit, so it is
             # named the way a relation instance is named, by being written.
             return Statement("action", "", "", (), (), self.member(), "", t.line)
-        if t.text in ("after", "frozen", "when"):
+        if t.text in ("after", "frozen", "learned", "when"):
             # A trigger, and it stands on its own: what a rule MEANS and what
             # experience has learned about when to reach for it are different
             # kinds of claim, kept in different documents. A corpus loads its
@@ -365,12 +380,13 @@ class Parser:
         process may not touch.
         """
         frozen = t.text == "frozen"
-        if frozen:
+        learned = t.text == "learned"
+        if frozen or learned:
             nxt = self.peek()
             if nxt is None or nxt.text not in ("after", "when"):
                 raise ParseError(
-                    f"line {t.line}: `frozen` marks a trigger, so it is written "
-                    f"`frozen after <R> ... => ...`"
+                    f"line {t.line}: `{t.text}` marks a trigger, so it is "
+                    f"written `{t.text} after <R> ... => ...`"
                 )
             t = self.next()
         host = ""
@@ -390,7 +406,7 @@ class Parser:
             self.next()
             buffs.append(self.buff())
         return Statement("trigger", host, "", query, (), None, "", t.line,
-                         (PostClause(query, tuple(buffs), frozen),))
+                         (PostClause(query, tuple(buffs), frozen, learned),))
 
     def buff(self) -> Tuple["Term", int]:
         """`boost(<R>, 3)` or `damp(?a, 2)`. The target may be a rule name or a
@@ -822,7 +838,7 @@ class Loader:
         )
         self.m.rules.triggers.setdefault(
             None if host is None else host.node, []
-        ).append((query, buffs, clause.frozen))
+        ).append((query, buffs, clause.frozen, clause.learned))
 
     def rule_ref(self, name: str) -> NodeId:
         """What `<n>` denotes: a rule node, or a named fact's proposition.

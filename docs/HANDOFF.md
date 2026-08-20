@@ -1,3 +1,70 @@
+# Handoff — 2026-08-20f (a lesson becomes a document, and gets a marker)
+
+On top of `5c961f7`.
+
+    selftest    641/0  (was 636; 5 added)
+    modules     all green; vocabulary 18/2 unchanged
+
+## What was built
+
+**`learned`, a third provenance level over one construct**, beside `frozen`:
+
+    frozen after <a> => boost(<b>, 1)      the machinery may not touch this
+    after <a>        => boost(<b>, 5)      a person wrote it
+    learned after <a> => boost(<b>, 2)     play added it
+
+Nothing about how a postcondition RUNS changes — which is the point. Only the
+learner treats them differently, and only the marker tells them apart once they
+are in one file.
+
+**`emit` — the half `teaching.py` has claimed since it was written.** Its
+docstring says a lesson is *savable, diffable, arguable, and loadable into a
+corpus that was never taught*, and the file had no `open` and no `write` in it:
+the text was built, loaded, and dropped. Now it is a document, in the ORDINARY
+surface, so it round-trips by construction and a person can edit a line in
+place. `python -m ugm.teaching` prints it.
+
+⭐ **One renderer** for the document and for the installer (`focus_lines`), so
+the lesson that is inspectable is the lesson that ran. Two would drift.
+
+⚠ **Attention only**, deliberately. `prefer` and the score buffs are not
+emitted, because they name other rules and are on their way out for that reason.
+
+## Learning ADJUSTS rather than replaces
+
+For a score this needed no arithmetic at all: two postconditions on one rule
+both spend, so **authored 5 + learned 2 + frozen 1 = 8** above the default.
+Measured, and now checked. Strip every `learned` line and the bootstrap is
+exactly what is left; change the 5 to a 3 and the learned +2 still applies.
+
+For attention it is the ABSENCE of `unattend`: a focus lesson was
+`unattend, attend(?v)` and is now `attend(?v)` — *and also think about this*.
+
+⚠ The clearing was doing real work: a claim has no `LIFE`, so attention
+accumulates with nothing to take it back. What is meant to replace it is the
+automatic half, which is **not built** (20d). Measured on the dungeon: dropping
+it cost nothing — 141 moves, 34.8 matched/move, 3 conclusions lost, identical to
+uncalibrated on every column. So nothing is bounding the attended set today
+except that nothing much depends on it yet.
+
+## Next, and the order matters
+
+**Retiring `prefer` and the buffs**, which is the point of doing emit for
+attention only. They name other rules, which is the same *keyed on an identity*
+defect this whole thread has been about, one level up from bindings.
+
+⚠⚠⚠ **The dependency is measured and it is hard.** Attention cannot do their
+job yet: 20d records three attempts, 10/13/13 checks failing, and the counted
+variant cost the focus arm 44 domain conclusions against 3. So the order is
+forced — make attention-based scoring work first (length normalisation, inverse
+frequency), then retire one mechanism at a time with the dungeon as the gate.
+
+What retirement touches, so it is not discovered piecemeal: `teaching.py`'s
+bigram/query/occasion arms entire, `<relevant>` in the bundle (and removing a
+bundle rule renumbers every corpus), `_priority`/`_rank`/`arbitrate`, `SETTLE`,
+and `reset` (meaningless without buffs). ⚠ `stop` must survive — it is a
+postcondition but it is not scoring.
+
 # Handoff — 2026-08-20e (outstanding business, and the bundle is not free)
 
 On top of `d3a79bc`.
