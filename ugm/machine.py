@@ -2270,6 +2270,27 @@ class Machine:
             sig = self.g.members(node)
             if len(sig) != 1 or not self._claims(node):
                 continue
+            # ⭐⭐⭐ **The palette is the AUTHOR's, and this is what makes that
+            # true rather than conventional.** Probed before it was: a rule
+            # concluding `+afforded(teleport(a, b))` widened the palette, its
+            # own attempt was then accepted, and nothing said a word. A learned
+            # rule could grant itself an action — which is the exact bound
+            # `docs/HANDOFF.md` 19c's safety argument rests on, and it was
+            # leaking.
+            #
+            # An entry's licence is *what produced it* (§5), and a rule's
+            # conclusion is licensed by `applied(<R>)`. A declaration is not. So
+            # the distinction is already in the chain and needs no register of
+            # who said what.
+            #
+            # ⚠ The affordance is not refused — a corpus may say what it likes,
+            # and a claim ABOUT the palette is not a claim ON it. What it does
+            # not do is COUNT, so the attempt that leans on it is declined like
+            # any other, which is the loud half.
+            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            if e is not None and e.licence is not None and (
+                    self.g.relation_of(e.licence) is self.APPLIED):
+                continue
             if unify(self.g, sig[0], wanted, {}) is not None:
                 return
         self._note(self.g.rel(self.DECLINED, wanted, self.UNAFFORDED),

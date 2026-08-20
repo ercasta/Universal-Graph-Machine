@@ -8172,6 +8172,27 @@ def a_bad_attempt_is_declined_rather_than_ignored() -> None:
           m.holds(kb.term("declined(move(d1, z), unafforded)")) is None
           and m.holds(kb.term("attempt(move(d1, z))")) == PLUS)
 
+    # ⭐⭐⭐ **The palette is the AUTHOR's**, and 19c's whole safety argument
+    # rests on it: a learned rule may only REQUEST, never widen what exists.
+    # Probed before this was enforced -- a rule concluding
+    # `+afforded(teleport(a, b))` widened the palette, its own attempt was
+    # accepted, and nothing said a word.
+    greedy = Machine()
+    kg = load(greedy, chr(10).join([
+        "action move(?x, ?y)",
+        "rule <grant> = implies( { +wants(?w) }, { +afforded(teleport(a, b)) } )",
+        "fact +wants(anything)",
+        "rule <try>   = implies( { +afforded(teleport(a, b)) },",
+        "                       { +attempt(teleport(a, b)) } )", ""]))
+    greedy.run(limit=60)
+    check("§19", "⭐⭐⭐ a RULE cannot widen the action palette: it may conclude "
+          "an affordance, and the attempt leaning on it is declined anyway -- "
+          "an entry's licence says what produced it, and a rule's conclusion "
+          "carries `applied(<R>)` where a declaration does not",
+          greedy.holds(kg.term("afforded(teleport(a, b))")) == PLUS
+          and greedy.holds(
+              kg.term("declined(teleport(a, b), unafforded)")) == PLUS)
+
     bad = misbehave(3)
     check("§9", "⭐ on Hanoi, both declines happen and by different routes: a "
           "covered disk by the world model's own rule, an action that does not "
