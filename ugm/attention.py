@@ -557,6 +557,18 @@ def _is_defeated(m: Machine, rule: Rule, state) -> bool:
     """
     higher = [h for h, lower in m.rules.precedence(m.rules.OVERRIDES)
               if lower is rule]
+    # ⚠⚠⚠ **EVERY overrider that matched, not the first.** This returned on the
+    # first one, so a rule beaten by two recorded only whichever `precedence()`
+    # happened to list first -- and the dungeon has both `<halt>` and
+    # `<hero-acts>` over `<hero-holds>`. `<halt>` won the race and
+    # `defeated(<hero-holds>, <hero-acts>)` was never written, which
+    # `ugm.attention`'s own gate caught as a conclusion the shipped loop reaches
+    # and this one does not.
+    #
+    # ⭐ The DECISION is unaffected -- defeated is defeated, and the first match
+    # settles it. What was incomplete is the RECORD, and *which of my rules
+    # actually fight* is the question the deposit exists to answer.
+    beaten = False
     for h in higher:
         found = match(
             m.g, m.chain, h, m.focus.topic, m.focus.seat, state,
@@ -573,8 +585,8 @@ def _is_defeated(m: Machine, rule: Rule, state) -> bool:
             # On the record, because *which of my rules actually fight* is a
             # question about a run that no run recorded until it was deposited.
             m._note(m.g.rel(m.DEFEATED, rule.node, h.node))
-            return True
-    return False
+            beaten = True
+    return beaten
 
 
 def _rivals(m: Machine, chosen: Application, state) -> List[Application]:

@@ -1,3 +1,58 @@
+# Handoff — 2026-08-20j (a sweep that cannot be hand-picked, and one gate still red)
+
+On top of `5fbc4c8`.
+
+    selftest    645/0
+    ./tools_sweep.sh   2 failing: `attention` (below) and `vocabulary` (the
+                       pre-existing 18/2 -- `holds_at`, `time`)
+    necessity   exit 124 at 900s. Slow, not broken; the handoff has recorded
+                it as >10 minutes a side since 19b. Skipped unless `--all`.
+
+## `tools_sweep.sh`
+
+Enumerates every module with a `main()` from the filesystem. ⚠⚠⚠ **A
+hand-written list hid two regressions in one session** -- `ugm.practice` red for
+two commits, `ugm.attention` for six -- because every sweep used a dozen of the
+~30. Pick nothing; ask the filesystem.
+
+## `_is_defeated` recorded only the FIRST overrider
+
+Fixed on its own merits: a rule beaten by two recorded only whichever
+`precedence()` listed first. The DECISION was never affected -- defeated is
+defeated -- but *which of my rules actually fight* is the question the deposit
+exists to answer, and it was answering it partially.
+
+⚠ **It did not fix the gate**, and saying so is the point of writing it down.
+
+## ⚠⚠⚠ `ugm.attention`: still red, and now understood
+
+    FAIL  1 conclusion(s) lost: defeated(<hero-holds>, <hero-acts>)
+
+    table loop      defeated(<hero-holds>, <halt>)  and three more by <halt>
+    shipped loop    defeated(<hero-holds>, <hero-acts>)
+
+`<hero-holds>` reaches a shortlist **132 times** and `_is_defeated` runs every
+time. At none of those moments does `<hero-acts>` match; `<halt>` does. The
+shipped loop materialises every application every tick and catches a moment the
+prefix scan never looks at.
+
+⭐ So the two loops check defeat at DIFFERENT MOMENTS, and that is inherent:
+`_is_defeated` can only ask about a rule that reached a shortlist, and only
+about the moment it reached one. The recovery that took `defeated` off the
+accepted-losses list -- *ask the question the other way round* -- is real but
+PARTIAL, and this is where the partiality shows.
+
+⚠ Bisected to `c07b2b1 palette`, and the mechanism is the one the author named:
+reserving an atom shifts every subsequent node id, and mint order is a tie-break
+by design (§3). The palette did not break defeat; it moved an ordering, and the
+partial recovery stopped covering this case.
+
+**Two honest options, and I would not take the second without deciding it out
+loud:** find a formulation of `_is_defeated` that does not depend on the moment
+a rule is considered, or put `defeated` back on `ACCEPTED_LOSSES` with this
+paragraph as the reason. The second widens a tolerance that was deliberately
+narrowed once already.
+
 # Handoff — 2026-08-20i (two regressions found, one fixed, and how they hid)
 
 On top of `a4b461f`.
