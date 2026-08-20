@@ -64,6 +64,88 @@ hypothesis a thing the agent asserts, plans over and reverts is what lets it
 answer *what would happen if we set fire to the house* as a REPORT rather than
 as a side effect.
 
+## DECIDED, 2026-08-20 — and it is smaller than the queue entry above assumed
+
+The author's call, taken in three steps, each of which shrank the job:
+
+    1. hypothetical reasoning is just the REGULAR GRAPH
+    2. no mark/revert primitives -- reverting loses the conclusions too, and the
+       conclusions are the point
+    3. no branching or reverting in the CHAIN either
+
+So this is a **deletion, not a rewrite**. Nothing replaces situations. An agent
+reasons about a hypothesis by asserting it and letting the ordinary rules fire;
+it knows the conclusions are hypothetical because it RECORDED that, not because
+the engine hid them.
+
+⚠ Do not re-derive `mark()`/`revert()` from the queue entry above. It was
+considered and rejected for a stated reason: a conclusion written during the
+hypothesis is inside the reverted region, so a revert throws away the answer it
+was called to get.
+
+### What this costs, measured rather than conceded
+
+**Containment goes, and it is the current design's headline claim.**
+`selftest.supposing` asserts *containment: nothing concluded inside is readable
+as current belief* -- `symptom(pump7, restricted)` is `None` outside today. It
+will hold. That check is inverted, not deleted, so the loss stays measurable.
+
+⭐ **But the lifting objection does NOT apply, and that was worth checking.**
+`suppose` exists because a generic lifting rule cannot cross rules that carry
+variables. Measured, on the reified `<lift>` rule:
+
+    generic <lift>, ground pipeline     likely(r(x))                     +
+    generic <lift>, variable pipeline   likely(action(replace, pump7))   None
+
+That would be fatal to a SCENARIO-RELATIVE replacement, which would need lifting
+or per-rule scenario forms. It is irrelevant here: asserting into the real graph
+means the ordinary rules fire unchanged, which is the whole appeal.
+
+**97 `instances_of`/`instances_with` call sites** stop being scoped for free.
+During a hypothesis they answer about the hypothetical world, which is intended.
+It breaks only if something concurrent reads mid-hypothesis -- `probes/experts`,
+`core/channels`.
+
+### The inventory, measured
+
+    core/graph.py    57 `situation` + 12 atom/carry/branch. TWELVE dicts keyed
+                     by SituationId: _sit_parent, _sit_born, _sit_of, _vis,
+                     _atom, _node_by_atom, _identity, _mentions, _interned,
+                     _by_rel, _by_arg, _merged. Both indices lose a key
+                     component; `_interned` becomes (rel, members).
+                     Gone: branch, standing_in, _visible, visible, situation_of,
+                     atom_of, node_of, identity_of, carry, rebuild.
+    core/gate.py     20. Frame.situation/home and all three pin/restore blocks.
+    core/machine.py  16. suppose, discharge, _hypothetical, _own_frame, _leave,
+                     the situation register property.
+    core/chain.py     4 + 6. ⭐ The chain goes LINEAR, so `at_or_after` collapses
+                     to a depth comparison -- `resolve`'s own comment says *a
+                     depth comparison cannot replace it once anything forks, and
+                     supposing forks by construction.* Nothing forks now.
+    selftest.py      73 `situation`, 42 `suppose(`, the whole `situations()`
+                     group, and selftest.py:4024 which forks the chain ON PURPOSE.
+    corpora          worked.ugm (one rule concluding `suppose`), bundle.ugm's
+                     `resume` rules.
+
+⭐⭐⭐ **`Frame` collapses to a singleton.** The engine creates exactly TWO
+frames: the root register, and the supposition child. Remove suppositions and
+`frame.parent`, `purpose`, `wrap`, `carried` have no second case. §18's call
+stack is FACTS, not frames, so it is untouched -- check that before assuming
+`Frame` can go entirely.
+
+### Order, and there is no green state in the middle
+
+The indices change key shape in one step or the engine does not run. This is one
+large commit, not a staged landing. Do `graph` -> `gate` -> `chain` -> `machine`
+-> `selftest` -> corpora, and expect red until the last of them.
+
+### What is GAINED, so it is not only a loss
+
+The 95-nodes-per-supposition leak `docs/situations.md` concedes and never fixed
+goes away, because there is no hypothesis to leak FROM. And `docs/situations.md`
+itself becomes a historical document rather than a description of the engine --
+move it, do not leave it describing a mechanism that is gone.
+
 ## Two things to design rather than discover
 
 ⚠⚠⚠ **Containment stops being structural and becomes a promise.** Today it is
