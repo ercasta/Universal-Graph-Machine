@@ -33,14 +33,41 @@ The missing half was already on the trail. `forgone(A, w)` records that `A` was 
 live way of getting `w` and something else was taken, licensed by
 `applied(<winner>)` -- so a blamed winner names its own alternatives. Joining the
 two needs no new bookkeeping, which is the third time credit assignment has come
-out that way. `Machine._instead_of` is the join and `SUPPRESSION_ONLY` below is
+out that way. `Machine._instead_of` is the join and `_no_promotion` below is
 the control that shows it is load-bearing.
+
+## What a lesson SAYS, which is what changed (§21)
+
+A lesson used to be `prefer(<use-tap>, water, 3)`. It named a RULE, and a rule
+id is stale the moment that rule is adopted, composed or renamed -- keyed on an
+identity, one level up from bindings, which is the defect this whole thread has
+been about. It now names a NODE:
+
+    fact +attention(sink, 3)                    depth 0, and ground
+    { +tap(?v0) } => +attention(?v0, 3)         depth 0, generic
+    { +precious(?v1), +tap(?v0) } => ...        depth 1, and so on
+
+`sink` is what `Machine._salient` works out: the thing the passed-up route is
+about and the route that harmed is not. Everything else in this file is
+unchanged, because nothing about how a lesson is FOUND changed -- only what it
+is written in.
+
+⭐⭐⭐ **And the gain is not a refinement, it is a kind.** Rename `<use-tap>` in
+the world the lesson is carried into and the attention lesson still saves the
+jug, while the `prefer` row does not merely go inert -- **it fails to load**,
+because it names a statement that is not there. Measured below.
+
+⚠⚠⚠ **The cost is real too, and it is measured rather than conceded.** A node
+can only separate two routes that are ABOUT different things. Where both routes
+hold their vessel -- `holds(jug1, kettle)` and `holds(vase, kettle)` -- no node
+lifts one and not the other, so the lesser of two evils, which `prefer` could
+state, is now unsayable. That arm of this file is a negative result.
 """
 
 from typing import Dict, List, Optional, Tuple
 
 from .machine import Machine, forest, induce, leaves
-from .text import load
+from .text import ParseError, load
 
 BASE = [
     "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
@@ -97,13 +124,41 @@ class Episode:
         return self.intact == "-"
 
 
-def run(jug_first: bool = True, rounds: int = 3, carry: str = "") -> List[Episode]:
-    """Play the same world `rounds` times, each one loading what the last wrote."""
+def run(jug_first: bool = True, rounds: int = 3, carry: str = "",
+        keep: bool = True) -> List[Episode]:
+    """Play the same world `rounds` times, each one loading what came before.
+
+    ⚠⚠⚠ **What is carried ACCUMULATES, and it has to, which is a finding
+    about the rewrite rather than a convenience.** This used to replace the
+    carry with whatever the last episode wrote, and that worked only because a
+    lesson was re-derived every round by CREDIT: episode 2 took the tap, the tap
+    was on the support of the outcome, so `prefer(<use-tap>, water, 3)` was
+    written again by a pass that had nothing to do with regret.
+
+    Credit has no node-keyed sentence and is gone, so **an episode that goes
+    well now has nothing to say** -- and replacing the carry forgets the lesson
+    the moment it starts working. Measured: episode 3 smashed the jug again.
+
+    > **A lesson learned from regret is written once. The corpus of experience
+    > has to be a corpus, not the last thing that happened.**
+
+    `keep=False` is the control, and it is this function as it stood.
+    """
     out: List[Episode] = []
+    learned: List[str] = [line for line in carry.split(chr(10)) if line.strip()]
     for _ in range(rounds):
-        ep = Episode(world(jug_first=jug_first) + carry)
+        ep = Episode(world(jug_first=jug_first)
+                     + chr(10).join(learned) + chr(10))
         out.append(ep)
-        carry = "\n".join(ep.rows) + "\n" if ep.rows else ""
+        if not keep:
+            learned = list(ep.rows)
+            continue
+        # ⚠ Deduped by identity, so restating is not revising (§8) -- two
+        # copies of one lesson are one proposition, exactly as two identical
+        # `prefer` rows always were.
+        for row in ep.rows:
+            if row not in learned:
+                learned.append(row)
     return out
 
 
@@ -151,47 +206,106 @@ def harm_episode(order, extra=()):
     return m, [m.g.show(n) for n in m.emitted], lost
 
 
-def lesser_of_two_evils(rounds: int = 4) -> Tuple[dict, dict]:
-    """Can experience choose the cheaper of two damaging routes? Not yet.
+def the_lesser_of_two_evils_is_unsayable(rounds: int = 3):
+    """⚠⚠⚠ A route can only be preferred over one it is NOT about. Measured.
 
-    ⚠⚠⚠ **Today's scheme OSCILLATES, and from a good start it makes the agent
-    worse.** `learned` suppresses whatever harmed and promotes whatever was
-    passed up -- with no notion of *how much*, so it alternates forever, and half
-    of every cycle is spent on the route that costs twice as much.
+    This used to be `lesser_of_two_evils`, and it used to report a result: with
+    magnitude accumulated across episodes the agent converged on the cheaper of
+    two damaging routes, from a good start and from a bad one. That result was
+    real and it is gone, because it rested on `prefer` NAMING THE RULE.
 
-    ⚠⚠⚠ **And magnitude alone does not fix it.** The ceiling below records what
-    each route actually cost and accumulates it across episodes; it converges
-    immediately -- **on whatever it happened to try first**. Better from a good
-    start, permanently worse from a bad one.
+    An attention lesson names a node, and it lifts every rule whose antecedent
+    speaks of that node under any relation. Here the two routes are symmetric:
 
-    > **Neither is learning. One explores with no memory; the other remembers
-    > with no exploration.** What is missing is not a better rule for picking --
-    > it is a SECOND QUANTITY. The design already has both scales and already
-    > forbids conflating them: a cardinal score on the table for *how good*, and
-    > and a WRAPPER around the claim for *how sure*. `+prefer(<R>, k, 3)
-    > @possible` -- a strong recommendation the agent is not certain of -- is
-    > exactly the sentence explore/exploit needs, and nothing writes it from
-    > experience. That is §21's item 1 and item 2 turning out to be one item.
+        <use-vase>   goal, holds, vase
+        <use-jug>    goal, holds, jug
+
+    `jug1` is spoken of under `jug` -- which only the jug route wants -- and
+    under `holds`, which both do. So attending it lifts BOTH, the walk decides
+    as it always did, and there is no other node to try: the vessel is the only
+    thing either rule is about.
+
+    ⭐⭐⭐ **So `_salient` returns nothing, and that is the design working.** An
+    earlier version scored candidates by *fewest of the harmed route's
+    relations* and took the best available. It named `jug1`, wrote a
+    well-formed lesson, loaded it without complaint, and moved nothing --
+    advice that cannot be obeyed, indistinguishable from advice that works
+    until you measure the run. Refusing to write it is the difference between a
+    limit and a bug.
+
+    > **Rule-keyed advice can always separate two routes. Node-keyed advice can
+    > separate only routes that are about different things.**
+
+    Returns the per-episode losses and what, if anything, was learned.
     """
     out = {}
     for label, order in (("good start", [HARM_JUG, HARM_VASE]),
                          ("bad start", [HARM_VASE, HARM_JUG])):
-        today, extra = [], ()
+        seq, rows, eps = [], [], []
         for _ in range(rounds):
-            m, acts, lost = harm_episode(order, extra)
-            today.append(len(lost))
-            extra = m.learned()
-        ceiling, cost = [], {}
-        for _ in range(rounds):
-            worst = max(cost.values()) if cost else 0
-            rows = [f"fact prefer(<{r}>, water, {worst - c + 1})" for r, c in cost.items()]
             m, acts, lost = harm_episode(order, rows)
-            ceiling.append(len(lost))
-            used = ("use-jug" if acts and acts[0].startswith("smash")
-                    else "use-vase" if acts else None)
-            if used:
-                cost[used] = max(cost.get(used, 0), len(lost))
-        out[label] = (today, ceiling, dict(cost))
+            seq.append(len(lost))
+            eps.append(m)
+            rows = induce(eps, lambda r: len(harm_episode(order, r)[2]))
+        out[label] = (seq, rows, eps[0])
+    return out
+
+
+def a_lesson_outlives_its_rule() -> dict:
+    """Carry a lesson into a world where the rule it is about was RENAMED.
+
+    ⭐⭐⭐ **The whole argument for keying on nodes, and it is one run.** A
+    rule id is not stable: rules are adopted, composed, rewritten and edited,
+    and §21 is full of mechanisms that do it. A lesson that names one is
+    betting on an identity.
+
+    The measurement is stronger than *goes stale*. The `prefer` row does not
+    quietly stop applying in the renamed world -- **it fails to load**, because
+    `<use-tap>` is a statement reference and there is no such statement. A
+    corpus of experience could be made unreadable by an edit somewhere else.
+
+    ⚠ The rename is the whole difference. Same world, same objects, same
+    authored order, one identifier changed.
+    """
+    ep = Episode(world(jug_first=True))
+    renamed = world(jug_first=True).replace("<use-tap>", "<faucet>")
+    out = {}
+    for label, rows in (("nothing", []),
+                        ("attention lesson", ep.rows),
+                        ("prefer row", ["fact prefer(<use-tap>, water, 3)"])):
+        try:
+            m = Machine()
+            m.actuator("hands")
+            kb = load(m, renamed + chr(10).join(rows) + chr(10))
+            m.run(limit=4000)
+            out[label] = ([m.g.show(n) for n in m.emitted],
+                          m.holds(kb.term("intact(jug1)")) == "-", None)
+        except ParseError as exc:
+            out[label] = (None, None, str(exc).split(" -- ")[0])
+    return out
+
+
+def credit_costs_nothing_here() -> dict:
+    """What dropping the CREDIT half cost, on the world that had it.
+
+    `learned` used to recommend the rules that served the outcome as well as the
+    one that was passed up -- `prefer(<squeeze>, juice, 3)`, `prefer(<eff>,
+    water, 3)`. A rule that helped is a rule, and attention names a node, so
+    there is no node-keyed sentence that says it and those rows are gone.
+
+    ⚠ **Measured, not waved through.** The old rows are still loadable, so the
+    comparison is a real one: run the taught episode with them and without.
+    They change nothing here, because `<squeeze>` and `<eff>` had no rivals to
+    be lifted over -- which is the honest reason to let credit go, and is NOT an
+    argument that credit is unsayable in general. §21.
+    """
+    ep = Episode(world(jug_first=True))
+    CREDIT = ["fact prefer(<squeeze>, juice, 3)", "fact prefer(<eff>, water, 3)"]
+    out = {}
+    for label, rows in (("lesson only", ep.rows),
+                        ("lesson + old credit rows", ep.rows + CREDIT)):
+        e = Episode(world(jug_first=True) + chr(10).join(rows) + chr(10))
+        out[label] = (e.acts, e.harmed, e.water, e.juice)
     return out
 
 
@@ -323,10 +437,22 @@ def main() -> int:
     gate("⭐ the second does not -- an episode taught the next one something",
          not eps[1].harmed)
     gate("and it stays taught: the third does not regress", not eps[2].harmed)
+    # ⚠⚠⚠ The control for the line above, and it is the code as it stood.
+    # Under `prefer` a good episode re-derived the lesson by CREDIT, so
+    # replacing the carry each round was invisible. With credit gone, an
+    # episode that goes well says nothing at all -- and the lesson is forgotten
+    # the moment it starts working.
+    forgetful = run(jug_first=True, rounds=3, keep=False)
+    gate("⚠⚠⚠ ...and it stays taught only because what is carried ACCUMULATES: "
+         "keep just the last episode's rows and the third smashes the jug again, "
+         "because the second had nothing to say",
+         not forgetful[1].harmed and forgetful[2].harmed)
     gate("what it learned names the alternative it passed up, not just the "
          "rule it stopped recommending",
-         any("<use-tap>" in r for r in eps[0].rows)
-         and not any("<use-jug>" in r for r in eps[0].rows))
+         any("attention(sink" in r for r in eps[0].rows))
+    gate("⭐⭐⭐ ...and it names it by the THING that makes that route available "
+         "-- no rule id appears in anything an episode writes down",
+         bool(eps[0].rows) and not any("<" in r for r in eps[0].rows))
     gate("the repaired run achieves BOTH goals, so it is not merely doing less",
          eps[1].water == "+" and eps[1].juice == "+")
 
@@ -344,9 +470,10 @@ def main() -> int:
     gate("⭐⭐⭐ suppression alone does NOT fix it -- the agent blames the "
          "smasher, stops recommending it, and smashes the jug again",
          ctrl[0].harmed and ctrl[1].harmed)
-    gate("...and it is not that it learned nothing: it wrote rows, they were "
-         "just about the wrong half of the choice",
-         bool(ctrl[0].rows) and not any("<use-tap>" in r for r in ctrl[0].rows))
+    gate("⚠ ...and with credit gone it now writes NOTHING AT ALL, where it used "
+         "to write rows about the wrong half of the choice -- suppression on "
+         "its own has no sentence left to say",
+         not ctrl[0].rows)
 
     # -- transfer ---------------------------------------------------------
     print("\nTransfer -- what was learned about one kettle, applied to another:\n")
@@ -361,12 +488,10 @@ def main() -> int:
     print()
     gate("the fresh world still does the damage, so the fixture can fail",
          fresh.harmed)
-    gate("⭐ and the key GENERALISES: a row keyed on the relation `water` saves "
-         "a jug it was never told about",
+    gate("⭐ and the lesson GENERALISES: what it named -- the tap -- is in a "
+         "world of objects it was never told about, and saves a jug there",
          not carried.harmed)
 
-    # -- the lesser of two evils ------------------------------------------
-    print("\n\nNo safe route -- two damaging ways to water, one twice as costly:\n")
     # -- a learned rule is a decision tree --------------------------------
     print("\n\nWhen the right move DEPENDS on the situation -- two worlds, one goal"
           "\nrelation, opposite best answers:\n")
@@ -414,13 +539,13 @@ def main() -> int:
         print(f"    {r}")
     print()
     print(f"    leaves proposed {len(proposed)}, unconditional among them "
-          f"{sum(1 for _, _, t in proposed if not t)}, kept "
+          f"{sum(1 for leaf in proposed if not leaf[2])}, kept "
           f"{sum(1 for r in tree if r.startswith('rule '))}")
     print(f"    induced total cost {total(tree)}")
     print()
     gate("⚠⚠⚠ episodes propose UNCONDITIONAL leaves -- an episode only knows the "
          "cost of the route it took, which is the oscillation as a hypothesis",
-         any(not t for _, _, t in proposed))
+         any(not leaf[2] for leaf in proposed))
     gate("⭐⭐⭐ ...and joint pruning removes them: induction over three episodes "
          "reaches the same optimum, so a wrong leaf is not a special case",
          total(tree) == sum(costs["refined"]) and total(tree) < sum(costs["depth-0"]))
@@ -433,86 +558,98 @@ def main() -> int:
     print(f"    bagging three trees instead: total {total(bagged)}"
           f" (one tree: {total(tree)})")
     print()
-    gate("⚠⚠⚠ bagging does NOT pay yet -- `_priority` SUMS, and summation is not "
-         "voting: one bag's over-general row fires everywhere and cannot be "
-         "outvoted. A forest needs a rule that can DEFEAT, not only add",
+    # ⚠⚠⚠ The VERDICT survives the rewrite and the REASON does not, which is
+    # worth more than the number. Under `prefer` the explanation was
+    # *`_priority` sums, and summation is not voting*: an over-general row was
+    # ADDED to the others and could not be outvoted. Attention does not sum --
+    # `_pull` and `_attention_weights` both take the STRONGER of two. It still
+    # fails, and for a reason one step deeper.
+    #
+    # > **Attention is MONOTONE.** One leaf attends the tap in B and the two
+    # > that decline cannot take it back, because there is no sentence for
+    # > *not this one, here*: `unattend` clears the whole queue.
+    #
+    # Same shape as the old finding -- an ensemble's agreement is invisible and
+    # only its disagreement counts -- arriving through a different mechanism,
+    # which is what makes it a property of ensembling here rather than of
+    # summation.
+    gate("⚠⚠⚠ bagging still does NOT pay, and no longer because of summation: "
+         "attention takes the stronger, not the sum, and is MONOTONE -- one "
+         "over-general leaf attends and no number of leaves declining to "
+         "attend can overrule it",
          total(bagged) > total(tree))
+    gate("⚠ and it is exactly the over-general leaf: the bag keeps a lesson "
+         "with no test at all beside two that learned the condition",
+         any(r.startswith("rule <t") and "+precious" not in r for r in bagged))
 
-    ev = lesser_of_two_evils()
-    print(f"  {'authored first':<14} {'scheme':<36} losses per episode")
+    # -- what a lesson NAMES, and what that buys ---------------------------
+    print(chr(10) * 2
+          + "The same lesson carried into a world where the rule was RENAMED:"
+          + chr(10))
+    ren = a_lesson_outlives_its_rule()
+    print(f"  {'carried forward':<22} {'emitted':<16} {'jug':<8} loaded")
+    for label in ("nothing", "attention lesson", "prefer row"):
+        acts, harmed, err = ren[label]
+        print(f"  {label:<22} {str(acts[0] if acts else '-'):<16} "
+              f"{('-' if harmed is None else 'broken' if harmed else 'intact'):<8} "
+              f"{err or 'yes'}")
+    print()
+    gate("the renamed world can still fail, so the comparison is against "
+         "something", ren["nothing"][1])
+    gate("⭐⭐⭐ a lesson keyed on a NODE survives its rule being renamed -- "
+         "`sink` is there whatever the rule that reads it is called",
+         ren["attention lesson"][1] is False)
+    gate("⭐⭐⭐ ...and the row it replaced does not merely go stale, it FAILS "
+         "TO LOAD: a corpus of experience made unreadable by an edit elsewhere",
+         ren["prefer row"][2] is not None)
+
+    # -- the credit half, and what dropping it cost ------------------------
+    print(chr(10)
+          + "The CREDIT rows that are no longer written, added back by hand:"
+          + chr(10))
+    cr = credit_costs_nothing_here()
+    print(f"  {'carried forward':<26} {'emitted':<16} {'jug':<8} {'water':<6} juice")
+    for label in ("lesson only", "lesson + old credit rows"):
+        acts, harmed, water, juice = cr[label]
+        print(f"  {label:<26} {str(acts[0] if acts else '-'):<16} "
+              f"{('broken' if harmed else 'intact'):<8} {str(water):<6} {juice}")
+    print()
+    gate("⚠ dropping credit costs nothing HERE -- the rules it recommended had "
+         "no rivals to be lifted over, which is why it is affordable to lose "
+         "and is not an argument that credit is unsayable",
+         cr["lesson only"] == cr["lesson + old credit rows"])
+
+    # -- and what cannot be said at all ------------------------------------
+    print(chr(10) * 2
+          + "No safe route -- two damaging ways to water, one twice as costly:"
+          + chr(10))
+    ev = the_lesser_of_two_evils_is_unsayable()
+    print(f"  {'authored first':<14} {'losses per episode':<24} learned")
     for label in ("good start", "bad start"):
-        today, ceiling, cost = ev[label]
-        print(f"  {label:<14} {'suppress + promote passed-up':<36} {today}")
-        print(f"  {'':<14} {'ceiling (magnitude, hand-authored)':<36} {ceiling}")
+        seq, rows, ep0 = ev[label]
+        print(f"  {label:<14} {str(seq):<24} {rows or 'nothing'}")
     print()
-    built = {}
-    for label, order in (("good start", [HARM_JUG, HARM_VASE]),
-                         ("bad start", [HARM_VASE, HARM_JUG])):
-        eps, seq, rows = [], [], ()
-        for _ in range(4):
-            m, _, lost = harm_episode(order, rows)
-            seq.append(len(lost))
-            eps.append(m)
-            rows = induce(eps, lambda r: len(harm_episode(order, r)[2]))
-        built[label] = (seq, rows)
-        print(f"  {label:<14} {'MAGNITUDE (observed, accumulated)':<36} {seq}")
-        for r in rows:
-            if r.startswith("fact prefer") and "use-" in r:
-                print(f"  {'':<14} {'':<36} {r}")
-    print()
-    good_today, _, _ = ev["good start"]
-    bad_today, _, _ = ev["bad start"]
-    good_built, bad_built = built["good start"][0], built["bad start"][0]
-    gate("without magnitude the agent OSCILLATES -- no notion of how much, so it "
-         "alternates forever", len(set(good_today)) > 1 and len(set(bad_today)) > 1)
-    gate("⭐⭐⭐ with magnitude it CONVERGES from a good start, instead of "
-         "learning its way onto the costlier route",
-         len(set(good_built)) == 1 and good_built[0] == min(good_today))
-    gate("⭐⭐⭐ ...and from a BAD one, paying the expensive route once and "
-         "then staying on the cheaper",
-         bad_built[0] > bad_built[-1] and len(set(bad_built[1:])) == 1)
-    gate("⭐ the lesser evil is preferred BY ITS MARGIN, on the table's own "
-         "non-negative scale -- no negative numeral anywhere",
-         any("prefer(<use-jug>" in r for r in built["bad start"][1]))
-    gate("⚠ exploration still pays for the knowledge: the bad start had to "
-         "take the costly route once to learn what it cost",
-         bad_built[0] == max(bad_built))
-
-    # -- how sure, as a WRAPPER rather than a field ------------------------
-    VENTURE = ["rule <venture> = implies( { +possible(prefer(?r, ?k, ?n)), +exploring },"
-               " { +prefer(?r, ?k, ?n) } )", "fact standing(<venture>)",
-               "fact +exploring"]
-    order = [HARM_VASE, HARM_JUG]
-
-    def play(hedge, extra):
-        eps, seq, rows = [], [], ()
-        for _ in range(4):
-            m, _, lost = harm_episode(order, list(rows) + extra)
-            seq.append(len(lost))
-            eps.append(m)
-            rows = induce(eps, lambda r: len(harm_episode(order, list(r) + extra)[2]),
-                          hedge=hedge)
-        return seq
-
-    plain = play(False, [])
-    shy = play(True, [])
-    venturing = play(True, VENTURE)
-    print()
-    print("  how sure, as a WRAPPER -- `possible(prefer(...))` from a bad start:")
-    print()
-    for lbl, seq in (("unhedged", plain), ("hedged, no explore rule", shy),
-                     ("hedged + <venture>", venturing)):
-        print(f"  {lbl:<28} {seq}")
-    print()
-    gate("⭐⭐⭐ an unsure preference does NOT silently steer: hedged advice "
-         "leaves the agent on what it knows, and it never ventures",
-         len(set(shy)) == 1)
-    gate("⭐⭐⭐ ...and one ordinary corpus rule takes it up again -- so "
-         "explore/exploit is a CLAIM, not machinery",
-         venturing == plain and venturing[-1] < shy[-1])
-    gate("⚠ the hedge is constant-free: `observed` vs `never tried` is a "
-         "distinction the trail makes, not a threshold anybody chose",
-         plain[0] == shy[0] == venturing[0])
+    good, bad = ev["good start"], ev["bad start"]
+    gate("⚠⚠⚠ nothing is learned in either direction -- where both routes "
+         "are ABOUT the same things, no node lifts one and not the other",
+         not good[1] and not bad[1])
+    gate("...so the bad start never improves, and the good one never decays: "
+         "the agent is exactly where authored order put it",
+         len(set(good[0])) == 1 and len(set(bad[0])) == 1 and bad[0][0] > good[0][0])
+    # ⭐ The kill-probe for the refusal. `_salient` is what declines to write the
+    # lesson, and a check that only observed *nothing happened* could not tell
+    # that from a learner that ran and found nothing worth saying.
+    ep0 = bad[2]
+    harmed = {r.node for r, _ in ep0.blame()}
+    choosers = ep0._choosers(harmed)
+    alts = ep0._instead_of(harmed)
+    gate("⭐ and it is a REFUSAL, not a silence: the alternative was found and "
+         "named, and `_salient` declined to key a lesson on it",
+         bool(alts) and all(ep0._salient(r, choosers) is None for r, _ in alts))
+    gate("⚠ the two routes are symmetric in what they are about, which is the "
+         "whole of the reason -- `holds` is required by both",
+         bool(set.intersection(*[ep0._relations_required(c) for c in choosers]
+                               + [ep0._relations_required(alts[0][0])])))
 
     # The COUNT, not only the failures. `0 failing` is the same output whether
     # this ran thirty checks or none -- which is exactly how ten of this file's
@@ -520,51 +657,59 @@ def main() -> int:
     # `291 checks` all along and was the only instrument that could have said so.
     print(f"\n{ran} checks, {failing} failing")
     print("""
-  ⭐⭐⭐ A LEARNED RULE IS A DECISION TREE, and the shape was already here. A
-  `prefer` FACT is a tree of depth zero -- it says *always*, given its key. A
-  `prefer`-concluding RULE says *when*, and its internal nodes are antecedent
-  members. `_priority` SUMS applicable rows, so a set of them is an additive
-  ENSEMBLE natively; and generalising is unconstrained because a preference
-  consequent holds no variables. The tests come off the trail, so the
-  hypothesis space is the corpus's own vocabulary -- no features to engineer.
+  ⭐⭐⭐ A LESSON NAMES A THING, NOT A RULE, and the gain is a kind rather than a
+  degree. `prefer(<use-tap>, water, 3)` was keyed on an identity, one level up
+  from bindings; `attention(sink, 3)` is keyed on what makes that route
+  available. Rename the rule and the attention lesson still saves the jug,
+  while the row it replaced does not merely go stale -- it FAILS TO LOAD,
+  because it refers to a statement that is not there. A corpus of experience
+  could be made unreadable by an edit somewhere else.
 
-  ⚠ ONE TEST-SET, ALL OF IT, and the judgement is which error is recoverable
-  -- forgoing's judgement again. An over-specific condition does not fire and
-  the agent falls back; an over-general one advises confidently where it has
-  never been. What is NOT here is refinement: nothing prunes a test that turns
-  out not to matter, nothing merges two rules, and nothing revisits a tree that
-  stops paying. That is where mutation goes, and it is affordable exactly
-  because a learned rule concludes `prefer` and never `doing` -- a bad
-  candidate costs ticks, not jugs.
+  ⭐⭐⭐ A LEARNED RULE IS STILL A DECISION TREE, and the shape did not depend on
+  what the leaf concluded. A ground `attention` fact is a tree of depth zero --
+  it says *always, this thing*. A rule pruned to its BINDER is depth zero and
+  generic -- *always, whatever plays that part*. Add tests and it says *when*.
+  The tests still come off the trail, so the hypothesis space is still the
+  corpus's own vocabulary, and there are still no features to engineer.
 
-  ⚠⚠⚠ THE LESSER OF TWO EVILS IS UNSAYABLE, and the two open items are ONE.
-  Suppression with no magnitude oscillates; magnitude with no exploration
-  sticks. What is missing is a SECOND QUANTITY, and both scales already exist
-  and are already kept apart on purpose: a cardinal score on the table for
-  *how good*, and a wrapper around the claim for *how sure*. Nothing writes
-  the pair from experience -- and a learner that yields a value together with
-  a spread is exactly the shape of thing that would.
+  ⚠⚠⚠ WHAT A NODE CANNOT SAY, measured rather than conceded. A node separates
+  two routes only when they are ABOUT different things. Where both hold their
+  vessel -- `holds(jug1, kettle)` and `holds(vase, kettle)` -- no node lifts one
+  and not the other, so the lesser of two evils, which `prefer` could state,
+  cannot be stated at all.
 
-  ⚠ WHAT THIS DOES NOT SHOW. The promoted alternative is recommended because it
-  was passed up by something that harmed -- not because it is good. In a world
-  where every route does damage, `learned` recommends none of them, which is
-  right, and it has nothing to offer instead, which is the same gap `blame`
-  has: *how badly* is unsayable while the table's numerals are non-negative.
+  > **Rule-keyed advice can always separate two routes. Node-keyed advice can
+  > separate only routes that are about different things.**
 
-  ⚠ And the signal is one episode deep. Nothing here weighs a route that
-  usually works against one that worked once, because a second `prefer` row for
-  the same rule and key does not accumulate -- restating is not revising (§8).
+  And with it went the arms that stood on it: the magnitude result, the
+  oscillation it repaired, and `possible(prefer(...))` with its `<venture>`
+  rule. `how sure is a WRAPPER, not a field` is untouched as a claim -- `induce`
+  still hedges an unobserved leaf -- but nothing here exercises it any more.
 
-  ⭐⭐ MEASURED (08-13), and it explains something in a different file. Two
-  IDENTICAL rows are one proposition, so `3 and 3` scores 3; two DISTINCT rows
-  sum, so `3 and 4` scores 7 and outweighs a single 5. Both are checks now. That
-  is also the real reason `forest` failed: its verdict was `summation is not
-  voting`, and the sharper statement is
+  ⚠⚠⚠ CREDIT WAS LOAD-BEARING, AND NOT WHERE IT LOOKED. Recommending the rules
+  that HELPED reads like decoration beside regret, and dropping it changes no
+  single run here. What it was quietly doing was RE-WRITING the lesson every
+  round: episode 2 took the tap, the tap was on the support of the outcome, so
+  the row came back without anyone regretting anything. Take credit away and
 
-  > An ensemble's agreement is invisible and only its disagreement adds.
+  > **a lesson learned from regret is written once**, and an episode that goes
+  > well has nothing to say at all.
 
-  So this note and that verdict were the same fact, filed as a known limitation
-  in one file and as an unexplained failure in the other.""")
+  So the carry has to accumulate, which is what a corpus of experience always
+  claimed to be. The control is in the run above: keep only the last episode's
+  rows and the third smashes the jug again.
+
+  ⚠ AN ENSEMBLE STILL DOES NOT PAY, through a different mechanism. The old
+  reason was that `_priority` SUMS and summation is not voting. Attention takes
+  the stronger, not the sum -- and fails one step deeper, because attending is
+  MONOTONE: one over-general leaf attends the tap where two others would not,
+  and there is no sentence for *not this one, here*. `unattend` clears the whole
+  queue. A forest still needs something that can DEFEAT.
+
+  ⚠ AND THE SIGNAL IS STILL ONE EPISODE DEEP. Nothing here weighs a route that
+  usually works against one that worked once. The weight on an `attention` claim
+  is now a place to put that -- `attention(x, n)` carries its evidence count the
+  way `attend(?x, n)` always has -- and nothing yet accumulates into it.""")
     return 1 if failing else 0
 
 

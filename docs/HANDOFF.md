@@ -1,3 +1,154 @@
+# Handoff — 2026-08-20n (learning and practice, rewritten onto attention)
+
+On top of `a3b5474`. The open decision of 20m, taken: **option 1**.
+
+    selftest         649/0  (was 645; 4 added)
+    ugm.learning     34/0   (was 31)
+    ugm.practice     21/0   (unchanged count, different world)
+    ./tools_sweep.sh 1 failing -- `vocabulary`, the pre-existing 18/2
+
+## What a lesson is now
+
+    fact +attention(sink, 3)                     depth 0, and GROUND
+    { +tap(?v0) } => +attention(?v0, 3)          depth 0, generic
+    { +precious(?v1), +tap(?v0) } => ...         depth 1, and so on
+
+`Machine._salient` is the whole of what it took: the thing the passed-up route
+is ABOUT and the route that harmed is not. It is a set difference over
+antecedent relations and needs no new bookkeeping —
+
+    <use-tap>   goal, tap, under
+    <use-jug>   goal, jug, holds
+    ------------------------------
+    sink        spoken of under `tap` and `under`, and nothing the jug route
+                requires
+
+`_instead_of`, `_circumstances`, `refine`, `induce`, `leaves` and `forest` are
+otherwise unchanged: nothing about how a lesson is FOUND changed, only what it
+is written in. The decision-tree story reproduces whole, with a better optimum
+(refined total 1, against 2 for the unconditional row and 4 for no experience).
+
+## ⭐⭐⭐ The gain is a KIND, not a degree
+
+Rename `<use-tap>` in the world a lesson is carried into:
+
+    carried forward        emitted          jug      loaded
+    nothing                smash(jug1)      broken   yes
+    attention lesson       fill(kettle)     intact   yes
+    prefer row             -                -        no statement named <use-tap>
+
+The row it replaces does not go quietly stale. **It fails to load**, because it
+refers to a statement that is not there — a corpus of experience made unreadable
+by an edit somewhere else. That is the argument for the whole thread in one run.
+
+## ⚠⚠⚠ And the price, measured rather than conceded
+
+> **Rule-keyed advice can always separate two routes. Node-keyed advice can
+> separate only routes that are ABOUT different things.**
+
+`lesser_of_two_evils` is gone as a positive result. Its world has two damaging
+routes and they are symmetric — `<use-vase>` wants `goal, holds, vase`,
+`<use-jug>` wants `goal, holds, jug` — so `jug1`, spoken of under `holds` too,
+lifts BOTH and the walk decides as it always did. There is no other node to try;
+the vessel is the only thing either rule is about.
+
+⚠⚠⚠ **The first version of `_salient` scored candidates by a PROXY** — fewest of
+the harmed route's relations — and took the best available. It named `jug1`,
+wrote a well-formed lesson, loaded it without complaint, and moved nothing.
+Advice that cannot be obeyed is indistinguishable from advice that works until
+you run it. `_salient` now tests the LIFT ITSELF and returns nothing, so the
+limit is a refusal rather than a bug.
+
+What went with it: the magnitude result, the oscillation it repaired, and
+`possible(prefer(...))` with `<venture>`. `how sure is a WRAPPER` is untouched as
+a claim — `induce` still hedges an unobserved leaf — but nothing exercises it.
+
+## ⚠⚠⚠ CREDIT WAS LOAD-BEARING, and not where it looked
+
+`learned` also recommended the rules that HELPED. A rule that helped is a rule,
+so there is no node-keyed sentence for it and those rows are gone. Dropping them
+changes no single run — measured, with the old rows added back by hand.
+
+What credit was quietly doing was **re-writing the lesson every round**. Episode
+2 took the tap, the tap was on the support of the outcome, so
+`prefer(<use-tap>, water, 3)` came back without anyone regretting anything.
+
+> **A lesson learned from regret is written once**, and an episode that goes
+> well has nothing to say at all.
+
+So the carry has to ACCUMULATE, which is what a corpus of experience always
+claimed to be. `run(keep=False)` is the control and is the code as it stood:
+episode 2 is fine, episode 3 smashes the jug again.
+
+## The bagging verdict survives and its REASON does not
+
+Old: `_priority` SUMS, and summation is not voting. Attention does not sum —
+`_pull` and `_attention_weights` both take the stronger. It still loses (bag 2,
+one tree 1) one step deeper: **attending is MONOTONE.** One over-general leaf
+attends the tap in B and the two that decline cannot take it back, because there
+is no sentence for *not this one, here*; `unattend` clears the whole queue.
+
+## One small engine addition
+
+`attention(x, n)` — a claimed attention may carry its evidence count, exactly as
+the `attend(?x, n)` postcondition always has. Three read sites, one reader
+(`_claimed_attention`), unary still means 1, no corpus changes. It is where a
+learner's magnitude would go, and nothing accumulates into it yet.
+
+## `ugm.practice` moved worlds, and lost a claim
+
+Its world WAS the vase world, so its engine was gone. It now runs on the tap/jug
+world minus the authored goal, and everything structural survives untouched:
+the proposer, containment (nothing leaves the agent), forgoing inside a frame,
+the nesting result and both authoring orders, the mute-world gate.
+
+⚠⚠⚠ What did not survive: *exploration and oscillation are the same behaviour,
+and which one it is depends only on where the agent is standing.* That needed a
+lesson that could separate two routes about the same things. **The finding is
+not refuted; it is unsayable**, which is a different thing and is recorded as
+one. What is left is the smaller claim that survives: regret paid for in ticks
+instead of in jugs, and the practised agent gets it right the first time.
+
+⭐ The mute-world gate got sharper on the way. It read `len(mute_lost) >=
+len(naive_lost)`, and in the new world the mute world has nothing to lose — so
+it would have reported *an agent that lost nothing*. It now carries what the mute
+rehearsal learned into a world that CAN state the cost, and the jug breaks.
+
+## Two checks that had stopped being able to fail
+
+Found while updating, not looked for:
+
+    selftest  `a second episode reads it back and reaches the same conclusion`
+              ran against a world that reached it with or without the rows
+    selftest  `an_episode_teaches_the_next_one` computed ep2, fresh and taught
+              and asserted NOTHING about any of them
+
+Both now have to change an outcome to pass.
+
+## Standing lessons
+
+**Never sweep over a mid-edit tree.** `./tools_sweep.sh` reported `shapes` and
+`state` red during this session; both were green before and after. They had
+imported a `learning.py` that was momentarily unparseable. Same family as *never
+bisect over a dirty tree* — the instrument was fine and the tree was not.
+
+**A proxy for a mechanism is not the mechanism.** `_salient`'s first version
+asked a question that resembled the lift instead of asking the lift. The output
+was well-formed and wrong, which is the expensive kind.
+
+## Next
+
+The retirement itself, which 20m has costed and which is now unblocked: delete
+the `prefer` lift block in `attention.run`, delete `<relevant>` from
+`bundle.ugm`, fix `the_better_move_wins` and the *names everything* check, and
+update the recorded numbers in `walkers` and `attention` that a bundle-rank shift
+moves. Then the buffs, which is the larger half and untouched.
+
+⚠ `learning.a_lesson_outlives_its_rule` loads a `prefer` row on purpose. It
+survives retirement — the ParseError it gates on comes from `<use-tap>` being
+undeclared, not from `prefer` being unknown — but `credit_costs_nothing_here`
+would then pass for a trivial reason, and should be re-read when the buffs go.
+
 # Handoff — 2026-08-20m (retiring `prefer` and the buffs: the plan, measured)
 
 `main` is at `12fbfc7 subtract`, **645/0**, `./tools_sweep.sh` clean but for the

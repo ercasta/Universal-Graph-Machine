@@ -16,7 +16,7 @@ the learning is not.
 import inspect
 import heapq
 import os
-from typing import Iterable, List, NamedTuple, Optional, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 from .chain import MINUS, PLUS, UNSURE, Chain, Entry, Locus, Moment, scope_of
 from .channels import Arrival, Channels
@@ -3651,12 +3651,9 @@ class Machine:
         # writing `fact +attention(goblin1)` has said something lasting rather
         # than something recent, so it ranks below whatever the agent was just
         # doing -- and it is not lost.
-        for node in self.g.instances_of(self.ATTENTION):
-            members = self.g.members(node)
-            if len(members) != 1 or self.g.has_var(members[0]):
-                continue
-            if self._claims(node) and members[0] not in out:
-                out.append(members[0])
+        for node, _weight in self._claimed_attention():
+            if node not in out:
+                out.append(node)
         return out
 
     def _attention_asked(self) -> List[NodeId]:
@@ -3672,22 +3669,60 @@ class Machine:
         ⚠ Ordered by the QUEUE where a claim is in it, so a claim just made
         outranks one standing since the corpus loaded.
         """
-        claimed = set()
-        for node in self.g.instances_of(self.ATTENTION):
-            members = self.g.members(node)
-            if len(members) != 1 or self.g.has_var(members[0]):
-                continue
-            if self._claims(node):
-                claimed.add(members[0])
+        claimed = {n for n, _w in self._claimed_attention()}
         out = [n for n, _w in self._attention if n in claimed]
         for n in claimed:
             if n not in out:
                 out.append(n)
         return out
 
+    def _claimed_attention(self) -> List[Tuple[NodeId, int]]:
+        """Every standing `attention` claim, as `(node, weight)`, in graph order.
+
+        ⭐⭐⭐ **A claimed attention may carry its evidence count, exactly as a
+        spent one does.** `attend(?x, n)` has said *how much* since attention
+        was built; `attention(x)` could only ever say *at all*, so a lesson
+        written from experience had nowhere to put the one quantity experience
+        produces -- how much the route it is about turned out to cost. The
+        binary form is the same sentence with the same second member, and the
+        unary form still means weight 1, so no corpus changes.
+
+        ⚠ A weight that is not a numeral is ignored rather than refused: a
+        numeral is an atom whose name reads as a number, and `attention(x, soon)`
+        is a claim about something else that this read has no business failing
+        on. Same policy as `_priority`.
+
+        ⚠ Ground only. `attention(?x)` is a rule that has not matched yet, not
+        a claim about anything, and lifting on it would lift everything.
+        """
+        out: List[Tuple[NodeId, int]] = []
+        for node in self.g.instances_of(self.ATTENTION):
+            members = self.g.members(node)
+            if not 1 <= len(members) <= 2 or self.g.has_var(members[0]):
+                continue
+            if not self._claims(node):
+                continue
+            weight = 1
+            if len(members) == 2:
+                name = self.g.show(members[1])
+                if name.isdigit():
+                    weight = max(1, int(name))
+            out.append((members[0], weight))
+        return out
+
     def _attention_weights(self) -> dict:
-        """Node -> the multiplier a learned buff put on it, for the lift."""
-        return {n: w for n, w in self._attention}
+        """Node -> the multiplier a lesson put on it, for the lift.
+
+        ⚠ The STRONGER of the two, never the sum. A node both spent and
+        claimed is not twice as salient, and adding them would make the weight a
+        popularity count -- the same judgement `_pull` makes about a rule
+        reachable from two attended nodes.
+        """
+        out = {n: w for n, w in self._attention}
+        for node, weight in self._claimed_attention():
+            if weight > out.get(node, 0):
+                out[node] = weight
+        return out
 
     def _claims(self, proposition: NodeId) -> bool:
         e = self.chain.resolve(proposition, self.focus.topic, self.focus.seat)
@@ -5246,61 +5281,43 @@ class Machine:
         and arguable** rather than a weight somewhere. That is not decoration:
         §19 puts experience in recall precisely because being wrong there is
         recoverable, and it is only recoverable if it can be found and denied.
+
+        ⭐⭐⭐ **What is written is a claim about a NODE.** A lesson used to say
+        `prefer(<use-tap>, water, 3)`, which names a rule, and a rule id is
+        stale the moment that rule is adopted, composed or renamed -- keyed on
+        an identity, one level up from bindings. `attention(sink, 3)` names the
+        thing in the world whose presence is what made the passed-up route
+        available, and `_salient` is what works out which thing that is.
+
+        Three depths, and they are the same tree they always were:
+
+            fact +attention(sink, 3)                     depth 0, and GROUND
+            { +tap(?v0) } => +attention(?v0, 3)          depth 0, generic
+            { +precious(?v1), +tap(?v0) } => ...         depth 1, and so on
+
+        The first is what this method returns; the rest are `conditional=True`
+        and `refine`. Measured on §19's three-situation world, the ground row
+        fixes the world it learned in and is WRONG in the next one, exactly as
+        the unconditional `prefer` row was -- the defect was never the score, it
+        was the depth.
+
+        ⚠ **Credit is not written any more, and that is a loss, stated.** The
+        old method also recommended the rules that HELPED (`prefer(<squeeze>,
+        juice, 3)`), and a rule that helped is a rule, not a node: there is no
+        node-keyed sentence that says it. Measured on this world it cost
+        nothing, because the credited rules had no rivals to be lifted over --
+        which is the honest reason to let it go, and not an argument that credit
+        is unsayable in general. §21.
         """
-        # The one policy in this method, stated rather than buried: a rule that
-        # cost the agent something is not recommended, however well it served the
-        # goal it was serving. Without this the signal actively misleads --
-        # measured, before subgoals were used: the rule that smashed a jug to get
-        # water was ON the support of the water, so credit recommended it.
-        #
-        # Suppression rather than a negative score, because the table's numerals
-        # are non-negative (a numeral is an atom whose name reads as a number, and
-        # `-3` does not). §21 records that; *how badly* is not sayable yet, only
-        # *at all*.
-        harmed = {rule.node for rule, _ in self.blame()}
         rows: List[str] = []
-        seen = set()
-
-        tools = {a.node for a in self.answerers}
-
-        def row(rule, key: NodeId) -> None:
-            if rule.name is None or rule.node in harmed or (rule.node, key) in seen:
-                return
-            # ⚠ Tools are credited and blamed -- `_statements` puts them on the
-            # walk deliberately -- but not RECOMMENDED, because a `prefer` row is
-            # read by recall and recall proposes rules. A row naming a tool would
-            # be inert: it would cost nothing, break nothing, and look exactly
-            # like a row that works, which is the failure mode `ugm.bundle`
-            # exists to catch. *Which tool to consult when* is a real question
-            # and a different mechanism; §21.
-            if rule.node in tools:
-                return
-            seen.add((rule.node, key))
-            rows.append(f"fact prefer(<{rule.name}>, {self.g.show(key)}, {score})")
-
-        for rule, key in self.review():
-            row(rule, key)
-        # ⭐ The conditional form: a learned rule instead of a learned fact, which
-        # is the whole of what "generalisation" turns out to mean here.
-        #
-        # A `prefer` FACT is a decision tree of depth ZERO -- it says *always*,
-        # given its key. A `prefer`-concluding RULE says *when*. That is not an
-        # analogy: a tree's root-to-leaf path IS a rule, its internal nodes are
-        # antecedent members, and `<relevant>` has shipped in exactly this shape
-        # since §13. What is more, `_priority` SUMS applicable rows, so a set of
-        # such rules is already an **additive ensemble** -- nobody designed that
-        # as one; it falls out of *applicable rows sum*.
-        #
-        # ⚠ `standing` is not decoration and the fixture found it: unmarked, a
-        # preference rule mentions `goal(?w)`, so forgoing reads it as a rival way
-        # of getting the same want and passes it up before it can advise
-        # (measured: `forgone(<t1>)` deposited, priority 0). Marked, it advises
-        # (priority 7). §16's *being careful has to come before the move it is
-        # about*, arriving from a third side.
+        harmed = {rule.node for rule, _ in self.blame()}
         if conditional:
-            tests = self._circumstances(self._choosers(harmed))
-            if tests:
-                return self._advice_rows(tests, harmed, score, rows)
+            # ⭐ The conditional form: a learned RULE instead of a learned fact,
+            # which is the whole of what "generalisation" turns out to mean here.
+            # A tree's root-to-leaf path IS a rule and its internal nodes are
+            # antecedent members; what the leaf concludes is now attention.
+            return self._advice_rows(
+                self._circumstances(self._choosers(harmed)), harmed, score)
         # ...and the half that suppression cannot supply. Measured: an episode
         # that smashed a jug for water blamed the smasher, dropped it from these
         # rows, and **smashed the jug again**, because omitting a rule leaves it
@@ -5308,9 +5325,38 @@ class Machine:
         #
         # > **Suppression is not a decision.** It can say *do not recommend this*.
         # > It cannot say *do that instead*, and only the second changes a run.
-        for rule, key in self._instead_of(harmed):
-            row(rule, key)
+        seen = set()
+        for _rule, _binder, node, _key in self._regretted(harmed):
+            if node in seen:
+                continue
+            seen.add(node)
+            rows.append(f"fact +attention({self.g.show(node)}, {score})")
         return rows
+
+    def _regretted(self, harmed: set) -> List[Tuple[Rule, NodeId, NodeId, NodeId]]:
+        """The passed-up alternatives, each with the node its lesson names.
+
+        `(rule, binder, node, key)` -- the forgone rule, a held proposition that
+        speaks of the salient node, that node, and the want it served. The rule
+        is carried for identity and measurement only; **nothing written from
+        this mentions it**, which is the point of the rewrite.
+
+        ⚠ Tools are blamed and credited -- `_statements` puts them on the walk
+        deliberately -- but never promoted. A lesson naming a tool would cost
+        nothing, break nothing, and look exactly like one that works, which is
+        the failure mode `ugm.bundle` exists to catch.
+        """
+        tools = {a.node for a in self.answerers}
+        choosers = self._choosers(harmed)
+        out: List[Tuple[Rule, NodeId, NodeId, NodeId]] = []
+        for rule, key in self._instead_of(harmed):
+            if rule.name is None or rule.node in tools:
+                continue
+            found = self._salient(rule, choosers)
+            if found is None:
+                continue
+            out.append((rule, found[0], found[1], key))
+        return out
 
     def _circumstances(self, choosers: List[Rule]) -> List[NodeId]:
         """*What about this situation made that the wrong move?*
@@ -5371,7 +5417,99 @@ class Machine:
                     out.append(p)
         return out
 
-    def _generalise(self, propositions: List[NodeId]) -> List[str]:
+    def _relations_required(self, rule: "Rule") -> set:
+        """The relations a rule's antecedent names, ignoring the generic ones.
+
+        The same read `attention._by_relation` does on the rule side of the
+        lift, and for the same reason: a member that is a bare variable, or
+        whose relation is a variable, is about anything, so it distinguishes
+        nothing.
+        """
+        out = set()
+        for m in rule.antecedent:
+            if self.g.is_var(m.pattern):
+                continue
+            rel = self.g.relation_of(m.pattern)
+            if rel is not None and not self.g.is_var(rel):
+                out.add(rel)
+        return out
+
+    def _salient(self, alt: "Rule", choosers: List["Rule"]
+                 ) -> Optional[Tuple[NodeId, NodeId]]:
+        """What the passed-up route is ABOUT and the route that harmed is not.
+
+        ⭐⭐⭐ **This is the whole of what it takes to key a lesson on a NODE
+        instead of on a rule**, and it needs no new bookkeeping. `_instead_of`
+        already names the rule that was forgone; a rule id is exactly what goes
+        stale when rules are adopted, composed or renamed, which is why `prefer`
+        is going. But the two routes agree about the GOAL and disagree about
+        what else must hold, and that disagreement is a set difference over
+        antecedent relations:
+
+            <use-tap>   goal, tap, under
+            <use-jug>   goal, jug, holds
+            ----------------------------
+            sink        spoken of under `tap` and `under` -- and nothing the
+                        jug route requires
+
+        So the lesson is *attend to the tap*, and it transfers to a kettle the
+        agent was never told about because a tap is what it names.
+
+        ⚠⚠⚠ **The test is the LIFT ITSELF, and it has to be, because a
+        proxy for it wrote a lesson that could not work.** Attention lifts a
+        rule when the attended node is spoken of under a relation that rule's
+        antecedent names (`attention._pull`), so *does this node separate the
+        two routes* is answerable exactly: lift the alternative, lift neither
+        chooser. An earlier version scored candidates by *fewest of the harmed
+        route's relations* and took the best available -- which in the vase
+        world named `jug1`, a node both routes speak of under `holds`. The
+        lesson was written, was well-formed, loaded, and moved nothing.
+
+        ⚠⚠⚠ **So this returns None, and a whole arm of §19 goes with it.**
+        Where two routes are about the SAME things -- `holds(jug1, kettle)` and
+        `holds(vase, kettle)`, differing only in which vessel -- there is no
+        node that lifts one and not the other, and no attention lesson exists to
+        be found. `prefer` names a rule and so could always separate them. That
+        is the price of keying on nodes, it is not recoverable by trying harder
+        here, and `ugm.learning` measures it rather than this docstring merely
+        asserting it.
+
+        ⚠ Ordered, never a set: the smaller proposition first, then the order
+        the state was walked in. §3 -- a derived result does not come out of a
+        hash.
+        """
+        mine = self._relations_required(alt)
+        theirs = [self._relations_required(c) for c in choosers]
+        if not mine:
+            return None
+        held: List[NodeId] = []
+        spoken: Dict[NodeId, set] = {}
+        for s in current_state(self.chain, self.focus.topic, self.focus.seat):
+            p = s.proposition
+            rel = self.g.relation_of(p)
+            if s.sign != PLUS or rel is None or self.g.has_var(p):
+                continue
+            held.append(p)
+            for x in self.g.members(p):
+                spoken.setdefault(x, set()).add(rel)
+        best = None
+        for i, p in enumerate(held):
+            for x in self.g.members(p):
+                # A node spoken OF, not a structure spoken of it: `sink`, never
+                # `water(kettle)`. Attention ranks bindings, and a binding is a
+                # node.
+                if self.g.relation_of(x) is not None:
+                    continue
+                under = spoken.get(x, set())
+                if not (under & mine) or any(under & t for t in theirs):
+                    continue
+                key = (len(self.g.members(p)), i)
+                if best is None or key < best[0]:
+                    best = (key, p, x)
+        return None if best is None else (best[1], best[2])
+
+    def _generalise(self, propositions: List[NodeId],
+                    names: Optional[dict] = None) -> List[str]:
         """Render ground propositions as one generic antecedent.
 
         Every constant becomes a variable, **shared across the conjunction** so
@@ -5384,8 +5522,15 @@ class Machine:
         contains **no variables at all**, so the loader's rule that a consequent
         variable must be bound by the antecedent is satisfied by everything. A
         learned rule that concluded about the world would not have that freedom.
+
+        ⚠ `names` is an OUT parameter, and it is not a convenience. An
+        attention lesson concludes ABOUT A NODE -- `+attention(?v0)` -- so its
+        consequent variable has to be the one this method happened to assign to
+        that node, and a caller that guessed would be writing a rule whose
+        conclusion is unbound. Handing the map back is what keeps the naming in
+        one place.
         """
-        names: dict = {}
+        names = {} if names is None else names
 
         def render(n: NodeId) -> str:
             rel = self.g.relation_of(n)
@@ -5399,26 +5544,42 @@ class Machine:
         return ["+" + render(n) for n in propositions]
 
     def _advice_rows(self, tests: List[NodeId], harmed: set, score: int,
-                     rows: List[str]) -> List[str]:
-        """One learned rule per promoted alternative, plus its `standing` line."""
-        antecedent = ", ".join(self._generalise(tests)) if tests else ""
-        out = list(rows)
-        tools = {a.node for a in self.answerers}
-        for rule, key in self._instead_of(harmed):
-            if rule.name is None or rule.node in tools:
+                     rows: Optional[List[str]] = None) -> List[str]:
+        """One learned rule per promoted alternative, plus its `standing` line.
+
+        ⭐⭐⭐ **The BINDER is always in the antecedent, and it is what makes
+        an attention lesson generalise at all.** A rule may only conclude about
+        a variable its antecedent binds, and this one concludes `+attention(?v)`
+        -- so the salient node has to be named in a member. `tap(?v0)` is that
+        member, and pruning may take every test away but never it. Pruned to
+        nothing else, the lesson reads *whatever plays the tap's part here, that
+        is what to think about*, which transfers to a kettle the agent was never
+        told about.
+
+        ⚠ The name carries no rule id: `<learned-water-tap>` is the want and
+        the binder's relation. That is the whole reason for the rewrite, and a
+        name is the easiest place to leak the thing you just removed.
+
+        ⚠ `standing` for the same reason it was needed before -- a learned rule
+        whose tests mention `goal(?w)` is otherwise read by forgoing as a rival
+        way of getting the same want, and passed up before it can advise.
+        """
+        out = list(rows or [])
+        seen = set()
+        for _rule, binder, node, key in self._regretted(harmed):
+            names: dict = {}
+            members = self._generalise(list(tests) + [binder], names)
+            var = names.get(node)
+            if var is None:
                 continue
-            name = f"learned-{rule.name}-{self.g.show(key)}"
-            consequent = f"+prefer(<{rule.name}>, {self.g.show(key)}, {score})"
-            if antecedent:
-                out.append(f"rule <{name}> = implies( {{ {antecedent} }},"
-                           f" {{ {consequent} }} )")
-                out.append(f"fact standing(<{name}>)")
-            else:
-                # No tests left: the tree has been pruned to depth zero, which is
-                # an unconditional row again -- and saying so in the same
-                # vocabulary is what makes *how deep should this be* a measurable
-                # question rather than a choice made once at the top.
-                out.append(f"fact prefer(<{rule.name}>, {self.g.show(key)}, {score})")
+            rel = self.g.relation_of(binder)
+            name = f"learned-{self.g.show(key)}-{self.g.show(rel)}"
+            if name in seen:
+                continue
+            seen.add(name)
+            out.append(f"rule <{name}> = implies( {{ {', '.join(members)} }},"
+                       f" {{ +attention({var}, {score}) }} )")
+            out.append(f"fact standing(<{name}>)")
         return out
 
     def refine(self, cost, score: int = 3) -> List[str]:
@@ -5449,19 +5610,9 @@ class Machine:
         """
         harmed = {rule.node for rule, _ in self.blame()}
         tests = self._circumstances(self._choosers(harmed))
-        base = [r for r, k in self.review()]
 
         def rows_for(keep: List[NodeId]) -> List[str]:
-            plain: List[str] = []
-            seen = set()
-            tools = {a.node for a in self.answerers}
-            for rule, key in self.review():
-                if (rule.name is None or rule.node in harmed
-                        or rule.node in tools or (rule.node, key) in seen):
-                    continue
-                seen.add((rule.node, key))
-                plain.append(f"fact prefer(<{rule.name}>, {self.g.show(key)}, {score})")
-            return self._advice_rows(keep, harmed, score, plain)
+            return self._advice_rows(keep, harmed, score)
 
         # ⚠⚠⚠ STEEPEST descent, not first-improvement, and the difference is not
         # a refinement of a refinement -- it decides whether this works at all.
@@ -5846,11 +5997,20 @@ def leaves(episode) -> List[Tuple[str, str, Tuple[str, ...]]]:
     boundary is corpus text, exactly as `learned` already had it.
     """
     harmed = {r.node for r, _ in episode.blame()}
-    tests = tuple(episode._generalise(episode._circumstances(episode._choosers(harmed))))
+    tests = episode._circumstances(episode._choosers(harmed))
     out = []
-    for rule, key in episode._instead_of(harmed):
-        if rule.name is not None:
-            out.append((rule.name, episode.g.show(key), tests))
+    for rule, binder, node, key in episode._regretted(harmed):
+        # ⚠ Rendered TOGETHER, never separately. The tests and the binder share
+        # variables wherever they share a constant, and that join is what makes
+        # a leaf a claim about a kind of situation rather than a longer way of
+        # naming this one -- `precious(?v0), completes(?v0, ?v1), tap(?v2)`.
+        names: dict = {}
+        members = episode._generalise(list(tests) + [binder], names)
+        var = names.get(node)
+        if var is None:
+            continue
+        out.append((rule.name, episode.g.show(key), tuple(members[:-1]),
+                    members[-1], var))
     return out
 
 
@@ -5906,14 +6066,14 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
 
     seen, cand = set(), []
     for ep in episodes:
-        for name, key, tests in leaves(ep):
-            k = (name, key, tests)
+        for name, key, tests, binder, var in leaves(ep):
+            k = (name, key, tests, binder, var)
             if k not in seen:
                 seen.add(k)
-                cand.append([name, key, list(tests)])
+                cand.append([name, key, list(tests), binder, var])
 
-    def advice(name: str, key: str) -> str:
-        """`prefer(...)`, or `possible(prefer(...))` when nothing was observed.
+    def advice(name: str, var: str) -> str:
+        """`attention(?v, n)`, or `possible(...)` when nothing was observed.
 
         ⭐⭐⭐ **How sure is a WRAPPER, not a field**, and this was the argument
         that eventually deleted grades outright. §21's item 5 was that a grade
@@ -5934,29 +6094,30 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
         threshold anybody chose. A route the agent has taken is asserted; one it
         has only reasoned about is hedged.
         """
-        bare = f"prefer(<{name}>, {key}, {weight(name)})"
+        bare = f"attention({var}, {weight(name)})"
         return bare if (name in observed or not hedge) else f"possible({bare})"
 
     def rows_for(tree) -> List[str]:
         out = []
-        for i, (name, key, tests) in enumerate(tree):
-            if tests:
-                rn = f"learned-{i}-{name}-{key}"
-                out.append(f"rule <{rn}> = implies( {{ {', '.join(tests)} }},"
-                           f" {{ +{advice(name, key)} }} )")
-                out.append(f"fact standing(<{rn}>)")
-            else:
-                out.append(f"fact +{advice(name, key)}")
+        for i, (name, key, tests, binder, var) in enumerate(tree):
+            # ⚠ The BINDER survives every prune. A leaf may lose every test and
+            # still be a rule, because the node it advises attending has to be
+            # bound by something -- and a leaf pruned to its binder alone is the
+            # generic depth-0 lesson, *whatever plays that part, think about it*.
+            rn = f"learned-{i}-{key}-{binder.split('(')[0].lstrip('+')}"
+            out.append(f"rule <{rn}> = implies( {{ {', '.join(list(tests) + [binder])} }},"
+                       f" {{ +{advice(name, var)} }} )")
+            out.append(f"fact standing(<{rn}>)")
         return out
 
-    # Every route observed to harm gets a row too, not only the ones some episode
-    # proposed -- otherwise the LESSER of two evils is unsayable, because the
-    # route that merely cost less was never anybody's regretted alternative.
-    for name in observed:
-        for _, key, _ in cand:
-            if not any(c[0] == name and c[1] == key for c in cand):
-                cand.append([name, key, []])
-            break
+    # ⭐ **The synthetic row for an unproposed route is GONE, and nothing
+    # replaced it.** It existed because a `prefer` row could be written for any
+    # rule from its name alone, so the lesser of two evils could be stated about
+    # a route nobody regretted. An attention lesson cannot be written that way:
+    # it names a node, and which node is salient is a question about an episode
+    # that actually faced the choice. It turns out not to be needed -- the
+    # oscillation tries both routes, so both leaves arrive on their own by the
+    # second episode. Measured; see `ugm.learning`.
 
     tree = cand
     best = cost(rows_for(tree))

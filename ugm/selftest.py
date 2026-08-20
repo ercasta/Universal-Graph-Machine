@@ -3005,25 +3005,44 @@ def experience_is_offline() -> None:
           not Machine().review())
 
     # What is deposited is a fact about the trail; what it is worth is a claim,
-    # so the row an agent takes forward is ordinary readable corpus text.
-    rows = m.learned()
+    # so what an agent takes forward is ordinary readable corpus text.
+    #
+    # ⚠⚠⚠ **This world cannot supply a lesson any more, and that is the
+    # rewrite showing rather than a fixture going stale.** A lesson is written
+    # from REGRET and names a NODE; nothing here is regretted, and `<boil>` and
+    # `<pour>`, credited above, are rules. Credit had no node-keyed sentence and
+    # is no longer written -- so the check moves to the world that has a choice
+    # with a cost in it, and this one keeps only the claim it can still make.
+    check("§19", "an episode with nothing to regret writes nothing -- credit alone "
+          "is not a lesson once a lesson has to name a thing rather than a rule",
+          m.learned() == [])
+
+    from .learning import Episode as _Ep, world as _world
+    ep = _Ep(_world(jug_first=True))
+    rows = ep.rows
     check("§19", "what it learned is a corpus, not a weight: readable, editable, and "
           "deniable, which is the only way being wrong in recall stays recoverable",
-          any(r.startswith("fact prefer(<boil>, boiling,") for r in rows))
-
-    # The key is the goal's RELATION, and that is the whole of what transfers.
-    m2 = Machine()
-    kb2 = load(m2, kettle + chr(10).join(rows) + chr(10))
-    m2.recall_budget = 3
-    m2.run(limit=2000)
-    check("§19", "a second episode reads it back and reaches the same conclusion",
-          m2.holds(kb2.term("boiling(kettle)")) == PLUS)
-    # The key is the whole of what transfers, so it is checked as a property of
-    # the row rather than inferred from a run that would have succeeded anyway.
-    check("§19", "and the key GENERALISES: every row is keyed on a relation, so what "
-          "the agent learned about `boiling(kettle)` is available for `boiling(pot)`",
-          rows and all("(<" in r and ", " in r for r in rows)
-          and not any("(" in r.split(", ")[1] for r in rows))
+          rows == ["fact +attention(sink, 3)"])
+    # ⚠ This USED to read `a second episode reads it back and reaches the same
+    # conclusion` against the kettle world, where the conclusion was reached
+    # with or without the rows -- a check that could not fail. Read back here it
+    # has to change an outcome to pass.
+    again = _Ep(_world(jug_first=True) + chr(10).join(rows) + chr(10))
+    check("§19", "a second episode reads it back and the run comes out differently "
+          "-- the jug it smashed the first time survives",
+          ep.harmed and not again.harmed)
+    # ⭐ What transfers is a PART, not a thing. Pruned to its binder the lesson
+    # reads *whatever plays the tap's part here* -- so it is checked on a world
+    # built out of different objects rather than on a rerun that would have
+    # succeeded anyway.
+    generic = ep.m.learned(conditional=True)
+    fresh = _Ep(_world("pot", "jug2", jug_first=True), "pot", "jug2")
+    taught = _Ep(_world("pot", "jug2", jug_first=True)
+                 + chr(10).join(generic) + chr(10), "pot", "jug2")
+    check("§19", "and the lesson GENERALISES: a rule keyed on what plays the tap's "
+          "part saves a jug in a world of objects it was never told about",
+          fresh.harmed and not taught.harmed
+          and any("+attention(?" in r for r in generic))
     # ⚠⚠⚠ **The second half of this check is DELETED with the option-set loop.**
     # It measured `_choose`'s recall budget -- how a narrowed shortlist ranked
     # the apparatus -- by spying on a method the table loop does not call, using
@@ -6257,17 +6276,27 @@ def an_episode_teaches_the_next_one() -> None:
           "smashed the jug it also needed", ep1.harmed)
     check("§19", "and the loss is attributed to the DECISION, not the physics",
           "use-jug" in ep1.blamed)
+    # ⭐⭐⭐ **And it names the THING, not the rule.** `<use-tap>` was the
+    # alternative; `sink` is what makes it available. A lesson keyed on the rule
+    # goes stale the moment that rule is adopted, composed or renamed -- keyed
+    # on an identity, one level up from bindings -- and a lesson keyed on what
+    # is salient transfers to a rule authored afterwards.
     check("§19", "what it carries forward names the alternative it passed up -- "
           "blame alone could only suppress the rule that did the damage",
-          any("<use-tap>" in r for r in ep1.rows)
-          and not any("<use-jug>" in r for r in ep1.rows))
+          any("attention(sink" in r for r in ep1.rows))
+    check("§19", "...and it names it by what it is ABOUT, so no rule id appears in "
+          "anything an episode writes down",
+          ep1.rows and not any("<" in r for r in ep1.rows))
 
+    # ⚠ These three were computed and never checked -- the fixture ran the
+    # transfer and asserted nothing about it. Reading them is the whole point.
     ep2 = Episode(world(jug_first=True) + chr(10).join(ep1.rows) + chr(10))
-
-    # The key is a relation, so what it learned is not a cache of this episode.
+    check("§19", "the taught episode does not repeat the damage", not ep2.harmed)
     fresh = Episode(world("pot", "jug2", jug_first=True), "pot", "jug2")
     taught = Episode(world("pot", "jug2", jug_first=True)
                      + chr(10).join(ep1.rows) + chr(10), "pot", "jug2")
+    check("§19", "and the fresh world can still fail, so the transfer is measured "
+          "against something", fresh.harmed and not taught.harmed)
 
 
 def subgoals_make_blame_sayable() -> None:

@@ -1,8 +1,8 @@
 """Can an agent set itself the goals it learns from? (§16, §19)
 
-`ugm.learning` closes with a cost it could not pay off: *exploration still pays
-for the knowledge -- the bad start had to take the costly route once to learn
-what it cost.* It paid in a vase. This file asks whether it has to.
+`ugm.learning` closes with a cost it could not pay off: an agent learns the
+route that harms by TAKING it. It paid in a jug. This file asks whether it has
+to.
 
     python -m ugm.practice
 
@@ -22,19 +22,29 @@ on `doing`: inside a frame entered by supposing, deciding to act deposits
 `taken(x)` instead of `emitted(x)`, and `<outcome>` carries the reasoning past
 the act by its assumed effect. So a rehearsal runs to the end -- routes taken,
 jugs broken, goals lost -- with **nothing leaving the agent**. Measured below,
-and kill-probed: propose the goal bare instead of supposing it and the vase
-really shatters.
+and kill-probed: propose the goal bare instead of supposing it and the jug
+really breaks.
 
-⭐⭐⭐ **And the defect is the exploration policy.** `lesser_of_two_evils` records
-that suppression without magnitude OSCILLATES -- blame the route that harmed,
-promote the one it passed up, alternate forever. That is a defect in a world
-where alternating costs a vase every other episode. In a supposition it is
-exactly what is wanted: round 0 shatters the vase, regrets it, and round 1 tries
-the jug **because the oscillation made it**. Nobody wrote an explore rule. The
-`<venture>` machinery `ugm.learning` needed is not used here at all.
+⭐⭐⭐ **And what it costs is ticks.** Round 0 smashes the jug, regrets it,
+learns to attend the tap, and round 1 onward fills the kettle -- all of it
+inside the frame. Then the agent goes into the world and gets it right the first
+time. Nobody wrote an explore rule and none is used.
 
-> **Exploration and oscillation are the same behaviour, and which one it is
-> depends only on where the agent is standing.**
+⚠⚠⚠ **This file used to make a bigger claim than that, and the claim went
+with its world.** It ran in a world where BOTH routes harmed, one twice as
+badly, and the finding was that the oscillation `ugm.learning` files as a defect
+is exploration when it happens inside a supposition -- *the same behaviour, and
+which one it is depends only on where the agent is standing.* That rested on
+`prefer`, which names a rule and can therefore separate two routes that are
+about the same things. An attention lesson names a NODE and cannot: where both
+routes hold their vessel, nothing lifts one and not the other, so nothing is
+learned in that world and there is no oscillation to reinterpret. See
+`learning.the_lesser_of_two_evils_is_unsayable`.
+
+The world here is `ugm.learning`'s own -- a tap and a jug -- where the routes
+are about different things and the better one was there to be passed up. So
+what a rehearsal buys is not exploration; it is **regret, paid for in ticks
+instead of in jugs**, which is the smaller claim and the one that survives.
 
 ⚠⚠⚠ **The proposer nests, and that is the one thing here that needs a guard
 rather than a reading.** `<practise>` matches inside a practice frame as readily
@@ -58,17 +68,19 @@ are gated, because a single order would have reported a repair that works.
 That leaves the nesting bounded only by `_enacted` refusing to suppose one
 proposition twice -- an accident of identity, not a guard.
 
-⚠ **A rehearsal can only discover harms the corpus can state.** Delete the two
-rules that say what breaking the vase costs and practice concludes the vase is
-free, confidently and from evidence. That is the third time a fixture has been
-unable to express the very thing it was checking, so it is a gate, not a caveat.
+⚠ **A rehearsal can only discover harms the corpus can state.** Delete the rule
+that says what breaking the jug costs and practice concludes the jug is free,
+confidently and from evidence. That is the third time a fixture has been unable
+to express the very thing it was checking, so it is a gate, not a caveat -- and
+the gate carries what the mute world taught into a world that CAN say the cost,
+because a world with nothing to lose reports an agent that lost nothing.
 """
 
 from typing import List, Optional, Sequence, Tuple
 
 from .chain import MINUS
 from .machine import Machine, induce, leaves
-from .learning import HARM_JUG, HARM_VASE, HARM_BASE, LOSSES, harm_episode
+from .learning import BASE as WORLD_RULES, JUG, TAP
 from .text import load
 
 PRACTISE = ("rule <practise> = implies( { +achieves(?a, ?y) },"
@@ -80,13 +92,25 @@ BARE = "rule <practise> = implies( { +achieves(?a, ?y) }, { +goal(?y) } )"
 # The world is `ugm.learning`'s, minus the one line that hands the agent its
 # goal. That deletion IS the experiment: `goal(water(kettle))` is authored
 # nowhere below, and if the agent practises anything it is because it worked out
-# what it could want.
+# what it could want. It is written as a filter rather than an omission so the
+# deletion is visible in the source.
 WANTED = "fact +goal(water(kettle))"
-BASE = [line for line in HARM_BASE if line != WANTED]
-BAD_START = [HARM_VASE, HARM_JUG]   # vase first: the costlier route wins on order
-COSTS = ("rule <cost-v> = implies( { +did(shatter(?v)) }, { -intact(?v) } )",
-         "rule <set-broken> = implies( { +did(shatter(?v)), +completes(?v, ?s) },"
-         " { -whole(?s) } )")
+BASE = [line for line in WORLD_RULES + [
+    "fact +achieves(fill(kettle), water(kettle))",
+    "fact +achieves(smash(jug1), water(kettle))",
+    "fact +tap(sink)", "fact +under(kettle, sink)",
+    "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
+    "fact +fruit(orange)",
+    # ⚠ A PRESERVATION goal, and the fixture does not work without one. Blame
+    # attributes a LOST goal, so a world where nothing is wanted to stay as it
+    # is has no way to say the jug mattered -- the same gap the mute world at
+    # the end of this file measures, arriving from the other side.
+    "fact +goal(intact(jug1))",
+    WANTED,
+] if line != WANTED]
+BAD_START = [JUG, TAP]   # the jug route first: the costly one wins on order
+LOSSES = ("intact(jug1)",)
+COSTS = ("rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",)
 
 # A second achievable relation, so the proposer can be shown raising more than
 # one goal -- and so the nesting has somewhere to happen. ⚠ The second rehearsal
@@ -175,6 +199,23 @@ def rehearse(rows: Sequence[str] = (), order: Sequence[str] = BAD_START,
     return m, frames, lost
 
 
+def episode(rows: Sequence[str] = (), order: Sequence[str] = BAD_START,
+            base: Optional[Sequence[str]] = None):
+    """One run IN THE WORLD: the goal handed over, nothing supposed.
+
+    The comparison every headline here is against -- what the agent does when it
+    has not practised. `WANTED` is put back, because this is the case where
+    somebody asked for the water.
+    """
+    m = Machine()
+    m.actuator("hands")
+    kb = load(m, chr(10).join(list(order) + list(BASE if base is None else base)
+                              + [WANTED] + list(rows) + [""]))
+    m.run(limit=6000)
+    return (m, [m.g.show(n) for n in m.emitted],
+            [g for g in LOSSES if m.holds(kb.term(g)) == MINUS])
+
+
 def practise(rounds: int = 4, order: Sequence[str] = BAD_START,
              base: Optional[Sequence[str]] = None) -> Tuple[List[int], List[str]]:
     """Rehearse, review, carry forward, rehearse again -- and never act.
@@ -248,7 +289,7 @@ def main() -> int:
     gate("⭐⭐⭐ a rehearsal costs the agent NOTHING -- it takes a route, breaks "
          "what the route breaks, and nothing leaves", not m.emitted and bool(lost))
     gate("...and the kill-probe shows the frame is what does it: propose the "
-         "same goal bare and the vase really shatters",
+         "same goal bare and the jug really breaks",
          bool(bare_acts) and bool(bare_lost))
     gate("the reasoning does not stop at the act -- the route's outcome is "
          "reached under the hypothesis, or there is nothing to cost",
@@ -282,26 +323,27 @@ def main() -> int:
     for r in rows:
         print(f"    {r}")
     print()
-    gate("⭐⭐⭐ it EXPLORES without being told to: the costly route first, then "
-         "the other one -- the oscillation `ugm.learning` reports as a defect",
-         seq[0] > seq[1])
-    gate("...and then settles, so oscillation in a frame is exploration and not "
-         "merely oscillation", len(set(seq[1:])) == 1)
+    gate("⭐⭐⭐ the first rehearsal costs a jug and the rest cost nothing -- the "
+         "agent found the better route and paid for it in ticks", seq[0] > seq[1])
+    gate("...and it stays found: no oscillation, because the route it wanted "
+         "was there to be passed up all along", len(set(seq[1:])) == 1)
     gate("no `<venture>` rule and no explore/exploit switch anywhere",
          not any("venture" in r or "exploring" in r for r in rows))
-    gate("what it carries out is advice about the CHEAPER route",
-         any("prefer(<use-jug>" in r for r in rows))
+    gate("what it carries out names the TAP -- the thing that makes the cheaper "
+         "route available -- and no rule id at all",
+         any("attention(" in r for r in rows)
+         and not any("prefer(" in r for r in rows))
 
     # -- the headline ------------------------------------------------------
     print("\nThe world, for real, from the bad start -- ONE run each:\n")
     print(f"  {'agent':<26} {'emitted':<20} lost")
-    naive_m, naive_acts, naive_lost = harm_episode(BAD_START)
-    prac_m, prac_acts, prac_lost = harm_episode(BAD_START, rows)
+    naive_m, naive_acts, naive_lost = episode()
+    prac_m, prac_acts, prac_lost = episode(rows)
     print(f"  {'no practice':<26} {str(naive_acts):<20} {naive_lost}")
     print(f"  {'practised first':<26} {str(prac_acts):<20} {prac_lost}")
     print()
     gate("the control can fail: an unpractised agent from a bad start takes the "
-         "costly route", len(naive_lost) == 2)
+         "costly route", naive_lost == ["intact(jug1)"])
     gate("⭐⭐⭐ the practised agent gets it right the FIRST time in the world, "
          "and the knowledge was paid for in ticks",
          len(prac_lost) < len(naive_lost))
@@ -349,7 +391,7 @@ def main() -> int:
          any(len(s) > len(o) for s, o in readings.values()))
     gate("⭐ and §4's origin test removes exactly that: what it drops is the "
          "parent's loss, what it keeps is the route's own",
-         any(set(s) - set(o) == {"dark(room)"} and "intact(vase)" in o
+         any(set(s) - set(o) == {"dark(room)"} and "intact(jug1)" in o
              for s, o in readings.values()))
     gate("⚠⚠⚠ ...but only when the parent's damage PREDATES the frame. In the "
          "other order the inner rehearsal RE-DERIVES it from inherited state, "
@@ -361,15 +403,24 @@ def main() -> int:
     print("\nThe same practice, in a world that cannot say what the vase cost:\n")
     mute = [line for line in BASE if line not in COSTS]
     mute_seq, mute_rows = practise(base=mute)
-    _, mute_acts, mute_lost = harm_episode(BAD_START, mute_rows)
+    _, mute_acts, mute_lost = episode(mute_rows, base=mute)
+    # ⚠⚠⚠ The damage is INVISIBLE, not absent, and the difference is the whole
+    # point -- so what the mute rehearsal learned is carried into the world that
+    # CAN state the cost. Reading `mute_lost` alone would report a world with
+    # nothing to lose as an agent that lost nothing.
+    _, carried_acts, carried_lost = episode(mute_rows)
     print(f"  supposed harm per round   {mute_seq}")
     print(f"  in the world afterwards   {mute_acts} lost {mute_lost}")
+    print(f"  what it learned, in the world that CAN say the cost   "
+          f"{carried_acts} lost {carried_lost}")
     print()
     gate("⚠⚠⚠ practice teaches nothing when the world cannot express the "
          "damage -- it rehearses, observes no cost, and learns the costly "
-         "route is free", sum(mute_seq) < sum(seq))
-    gate("...and the agent is no better off than the one that never practised",
-         len(mute_lost) >= len(naive_lost))
+         "route is free", sum(mute_seq) < sum(seq) and not mute_rows)
+    gate("...and the agent is no better off than the one that never practised: "
+         "carry what the mute world taught into one that can say what a jug "
+         "costs, and it breaks the jug",
+         carried_acts == naive_acts and carried_lost == naive_lost)
 
     print(f"\n{ran} checks, {failing} failing")
     print("""
@@ -380,14 +431,19 @@ def main() -> int:
   answer `induce` gave for where a learned rule's TESTS come from, arriving a
   second time for where its GOALS come from.
 
-  ⭐⭐⭐ EXPLORATION AND OSCILLATION ARE THE SAME BEHAVIOUR, and which one it is
-  depends only on where the agent is standing. `ugm.learning` files alternation
-  as a defect and buys its way out with a second quantity and a `<venture>` rule.
-  Inside a supposition the defect is the feature: the agent regrets the vase,
-  tries the jug because it regretted it, and neither the hedge nor the explore
-  rule is used here at all. Nothing was added to get that -- the boundary that
-  makes it safe shipped for a different reason (§16), and forgoing works inside a
-  frame without being told to.
+  ⭐⭐⭐ REGRET IS AFFORDABLE WHEN IT IS PAID IN TICKS. The agent smashes the jug,
+  regrets it, learns to attend the tap, and does none of it in the world.
+  Nothing was added to get that -- the boundary that makes it safe shipped for a
+  different reason (§16), and forgoing works inside a frame without being told
+  to.
+
+  ⚠⚠⚠ AND A BIGGER CLAIM WENT WITH ITS WORLD. This file used to run where both
+  routes harmed and report that oscillation and exploration are the same
+  behaviour seen from different places. That needed a lesson that could separate
+  two routes ABOUT THE SAME THINGS, which is what naming a rule could do and
+  naming a node cannot. Nothing is learned in that world now, so there is no
+  oscillation to reinterpret. The finding is not refuted; it is unsayable, which
+  is a different thing and is recorded as one.
 
   ⚠⚠⚠ THE PROPOSER NESTS, AND A READING CANNOT FIX IT. `<practise>` matches
   inside a practice frame, so rehearsals open inside rehearsals. §4's origin test
