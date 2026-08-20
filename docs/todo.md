@@ -353,3 +353,115 @@ free, and it is what the proposal INTENDS to stop scoping.
 
 ⚠ Instrumented in-process, so the counters do not follow the probes that fork
 (`learning/forest`, `learning/practice`). The numbers above are the selftest's.
+
+---
+
+# Probed 2026-08-20: can RULES compile a DESCRIPTION into working rules?
+
+The author's theory, tested on the case that matters rather than on a toy: take
+the DESCRIPTION of how to handle a hypothesis and have rules turn it into the
+rules that handle one. Run against `bf702a7`. **Nothing about the engine
+changed to take any of this.**
+
+## It works, and the whole compiler is five rules
+
+    fact <anchor> = +anchor(?w)
+
+    rule <twin>       = implies( { +lift(?r), +conn(?r, ?c) },
+                                 { +rule(+t), +conn(+t, ?c), +twin(?r, +t) } )
+    rule <lift-ant>   = implies( { +twin(?r,?t), +anchor(?w), +ant(?r,?p,?s,?i) },
+                                 { +ant(?t, holds_in(?w, ?p), ?s, ?i) } )
+    rule <lift-con>   = implies( { +twin(?r,?t), +anchor(?w), +con(?r,?p,?s,?i) },
+                                 { +con(?t, holds_in(?w, ?p), ?s, ?i) } )
+    rule <lift-at>    = implies( { +twin(?r,?t), +at(?side,?r,?i,?m) },
+                                 { +at(?side, ?t, ?i, ?m) } )
+    rule <lift-names> = implies( { +twin(?r,?t), +names(?side,?r,?i,?n) },
+                                 { +names(?side, ?t, ?i, ?n) } )
+    rule <take>       = implies( { +twin(?r, ?t) }, { +adopt(?t) } )
+
+Given two ordinary domain rules that say nothing about hypotheses:
+
+    <symptom>  { +reading(?p, low) }          => { +symptom(?p, restricted) }
+    <act>      { +symptom(?p, restricted) }   => { +act(replace, ?p) }
+
+...the compiler authored both anchored twins, and they CHAIN:
+
+    holds_in(actual, symptom(pump7, restricted))    +
+    holds_in(actual, act(replace, pump7))           +
+    holds_in(h1, symptom(pump9, restricted))        +
+    holds_in(h1, act(replace, pump9))               +
+    symptom(pump7, restricted)                      None   <- containment
+    act(replace, pump9)                             None   <- by BINDING
+
+⭐⭐⭐ **This retires the objection that killed the anchor shape.** Probe 1 above
+concedes *the cost is on EVERY rule: every premise and conclusion wrapped in
+`in(?w, ...)`, on 51 of the 72 authored rules*, and supersedes anchors on
+exactly that. Measured, the cost is **five rules, paid once**, and no domain
+rule is touched. The trade the swap-out shape was chosen to avoid is not the
+trade that was on offer.
+
+⭐ Multi-member antecedents survive: positions are carried, and one variable
+shared across two members stays one variable.
+
+## ⚠⚠⚠ Variable identity is SCOPE identity, and getting it wrong is silent
+
+The same description in two named facts instead of one:
+
+    fact <d-when> = +when(recipe1, seen(?x))     ?x is node 1384
+    fact <d-then> = +then(recipe1, known(?x))    ?x is node 1389
+
+Both print `?x`. The rule is authored, is live, prints as
+`seen(?x) => known(?x)` -- and concludes **nothing**. One statement instead of
+two, and `known(door)` is `+`.
+
+> This falsifies `a_rule_can_author_a_rule`'s own stated reason for being a
+> Python tool: *the variable is minted here, once, and used in both patterns --
+> **which is exactly what no corpus can do**, and the whole reason this is a
+> function rather than a rule.* A corpus CAN do it. What a corpus cannot do is
+> share a variable ACROSS statements, and a named fact carrying `?w` as a
+> bindable member is the way round that -- which is what `<anchor>` is.
+
+## ⚠⚠ The slots are dropped by default -- the twin-trap family, in a corpus
+
+Without `<lift-at>` and `<lift-names>`:
+
+    { +boiling(?k) at ?m, +pred(?m,?e) } => { +earlier(?k,?e) }
+      compiles to  { holds_in(?w, boiling(?k)), ... }     <- `at ?m` GONE
+
+    { +boiling(?k) as ?n } => { +noted(?n) }
+      compiles to a rule concluding about `?n`, which NOTHING now binds
+
+`_reify_locus`'s docstring makes this argument four times about `adopt` and
+`compose`. It arrives a fifth time here, one level up, and the mitigation is the
+same shape: two more rows. ⚠ `pred` -- a skeleton relation -- also gets wrapped
+in `holds_in(...)`, which is wrong and which probe 2's *21 of 72 rules need no
+anchor* already predicts. Which relations are structural is itself a
+description, and was not built here.
+
+## ⚠⚠⚠ `adopt` RACES the compiler, and declines in silence
+
+Same description, same compiler, same facts. Only the DECLARATION ORDER of
+`<take>` differs:
+
+                      twin facts  adopt asks  ant facts  rules authored
+    <take> last            1           1          46           1
+    <take> FIRST           1           1          46           0
+
+    holds_in(h1, symptom(pump9, restricted))    +  /  None
+    refusals recorded                           0  /  0
+
+The description is COMPLETE in the graph in both runs, and the adopt was asked
+in both runs. `_adopt` is an `on_write` hook: it reads the description at the
+instant `+adopt(?t)` lands, finds `con` still empty, and returns -- once, with
+no record and no retry.
+
+> This is the repo's own recurring defect, and `_adopt` is where it now lives:
+> *a fourth silent decline -- the agent would not act, and would not know it had
+> not.* Every other request in the family answers or says why. Adopt returns
+> `None` into the void, and a corpus cannot tell a rule it never adopted from
+> one it adopted and that did nothing.
+
+Two candidate repairs, neither taken here: make `adopt` re-askable the way
+`_reask` already makes the other requests, or have it record `unadopted(?t,
+reason)` so a corpus can ask again. The second is the one the rest of the
+vocabulary is shaped like.
