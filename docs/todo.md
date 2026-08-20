@@ -396,3 +396,75 @@ constructor for building a node of runtime arity.
 Measured there: the five-rule compiler; the binding check that catches two silent
 defects; `adopt`'s order-dependent silent decline; deposit-as-install at 639/641;
 variable identity as a claim; and the rule-as-subgraph blocker.
+
+---
+
+# NEXT: suppositions as PROCEDURES, and the one affordance that is missing
+
+The author's, 2026-08-20, on the situations work: retiring situations was meant
+to remove Frame/forks/seat/topic **and** to make the agent do suppositions and
+plans *a different way -- by explicit node manipulation, potentially leveraging
+procedures to manage them*. The deletion is done; **the positive half is not
+built**, and this is the brief for it.
+
+## The substrate already exists, and it is already rules
+
+`bundle.ugm`'s call stack (§18) is three rules and no engine:
+
+    <call-spawn>   { +spawn(?c, ?args, ?stage) }
+                => { +call(+k, ?args), +stage(+k, ?stage),
+                     +awaits(?c, +k), -spawn(?c, ?args, ?stage) }
+    <call-advance> { +stage(?c,?p), +awaits(?c,?k), +returned(?k), +advances(?p,?q) }
+                => { -stage(?c, ?p), +stage(?c, ?q), -awaits(?c, ?k) }
+    <call-return>  { +stage(?c,?p), +awaits(?c,?k), +returned(?k), +closes(?p) }
+                => { -stage(?c, ?p), +returned(?c) }
+
+⭐⭐⭐ **This is already explicit node manipulation.** `+k` mints a fresh call
+node per application; `+stage`/`-stage` step it; `advances`/`closes` are facts a
+corpus deposits, so the ORDER of the steps is data. A supposition is the same
+shape: spawn a call, assert the hypothesis, run, record what followed, retract
+the world-deltas, return.
+
+⭐ And it is what `docs/todo.md`'s experiment 4 measured by hand -- *4 deltas
+linked, 2 about the world* -- with the linking and the swapping-back done by
+staged rules instead of by Python.
+
+## ⚠⚠⚠ The one thing that is missing: THERE IS NO UN-CLAIM
+
+    asserted          +
+    denied            -
+    entries about it  2
+
+A procedure can assert and it can retract. **It cannot un-claim.** `-p` is *an
+entry denies this*, which is a different claim from *nothing has been said*, and
+after the situations deletion `resolve` is *the last entry wins* -- so there is
+no way back to `None`.
+
+> This is refinement 2 of the queue entry above, arriving as a hard requirement
+> rather than a preference: *Swapping back is SYMMETRIC: + and - return to None,
+> not to -. Restoring reality must leave no scar. A proposition never considered
+> and one considered and rejected are different claims, and experiment 4
+> produced the second where it owed the first.*
+
+**Without it, every supposition a procedure runs leaves a scar**: the world it
+restores is one where the hypothesis was considered and denied, not one where it
+was never raised. Any later rule that reads `-boiling(kettle)` sees a denial the
+agent never meant to make.
+
+## So the next piece of work is ONE affordance, not a mechanism
+
+Something that makes an entry no longer the answer without asserting its
+opposite -- a retraction that returns a proposition to `None`. Candidates, none
+designed yet:
+
+    withdraw(?e)     a claim ABOUT an entry, which the resolved read honours by
+                     skipping it. Keeps the record (the entry is still in its
+                     moment's delta) while removing the belief -- *deniable, not
+                     forgotten*, applied to the deposit rather than the claim.
+    a third sign     rejected on sight: `?` already means ignorance-as-a-claim,
+                     and a fourth would be a fifth silent thing.
+
+⚠ Whichever it is, it must be checkable: the queue entry above already says
+**the revert must be CHECKED, not trusted** -- *are we back where we started* is
+computable, and one engine check that refuses to continue otherwise is a row,
+not a mechanism.
