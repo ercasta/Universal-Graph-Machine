@@ -551,3 +551,62 @@ there or not.
 
 ⚠ The suite conversion for that cut is INCOMPLETE and the tree is red. Last
 fully green commit: `6c370d2`.
+
+## ...and belief is an ANCHOR, not a floating fact
+
+The author's, immediately after, and it settles both open questions above:
+
+> *Dangling references: I don't care, they can stay -- hopefully no rule will
+> match an incomplete subgraph. And on "believed": the point is that we never
+> look for a `boiling` floating around in the graph. We ALWAYS anchor. Maybe to
+> `believed(boiling)`; if we want, `believed` can be a hyperedge.*
+
+### This dissolves the use/mention trap rather than guarding against it
+
+The warning written above -- *presence cannot mean belief on its own, because
+`boiling(?w)` is in the graph as a rule's stored pattern* -- assumed a bare
+proposition was the thing to look for. Anchor it and the problem is gone:
+
+    boiling(?w)              structure. A rule's stored pattern. Never believed.
+    believed(boiling(k))     a node. Present = believed. Absent = not.
+
+⭐⭐⭐ **The entry becomes an ordinary anchored proposition.** `entry(p, +)` was
+already a node minted by `instance`; `believed(p)` is the same thing with the
+sign gone and a name that says what it is. §14's use/mention distinction stops
+needing a `mention` flag on the deposit, because USE is anchored and MENTION is
+not -- structurally, not by a boolean the writer has to get right.
+
+⭐ **And the substrate is already a hyperedge.** §3: *edges carry no information
+beyond connecting, so anything you want to say about a connection has to be a
+node.* `g.rel(relation, *members)` is n-ary with ordered members already, so
+`believed(p)` needs nothing new, and `believed(p, source, ...)` is available when
+it does.
+
+### What falls out
+
+    retract        DELETE the `believed(p)` node. `p` survives as structure,
+                   which is correct -- rules mention it. **Back to `None`,
+                   with no scar and no un-claim primitive.**
+    deny           `believed(not(p))`, which is a DIFFERENT node from
+                   `believed(p)`. Both can be absent; that is ignorance.
+    signs          `+`/`-`/`?` stop being a member of an entry. §9's denial was
+                   already available as a term; `?` becomes `believed(unsure(p))`
+                   or is dropped -- decide it.
+    scenes         `in(h1, p)` is the same construction one anchor along, so a
+                   supposition needs nothing the belief case does not already
+                   have. `learning/practice.py` already runs this way.
+    the log        unchanged, and still the half the author wants kept: what was
+                   added and removed, readable by rules.
+
+### Dangling references: DECIDED -- they stay
+
+Deletion does not repoint and does not cascade. A `rests_on` edge or an
+`applied(...)` licence naming a deleted node is left as it is, on the argument
+that **no rule matches an incomplete subgraph**: a premise that needs the
+deleted node fails to bind, so the dangling half is unreachable rather than
+wrong.
+
+⚠ Worth ONE check rather than trust, and it is cheap: after a deletion, does any
+rule still fire on a partially-present structure? That is the same shape as
+`merge`'s *without the repoint, everything said before the merge is LOST* --
+asked of the opposite operation.
