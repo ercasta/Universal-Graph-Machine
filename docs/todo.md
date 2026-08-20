@@ -354,6 +354,35 @@ free, and it is what the proposal INTENDS to stop scoping.
 ⚠ Instrumented in-process, so the counters do not follow the probes that fork
 (`learning/forest`, `learning/practice`). The numbers above are the selftest's.
 
+### ...and the same instrument over the sweep, which found one module the suite hides
+
+Every module with a `main()`, `necessity` excepted. `_verdict` is again the ONLY
+aggregate that ever runs inside a hypothesis -- `count`, `root` and `support`
+are **0 inside, in every module**, over 1,596 asks.
+
+    module                    asks   inside      index reads    inside
+    learning.practice          133       88 (66%)      41,706    24,451
+    gates.state                271       15            463,864   59,783
+    probes.shapes              271       15            464,067   59,783
+    learning.learning          853        0            170,134        0
+    learning.teaching            9        0             64,850        0
+    learning.forest              3        0             31,271        0
+    probes.artefact             30        0             14,729        0
+    probes.tools                12        0              2,759        0
+    probes.intake                8        0              5,478        0
+    probes.quest                 6        0              3,602        0
+
+⚠ `gates.state` and `probes.shapes` run the suite internally, so their 271/15 is
+the selftest's number seen twice, not a third measurement.
+
+⭐⭐⭐ **`learning.practice` is the one the suite hides**: 66% of its aggregate
+asks and 59% of its index reads happen inside a hypothesis. Nothing else comes
+near it. It is the module to run first after the deletion, and the one place the
+*aggregates stop being scoped for free* warning has a real population behind it.
+
+⚠ The counters do not follow a probe that forks, so `learning/forest` and
+`learning/practice` are undercounted rather than exact.
+
 ---
 
 # Probed 2026-08-20: can RULES compile a DESCRIPTION into working rules?
