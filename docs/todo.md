@@ -715,3 +715,80 @@ the entry above concludes should not be written in the first place.
 > already serve. Worth having on the record as the answer to *why not*, which is
 > **not** "the representation cannot express it" -- it can -- but "match and
 > substitute do not read it, and nothing yet needs them to."
+
+---
+
+# Probed 2026-08-20: a rule IS already a subgraph, and it is LOSSY
+
+The author's point: make a rule a regular subgraph, `_rel(implies, X, Y)`, the
+way the top-of-file proposal wants `rule(name, implies(...))` and
+`action(move(?x,?y))` to make everything a fact.
+
+## Half of it is already true, and the non-interning half is the good half
+
+    <rich> = implies( { +p(?x) at ?mm as ?nn, -b(?x) }, { +q(?nn) } )
+
+    node 1432   relation `implies`   members (1429, 1431)
+    antecedent moment -> moment( entry(p(?x), +), entry(b(?x), -) )
+
+⭐ A rule node is `implies(moment(entry(pattern, sign), ...), moment(...))`
+already. It is a plain subgraph, and it is built with `Graph.instance`, which
+does NOT intern:
+
+    <plain> and <same>, textually identical      nodes 1390 and 1490
+
+⭐⭐⭐ **That is exactly the composition distinction the interning term form
+destroys.** `g.rel` interns on (relation, members), so `implies(A, B)` written
+twice is ONE node -- and `RuleSet.rule` is explicit that it must be two: *two
+rules that happen to say the same thing are still two rules, with different
+authors, precedence and provenance*. An explicit constructor is needed for that
+reason alone, whatever else it buys.
+
+## ⚠⚠⚠ But the subgraph does not carry the whole rule
+
+    Python Rule   ant[0] pattern=p(?x) sign=+ locus=?mm binds=?nn
+    the subgraph  entry(p(?x), +)                 <- two members. Both slots GONE
+
+So there are THREE representations of one rule, each incomplete differently:
+
+    1. the subgraph  implies(moment(entry(p,+)...), moment(...))
+                     the identity; non-interned; LOSSY -- no locus, no binds
+    2. the Python Rule
+                     complete, not in the graph, and a STALE INDEX (measured:
+                     deposit-as-install had to MUTATE it, never re-mint)
+    3. the reified facts  rule/conn/ant/con + at/names
+                     complete and readable by rules, but a fourth vocabulary
+                     laid over the node instead of being the node's structure
+
+**The author's proposal is to collapse these to one, and the only thing standing
+in the way is that (1) drops two slots.**
+
+## ⭐⭐⭐ And if a rule is a subgraph, the slots get SIMPLER, not harder
+
+`_reify_locus` explains why the slots are separate relations today: *a separate
+relation rather than a sixth member of `ant`/`con`, because most members have no
+locus and §5 refuses a shape whose arity varies with how much happens to be
+known about it.* That argument is about `ant`/`con`, which have no node for the
+member and must address it as `at(SIDE, rule, position, locus)`.
+
+**In the subgraph the member IS a node** -- `entry(p(?x), +)` is minted by
+`instance`, so it is distinct per occurrence and other facts can be about it. So
+the slots hang off it directly:
+
+    at(<entry>, ?m)          instead of   at(ANT, <rule>, 0, ?m)
+    names(<entry>, ?n)       instead of   names(ANT, <rule>, 0, ?n)
+
+...and §5 is satisfied without a varying arity, because nothing is added to
+`entry` at all.
+
+⭐ **Position stops being an argument too.** `?i` exists because `ant`/`con` are
+scattered facts that must be re-sorted; a moment's members are already ordered,
+so `_read_rule`'s sort-by-numeral, the `?i` in every compiling rule above, and
+the side argument all go.
+
+## What is NOT yet answered
+
+Whether the loop can read a rule straight off the subgraph -- matching reads
+`Rule.antecedent`, and nothing has been measured about doing it from
+`moment(entry(...))` instead. That is the load-bearing experiment and it was not
+run here.
