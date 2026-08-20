@@ -17,8 +17,8 @@ the agent remembers acting, and nothing leaves twice.
 import json
 import sys
 
-from .machine import Machine
-from .text import load, load_file
+from .core.machine import Machine
+from .core.text import load, load_file
 
 
 def main(argv=None) -> int:
@@ -61,7 +61,7 @@ def main(argv=None) -> int:
         kb = load_file(m, path)
         # ⭐ The one place an author loads a corpus in order to RUN it, which is
         # the audience for this note. See `text._report_unwebbed`.
-        from .text import _report_unwebbed
+        from .core.text import _report_unwebbed
         _report_unwebbed(m)
         steps = m.run(limit=limit)
         last = steps[-1].state if steps else "nothing to do"

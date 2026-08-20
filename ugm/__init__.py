@@ -6,12 +6,12 @@ forward rules. Deliberately absent -- spans, shapes, backward reading, recall
 learning, suppositions.
 """
 
-from .chain import Chain, Entry, Moment, MINUS, PLUS, UNSURE
-from .channels import Channels
-from .gate import Frame, Gate
-from .graph import Graph
-from .machine import Machine, Step
-from .rules import CAUSES, IMPLIES, Member, Rule, RuleSet
+from .core.chain import Chain, Entry, Moment, MINUS, PLUS, UNSURE
+from .core.channels import Channels
+from .core.gate import Frame, Gate
+from .core.graph import Graph
+from .core.machine import Machine, Step
+from .core.rules import CAUSES, IMPLIES, Member, Rule, RuleSet
 
 __all__ = [
     "Chain",

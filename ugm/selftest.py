@@ -3,12 +3,13 @@
 Checks are grouped by the section of `docs/rules-design.md` they hold to account.
 """
 
+from . import corpora as _corpora
 from typing import List, Tuple
 
-from .chain import MINUS, PLUS, UNSURE
-from .graph import Graph
-from .machine import Machine
-from .rules import (CAUSES, IMPLIES, Member, RuleSet, match,
+from .core.chain import MINUS, PLUS, UNSURE
+from .core.graph import Graph
+from .core.machine import Machine
+from .core.rules import (CAUSES, IMPLIES, Member, RuleSet, match,
                     structural_relations, unify)
 
 _results: List[Tuple[str, str, bool]] = []
@@ -283,7 +284,7 @@ def uncertainty_is_a_proposition() -> None:
     the last check here is the price: the ordinal stops being free and becomes
     a corpus's table.
     """
-    from .text import load
+    from .core.text import load
 
     check("§10", "`@` is refused, and says what to write instead",
           _refuses("rule <r> = implies( { +p(a) }, { +q(a) @likely } )"))
@@ -524,14 +525,14 @@ def trusting_a_channel() -> None:
 
 
 def _loads(src: str):
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     return m, load(m, src)
 
 
 def _refuses(src: str) -> bool:
-    from .text import ParseError
+    from .core.text import ParseError
 
     try:
         _loads(src)
@@ -543,7 +544,7 @@ def _refuses(src: str) -> bool:
 def surface() -> None:
     """One grammar for rules, facts and facts about rules -- because a rule is a
     relation instance like any other, which is R3 and R4 in the surface."""
-    from .text import ParseError, Parser, tokenise
+    from .core.text import ParseError, Parser, tokenise
 
     m, kb = _loads("fact +on(a, b)\nfact -in(b, c)   # a comment\n")
     check("§3", "the surface writes a fact", m.holds(kb.term("on(a, b)")) == PLUS)
@@ -697,7 +698,7 @@ def denial_nests() -> None:
     §16 reaches for modality: the member is what the machinery computes with, the
     term is what survives nesting.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, "rule <r> = implies( { +a(x) }, { -b(x) } )")
@@ -755,7 +756,7 @@ def mention_propagates() -> None:
     quiescence, because a conclusion still containing variables looked exactly
     like a rule with nothing left to do.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     load(m, "rule <boil> = implies( { +heat(?w) }, { +boiling(?w) } )")
@@ -849,7 +850,7 @@ def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
     different nodes, the bundled half would still work and the corpus half would
     be silently dead, which is exactly what a parse check would miss.
     """
-    from .text import load
+    from .core.text import load
 
     # `arrived` -- <intake>'s antecedent. The corpus rule reads the same
     # arrival <intake> does.
@@ -956,7 +957,7 @@ def a_verdict_names_what_it_settled() -> None:
     that knows the most. When `<expand>` writes the subgoals, nothing has checked
     the siblings yet and the binding does not exist.
     """
-    from .text import load
+    from .core.text import load
 
     def blocked(src):
         m = Machine()
@@ -1013,7 +1014,7 @@ def the_tick_limit_is_on_the_record() -> None:
     this was not a considered position -- it was the one bound inconsistent with
     this engine's own practice. §21's defect, eleventh time.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -1046,7 +1047,7 @@ def the_tick_limit_is_on_the_record() -> None:
     # `Loader.say` uses it -- so an agent could say one thing and the hearer
     # believe another, with nothing reporting a difference. A truncation is
     # still a valid term, so it failed as a WRONG ANSWER rather than a crash.
-    from .text import ParseError
+    from .core.text import ParseError
     m3 = Machine()
     kb3 = load(m3, "fact +z(z)" + chr(10))
     refused = []
@@ -1094,7 +1095,7 @@ def silence_over_a_stretch_is_sayable() -> None:
     being stratum 0, and then its structural members match nothing. Silence about
     a NAMED channel is sayable; silence about *any* channel is not.
     """
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <round> = implies(",
@@ -1179,7 +1180,7 @@ def a_guard_is_an_ordinary_member() -> None:
     harmonization's job -- the agent authors a better rule through `adopt`, where
     the amendment is itself a claim that can be argued with.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -1252,7 +1253,7 @@ def a_span_is_a_locus() -> None:
     time the refusals were not even refusals: they were assumptions with no
     reason to notice they had been made.
     """
-    from .text import load
+    from .core.text import load
 
     # -- the span itself (§11) --------------------------------------------
     m = Machine()
@@ -1433,9 +1434,9 @@ def worked_examples() -> None:
     """§8's rules, as printed in the design, actually run."""
     import os
 
-    from .text import load_file
+    from .core.text import load_file
 
-    path = os.path.join(os.path.dirname(__file__), "rules", "worked.ugm")
+    path = _corpora.path("worked.ugm")
     m = Machine()
     kb = load_file(m, path)
     authored = [r for r in m.rules.rules if r not in m.bundle]
@@ -1469,7 +1470,7 @@ def worked_examples() -> None:
 def rules_as_data() -> None:
     """§14: a rule is a node, so a rule can be matched by a rule -- once what a
     rule IS has been deposited as entries."""
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <a> = implies( { +p(x) }, { +q(x) } )",
@@ -1508,7 +1509,7 @@ def supposing() -> None:
     """§13's frames, used for modality: enter the guard, reason bare, wrap on
     the way out. The alternative to a lifting rule, and it does what lifting
     cannot -- work over rules that carry variables."""
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <sympt> = implies( { +reading(?p, low) },        { +symptom(?p, restricted) } )",
@@ -1686,7 +1687,7 @@ def supposing() -> None:
 def rule_driven_supposition() -> None:
     """The whole of it, with no Python driving: a rule PROPOSES crossing the
     guard, the machinery enacts it, and the conclusions come back wrapped."""
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <sympt> = implies( { +reading(?p, low) },        { +symptom(?p, restricted) } )",
@@ -1720,7 +1721,7 @@ def rule_driven_supposition() -> None:
 def backward_reading() -> None:
     """R1: one statement, two readings. R2: the reading is recoverable, because
     a subgoal is licensed `wanted` and a conclusion `applied`."""
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
@@ -1830,7 +1831,7 @@ def plan_bindings() -> None:
     """A conjunctive goal must be satisfied on bindings that AGREE. Checked
     independently, `tap(sink)` and `under(kettle, drain)` both look achieved and
     the plan is wrong -- silently, which is the worst kind."""
-    from .text import load
+    from .core.text import load
 
     def world(facts):
         m = Machine()
@@ -1869,7 +1870,7 @@ def plan_bindings() -> None:
 
 def the_loop_closes() -> None:
     """Plan, act, be wrong, notice. §11 acting, §16 surprise."""
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <boil>   = causes(  { +heat(?a, ?w), +water(?w) },   { +boiling(?w) } )",
@@ -1938,7 +1939,7 @@ def callbacks_on_a_hypothesis() -> None:
     from outside it, after it is over, which is exactly what no rule inside the
     frame and no generic rule outside it can time for itself.
     """
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         # The callback. It names no hypothesis: the pointer supplies that.
@@ -2012,7 +2013,7 @@ def rival_hypotheses_are_comparable() -> None:
     over a shared conclusion and a distinguishing one, and a record that merely
     said *something was concluded here* would pass the first and fail the second.
     """
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         # Two rival diagnoses of one symptom. Both predict a wet floor; only the
@@ -2152,7 +2153,7 @@ def recall_is_narrowable() -> None:
     Recorded here rather than fixed, because deciding where narrowing belongs is
     a design question and not a repair.
     """
-    from .text import load
+    from .core.text import load
 
     chain = chr(10).join([
         "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
@@ -2286,7 +2287,7 @@ def the_better_move_wins() -> None:
     a channel was saying the world had moved. `standing` rules keep their
     authored place.
     """
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         # Authored first, so authored order alone would pick it -- and it does
@@ -2373,7 +2374,7 @@ def what_the_situation_is_about() -> None:
     The last check here is that denial, and without it nothing in the suite could
     tell a maintained key set from one that never forgets.
     """
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <wander> = implies( { +at(?x) }, { +wandered(?x) } )",
@@ -2499,7 +2500,7 @@ def crossing_opens_hypotheses() -> None:
 
     Two things this took that were not obvious, and both are the same shape.
     """
-    from .text import load
+    from .core.text import load
 
     world = [
         "rule <cross> = implies( { +uncertain(?p) },   { +suppose(?p, likely) } )",
@@ -2595,7 +2596,7 @@ def a_hypothesis_does_not_happen() -> None:
     Nothing has to be compared -- a hypothesis that reaches a prohibition has
     answered the question by itself.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, "rule <act> = implies( { +p(x) }, { +doing(fire(missile)) } )")
@@ -2695,7 +2696,7 @@ def an_action_is_substituted_by_its_outcome() -> None:
     with nothing emitted, and the actions' effects rather than the actions carry
     it.
     """
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <go>      = implies( { +at(home) }, { +doing(travel(work)) } )",
@@ -2798,7 +2799,7 @@ def an_agent_that_can_stop() -> None:
     unarguable record of having done so (`stopped(<seat>, x)`), which is §17's
     treatment for `arrived`, `emitted`, `left` and `quiet` arriving a fifth time.
     """
-    from .text import load
+    from .core.text import load
 
     chain = chr(10).join([
         "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
@@ -2910,7 +2911,7 @@ def no_goal_is_dropped_silently() -> None:
     same move -- **escalate before believing a decline**: `_widen` at a dry
     shortlist, `_forbid` at a write, this at a stop.
     """
-    from .text import load
+    from .core.text import load
 
     world = [
         "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
@@ -2988,7 +2989,7 @@ def experience_is_offline() -> None:
     load-bearing for §12's weakest link, so walking back from what was achieved
     reaches the rules that produced it and only those.
     """
-    from .text import load
+    from .core.text import load
 
     # Two ways to get water, and the agent only needs one of them.
     kettle = chr(10).join([
@@ -3038,7 +3039,7 @@ def experience_is_offline() -> None:
           "is not a lesson once a lesson has to name a thing rather than a rule",
           m.learned() == [])
 
-    from .learning import Episode as _Ep, world as _world
+    from .learning.learning import Episode as _Ep, world as _world
     ep = _Ep(_world(jug_first=True))
     rows = ep.rows
     check("§19", "what it learned is a corpus, not a weight: readable, editable, and "
@@ -3084,7 +3085,7 @@ def a_root_goal_is_askable() -> None:
     ASKED for holds, so I am done* -- where the version without `rooted` stops at
     whatever subgoal backward reading happened to satisfy first.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -3179,7 +3180,7 @@ def a_request_can_be_re_asked() -> None:
     the machinery does with it is write the wrapped request through the gate,
     where every answerer already listens.
     """
-    from .text import load
+    from .core.text import load
 
     ROOT = [
         "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
@@ -3369,7 +3370,7 @@ def a_domain_can_be_taken_out_of_mind() -> None:
     -- reaching for more when the search comes up dry -- may not be, and is not
     built here: §21.
     """
-    from .text import load
+    from .core.text import load
 
     corpus = [
         "rule <r> = implies( { +owes(?c, ?n), +overdue(?c) }, { +chase(?c) } )",
@@ -3516,7 +3517,7 @@ def a_hypothesis_can_be_re_entered() -> None:
     A supposition still runs to quiescence inside and discharges. What it buys
     is that finding out more is a reason to think again.
     """
-    from .text import load
+    from .core.text import load
 
     world = [
         "rule <s> = implies( { +odd(?x) }, { +suppose(broken(?x), likely) } )",
@@ -3595,7 +3596,7 @@ def its_own_effort_is_reasonable_over() -> None:
     stopping silently (§13)* since it was written, and the report was
     `self.exhausted += 1`. **The code claimed a property it did not have.**
     """
-    from .text import load
+    from .core.text import load
 
     chain = ["rule <a> = implies( { +p(?x) }, { +q(?x) } )",
              "rule <b> = implies( { +q(?x) }, { +r(?x) } )", "fact +p(a)"]
@@ -3684,7 +3685,7 @@ def the_knobs_are_claims() -> None:
     ⚠ The DEFAULT stays in Python, exactly as `tolerance`'s zero does. A default
     nobody has to choose is not a hidden decision; it is the absence of one.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     load(m, "fact +x(a)" + chr(10))
@@ -3782,7 +3783,7 @@ def a_session_can_be_saved_and_resumed() -> None:
     import os
     import tempfile
 
-    from .text import load
+    from .core.text import load
 
     def history(m):
         return [(m.g.show(e.proposition), e.sign, mo.depth)
@@ -3869,7 +3870,7 @@ def the_agent_can_say_what_became_of_it() -> None:
     decision was made where none was, the same reason `likely(not(p))` reads as
     one line rather than three.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -3935,7 +3936,7 @@ def a_dry_search_reaches_for_what_is_out_of_mind() -> None:
     from a fourth side, and it gets the same answer: escalate before believing a
     decline.
     """
-    from .text import load
+    from .core.text import load
 
     def run(dormant, goal):
         m = Machine()
@@ -4047,7 +4048,7 @@ def a_scope_can_span_documents() -> None:
     and identity discovered later becomes a **revision of intake** rather than
     an inference, which is the shape `learned()` already has for rules.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     a = load(m, "fact +red(kettle)" + chr(10), scope="book")
@@ -4101,7 +4102,7 @@ def a_rule_can_relate_two_moments() -> None:
     own history is not. They needed only the first and never once wanted the
     second, which is why this is what got built.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -4156,7 +4157,7 @@ def a_computation_happens_inside_the_application() -> None:
     claim nothing*, which already houses distinctness. A computator asserts
     nothing about the world; it says how the binding was built.
     """
-    from .text import Loader
+    from .core.text import Loader
 
     m = Machine(); kb = Loader(m)
     kb.computator("minus", lambda a, b: int(a) - int(b))
@@ -4235,7 +4236,7 @@ def a_member_can_name_what_it_matched() -> None:
     coincidence, not reference: nothing links them, and it appears to work only
     while there is one candidate.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -4284,7 +4285,7 @@ def the_skeleton_is_an_ordinary_member() -> None:
     §17's door is still open for the deliberate case — inspecting is matching,
     with an explicit anchor.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -4362,7 +4363,7 @@ def the_matchers_are_one() -> None:
     rather than a construct invented for it. The checks below are for the two
     that are engine, not corpus.
     """
-    from .text import load
+    from .core.text import load
 
     # ⭐⭐⭐ §6's test decides WHERE A CONCLUSION LANDS. *Every antecedent member
     # is structural* is computable, so a rule that reads only structure
@@ -4603,7 +4604,7 @@ def the_matchers_are_one() -> None:
         ""]))
     m8.chain.succeed(m8.chain.root, None)
     m8.ask_read(m8.chain.moments[-1])
-    from .rules import match as _match, Situation as _Sit
+    from .core.rules import match as _match, Situation as _Sit
     up8 = [r for r in m8.rules.rules if r.name == "up"][0]
     apps = _match(m8.g, m8.chain, up8, m8.focus.topic, m8.focus.seat, _Sit(m8.g, []),
                   computes=m8.rules.computes, structural=m8.rules.skeleton())
@@ -4697,7 +4698,7 @@ def a_half_finished_change_is_observable_and_actionable() -> None:
     and a hole nothing asserts is one a later change can close or widen without
     anyone noticing.
     """
-    from .text import Loader
+    from .core.text import Loader
 
     def calc(mm, frame, e):
         op, a, b = mm.g.members(e.proposition)
@@ -4773,7 +4774,7 @@ def a_reserved_name_no_longer_changes_meaning_silently() -> None:
     first version flagged every integer in every corpus, which is how a
     diagnostic gets ignored.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, "rule <sub> = implies( { +hp(?x,?h) }, { +calc(minus, ?h, 2) } )"
@@ -4819,7 +4820,7 @@ def a_relation_can_be_named_by_a_variable() -> None:
     same shape §12 gives a bare-variable consequent: exact forwards, expensive
     the other way round.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -4855,7 +4856,7 @@ def a_relation_can_be_named_by_a_variable() -> None:
     # because `_vars_in` did not look at a relation, so `?p` was never *wanted*
     # and the check passed vacuously. Now both are caught where the mistake is
     # still attributable, which is `Chain.span`'s argument for its own position.
-    from .text import ParseError
+    from .core.text import ParseError
 
     m2 = Machine()
     refused = False
@@ -4896,7 +4897,7 @@ def a_verb_is_defined_once_and_a_world_is_declared() -> None:
     the same declarations untouched, and a class hierarchy is one ordinary rule
     -- the smith sells daggers without anything ever saying so.
     """
-    from .text import load
+    from .core.text import load
 
     VERB = chr(10).join([
         "rule <can-buy> = implies(",
@@ -4975,7 +4976,7 @@ def an_amount_is_a_tool_and_an_unknown_amount_is_a_node() -> None:
     to a scalar. The point of the third check is that it is genuinely reasoned
     with rather than merely recorded.
     """
-    from .text import Loader
+    from .core.text import Loader
 
     m = Machine(); kb = Loader(m)
 
@@ -5030,7 +5031,7 @@ def an_amount_is_a_tool_and_an_unknown_amount_is_a_node() -> None:
     # ⚠ What stays open, as a check so it cannot be forgotten: the direct form.
     # A consequent naming a value its antecedent never bound is an existential,
     # and it is refused at LOAD with a message rather than silently dropped.
-    from .text import ParseError
+    from .core.text import ParseError
     m4 = Machine(); kb4 = Loader(m4)
     try:
         kb4.load("rule <p> = causes( { +level(?g, ?v) }, { +level(?g, ?w) } )" + chr(10))
@@ -5056,7 +5057,7 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
     and nothing reports it. So the request is answered and never proposed:
     **the corpus decides, the function executes.**
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -5173,7 +5174,7 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
     # is coincidence and not design -- and it is worse than a twin, because a
     # tool PROPOSES and the apparatus CONCLUDES (§19), so the corpus's tool got
     # a share of a request the agent acts on directly.
-    from .text import Loader, ParseError
+    from .core.text import Loader, ParseError
     m4 = Machine()
     kb4 = Loader(m4)
     try:
@@ -5217,8 +5218,8 @@ def an_example_becomes_a_rule() -> None:
     concludes nothing anyone asked for. Returning `None` is a real answer (§17),
     and the check is that nothing is adopted.
     """
-    from .rules import generalise
-    from .text import Loader
+    from .core.rules import generalise
+    from .core.text import Loader
 
     # The operation first, on its own, because a check about a learned rule
     # cannot tell a least generalisation from a lazy one.
@@ -5351,7 +5352,7 @@ def a_rule_can_author_a_rule() -> None:
     rule becomes live only because a corpus concluded `adopt(?r)` -- so an
     agent that adopts everything a tool offers is an agent whose corpus said to.
     """
-    from .text import Loader
+    from .core.text import Loader
 
     def build(src: str):
         """A machine with the composer registered, then the corpus. Registered
@@ -5483,7 +5484,7 @@ def a_rule_can_author_a_rule() -> None:
     # Without it the members are ordered by the accident of minting -- which
     # reproduces authored order for anything `reify` wrote, so a check over it
     # could never fail. Deposited out of order on purpose.
-    from .text import load as _load
+    from .core.text import load as _load
     back = Machine()
     kb_b = _load(back, "rule <two> = implies( { +a(?x), +b(?x) }, { +c(?x) } )\n")
     (two,) = [r for r in back.rules.rules if r.name == "two"]
@@ -5537,7 +5538,7 @@ def the_agent_harmonizes_itself() -> None:
     60 ticks, still going. It needs `standing`, which is §19's carve-out for
     the fifth time. This is also the loop-detection case, still unbuilt.
     """
-    from .text import load
+    from .core.text import load
 
     # -- 1. a precedence a RULE concluded is obeyed -------------------------
     m = Machine()
@@ -5606,8 +5607,8 @@ def the_agent_harmonizes_itself() -> None:
     # (`adopt`), the corpus decides an authored rule outranks anything it
     # learned (`overrides`, concluded), and the loser is on the record
     # (`defeated`). Four commits, one run.
-    from .rules import generalise
-    from .text import Loader
+    from .core.rules import generalise
+    from .core.text import Loader
 
     # ⚠ One learner PER LOADER, and the first version had one closing over the
     # first machine's. A name resolved through `kb.atom` is a node in THAT
@@ -5742,8 +5743,8 @@ def what_a_learned_rule_may_conclude() -> None:
     for: *how strongly a rule may speak* had to be in the conclusion for this to
     be sayable at all.
     """
-    from .rules import generalise
-    from .text import Loader
+    from .core.rules import generalise
+    from .core.text import Loader
 
     def episode(wrapped: bool, precedence: str):
         m = Machine()
@@ -5852,7 +5853,7 @@ def a_defeat_is_on_the_record() -> None:
     not a pair of rules, and there is no two-rule record to write; that is a
     scope limit rather than an oversight.
     """
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <hot> = implies( { +p(?x) }, { +q(?x) } )",
@@ -5959,8 +5960,8 @@ def a_join_is_not_a_scan() -> None:
     what authored order gives them; `ugm.arbitration` compares the move on every
     tick of every fixture and `ugm.state` the index it read.
     """
-    from . import rules as R
-    from .text import load
+    from .core import rules as R
+    from .core.text import load
 
     def counted(n: int):
         """(unifications, grandparent conclusions) over a binary tree."""
@@ -6047,7 +6048,7 @@ def the_apparatus_eats_its_own_cooking() -> None:
     forgettable**: four are §19's carve-out, where denying is *refused* on the
     record rather than obeyed.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, "fact +nothing(x)\n")
@@ -6162,7 +6163,7 @@ def a_rule_says_that_it_ran() -> None:
     expressible. So this ships the half that is sound and leaves the half that
     needs the root-goal check, which was already §21's.
     """
-    from .text import load
+    from .core.text import load
 
     ran = Machine()
     kb = load(ran, chr(10).join([
@@ -6207,7 +6208,7 @@ def a_tool_is_data() -> None:
     licences and a tool's answer carries one. That is the whole of what *jointly
     trained* honestly means: a shared credit assignment, not a shared update rule.
     """
-    from .tools import episode
+    from .probes.tools import episode
 
     good, kb, _ = episode("fill(kettle)")
     bad, _, _ = episode("smash(jug1)")
@@ -6230,8 +6231,8 @@ def a_tool_is_data() -> None:
     # `gate.write` at the first write, naming neither the tool nor the
     # registration -- one cycle to find, and easy to write because the
     # apparatus's own reifier takes `(frame, entry)` and wraps it.
-    from .machine import Machine as _Machine
-    from .text import load as _load
+    from .core.machine import Machine as _Machine
+    from .core.text import load as _load
     refused = _Machine()
     kb_r = _load(refused, "fact +nothing(x)\n")
     try:
@@ -6247,8 +6248,8 @@ def a_tool_is_data() -> None:
           kb_r.answerer("ok", "guess", lambda m, f, e: None) is not None)
 
     # The restriction that makes an unreliable tool safe to be wrong.
-    from .machine import Machine
-    from .text import Loader
+    from .core.machine import Machine
+    from .core.text import Loader
     m = Machine()
     m.actuator("hands")
     kb2 = Loader(m)
@@ -6290,7 +6291,7 @@ def an_episode_teaches_the_next_one() -> None:
     `applied(<winner>)` -- so a blamed winner names its own alternatives. Third
     time credit assignment has needed no new bookkeeping.
     """
-    from .learning import Episode, world
+    from .learning.learning import Episode, world
 
     ep1 = Episode(world(jug_first=True))
     check("§19", "a world where the wrong choice costs something: the agent "
@@ -6339,7 +6340,7 @@ def subgoals_make_blame_sayable() -> None:
     including `intact(jug1)`, so the thing the other branch broke was already a
     goal, and its loss is on the record with a licence attached.
     """
-    from .text import load
+    from .core.text import load
 
     # No tap, so smashing is the ONLY way to the water. That matters: now that
     # the agent forgoes, a world with a safe alternative no longer produces the
@@ -6428,7 +6429,7 @@ def taking_one_way_passes_up_the_others() -> None:
     silent -- the deposit is licensed by the winner, so *what did you not do, and
     why* is answerable, which is what makes passing up recoverable.
     """
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
@@ -6518,7 +6519,7 @@ def doubt_is_a_tie() -> None:
     number, which is a separate claim -- but it steers nothing, and a corpus
     that sets it is talking to no one.
     """
-    from .text import load
+    from .core.text import load
 
     tie = chr(10).join([
         "rule <byA> = implies( { +a(?x) }, { +at(?x) } )",
@@ -6624,7 +6625,7 @@ def support_can_be_withdrawn() -> None:
     been looked at. That makes it an aggregate over a finished search, which is
     why the fixture asks at `quiet` and not before.
     """
-    from .text import load
+    from .core.text import load
 
     base = chr(10).join([
         "rule <derive> = implies( { +p(a) }, { +q(a) } )",
@@ -6743,7 +6744,7 @@ def a_binding_can_be_reconsidered() -> None:
     Same wall as a norm not being revisable from the surface, arriving from the
     binding side.
     """
-    from .text import load
+    from .core.text import load
 
     base = chr(10).join([
         "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
@@ -6838,7 +6839,7 @@ def withdrawing_a_binding_withdraws_what_used_it() -> None:
     env would make every sibling's conclusion rest on every other sibling's
     choice, which is the opposite of what plan bindings are for (§18).
     """
-    from .text import load
+    from .core.text import load
 
     base = chr(10).join([
         "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
@@ -6923,7 +6924,7 @@ def prohibitions_are_not_recalled() -> None:
     until the agent cannot even bring its own norms to mind, and the forbidden
     act still does not happen.
     """
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <fix>  = implies( { +broken(?x) }, { +doing(repair(?x)) } )",
@@ -7078,7 +7079,7 @@ def the_index_agrees_with_the_walk() -> None:
     walk over a world that has both -- nested suppositions (which fork) and a
     revision about an earlier moment (which separates the two orderings).
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -7144,7 +7145,7 @@ def a_cause_moves_the_register() -> None:
     `reseat` is for. Discharge then needs the frame's *origin* rather than its
     current seat, because those stop being the same thing the moment it moves.
     """
-    from .text import load
+    from .core.text import load
 
     out = {}
     for conn in ("implies", "causes"):
@@ -7250,7 +7251,7 @@ def reference_is_binding() -> None:
     What that leaves is the harder half -- *which* one. Several plans match *a
     plan*, and nothing in a rule can say *the latest*.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -7327,7 +7328,7 @@ def the_chain_mirrors_nothing_of_its_own() -> None:
     Without this, the two can drift silently, which is `ugm.state`'s lesson at
     one construct down: an index is a re-implementation of what it indexes.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -7434,8 +7435,8 @@ def a_cached_application_can_be_retracted() -> None:
     ⚠ Written after the fact, and it is a kill-probe rather than a description:
     restore the add-only merge and this check fails while every other one passes.
     """
-    from .rules import _stored
-    from .text import load
+    from .core.rules import _stored
+    from .core.text import load
 
     m = Machine()
     BLOCK = m.g.atom("blocks")
@@ -7476,7 +7477,7 @@ def a_structural_member_needs_a_ground_anchor() -> None:
     `loaded(?p)` with `?p` bound is ground in fact and generic in shape. So the
     question is asked of the binding, recursively.
     """
-    from .rules import _ground
+    from .core.rules import _ground
 
     m = Machine()
     p = m.g.atom("p")
@@ -7509,7 +7510,7 @@ def quiescence_is_an_occasion() -> None:
     in turn -- runs until its budget. Quiescence is what stops the honest ones,
     and it is not enough on its own.
     """
-    from .text import load
+    from .core.text import load
 
     src = chr(10).join([
         "rule <watch> = implies( { +quiet(?m), +blocked(?g) }, { +stuck(?g) } )",
@@ -7568,9 +7569,9 @@ def an_unindexed_member_says_so() -> None:
     `ugm.interpret` below: the member that falls back most often is not the one
     that costs most, because the relation it scans has almost nothing in it.
     """
-    from .text import load
-    from .attention import run as table_run
-    from . import interpret as I
+    from .core.text import load
+    from .core.attention import run as table_run
+    from .probes import interpret as I
 
     m = Machine()
     load(m, I.SYSTEM + I.AS_FACTS, None, None)
@@ -7627,8 +7628,8 @@ def a_line_of_work_can_run_dry_unnoticed() -> None:
     the agent answers the utterance after the room goes quiet rather than while
     it is being spoken to.
     """
-    from .text import load
-    from .attention import run as table_run
+    from .core.text import load
+    from .core.attention import run as table_run
 
     CORPUS = chr(10).join([
         "fact +tick(t0)",
@@ -7685,8 +7686,8 @@ def the_watcher_is_handed_the_move() -> None:
     wrapping `Machine._apply` on the instance to get the honest answer. The
     `Step` already carries `wrote`.
     """
-    from .text import load
-    from .attention import run as table_run
+    from .core.text import load
+    from .core.attention import run as table_run
 
     seen = []
 
@@ -7735,8 +7736,8 @@ def attention_is_about_a_node_not_a_rule() -> None:
     generic, so *which rules are about goblin1* has no syntactic answer and its
     exact answer is the option set this loop exists not to build.
     """
-    from .text import load
-    from .attention import run as table_run
+    from .core.text import load
+    from .core.attention import run as table_run
 
     def order(extra):
         m = Machine()
@@ -7855,8 +7856,8 @@ def attention_is_learned_from_what_the_move_bound() -> None:
     the table does not run it: `Table.spend` stays a pure account of scores and
     the loop hands attends to the machine.
     """
-    from .text import load
-    from .attention import run as table_run
+    from .core.text import load
+    from .core.attention import run as table_run
 
     base = [
         "rule <spot>   = implies( { +leader(?x) }, { +marked(?x) } )",
@@ -7917,7 +7918,7 @@ def attention_is_learned_from_what_the_move_bound() -> None:
     # trigger now reaches NOTHING -- it would load and never run. A lesson that
     # silently does nothing is the worst outcome available, so the surface
     # refuses it and says where to put it instead.
-    from .text import ParseError
+    from .core.text import ParseError
     refused = None
     try:
         m3 = Machine()
@@ -7945,9 +7946,9 @@ def a_lesson_about_attention_is_learned_from_play() -> None:
     how many distinct things the variable was ever bound to, which is
     `generalise`'s own signal read one level up.
     """
-    from .text import load
-    from .attention import run as table_run
-    from .teaching import Lesson, install_focuses
+    from .core.text import load
+    from .core.attention import run as table_run
+    from .learning.teaching import Lesson, install_focuses
 
     src = chr(10).join([
         "rule <spot>   = implies( { +leader(?x), +side(?s) }, { +marked(?x) } )",
@@ -8004,8 +8005,8 @@ def a_teacher_cannot_supervise_what_it_cannot_see() -> None:
     move was about this too, which is a fact about the sequence the agent
     actually produced.
     """
-    from .text import load
-    from .rules import arbitrate
+    from .core.text import load
+    from .core.rules import arbitrate
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -8045,7 +8046,7 @@ def a_recursion_is_a_node_with_a_phase() -> None:
     refraction would block the second.
     """
     import re
-    from .hanoi import RULES, optimal, solve
+    from .probes.hanoi import RULES, optimal, solve
 
     named = sorted(set(re.findall(r"\bd\d+\b|\b[xyz]\b", RULES)))
     check("§18", "⭐ not one rule of the recursion names a disk or a peg, which "
@@ -8090,7 +8091,7 @@ def a_recursion_can_be_learned_from_watching_it() -> None:
     and what is induced does not solve even the size it was taught on. That is
     the check that makes the two-demonstration result mean anything.
     """
-    from .hanoi import (RULES, _authored, _canonical, demonstrate, induce,
+    from .probes.hanoi import (RULES, _authored, _canonical, demonstrate, induce,
                         solve_learned)
 
     examples, data = demonstrate((3, 4))
@@ -8146,7 +8147,7 @@ def the_action_palette_is_declared_and_discoverable() -> None:
     a corpus needs one hand-written fallback per action, and a new action is a
     fallback nobody remembers to add.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -8182,7 +8183,7 @@ def the_action_palette_is_declared_and_discoverable() -> None:
 
     # And the contrast that says the mention is doing real work: the surface
     # REFUSES the same term as a fact, and says why.
-    from .text import ParseError
+    from .core.text import ParseError
     refused = None
     try:
         load(Machine(), "fact +move(?x, ?y)" + chr(10))
@@ -8210,8 +8211,8 @@ def a_bad_attempt_is_declined_rather_than_ignored() -> None:
     against the entry, and here the entry is the generic one. Measured --
     `unify(move(?x,?y), move(d1,z))` is True and the reverse is False.
     """
-    from .hanoi import misbehave
-    from .text import load
+    from .probes.hanoi import misbehave
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -8278,8 +8279,8 @@ def outstanding_business_is_not_dropped_in_silence() -> None:
     ⚠ And neither `quiet` nor `stopped` could carry it alone: `_halt` breaks the
     loop immediately, so a rule keyed on `stopped(...)` never gets a turn.
     """
-    from .hanoi import corpus
-    from .text import load
+    from .probes.hanoi import corpus
+    from .core.text import load
 
     m = Machine()
     kb = load(m, "action move(?x, ?y)" + chr(10)
@@ -8332,8 +8333,8 @@ def what_was_learned_is_a_document() -> None:
     attend, and the queue ends up holding ALL of what they named. The lesson
     says *and also this*, which is the same claim without the arithmetic.
     """
-    from .machine import Machine as M
-    from .text import load
+    from .core.machine import Machine as M
+    from .core.text import load
 
     m = M()
     kb = load(m, chr(10).join([
@@ -8352,7 +8353,7 @@ def what_was_learned_is_a_document() -> None:
 
     # ...and the adjustment needs no arithmetic: each one attends, and the
     # agent ends up thinking about everything they named.
-    from .attention import Table, _standing, run as table_run
+    from .core.attention import Table, _standing, run as table_run
     t = Table(m.g, list(m.rules.rules), _standing(m))
     table_run(m, limit=6, table=t)
     attended = {m.g.show(n) for n in m._attended()}
@@ -8363,8 +8364,8 @@ def what_was_learned_is_a_document() -> None:
 
     # The round trip: emit, load into a machine that was never taught, and the
     # lessons are there and still marked.
-    from .teaching import Lesson, emit, install_focuses
-    from .attention import run as loop
+    from .learning.teaching import Lesson, emit, install_focuses
+    from .core.attention import run as loop
 
     src = chr(10).join([
         "rule <spot>   = implies( { +leader(?x), +side(?s) }, { +marked(?x) } )",
@@ -8419,8 +8420,8 @@ def attention_is_a_bounded_queue() -> None:
     ⚠ Decay by displacement is the better notion than a timer: ten quiet ticks
     should not forget what you were doing, and ten busy ones should.
     """
-    from .machine import ATTENTION_SPAN
-    from .text import load
+    from .core.machine import ATTENTION_SPAN
+    from .core.text import load
 
     m = Machine()
     ns = [m.g.atom("n%d" % i) for i in range(ATTENTION_SPAN + 3)]
@@ -8477,8 +8478,8 @@ def a_table_can_outlive_a_run() -> None:
     this no longer guards a lift's age; it is what keeps the count a host can
     read monotone across calls.
     """
-    from .text import load
-    from .attention import Table, run as table_run, _standing
+    from .core.text import load
+    from .core.attention import Table, run as table_run, _standing
 
     src = chr(10).join([
         "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
@@ -8523,7 +8524,7 @@ def the_aggregate_over_bindings_is_one_primitive() -> None:
     *the* or *ambiguous* -- they are three ordinary rules over 0, 1 and 2, which
     is *rows, not branches* at the level of the feature itself.
     """
-    from .text import load
+    from .core.text import load
 
     SRC = chr(10).join([
         "fact +goblin(gob_a)",
@@ -8589,7 +8590,7 @@ def a_count_is_not_monotone() -> None:
     again changes nothing and is correctly dropped -- which is the same finding
     the dungeon reported about its dice.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -8633,7 +8634,7 @@ def a_computed_numeral_is_not_a_twin() -> None:
     have been a twin of every authored 12: the rule fires, the fact lands, and
     every question about it answers nothing.
     """
-    from .text import load
+    from .core.text import load
 
     src = ["fact +thing(t%d)" % i for i in range(12)]
     src += ["fact <things> = count(thing(?x))",
@@ -8670,7 +8671,7 @@ def a_situation_is_materialised_from_its_deltas() -> None:
     entries.** Re-depositing needs the locus materialised too, and a moment is
     not a node the atom layer covers. Stated rather than left to be found.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -8770,7 +8771,7 @@ def two_things_can_turn_out_to_be_one() -> None:
     a containment leak: a silent loss of what the agent already believed, which
     is worse, because nothing reports it.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([
@@ -8905,7 +8906,7 @@ def a_rule_can_introduce_a_thing() -> None:
     this -- a fresh node always changes something, so a minting rule looks
     applicable for ever.
     """
-    from .text import load
+    from .core.text import load
 
     m = Machine()
     kb = load(m, chr(10).join([

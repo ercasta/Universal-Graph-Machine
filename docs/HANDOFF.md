@@ -1,3 +1,87 @@
+# Handoff — 2026-08-20q (four packages, and the sweep nearly stopped looking)
+
+On top of `bfb5c56`. A pure move plus the three things a move forces.
+
+    selftest          646/0
+    ./tools_sweep.sh  1 failing, 26 run -- `vocabulary`, the pre-existing 18/2
+
+## The split, and it is a claim about DEPENDENCIES
+
+    ugm/core/       9   graph, chain, channels, gate, rules, machine, text,
+                        sexpr, attention. The transitive closure of `machine`,
+                        `attention` and `text`: nothing outside it is needed to
+                        run an agent, and nothing in it imports outward.
+    ugm/learning/   7   teaching, learning, practice, lifting, maze, surprise,
+                        forest. `core` imports none of it.
+    ugm/gates/      6   agreement, quiescence, state, bundle, vocabulary,
+                        necessity. RELEASE CRITERIA.
+    ugm/probes/    17   worlds and measured questions. FINDINGS.
+    ugm/            4   __init__, __main__, selftest, corpora
+
+⭐ **`gates` and `probes` are not the same kind of thing**, and lumping them was
+costing something: a settled probe (`ugm.modality`, which says so in its own
+header) sat in the same bucket as a floor gate, and nothing distinguished *this
+must pass to ship* from *this records what we learned*.
+
+## ⚠⚠⚠ The sweep globbed `ugm/*.py`, which is its own recorded bug one level up
+
+Its header already says *a HAND-WRITTEN LIST HID TWO REGRESSIONS... Pick
+nothing: ask the filesystem.* The glob was flat, so the moment the tree grew
+subdirectories it would have **silently stopped covering every module that
+moved** and reported green because it had stopped looking. Rewritten to `find`
+BEFORE anything was moved, and it now prints how many modules it ran -- so
+coverage collapsing is visible instead of silent.
+
+## Two things the move forced, both improvements
+
+`ugm/corpora.py`: seven modules each computed
+`os.path.join(os.path.dirname(__file__), "rules", name)`. That works exactly
+while every one of them sits directly in `ugm/` and breaks the instant one moves,
+because `dirname(__file__)` follows the MODULE and the corpora do not move with
+it. One accessor, next to the data.
+
+⭐ And **`ugm/rules.py` versus `ugm/rules/` is over** -- a module and a package
+with one name, where Python resolves the module first and nothing says so. The
+rule engine is `ugm/core/rules.py`; the corpora keep the directory.
+
+## ⚠⚠ Two bugs I introduced, and only one instrument caught the worse one
+
+    same-package `from . import X`   rewritten to `from  import X` -- SyntaxError,
+                                     loud, fixed in a minute
+    teaching.py                      the corpora-import inserter matched a
+                                     `from ` line INSIDE THE DOCSTRING and
+                                     injected an import into prose
+
+The second is the interesting one. It is a `NameError` on a path `selftest` never
+takes, so **the suite stayed at 646/0 while `ugm.learning.teaching` was dead**.
+`./tools_sweep.sh` is what found it, one commit after the sweep was rewritten to
+keep finding things. A check that ran an AST parse over every module afterwards
+found 0 further damaged docstrings.
+
+> **A regex anchored on `^from ` does not know what a docstring is.**
+
+## ⚠ One layering violation left, and it is free to remove
+
+`ugm/core/attention.py` reaches into `..probes.dungeon`, from `_fight()`. But
+`_fight`, `_load` and `_holds` are called nowhere -- `learning/teaching.py`
+imports three of them and uses none -- so deleting them removes the violation and
+three dead functions at once. Not done here, to keep this commit a move.
+
+## Next
+
+The 1.0 retirement list, surveyed and unstarted:
+
+    7 definitions used nowhere    `_holds`, `Table._bare`, `experts_named`,
+                                  `_binding_stamp`, `_note_defeat`, `_sharing`,
+                                  `quest._beliefs` -- six pre-date today
+    Machine._in_play              NO production caller left
+    the `tolerance` knob          nothing acts on it since `_close` went
+    ugm.probes.modality           its own header says the question is settled
+    gates.vocabulary 18/2         `holds_at` and `time` are reserved in
+                                  `core/chain.py` and absent from the
+                                  classification. The only red in the sweep.
+    docs                          18 files, 1.2 MB, ~700 KB of it session log
+
 # Handoff — 2026-08-20p (the buffs retired, and `prefer` finished off)
 
 On top of `1d402b2`. **+656 lines, -1,862.** The retirement 20m costed and 20o

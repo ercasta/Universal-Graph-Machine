@@ -11,7 +11,7 @@ built into the engine.**
 UGM is a self-contained Python library with no dependencies.
 
 ```bash
-python -m ugm.selftest              # 523 checks, 0 failing
+python -m ugm.selftest              # 646 checks, 0 failing
 python -m ugm ugm/rules/delay.ugm --why "owed(ana,money)"
 ```
 
@@ -116,6 +116,34 @@ denied, never absent, and open-world reasoning stays honest.
 | **several agents** | two minds are two scopes, not two frames; what crosses is an utterance, and belief is the hearer's trust rule |
 | **several experts** | the other axis: one graph and one history, separate rule sets and tables. `knows`/`extends` are ordinary facts, so inheritance is one rule and *which rules has this expert* is a query |
 
+## Layout
+
+Four packages, and the split is a claim about dependencies rather than a filing
+system. `core` is the transitive closure of `machine`, `attention` and `text`:
+**nothing outside it is needed to run an agent**, and nothing inside it imports
+anything outside.
+
+```
+ugm/
+  core/        9   the engine
+                   graph -> chain, channels -> gate, rules -> machine
+                   -> text -> sexpr, attention
+  learning/    7   teaching, learning, practice, lifting, maze, surprise, forest
+                   what the agent learns from use. `core` imports none of it.
+  gates/       6   agreement, quiescence, state, bundle, vocabulary, necessity
+                   RELEASE CRITERIA -- each holds a fast path to the slow
+                   definition of the same thing. Red here is a regression.
+  probes/     17   worlds and measured questions. Red here is a FINDING, and a
+                   probe whose question is settled is a candidate for deletion.
+  rules/           the shipped `.ugm` corpora  (see `ugm/corpora.py`)
+  selftest.py      the runner
+```
+
+> **`gates` and `probes` are not the same kind of thing**, and lumping them was
+> costing something: a settled probe sat in the same bucket as a floor gate, so
+> nothing distinguished *this must pass to ship* from *this records what we
+> learned*.
+
 ## Verification
 
 Not pytest. One runner that prints every check's named observations and counts any `False` as a
@@ -123,26 +151,27 @@ failure, plus a set of gates that each hold a fast path to a slow definition on 
 every fixture**:
 
 ```bash
-python -m ugm.selftest        # 523 checks, 0 failing
-python -m ugm.agreement       # the kept resolution against the raw walk
-python -m ugm.state           # the maintained state and its indices against the walk
-python -m ugm.arbitration     # the fast chooser against the slow one
-python -m ugm.quiescence      # the compiled verdict against the six rules defining it
-python -m ugm.bundle          # deletes each shipped rule and re-runs the suite
-python -m ugm.vocabulary      # unwebbed names, with a planted typo as a control
-python -m ugm.atlas           # islands, bridges, dead rules, pairs that could disagree
+python -m ugm.selftest           # 646 checks, 0 failing
+./tools_sweep.sh                 # every module with a main(), found on disk
+
+python -m ugm.gates.agreement    # the kept resolution against the raw walk
+python -m ugm.gates.state        # the maintained state and its indices against the walk
+python -m ugm.gates.quiescence   # the compiled verdict against the six rules defining it
+python -m ugm.gates.bundle       # deletes each shipped rule and re-runs the suite
+python -m ugm.gates.vocabulary   # unwebbed names, with a planted typo as a control
+python -m ugm.probes.atlas       # islands, bridges, dead rules, pairs that could disagree
 ```
 
 And the comparisons, which run two loops or two runs over the same corpora and report
 where they differ rather than passing or failing:
 
 ```bash
-python -m ugm.attention       # the table loop against the shipped one
-python -m ugm.teaching        # a table calibrated from one demonstration against an uncalibrated one
-python -m ugm.learning        # the same world twice, with "no better" an allowed answer
-python -m ugm.practice        # rehearsing a goal inside a supposition against enacting it
-python -m ugm.table           # several agents talking, in-process against one process each
-python -m ugm.experts         # several experts over ONE graph, consulting each other
+python -m ugm.core.attention        # the table loop, the penguin, and `stop`
+python -m ugm.learning.teaching     # a table calibrated from one demonstration against an uncalibrated one
+python -m ugm.learning.learning     # the same world twice, with "no better" an allowed answer
+python -m ugm.learning.practice     # rehearsing a goal inside a supposition against enacting it
+python -m ugm.probes.table          # several agents talking, in-process against one process each
+python -m ugm.probes.experts        # several experts over ONE graph, consulting each other
 ```
 
 > **An agreement gate that agrees is worth nothing until it could have disagreed.** Every gate deletes
