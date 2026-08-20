@@ -429,40 +429,45 @@ the world-deltas, return.
 linked, 2 about the world* -- with the linking and the swapping-back done by
 staged rules instead of by Python.
 
-## ⚠⚠⚠ The one thing that is missing: THERE IS NO UN-CLAIM
+## ⚠⚠⚠ CORRECTED: there is no un-claim, and the anchored shape does not need one
 
-    asserted          +
-    denied            -
-    entries about it  2
+First written here as *the one thing that is missing*. Measured, the reasoning
+was wrong twice over.
 
-A procedure can assert and it can retract. **It cannot un-claim.** `-p` is *an
-entry denies this*, which is a different claim from *nothing has been said*, and
-after the situations deletion `resolve` is *the last entry wins* -- so there is
-no way back to `None`.
+**`+not(p)` is not an alternative to `-p`.** `bundle.ugm`'s `<denial>` rule
+translates the term form into the sign form, so it lands as ANOTHER ENTRY ABOUT
+`p`:
 
-> This is refinement 2 of the queue entry above, arriving as a hard requirement
-> rather than a preference: *Swapping back is SYMMETRIC: + and - return to None,
-> not to -. Restoring reality must leave no scar. A proposition never considered
-> and one considered and rejected are different claims, and experiment 4
-> produced the second where it owed the first.*
+    after +p          p = +   not(p) = None
+    after +not(p)     p = -   not(p) = +
+    claims about p  : ['+', '-']
 
-**Without it, every supposition a procedure runs leaves a scar**: the world it
-restores is one where the hypothesis was considered and denied, not one where it
-was never raised. Any later rule that reads `-boiling(kettle)` sees a denial the
-agent never meant to make.
+Deleting `<denial>` does not help either -- then `+not(p)` leaves `p` at `+`,
+which is worse.
 
-## So the next piece of work is ONE affordance, not a mechanism
+**And the sign was never the reason.** `None` means *no entry about this
+proposition*. The chain is append-only, so once something has been spoken about,
+nothing that can be ADDED makes the chain say nothing about it. `-p`,
+`+not(p)`, a `withdraw(?e)` claim -- every one of them is another claim.
+Return-to-`None` is unreachable by construction, for any design.
 
-Something that makes an entry no longer the answer without asserting its
-opposite -- a retraction that returns a proposition to `None`. Candidates, none
-designed yet:
+⭐⭐⭐ **So the requirement dissolves rather than being met: the un-claim is only
+needed by a supposition that mutates the REAL graph.** The anchored shape never
+speaks about reality's `p` at all, so there is nothing to restore and no scar to
+leave. `learning/practice.py` is the worked proof -- a rehearsal asserts
+`+in(r1, doing(smash(jug1)))`, reality's `intact(jug1)` is never spoken about,
+and the practised agent runs clean with no retraction primitive anywhere.
 
-    withdraw(?e)     a claim ABOUT an entry, which the resolved read honours by
-                     skipping it. Keeps the record (the entry is still in its
-                     moment's delta) while removing the belief -- *deniable, not
-                     forgotten*, applied to the deposit rather than the claim.
-    a third sign     rejected on sight: `?` already means ignorance-as-a-claim,
-                     and a fourth would be a fifth silent thing.
+> Refinement 2 of the queue entry above asked for *+ and - return to None, not
+> to -*. That is the right requirement of the WRONG design. Under anchors it is
+> satisfied vacuously, which is a better outcome than satisfying it.
+
+## What the procedure story therefore needs: nothing new
+
+A supposition-procedure stages over an ANCHOR: spawn a call, assert into scene
+`?s`, run, record the conclusions OUT of the scene, close. The only retraction
+is `-stage(?c, ?p)`, which the call stack already does and which is about the
+procedure's own bookkeeping rather than about the world.
 
 ⚠ Whichever it is, it must be checkable: the queue entry above already says
 **the revert must be CHECKED, not trusted** -- *are we back where we started* is
