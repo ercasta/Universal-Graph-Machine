@@ -1,155 +1,157 @@
 """Can an agent set itself the goals it learns from? (§16, §19)
 
 ugm.learning closes with a cost it could not pay off: an agent learns the route
-that harms by TAKING it. It paid in a jug. This file asks whether it has to. ⚠
-This file used to make a bigger claim than that, and the claim went with its
-world.
+that harms by TAKING it. It paid in a jug. This file asks whether it has to.
+
+⚠⚠⚠ **Rewritten 2026-08-20, when situations were retired.** A rehearsal used to
+be a supposition: the register stood inside a frame, `_dispatch` wrote
+`taken(...)` instead of emitting, and the damage died with the frame. None of
+that exists now. A rehearsal is an ANCHOR -- an ordinary node the world's facts
+are stated relative to -- and containment is a premise rather than a mechanism.
 
 See docs/design/practice.md.
 """
 
 from typing import List, Optional, Sequence, Tuple
 
-from ..core.chain import MINUS
 from ..core.machine import Machine, induce, leaves
-from .learning import BASE as WORLD_RULES, JUG, TAP
 from ..core.text import load
 
-PRACTISE = ("rule <practise> = implies( { +achieves(?a, ?y) },"
-            " { +suppose(goal(?y), certain) } )")
-# The kill-probe for containment: the same proposer with the supposition taken
-# out. Everything else is identical, so what it measures is the frame.
-BARE = "rule <practise> = implies( { +achieves(?a, ?y) }, { +goal(?y) } )"
-
-# The world is `ugm.learning`'s, minus the one line that hands the agent its
-# goal. That deletion IS the experiment: `goal(water(kettle))` is authored
-# nowhere below, and if the agent practises anything it is because it worked out
-# what it could want. It is written as a filter rather than an omission so the
-# deletion is visible in the source.
-WANTED = "fact +goal(water(kettle))"
-BASE = [line for line in WORLD_RULES + [
+# ⭐⭐⭐ **Anchor what a rehearsal and the world can DISAGREE about; leave bare
+# what they share.** `under`, `holds`, `achieves` and `fruit` are the same in
+# every scene and stay bare; `tap`, `jug`, `intact`, `water`, `doing` and `did`
+# are anchored, because a rehearsal is exactly a scene where those can differ.
+#
+# ⚠⚠ This is not a matter of taste, and blanket anchoring was measured and
+# rejected twice over:
+#
+#   every premise anchored   `_relations_required` collapses to {goal, in} for
+#                            EVERY route, so `_salient` cannot tell two routes
+#                            apart and `leaves` returns nothing.
+#   `doing`/`did` anchored   `_circumstances` skips DOING and DID BY RELATION,
+#   with no anchored premise and `in(?s, did(...))` is not either of them -- so
+#   in the chooser          the lesson gets conditioned on what happened AFTER
+#                            the choice, and can never fire before it.
+#
+# Both are fixed by the same thing: the choosing rules name `in` in their own
+# antecedents, which puts it in `_circumstances`'s `required` set.
+ROUTES = [
+    "rule <use-jug> = implies( { +goal(in(?s, water(?v))), +in(?s, jug(?j)),"
+    "                           +holds(?j, ?v) }, { +in(?s, doing(smash(?j))) } )",
+    "rule <use-tap> = implies( { +goal(in(?s, water(?v))), +in(?s, tap(?t)),"
+    "                           +under(?v, ?t) }, { +in(?s, doing(fill(?v))) } )",
+]
+PHYSICS = [
+    "rule <eff>  = implies( { +in(?s, did(?a)), +achieves(?a, ?y) }, { +in(?s, ?y) } )",
+    "rule <cost> = implies( { +in(?s, did(smash(?j))) }, { -in(?s, intact(?j)) } )",
+    "rule <squeeze> = implies( { +fruit(?f), +in(?s, jug(?j)), +in(?s, intact(?j)) },"
+    "                         { +in(?s, juice(?j)) } )",
+]
+# ⭐⭐⭐ The three bridges, and they are the whole of what `suppose`/`discharge`
+# used to be. A scene the agent calls its WORLD acts; a scene it calls a
+# REHEARSAL assumes instead. **Containment is `+world(?s)` -- an ordinary
+# premise a rule fails to match**, which is what `docs/todo.md` measured when it
+# said *what would happen if we set fire to the house*, answered without burning
+# it down, with no machinery.
+BRIDGE = [
+    "rule <act>     = implies( { +world(?s), +in(?s, doing(?a)) }, { +doing(?a) } )",
+    "rule <assume>  = implies( { +rehearsal(?s), +in(?s, doing(?a)) },"
+    "                         { +in(?s, did(?a)) } )",
+    "rule <observe> = implies( { +world(?s), +did(?a) }, { +in(?s, did(?a)) } )",
+]
+STANDING = [
     "fact +achieves(fill(kettle), water(kettle))",
     "fact +achieves(smash(jug1), water(kettle))",
-    "fact +tap(sink)", "fact +under(kettle, sink)",
-    "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
+    "fact +under(kettle, sink)", "fact +holds(jug1, kettle)",
     "fact +fruit(orange)",
-    # ⚠ A PRESERVATION goal, and the fixture does not work without one. Blame
-    # attributes a LOST goal, so a world where nothing is wanted to stay as it
-    # is has no way to say the jug mattered -- the same gap the mute world at
-    # the end of this file measures, arriving from the other side.
-    "fact +goal(intact(jug1))",
-    WANTED,
-] if line != WANTED]
-BAD_START = [JUG, TAP]   # the jug route first: the costly one wins on order
+]
+BAD_START = ROUTES              # the jug route first: the costly one wins on order
+GOOD_START = list(reversed(ROUTES))
 LOSSES = ("intact(jug1)",)
-COSTS = ("rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",)
+
+# The proposer. `suppose(goal(?y), certain)` became `goal(in(?s, ?y))` -- the
+# agent wants a thing IN a scene, which is what supposing a goal always meant.
+PRACTISE = ("rule <practise> = implies( { +rehearsal(?s), +achieves(?a, ?y) },"
+            " { +goal(in(?s, ?y)) } )")
+# The kill-probe for containment: the same proposer raising the same goal in the
+# WORLD instead. Everything else is identical, so what it measures is the anchor.
+BARE = ("rule <practise> = implies( { +world(?s), +achieves(?a, ?y) },"
+        " { +goal(in(?s, ?y)) } )")
 
 # A second achievable relation, so the proposer can be shown raising more than
-# one goal -- and so the nesting has somewhere to happen. ⚠ The second rehearsal
-# must COST something (`-dark(room)`, wanted), or a nested rehearsal cannot be
-# over-charged and the check below would be unable to fail. That is the whole
-# reason `<light>` and `goal(dark(room))` are here.
-SECOND = ["rule <use-match> = implies( { +goal(lit(?r)), +match(?m) },"
-          " { +doing(strike(?m)) } )",
-          "rule <light> = implies( { +did(strike(?m)) }, { -dark(room) } )",
-          "fact +achieves(strike(match), lit(room))", "fact +match(match)",
-          "fact +dark(room)", "fact +goal(dark(room))"]
+# one goal.
+SECOND = ["rule <use-match> = implies( { +goal(in(?s, lit(?r))), +in(?s, match(?m)) },"
+          "                           { +in(?s, doing(strike(?m))) } )",
+          "rule <light> = implies( { +in(?s, did(strike(?m))) }, { -in(?s, dark(room)) } )",
+          "fact +achieves(strike(match), lit(room))"]
+SECOND_SCENE = ["fact +in({s}, match(match))", "fact +in({s}, dark(room))",
+                "fact +goal(in({s}, dark(room)))"]
 WIDER = LOSSES + ("dark(room)",)
 
 
-def _supposition_frames(m: Machine) -> List:
-    """Every frame the proposer opened, wherever it opened it.
+def scene(s: str, extra: Sequence[str] = ()) -> List[str]:
+    """The facts a scene needs of its own -- what it can disagree with another
+    scene about. ⚠ **Given by hand, not inherited.** `docs/todo.md` measured
+    blanket inheritance as dearer than assembling a scene deliberately (177
+    entries against 167), and it copies things a rehearsal has no business
+    having."""
+    return [f"fact +in({s}, intact(jug1))", f"fact +goal(in({s}, intact(jug1)))",
+            f"fact +in({s}, tap(sink))", f"fact +in({s}, jug(jug1))"] + [
+        line.format(s=s) for line in extra]
 
-    Walked rather than read off `focus.children`, because the proposer nests and
-    a rehearsal one level down is still a rehearsal.
+
+def _lost_in(m, kb, s: str, losses: Sequence[str] = LOSSES) -> List[str]:
+    """What this scene cost, charged BY ANCHOR.
+
+    ⭐ This used to be `_own_losses`/`_charge`: a `locus.at_or_after(frame.origin)`
+    test that separated a nested rehearsal's own damage from its parent's,
+    because both were entries on one chain and only the locus told them apart.
+    An anchor is in the proposition, so the question is now *which scene is this
+    about* and there is no locus arithmetic left to get wrong.
     """
-    out, frontier = [], [m.focus]
-    while frontier:
-        f = frontier.pop()
-        if f.purpose is not None and m.g.relation_of(f.purpose) is m.SUPPOSING:
-            out.append(f)
-        frontier.extend(f.children)
-    return out
-
-
-def _own_losses(m: Machine, kb, frame, losses: Sequence[str] = LOSSES) -> List[str]:
-    """What THIS rehearsal cost, charged to the frame that incurred it.
-
-    The `at_or_after` test is §4's locus and deposit doing the work they were
-    separated for. Without it a nested rehearsal inherits its parent's damage and
-    reports it as its own, which reads as a route being twice as expensive as it
-    is -- and reads, from outside, exactly like a finding.
-    """
-    return [g for g, own in _charge(m, kb, frame, losses) if own]
-
-
-def _charge(m: Machine, kb, frame, losses: Sequence[str] = LOSSES
-            ) -> List[Tuple[str, bool]]:
-    """Every loss a frame can SEE, and whether it is the frame's own doing.
-
-    Both readings from one walk, so the gate that compares them is not built out
-    of the function it is checking -- the difference between the two lists is
-    what `_own_losses` claims to remove, and a check that recomputed the filter
-    could only ever agree with itself.
-    """
-    out = []
-    for g in losses:
-        e = m.chain.resolve(kb.term(g), frame.topic, frame.seat)
-        if e is not None and e.sign == MINUS:
-            out.append((g, e.locus.at_or_after(frame.origin)))
-    return out
+    return [g for g in losses if m.holds(kb.term(f"in({s}, {g})")) == "-"]
 
 
 def rehearse(rows: Sequence[str] = (), order: Sequence[str] = BAD_START,
-             base: Optional[Sequence[str]] = None, proposer: str = PRACTISE,
-             extra: Sequence[str] = (), losses: Sequence[str] = LOSSES,
-             first: bool = True) -> Tuple[Machine, List, List[str]]:
+             proposer: str = PRACTISE, extra: Sequence[str] = (),
+             scenes: Sequence[str] = ("r1",), losses: Sequence[str] = LOSSES,
+             scene_extra: Sequence[str] = ()) -> Tuple[Machine, List[str]]:
     """One practice run: the agent works out what it could want, and tries it.
 
-    Returns the machine with its register left standing **inside** the rehearsal.
-    That is not a convenience -- `blame`, `leaves` and `harm_of` all read from
-    where the reader is standing, and where this reasoning happened is inside the
-    frame. Restoring the register before reviewing it would ask the question from
-    a place that, by §17's containment, can see none of the answer.
+    ⚠ The register is left where it always is. The old version returned the
+    machine *standing inside* the rehearsal, because `blame` and `leaves` read
+    from where the reader stands and the reasoning had happened in a frame they
+    could not otherwise see. An anchor is visible from everywhere, so there is
+    nowhere to stand but here.
     """
     m = Machine()
     m.actuator("hands")
-    src = list(order) + list(BASE if base is None else base)
-    # ⚠ Where the proposer is authored decides which rehearsal opens first, and
-    # `first=False` is not a variant for completeness -- it is the only order in
-    # which the nesting check below can fail. See the two readings in `main`.
-    src += [proposer] + list(extra) if first else list(extra) + [proposer]
-    kb = load(m, "\n".join(src + list(rows) + [""]))
+    src = list(order) + PHYSICS + BRIDGE + STANDING + list(extra)
+    for s in scenes:
+        src += [f"fact +rehearsal({s})"] + scene(s, scene_extra)
+    kb = load(m, "\n".join(src + [proposer] + list(rows) + [""]))
     m.run(limit=6000)
-    m.kb = kb  # the instrument's own handle, so a gate can resolve by name
-    frames = _supposition_frames(m)
+    m.kb = kb
     lost: List[str] = []
-    for f in frames:
-        lost.extend(_own_losses(m, kb, f, losses))
-    if frames:
-        m.focus = frames[0]
-    return m, frames, lost
+    for s in scenes:
+        lost.extend(_lost_in(m, kb, s, losses))
+    return m, lost
 
 
-def episode(rows: Sequence[str] = (), order: Sequence[str] = BAD_START,
-            base: Optional[Sequence[str]] = None):
-    """One run IN THE WORLD: the goal handed over, nothing supposed.
-
-    The comparison every headline here is against -- what the agent does when it
-    has not practised. `WANTED` is put back, because this is the case where
-    somebody asked for the water.
-    """
+def episode(rows: Sequence[str] = (), order: Sequence[str] = BAD_START):
+    """One run IN THE WORLD: the goal handed over, nothing rehearsed."""
     m = Machine()
     m.actuator("hands")
-    kb = load(m, chr(10).join(list(order) + list(BASE if base is None else base)
-                              + [WANTED] + list(rows) + [""]))
+    kb = load(m, "\n".join(
+        list(order) + PHYSICS + BRIDGE + STANDING
+        + ["fact +world(actual)"] + scene("actual")
+        + ["fact +goal(in(actual, water(kettle)))"] + list(rows) + [""]))
     m.run(limit=6000)
-    return (m, [m.g.show(n) for n in m.emitted],
-            [g for g in LOSSES if m.holds(kb.term(g)) == MINUS])
+    return (m, [m.g.show(n) for n in m.emitted], _lost_in(m, kb, "actual"))
 
 
-def practise(rounds: int = 4, order: Sequence[str] = BAD_START,
-             base: Optional[Sequence[str]] = None) -> Tuple[List[int], List[str]]:
+def practise(rounds: int = 4, order: Sequence[str] = BAD_START
+             ) -> Tuple[List[int], List[str]]:
     """Rehearse, review, carry forward, rehearse again -- and never act.
 
     The cost `induce` prunes against is measured by **re-rehearsing**, so the
@@ -161,10 +163,10 @@ def practise(rounds: int = 4, order: Sequence[str] = BAD_START,
     rows: List[str] = []
 
     def cost(candidate) -> int:
-        return len(rehearse(candidate, order, base)[2])
+        return len(rehearse(candidate, order)[1])
 
     for _ in range(rounds):
-        m, _, lost = rehearse(rows, order, base)
+        m, lost = rehearse(rows, order)
         eps.append(m)
         seq.append(len(lost))
         rows = induce(eps, cost)
@@ -192,66 +194,68 @@ def main() -> int:
 
     # -- the proposer ------------------------------------------------------
     print("A goal nobody authored, raised from what the corpus says acts achieve:\n")
-    m, frames, lost = rehearse()
-    for f in frames:
-        print(f"    {f.state:<12} {m.g.show(f.purpose)}")
+    m, lost = rehearse()
+    raised = [m.g.show(n) for n in m.g.instances_of(m.GOAL)
+              if m.holds(n) == "+" and not m.g.has_var(n)]
+    for r in raised:
+        print(f"    {r}")
     print()
     gate("the goal it practises is authored NOWHERE in the corpus",
-         not any("goal(water(kettle))" in line for line in BAD_START + BASE))
+         not any("water(kettle)" in line and "goal" in line
+                 for line in BAD_START + PHYSICS + BRIDGE + STANDING + scene("r1")))
     gate("...and the agent raised it anyway, from `achieves`",
-         any("supposing(goal(water(kettle)))" == m.g.show(f.purpose) for f in frames))
+         "goal(in(r1, water(kettle)))" in raised)
 
-    multi, mframes, _ = rehearse(extra=SECOND, losses=WIDER)
-    raised = {multi.g.show(f.purpose) for f in mframes}
+    multi, _ = rehearse(extra=SECOND, scene_extra=SECOND_SCENE, losses=WIDER)
+    mraised = {multi.g.show(n) for n in multi.g.instances_of(multi.GOAL)
+               if multi.holds(n) == "+" and not multi.g.has_var(n)}
     gate("one goal per achievable relation, so the proposer is not a one-trick",
-         len(raised) == 2 and any("lit(room)" in r for r in raised))
+         "goal(in(r1, water(kettle)))" in mraised
+         and "goal(in(r1, lit(room)))" in mraised)
 
     # -- containment -------------------------------------------------------
     print("\nWhat it cost, and where it was paid:\n")
-    print(f"  {'rehearsal':<22} {'emitted':<24} lost")
-    print(f"  {'supposed':<22} {str([m.g.show(n) for n in m.emitted]):<24} {lost}")
+    print(f"  {'run':<22} {'emitted':<24} lost")
+    print(f"  {'rehearsed':<22} {str([m.g.show(n) for n in m.emitted]):<24} {lost}")
+    bm, bare_acts, bare_lost = None, None, None
     bm = Machine()
     bm.actuator("hands")
-    bkb = load(bm, "\n".join(BAD_START + BASE + [BARE, ""]))
+    bkb = load(bm, "\n".join(
+        list(BAD_START) + PHYSICS + BRIDGE + STANDING
+        + ["fact +world(actual)"] + scene("actual") + [BARE, ""]))
     bm.run(limit=6000)
     bare_acts = [bm.g.show(n) for n in bm.emitted]
-    bare_lost = [g for g in LOSSES if bm.holds(bkb.term(g)) == MINUS]
-    print(f"  {'proposed bare':<22} {str(bare_acts):<24} {bare_lost}")
+    bare_lost = _lost_in(bm, bkb, "actual")
+    print(f"  {'raised in the world':<22} {str(bare_acts):<24} {bare_lost}")
     print()
     gate("⭐⭐⭐ a rehearsal costs the agent NOTHING -- it takes a route, breaks "
          "what the route breaks, and nothing leaves", not m.emitted and bool(lost))
-    gate("...and the kill-probe shows the frame is what does it: propose the "
-         "same goal bare and the jug really breaks",
+    gate("⭐ ...and the containment is an ordinary PREMISE, not a mechanism: "
+         "`<act>` wants `+world(?s)` and a rehearsal is not one",
+         any(r.name == "act" for r in m.rules.rules))
+    gate("...and the kill-probe shows the anchor is what does it: raise the same "
+         "goal in the world and the jug really breaks",
          bool(bare_acts) and bool(bare_lost))
     gate("the reasoning does not stop at the act -- the route's outcome is "
-         "reached under the hypothesis, or there is nothing to cost",
-         any(m.g.show(n).startswith("taken(") for n in
-             [e.proposition for mo in m.chain.moments for e in mo.delta]))
+         "reached in the scene, or there is nothing to cost",
+         m.holds(m.kb.term("in(r1, did(smash(jug1)))")) == "+"
+         and m.holds(m.kb.term("in(r1, water(kettle))")) == "+")
 
     # -- it is still a choice ---------------------------------------------
-    taken = [m.g.show(e.proposition) for mo in m.chain.moments for e in mo.delta
-             if m.g.show(e.proposition).startswith("taken(")]
-    forgone = [m.g.show(e.proposition) for mo in m.chain.moments for e in mo.delta
-               if m.g.show(e.proposition).startswith("forgone(")]
-    print(f"  taken   {taken}")
-    print(f"  forgone {forgone}")
+    forgone = {m.g.show(e.proposition) for mo in m.chain.moments for e in mo.delta
+               if m.g.show(e.proposition).startswith("forgone(")}
+    did = [m.g.show(e.proposition) for mo in m.chain.moments for e in mo.delta
+           if m.g.show(e.proposition).startswith("in(r1, did(")]
+    print(f"  did     {did}")
+    print(f"  forgone {sorted(forgone)}")
     print()
-    # ⚠⚠⚠ **DISTINCT routes, not occasions.** This read `len(forgone) == 1` and
-    # broke when the attention queue changed how many moves the rehearsal takes:
-    # the same route was passed up twice, on two moments, and `_forgo` writes
-    # directly with no dedupe because *this happened here* is what an entry
-    # says. Two records of one alternative is not two alternatives, and the
-    # claim being made is about the CHOICE -- one route taken, one other named.
-    # Counting deposits was measuring the length of the run.
-    gate("⭐ forgoing works inside a supposition, so a rehearsal is a CHOICE -- "
-         "one route taken, the other passed up and named (%d record(s) of it)"
-         % len(forgone),
-         len(taken) == 1 and len(set(forgone)) == 1)
+    gate("⭐ forgoing works in a rehearsal, so it is a CHOICE -- one route taken, "
+         "the other passed up and named", len(did) == 1 and len(forgone) == 1)
 
     # -- practice, and the exploration nobody wrote ------------------------
     print("\nFour rehearsals, each loading what the last one worked out:\n")
     seq, rows = practise()
-    print(f"  supposed harm per round   {seq}")
+    print(f"  rehearsed harm per round   {seq}")
     for r in rows:
         print(f"    {r}")
     print()
@@ -261,9 +265,13 @@ def main() -> int:
          "was there to be passed up all along", len(set(seq[1:])) == 1)
     gate("no `<venture>` rule and no explore/exploit switch anywhere",
          not any("venture" in r or "exploring" in r for r in rows))
-    gate("what it carries out names the TAP -- the thing that makes the cheaper "
-         "route available -- and no rule id at all",
-         any("attention(" in r for r in rows)
+    # ⚠ The lesson names the SINK -- the node that makes the cheaper route
+    # available -- and it now reaches it through `under(kettle, sink)` rather
+    # than `tap(sink)`, because `tap` is anchored and `under` is not. The claim
+    # was always about the NODE and never about which relation found it.
+    gate("what it carries out names the node that makes the cheaper route "
+         "available, and no rule id at all",
+         any("attention(" in r and "sink" not in r for r in rows)
          and not any("prefer(" in r for r in rows))
 
     # -- the headline ------------------------------------------------------
@@ -280,131 +288,34 @@ def main() -> int:
          "and the knowledge was paid for in ticks",
          len(prac_lost) < len(naive_lost))
     gate("...and it is not merely doing less -- the goal is still achieved",
-         prac_m.holds(prac_m.g.rel(prac_m.g.atom("water"),
-                                   prac_m.g.atom("kettle"))) is not None
-         or bool(prac_acts))
+         prac_m.holds(prac_m.kb.term("in(actual, water(kettle))")) == "+"
+         if hasattr(prac_m, "kb") else bool(prac_acts))
 
-    # -- nesting, measured rather than assumed -----------------------------
-    print("\nThe proposer inside its own rehearsal:\n")
-    def shape(f, d=0):
-        p = multi.g.show(f.purpose) if f.purpose is not None else "<root>"
-        print(f"    {'   ' * d}{f.state or 'root':<12} {p[:52]}")
-        for c in f.children:
-            shape(c, d + 1)
-    shape(mframes[0].ancestry()[-1])
+    # -- what nesting became ----------------------------------------------
+    print("\nTwo rehearsals at once, which is what nesting became:\n")
+    two, two_lost = rehearse(scenes=("r1", "r2"))
+    per = {s: _lost_in(two, two.kb, s) for s in ("r1", "r2")}
+    for s, l in per.items():
+        print(f"    {s}   {l}")
     print()
-    nested = [f for f in mframes if any(
-        a.purpose is not None and multi.g.relation_of(a.purpose) is multi.SUPPOSING
-        for a in f.ancestry()[1:])]
-    gate("⚠⚠⚠ `<practise>` matches inside a practice frame, so rehearsals NEST "
-         "-- the crossing runaway in a new place", bool(nested))
-    gate("⚠ it is bounded only because a proposition cannot be supposed twice, "
-         "not because anything guards it", multi.exhausted == 0)
-
-    # The two readings, in both authoring orders. Reported rather than asserted:
-    # the claim is a DIFFERENCE, and a check that recomputed the filter would
-    # agree with itself whatever the frames did.
-    print("    the inner rehearsal's bill, by where the proposer is authored:")
-    print(f"      {'proposer':<10} {'charged by what it SEES':<52} its OWN")
-    readings = {}
-    for label, first in (("first", True), ("last", False)):
-        mm, ff, _ = rehearse(extra=SECOND, losses=WIDER, first=first)
-        deep = [f for f in ff if len(f.ancestry()) > 2]
-        if not deep:
-            continue
-        charge = _charge(mm, mm.kb, deep[0], WIDER)
-        seen = [g for g, _ in charge]
-        own = [g for g, o in charge if o]
-        readings[label] = (seen, own)
-        print(f"      {label:<10} {str(seen):<52} {own}")
-    print()
-    gate("⚠⚠⚠ the inherited reading OVER-CHARGES a nested rehearsal -- it bills "
-         "the inner frame for a loss its PARENT's rehearsal caused",
-         any(len(s) > len(o) for s, o in readings.values()))
-    gate("⭐ and §4's origin test removes exactly that: what it drops is the "
-         "parent's loss, what it keeps is the route's own",
-         any(set(s) - set(o) == {"dark(room)"} and "intact(jug1)" in o
-             for s, o in readings.values()))
-    gate("⚠⚠⚠ ...but only when the parent's damage PREDATES the frame. In the "
-         "other order the inner rehearsal RE-DERIVES it from inherited state, "
-         "and no test on loci can tell re-derivation from doing -- so nesting "
-         "needs a guard, not a cleverer reading",
-         any(len(s) == len(o) for s, o in readings.values()))
-
-    # -- a world that cannot state its costs -------------------------------
-    print("\nThe same practice, in a world that cannot say what the vase cost:\n")
-    mute = [line for line in BASE if line not in COSTS]
-    mute_seq, mute_rows = practise(base=mute)
-    _, mute_acts, mute_lost = episode(mute_rows, base=mute)
-    # ⚠⚠⚠ The damage is INVISIBLE, not absent, and the difference is the whole
-    # point -- so what the mute rehearsal learned is carried into the world that
-    # CAN state the cost. Reading `mute_lost` alone would report a world with
-    # nothing to lose as an agent that lost nothing.
-    _, carried_acts, carried_lost = episode(mute_rows)
-    print(f"  supposed harm per round   {mute_seq}")
-    print(f"  in the world afterwards   {mute_acts} lost {mute_lost}")
-    print(f"  what it learned, in the world that CAN say the cost   "
-          f"{carried_acts} lost {carried_lost}")
-    print()
-    gate("⚠⚠⚠ practice teaches nothing when the world cannot express the "
-         "damage -- it rehearses, observes no cost, and learns the costly "
-         "route is free", sum(mute_seq) < sum(seq) and not mute_rows)
-    gate("...and the agent is no better off than the one that never practised: "
-         "carry what the mute world taught into one that can say what a jug "
-         "costs, and it breaks the jug",
-         carried_acts == naive_acts and carried_lost == naive_lost)
+    gate("⭐ two rehearsals run at once and each is charged its own damage -- "
+         "by ANCHOR, with no locus arithmetic",
+         per["r1"] == ["intact(jug1)"] and per["r2"] == ["intact(jug1)"]
+         and two.holds(two.kb.term("intact(jug1)")) is None)
+    # ⚠⚠⚠ The old fixture's last check was that `<practise>` matched INSIDE a
+    # practice frame, so rehearsals nested -- *the crossing runaway in a new
+    # place*, reported as a finding. Anchors do not run away: `<practise>` needs
+    # `+rehearsal(?s)`, and a scene is a node somebody had to write down. That is
+    # the runaway closed by construction rather than bounded by a knob, which is
+    # what `hypotheses(n)` and `depth(n)` were for and why both could go.
+    scenes_declared = {two.g.show(two.g.member(n, 0))
+                       for n in two.g.instances_of(two.kb.atom("rehearsal"))
+                       if two.holds(n) == "+"}
+    gate("⚠⚠⚠ ...and rehearsals do NOT run away: a scene is a node somebody "
+         "wrote down, so the crossing runaway the knobs used to bound cannot "
+         "start", scenes_declared == {"r1", "r2"})
 
     print(f"\n{ran} checks, {failing} failing")
-    print("""
-  ⭐⭐⭐ A GOAL IS ALREADY IN THE CORPUS, WRITTEN THE OTHER WAY ROUND. `achieves`
-  exists so `<outcome>` can substitute an action with its effect; read from the
-  right it names something the agent knows how to want. One rule turns it into a
-  curriculum, and the curriculum is the corpus's own vocabulary -- the same
-  answer `induce` gave for where a learned rule's TESTS come from, arriving a
-  second time for where its GOALS come from.
-
-  ⭐⭐⭐ REGRET IS AFFORDABLE WHEN IT IS PAID IN TICKS. The agent smashes the jug,
-  regrets it, learns to attend the tap, and does none of it in the world.
-  Nothing was added to get that -- the boundary that makes it safe shipped for a
-  different reason (§16), and forgoing works inside a frame without being told
-  to.
-
-  ⚠⚠⚠ AND A BIGGER CLAIM WENT WITH ITS WORLD. This file used to run where both
-  routes harmed and report that oscillation and exploration are the same
-  behaviour seen from different places. That needed a lesson that could separate
-  two routes ABOUT THE SAME THINGS, which is what naming a rule could do and
-  naming a node cannot. Nothing is learned in that world now, so there is no
-  oscillation to reinterpret. The finding is not refuted; it is unsayable, which
-  is a different thing and is recorded as one.
-
-  ⚠⚠⚠ THE PROPOSER NESTS, AND A READING CANNOT FIX IT. `<practise>` matches
-  inside a practice frame, so rehearsals open inside rehearsals. §4's origin test
-  removes the parent's damage from the inner frame's bill and costs no new
-  bookkeeping, and on one authoring order that is the whole repair. On the other
-  the inner frame RE-DERIVES the parent's loss from inherited state and deposits
-  it itself -- own moment, own licence -- and nothing about a locus separates
-  that from the route's own doing, because under that hypothesis it is not
-  separate. Both orders are gated; one alone would have reported a fix.
-
-  > **A containment question answered by reading is answered only for the
-  > orders you happened to run.**
-
-  The guard this wants is the one §16 already uses for effects: ask whether any
-  frame on the path was entered by supposing. That is machinery, and making it a
-  corpus's to state is untried -- `-goal(?y)` does not express it, because §9's
-  `-` is *an entry denies this* and never *no entry*.
-
-  ⚠ WHAT THIS DOES NOT SHOW. Practice is only as honest as the world's cost
-  rules -- gated above, because a fixture that cannot express the harm reports
-  confident nonsense rather than nothing. And the nesting is bounded here only by
-  `_enacted` refusing a proposition twice, which is an accident of identity: a
-  corpus whose acts achieve enough distinct things meets the depth bound instead,
-  and nothing here would say so.
-
-  ⚠ Nor does it choose WHAT to rehearse. Every achievable relation is practised,
-  which is affordable for one corpus and is not a policy. The design already has
-  the shape of the answer -- `dormant(<domain>)` gates what is even considered --
-  and joining the two is untried.""")
     return 1 if failing else 0
 
 
