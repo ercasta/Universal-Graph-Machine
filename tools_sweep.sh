@@ -12,6 +12,13 @@
 # green because it had stopped looking. `find` recurses; nothing here names a
 # directory either.
 #
+# ⚠⚠⚠ AND THE TEST WAS `^def main`, WHICH IS THE SAME BUG A THIRD TIME. Two of
+# the §20 floor gates -- `gates.agreement` and `gates.quiescence` -- name their
+# entry point `run`, so a grep for `main` walked past both. Neither has ever
+# been in a sweep, and `agreement` was broken by the locus cut with nothing to
+# say so. The question is not what the function is CALLED: it is whether the
+# module is a door, and `if __name__ == "__main__"` is what says that.
+#
 #   ./tools_sweep.sh          everything but `necessity` (which takes >10 min)
 #   ./tools_sweep.sh --all    everything
 cd "$(dirname "$0")"
@@ -22,7 +29,7 @@ ran=0
 for f in $(find ugm -name '*.py' | sort); do
   base=$(basename "$f" .py)
   case " $skip " in *" $base "*) continue;; esac
-  grep -q "^def main" "$f" || continue
+  grep -q '^if __name__ == "__main__":' "$f" || continue
   mod=$(echo "${f%.py}" | tr '/' '.')
   ran=$((ran+1))
   timeout 900 python3 -m "$mod" >"/tmp/sweep.$base.out" 2>&1

@@ -20,20 +20,25 @@ from ..core.text import load
 # the engine. ⚠ The order within a delta is walked back from a CANDIDATE, not
 # closed over every entry.
 # → docs/design/agreement.md#the-read-as-rules-written-in-the-surface-so-t
+#
+# ⚠⚠⚠ **`<beaten-locus>` is GONE, and every remaining rule lost a key.** The
+# read used to be keyed by `(seat, locus, prop)` and ordered by locus FIRST --
+# `sanc(?lf, ?le)` -- with the deposit order only breaking ties within one
+# locus. An entry has no locus, so there is one order left and it is the one
+# `<dep-within>`/`<dep-across>` already computed: **later supersedes earlier**.
+#
+# ⚠ This gate was not running while that was untrue. `tools_sweep.sh` grepped
+# for `^def main` and this module's entry point is `run`, so nothing executed
+# it -- and `entry_of` had silently gone from four arguments to three, which
+# made every rule here match nothing.
 READ = """
 rule <cand> = implies(
-  { asking(?seat), anc(?seat, ?locus), anc(?seat, ?d), in_delta(?d, ?e),
-    entry_of(?e, ?x, ?prop, ?sign), asked(?prop), anc(?locus, ?x) },
-  { cand(?seat, ?locus, ?prop, ?e) } )
-
-rule <beaten-locus> = implies(
-  { cand(?seat, ?locus, ?prop, ?e), cand(?seat, ?locus, ?prop, ?f),
-    entry_of(?e, ?le, ?pe, ?se), entry_of(?f, ?lf, ?pf, ?sf),
-    sanc(?lf, ?le) },
-  { beaten(?seat, ?locus, ?prop, ?e) } )
+  { asking(?seat), anc(?seat, ?d), in_delta(?d, ?e),
+    entry_of(?e, ?prop, ?sign), asked(?prop) },
+  { cand(?seat, ?prop, ?e) } )
 
 rule <dep-within> = implies(
-  { cand(?seat, ?locus, ?prop, ?e), delta_next(?e, ?f) },
+  { cand(?seat, ?prop, ?e), delta_next(?e, ?f) },
   { dep_after(?e, ?f) } )
 
 rule <dep-within-step> = implies(
@@ -41,21 +46,18 @@ rule <dep-within-step> = implies(
   { dep_after(?e, ?f) } )
 
 rule <dep-across> = implies(
-  { cand(?seat, ?locus, ?prop, ?e), cand(?seat, ?locus, ?prop, ?f),
+  { cand(?seat, ?prop, ?e), cand(?seat, ?prop, ?f),
     in_delta(?m, ?e), in_delta(?n, ?f), sanc(?m, ?n) },
   { dep_after(?e, ?f) } )
 
 rule <beaten-deposit> = implies(
-  { cand(?seat, ?locus, ?prop, ?e), cand(?seat, ?locus, ?prop, ?f),
-    entry_of(?e, ?le, ?pe, ?se), entry_of(?f, ?le, ?pf, ?sf),
-    dep_after(?f, ?e) },
-  { beaten(?seat, ?locus, ?prop, ?e) } )
+  { cand(?seat, ?prop, ?e), cand(?seat, ?prop, ?f), dep_after(?f, ?e) },
+  { beaten(?seat, ?prop, ?e) } )
 
 rule <best> = implies(
-  { cand(?seat, ?locus, ?prop, ?e), -beaten(?seat, ?locus, ?prop, ?e) },
-  { best(?seat, ?locus, ?prop, ?e) } )
+  { cand(?seat, ?prop, ?e), -beaten(?seat, ?prop, ?e) },
+  { best(?seat, ?prop, ?e) } )
 """
-
 
 class Ambiguous(Exception):
     """More than one candidate survived. The read has no answer, and saying so is
@@ -64,8 +66,15 @@ class Ambiguous(Exception):
 
 
 def _fixture() -> Tuple[Machine, dict]:
-    """A history with everything the two indices are for: inheritance, a change
-    of the world, a revision of the past, and a fork."""
+    """A history with everything the read is for: inheritance, a change of the
+    world, several claims in one delta, and a fork.
+
+    ⚠ It was *everything the TWO INDICES are for*, and the revision-of-the-past
+    block -- three writes at `locus=m1` from a frame seated at `m3` -- went with
+    them. What replaces it as the discriminating case is the run of three claims
+    in ONE delta, which is what `<dep-within>` and `<dep-within-step>` order and
+    what nothing else can.
+    """
     m = Machine()
     g, chain, gate = m.g, m.chain, m.gate
 
@@ -75,34 +84,38 @@ def _fixture() -> Tuple[Machine, dict]:
     p_bc = g.rel(on, b, c)
 
     m0 = chain.root
+    # ⚠ A deposit lands at the chain's end, so each write follows the `succeed`
+    # that makes the moment it belongs in. The frame used to say where; nothing
+    # says where now, which is why the order of these lines is the fixture.
     m1 = chain.succeed(m0, None)
+    gate.write(p_ab, "+")            # asserted early, inherited later
     m2 = chain.succeed(m1, None)
+    gate.write(p_bc, "+")            # a second proposition, to not answer with
+    # ⚠⚠⚠ The fork comes BEFORE the main line continues, and it has to.
+    # `Chain.resolve` says *later supersedes earlier* over the whole chain and
+    # filters by no branch -- its own comment: "nothing forks, so every deposit
+    # is on the one branch". Written last, the fork tip IS `chain.now`, and the
+    # gate then compares a native read that ignores branches against a
+    # rule-level one anchored on the other one. They disagreed, correctly, and
+    # the rule-level answer was the better of the two.
+    chain.succeed(m2, None)          # a fork, so ancestry is not depth
+    s1 = chain.now
+    gate.write(p_ab, "?")
+
     m3 = chain.succeed(m2, None)
+    gate.write(p_ab, "-")            # the world moves: opposite sign, later
 
-    # asserted early, inherited later -- silence means *as it was*
-    gate.write(gate.frame(m1), p_ab, "+")
-    # a second proposition, so a read has something to not answer with
-    gate.write(gate.frame(m2), p_bc, "+")
-    # the world moves: same proposition, later locus, opposite sign
-    gate.write(gate.frame(m3), p_ab, "-")
+    # Three claims in ONE delta, so the order WITHIN a moment decides. This is
+    # the case `<dep-within-step>` exists for -- one hop of `delta_next` is not
+    # enough to beat the first of three.
+    gate.write(p_bc, "?")
+    gate.write(p_ab, "-")
+    gate.write(p_bc, "-")
 
-    # A revision of the past: the SAME locus as the first claim, deposited
-    # later.
-    # →
-    # docs/design/agreement.md#a-revision-of-the-past-the-same-locus-as-the-fi
-    f = gate.frame(m3, topic=m1)
-    gate.write(f, p_bc, "?", locus=m1)
-    gate.write(f, p_ab, "-", locus=m1)
-    gate.write(f, p_bc, "-", locus=m1)
-
-    # a fork, so ancestry is not depth
-    s1 = chain.succeed(m2, None)
-    gate.write(gate.frame(s1), p_ab, "?")
-
-    return m, {"moments": [m0, m1, m2, m3, s1], "props": [p_ab, p_bc]}
+    return m, {"moments": [m0, m1, m2, s1, m3], "props": [p_ab, p_bc]}
 
 
-def _ruled(m: Machine, best, proposition, locus: Moment, seat: Moment):
+def _ruled(m: Machine, best, proposition, seat: Moment):
     """The entry node the rule-level read returns, or None.
 
     ⚠ `best` is resolved through the LOADER's table, not minted here. `g.atom`
@@ -112,10 +125,10 @@ def _ruled(m: Machine, best, proposition, locus: Moment, seat: Moment):
     """
     g = m.g
     found = [
-        g.members(n)[3]
+        g.members(n)[2]
         for n in g.instances_of(best)
         if not g.has_var(n)
-        and g.members(n)[:3] == (seat.node, locus.node, proposition)
+        and g.members(n)[:2] == (seat.node, proposition)
     ]
     if len(found) > 1:
         # Never pick the first. A read answers with *one* entry, so several
@@ -125,14 +138,24 @@ def _ruled(m: Machine, best, proposition, locus: Moment, seat: Moment):
         # invisible until this raised.
         raise Ambiguous(
             f"{len(found)} unbeaten candidates for {g.show(proposition)} "
-            f"at {locus} from {seat}"
+            f"from {seat}"
         )
     return found[0] if found else None
 
 
 def _compare(drop: Tuple[str, ...] = ()) -> Tuple[int, List[str], int]:
     """Run every read both ways. `drop` deletes named rules from the rule-level
-    path, which is how the fixture is tested for having any power at all."""
+    path, which is how the fixture is tested for having any power at all.
+
+    ⚠⚠⚠ **The native side is asked from the CHAIN'S END and the rule-level side
+    from each seat, and that is not a mismatch -- it is the whole remaining
+    content of the gate.** `Chain.resolve` takes no seat now: it answers about
+    the one standpoint there is. The rules still take one, because `asking(?s)`
+    is what BOUNDS the read, so they are compared at the seat that is the end.
+    Every other seat is checked for a weaker property that still has teeth: the
+    read anchored there must not reach past itself, so its answer is the last
+    claim ON ITS OWN WALK -- which the fork makes discriminating.
+    """
     m, fx = _fixture()
     ldr = load(m, READ)
     if drop:
@@ -146,26 +169,39 @@ def _compare(drop: Tuple[str, ...] = ()) -> Tuple[int, List[str], int]:
     derived = m.settle_structure()
 
     moments: List[Moment] = fx["moments"]
+    end = m.chain.now
     checks = 0
     failures: List[str] = []
     for seat in moments:
-        for locus in moments:
-            if not seat.at_or_after(locus):
-                continue  # a seat that precedes its topic is meaningless (§17)
-            for p in fx["props"]:
-                native = m.chain.resolve(p, locus, seat)
-                checks += 1
+        for p in fx["props"]:
+            checks += 1
+            try:
+                ruled = _ruled(m, best, p, seat)
+            except Ambiguous as exc:
+                failures.append(f"seat={seat} {m.g.show(p)}: {exc}")
+                continue
+            if seat is end:
+                native = m.chain.resolve(p)
                 nn = None if native is None else native.node
-                try:
-                    ruled = _ruled(m, best, p, locus, seat)
-                except Ambiguous as exc:
-                    failures.append(f"seat={seat} locus={locus} {m.g.show(p)}: {exc}")
-                    continue
                 if nn != ruled:
                     failures.append(
-                        f"seat={seat} locus={locus} {m.g.show(p)}: "
-                        f"native={nn} rules={ruled}"
+                        f"seat={seat} {m.g.show(p)}: native={nn} rules={ruled}"
                     )
+                continue
+            # Not the end: the native read has nothing to say about this
+            # standpoint, so what is checked is containment -- the answer is an
+            # entry on this seat's OWN walk, and the fork is what makes that
+            # able to fail.
+            if ruled is None:
+                continue
+            got = m.chain.entry_by_node(ruled)
+            mine = {n for a in seat.ancestors() for n in (a.node,)}
+            where = [mo for mo in m.chain.moments if got in mo.delta]
+            if not where or where[0].node not in mine:
+                failures.append(
+                    f"seat={seat} {m.g.show(p)}: the read reached an entry that "
+                    f"is not on its own walk ({ruled})"
+                )
     return checks, failures, derived
 
 

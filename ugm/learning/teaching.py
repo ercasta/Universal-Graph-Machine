@@ -309,7 +309,7 @@ def _query(m: Machine, examples: List[Tuple]):
             lgg = generalise(m.g, lgg, d[rel], mapping)
         if m.g.is_var(lgg):
             continue  # a bare variable is true of everything and says nothing
-        out.append(Member(PLUS, lgg, None, None))
+        out.append(Member(PLUS, lgg, None))
     return tuple(out)
 
 

@@ -121,7 +121,7 @@ def main() -> int:
                  g.rel(kb2.atoms["attacked"], anon, kb2.atoms["hero"],
                        kb2.atoms["4"]),
                  g.rel(kb2.atoms["named"], anon, kb2.atoms["grish"])):
-        m2.gate.write(m2.focus, prop, "+",
+        m2.gate.write(prop, "+",
                       licence=g.rel(m2.LOADED, prop), source=m2.KB)
     m2.run(limit=400)
     anon_reads = [x for x in _holding(m2, kb2, "denotes") if "#" in x]

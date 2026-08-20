@@ -550,16 +550,13 @@ class Machine:
                              self.BUDGET,
                              self.WIDENED, self.REACHED,
                              self.BOUNDED, self.DEFEATED, self.ADOPT,
-                             self.SPENT, self.PREMISES, self.CONTESTED,
-                             # A seat move is the machinery's record of its own
-                             # advance, not a claim about the supposed world,
-                             # so a wrapper has nothing to qualify: without
-                             # this a causes rule applied under a hypothesis
-                             # carried likely(moved(...)) out of it -- the
-                             # agent hedging about where it had been standing.
-                             # →
-                             # docs/design/machine.md#a-seat-move-is-the-machinery-s-record-of-its-own
-                             self.gate.MOVED}
+                             # ⚠ `self.gate.MOVED` was the last name here, and
+                             # it was bookkeeping for a reason that is gone
+                             # twice over: a seat move was the machinery's
+                             # record of its own advance, and there is neither
+                             # a seat to move nor a hypothesis to carry it out
+                             # of. `Gate.reseat` minted it; nothing does now.
+                             self.SPENT, self.PREMISES, self.CONTESTED}
 
         # A rule becomes data when it is authored, not when someone remembers to
         # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
@@ -607,14 +604,14 @@ class Machine:
             ("remember", "recall", self._remember, True),
             ("re-ask", "again", self._again, False),
         ):
-            # `fn` is `(frame, entry)`; the answerer protocol is `(machine,
-            # frame, entry)`, and the answer is None because the apparatus
+            # `fn` is `(entry)`; the answerer protocol is `(machine, entry)`,
+            # and the answer is None because the apparatus
             # CONCLUDES where a tool PROPOSES. That is the one asymmetry left in
             # the door, and it is the right one: a tool is outside the agent, so
             # what it says lands as `answered(<M>, req, y)` for a corpus to
             # believe or not; `<settle>` is the agent, so what it finds lands as
             # `achieved`. Same binding, same trail, different standing to speak.
-            a = self.answerer(name, request, lambda _m, f, e, fn=fn: fn(f, e))
+            a = self.answerer(name, request, lambda _m, e, fn=fn: fn(e))
             if standing:
                 self.gate.write(
                     self.g.rel(self.STANDING, a.node), PLUS,
@@ -1627,11 +1624,11 @@ class Machine:
         # ⚠ request may be a NodeId, and for a corpus relation it must be.
         # → docs/design/machine.md#request-may-be-a-nodeid-and-for-a-corpus-re
         try:
-            inspect.signature(fn).bind(None, None, None)
+            inspect.signature(fn).bind(None, None)
         except TypeError:
             raise TypeError(
                 f"answerer {name!r} does not take (machine, entry) -- an "
-                f"answerer is called with three arguments and returns the answer "
+                f"answerer is called with two arguments and returns the answer "
                 f"node, or None for *I have nothing to say*"
             ) from None
         except (ValueError, AttributeError):
@@ -2668,7 +2665,7 @@ class Machine:
         if e.sign != MINUS:
             return
         for key in list(self._spent_by_prop.get(e.proposition, ())):
-            rule_node, consumed, _, _f = self._spent[key]
+            rule_node, consumed, _ = self._spent[key]
             if not all(
                 self.chain.resolve(c.proposition) is c
                 for c in consumed
@@ -3556,15 +3553,18 @@ class Machine:
             out.extend(f"  {self.g.show(self.g.member(n, 0))}" for n in opened)
         return out
 
-    def why(self, proposition: NodeId, locus: Optional[Moment] = None) -> List[str]:
+    def why(self, proposition: NodeId) -> List[str]:
         """*Why do you believe that, and on whose word?* -- R5.
 
         The trail is not a debugging aid: §12 makes it load-bearing for
         correctness, because a missing support link removes a weak link from the
         minimum and the conclusion becomes falsely confident.
+
+        ⚠ It took a `locus` -- *why did you believe that THEN* -- and answering
+        it needed the second index. What it answers now is about the chain's
+        end, which is the only standpoint there is.
         """
-        locus = self.chain.now if locus is None else locus
-        e = self.chain.resolve(proposition, locus, self.chain.now)
+        e = self.chain.resolve(proposition)
         if e is None:
             return []
         lines = [self._line(e)]

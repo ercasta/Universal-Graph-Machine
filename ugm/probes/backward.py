@@ -74,7 +74,7 @@ def _read(drop: Tuple[str, ...] = (), corpus: str = CORPUS) -> Tuple[Set[str], i
     kb = load(m, corpus)
     if drop:
         m.rules.rules = [r for r in m.rules.rules if r.name not in drop]
-    m.gate.write(m.focus, m.g.rel(m.GOAL, kb.term(GOAL)), PLUS, mention=True)
+    m.gate.write(m.g.rel(m.GOAL, kb.term(GOAL)), PLUS, mention=True)
     steps = m.run(limit=2000)
     return _facts(m), m.gate.writes, len(steps)
 

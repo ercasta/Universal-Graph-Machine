@@ -132,9 +132,11 @@ class Term(NamedTuple):
 
 
 class RuleMember(NamedTuple):
+    """⚠ `at: Optional[Term]` was here, between `term` and `binds`. It went with
+    the locus: an entry has no second time for a member to name."""
+
     sign: str
     term: Term
-    at: Optional[Term] = None
     binds: Optional[Term] = None
 
 
@@ -428,21 +430,27 @@ class Parser:
                 f"proposition now -- write `+likely(p)` in the consequent and let "
                 f"a rule cross it, rather than annotating how strongly `p` is held."
             )
-        # ⭐ +acts(goblin) at ?m -- WHERE the entry sits. ⚠ Written out rather
-        # than punctuated.
-        # → docs/design/text.md#acts-goblin-at-m-where-the-entry-sits
-        at = binds = None
-        # `at ?m` -- WHERE the entry sits. `as ?t` -- WHAT it says, named.
-        # Either order, because neither reads as the other and an author should
-        # not have to remember which came first.
+        # `as ?t` -- WHAT the member matched, named.
+        #
+        # ⚠⚠⚠ `at ?m` was the other half and it is REFUSED rather than ignored,
+        # for `@`'s reason directly above: a notation that parses and is dropped
+        # is a rule that means something other than what it says, and nothing
+        # raises. It said WHERE the entry sits, and an entry has no locus.
+        binds = None
         while True:
             if self.at("at"):
-                self.next(); at = self.term()
-            elif self.at("as"):
+                raise ParseError(
+                    f"line {t.line}: `at ?m` is gone with the locus. An entry "
+                    f"has no second time to bind, so a member cannot say where "
+                    f"it sits -- read the chain instead: `in_delta(?m, ?e), "
+                    f"entry_of(?e, p, +)` is the same claim, and `anc`/`sanc` "
+                    f"order the moments."
+                )
+            if self.at("as"):
                 self.next(); binds = self.term()
             else:
                 break
-        return RuleMember(sign, term, at, binds)
+        return RuleMember(sign, term, binds)
 
     def term(self) -> Term:
         """A primary, then any number of further argument groups applied to it.

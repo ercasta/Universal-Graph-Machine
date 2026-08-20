@@ -23,8 +23,8 @@ from ..core.text import load, load_file
 # derived* rather than *something denies it*.
 QUIET = """
 rule <holds> = implies(
-  { best(?seat, ?locus, ?prop, ?e), entry_of(?e, ?le, ?pe, ?sign) },
-  { holds_as(?seat, ?locus, ?prop, ?sign) } )
+  { best(?seat, ?prop, ?e), entry_of(?e, ?pe, ?sign) },
+  { holds_as(?seat, ?prop, ?sign) } )
 
 rule <mention-inherited> = implies(
   { consumed_by(?a, ?e), mentioned(?e) },
@@ -39,8 +39,8 @@ rule <silent> = implies(
   { silent(?a) } )
 
 rule <changes> = implies(
-  { proposes(?a, ?seat, ?locus, ?prop, ?sign),
-    -holds_as(?seat, ?locus, ?prop, ?sign), -silent(?a) },
+  { proposes(?a, ?seat, ?prop, ?sign),
+    -holds_as(?seat, ?prop, ?sign), -silent(?a) },
   { would_change(?a) } )
 
 rule <quiet> = implies(
@@ -121,22 +121,25 @@ def _harvest(m: Machine) -> Harvest:
 
 
 def _admissible(m: Machine, h: Harvest, app: Application) -> Optional[List[tuple]]:
-    """The conclusions this application would write, as (locus, prop, sign) --
-    or None if it falls in one of the four uncompared branches, tallied."""
+    """The conclusions this application would write, as (prop, sign) -- or None
+    if it falls in one of the uncompared branches, tallied.
+
+    ⚠ It was `(locus, prop, sign)`, and the locus came from `_conclude_at`,
+    which resolved a member's `at ?m` against the bindings. Both are gone, and
+    with them the `span` branch -- *the bound locus is not a moment*. Its
+    counter is kept in the tally as a permanent zero rather than removed,
+    because a counter that disappears reads as a branch nobody reached.
+    """
     if m.rules.is_stratum0(app.rule):
         h.skipped["stratum0"] += 1
         return None
     out = []
     for mem in app.rule.consequent:
         grounded = substitute(m.g, mem.pattern, app.bindings)
-        if m._forbid(m.focus, grounded, mem.sign) is not None:
+        if m._forbid(grounded, mem.sign) is not None:
             h.skipped["forbidden"] += 1
             return None
-        at = m._conclude_at(mem, app.bindings, strict=False) or m.focus.topic
-        if m.chain._moment_by_node.get(at.node) is None:
-            h.skipped["span"] += 1
-            return None
-        out.append((at, grounded, mem.sign))
+        out.append((grounded, mem.sign))
     return out
 
 
@@ -145,8 +148,8 @@ def _describe(m: Machine, ldr, h: Harvest, admitted) -> Dict[int, int]:
     conclusion it would write.
 
     That is the whole of what is handed over. Grounding is `substitute`; the
-    locus is `_conclude_at`, which is a lookup once the binding is made; the
-    seat is where the register is standing. No verdict, no comparison, and
+    seat is the chain's own end -- there is no locus and no register left to
+    ask. No verdict, no comparison, and
     nothing about whether the proposition already holds -- which is the half
     being tested."""
     g = m.g
@@ -156,8 +159,8 @@ def _describe(m: Machine, ldr, h: Harvest, admitted) -> Dict[int, int]:
         a = g.atom(f"candidate-{i}")
         names[id(app)] = a
         g.rel(rel["candidate"], a)
-        for at, grounded, sign in conclusions:
-            g.rel(rel["proposes"], a, m.focus.seat.node, at.node,
+        for grounded, sign in conclusions:
+            g.rel(rel["proposes"], a, m.chain.now.node,
                   grounded, m.rules.SIGN[sign])
             if g.has_var(grounded):
                 # `has_var` is the substrate's own question about a node, so it
@@ -191,12 +194,12 @@ def _ambiguous(m: Machine, ldr, admitted) -> set:
     for n in m.g.instances_of(ldr.term("holds_as")):
         if m.g.has_var(n):
             continue
-        seat, locus, prop, sign = m.g.members(n)
-        holds.setdefault((seat, locus, prop), set()).add(sign)
+        seat, prop, sign = m.g.members(n)
+        holds.setdefault((seat, prop), set()).add(sign)
     out = set()
     for app, conclusions in admitted:
-        for at, grounded, _ in conclusions:
-            if len(holds.get((m.focus.seat.node, at.node, grounded), ())) > 1:
+        for grounded, _ in conclusions:
+            if len(holds.get((m.chain.now.node, grounded), ())) > 1:
                 out.add(id(app))
     return out
 
@@ -321,8 +324,8 @@ def _compare(drop: Tuple[str, ...] = (), stops: Tuple[int, ...] = STOPS,
         # gate is comparing. Measured on `agreement`'s own fixture once §7
         # stopped hiding the reified entries: 10,638 derived facts and 90
         # seconds, against 61 facts and 0.3 seconds asked this way.
-        m.ask_read(m.focus.seat, about=[p for _, cs in admitted
-                                        for _, p, _ in cs])
+        m.ask_read(m.chain.now, about=[p for _, cs in admitted
+                                       for p, _ in cs])
         m.settle_structure()
         verdicts = _ruled(m, ldr, names)
         ambiguous = _ambiguous(m, ldr, admitted)

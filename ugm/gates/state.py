@@ -13,7 +13,7 @@ import io
 
 from ..core.chain import PLUS
 from ..core.machine import Machine
-from ..core.rules import Situation, current_state
+from ..core.rules import Situation
 
 
 _tally = {
@@ -28,13 +28,27 @@ _examples = []
 
 
 def _slow_state(m):
-    """§4's walk, filtered by what is out of mind. Newest-first."""
+    """§4's walk, filtered by what is out of mind. Newest-first.
+
+    ⚠⚠⚠ This CANNOT call `current_state` any more, and the reason is the lesson
+    this gate exists to enforce. With the locus gone, `current_state` is one
+    line over `chain._claims` -- it reads the very index the maintained state is
+    also built from, so a gate calling it would compare an index against
+    itself and report agreement on any bug either shared. *An index is a
+    re-implementation of what it indexes*, and both sides being the same
+    implementation is the failure the column cannot see.
+
+    So the walk is a walk: every moment oldest-first, every entry in its delta,
+    last claim about each proposition wins. That is `resolve`'s semantics stated
+    independently of `resolve`.
+    """
     hidden = m._out_of_mind()
-    return [
-        e
-        for e in current_state(m.chain, m.focus.topic, m.focus.seat)
-        if e.source not in hidden
-    ]
+    governs = {}
+    for mo in m.chain.moments:            # oldest first, so later overwrites...
+        for e in mo.delta:
+            governs.pop(e.proposition, None)   # ...and moves to the newest end
+            governs[e.proposition] = e
+    return [e for e in reversed(list(governs.values())) if e.source not in hidden]
 
 
 def _note(what, detail):
@@ -66,7 +80,7 @@ def install() -> None:
         # A supersession is the case the maintained state has to get right and
         # an append-only fixture cannot exercise: fewer entries than claims made
         # about this seat means something replaced something.
-        if len(slow) < len({e.proposition for e in self.focus.seat.delta}):
+        if len(slow) < len({e.proposition for e in self.chain.now.delta}):
             _tally["with_a_supersession"] += 1
         if any(
             e.sign == PLUS and self.g.relation_of(e.proposition) is self.GOAL

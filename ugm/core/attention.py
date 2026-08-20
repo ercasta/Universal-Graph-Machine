@@ -577,7 +577,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             fresh = False
             for rival in window[1:]:
                 node = m.g.rel(m.CLOSE, chosen.rule.node, rival.rule.node)
-                if m.chain.resolve(node, m.chain.now, m.chain.now) is None:
+                if m.chain.resolve(node) is None:
                     m._note(node)
                     fresh = True
             if fresh:
@@ -692,7 +692,7 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
         probe = Rule(
             chosen.rule.node, chosen.rule.connective,
             [Member(mm.sign, substitute(m.g, mm.pattern, chosen.bindings),
-                    mm.locus, mm.binds) for mm in query],
+                    mm.binds) for mm in query],
             [], f"{name}-after",
         )
         for hit in match(

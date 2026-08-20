@@ -48,7 +48,7 @@ def episode(extra: List[str] = (), drop: str = "", tool: bool = True):
     kb = Loader(m)
     asked: List[str] = []
 
-    def render(mach, frame, e):
+    def render(mach, e):
         """Compose the command from what is claimed about it.
 
         ⚠ Everything it touches goes through `kb`, never `g.atom`. A tool that

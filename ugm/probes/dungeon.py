@@ -45,7 +45,7 @@ def fight(seed: Optional[int] = 7, limit: int = 4000, extra: str = "",
     rng = random.Random(seed)
     asked: List[str] = []
 
-    def dice(mach, frame, e):
+    def dice(mach, e):
         # Two members, not three. The third used to be the round, carried so
         # that the round-2 ask was a different node from the round-1 one -- and
         # the corpus now spends the request instead, which is its own first law
@@ -57,7 +57,7 @@ def fight(seed: Optional[int] = 7, limit: int = 4000, extra: str = "",
         asked.append(mach.g.show(e.proposition))
         return kb.atom(str(rng.randint(1, sides)))
 
-    def arith(mach, frame, e):
+    def arith(mach, e):
         op, a, b = (mach.g.show(x) for x in mach.g.members(e.proposition))
         if not (a.isdigit() and b.isdigit()):
             return None
@@ -74,7 +74,7 @@ def fight(seed: Optional[int] = 7, limit: int = 4000, extra: str = "",
             return kb.atom(str(max(0, int(a) - int(b))))
         return None
 
-    def compare(mach, frame, e):
+    def compare(mach, e):
         a, b = (mach.g.show(x) for x in mach.g.members(e.proposition))
         if not (a.isdigit() and b.isdigit()):
             return None
@@ -242,7 +242,7 @@ def main() -> int:
     dead = [w for w in ("hero", "goblin1", "goblin2") if holds(m, kb, f"dead({w})")]
     gate("⚠ the trail check has something to measure: somebody died", bool(dead))
     if dead:
-        e = m.chain.resolve(kb.term(f"dead({dead[0]})"), m.focus.topic, m.focus.seat)
+        e = m.chain.resolve(kb.term(f"dead({dead[0]})"))
         trail = {m.g.show(x.proposition) for x in m.chain.trail(e)}
         gate(f"⭐⭐ why did {dead[0]} die: the trail reaches the roll that killed "
              f"it, because a tool's answer is a premise like any other",

@@ -19,7 +19,7 @@ from ..core.text import load
 # it: nothing below is privileged, and a learned one would be compared with it.
 SYSTEM = """
 rule <said>  = implies( { asking(?s), anc(?s, ?d), in_delta(?d, ?e),
-                          entry_of(?e, ?l, ?p, ?sg) },
+                          entry_of(?e, ?p, ?sg) },
                         { said(?p, ?sg) } )
 
 rule <unmet> = implies( { said(implies(?a, ?c), plus),

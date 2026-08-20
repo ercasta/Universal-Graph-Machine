@@ -639,3 +639,145 @@ invalidated>`), and §6's *a rule that reads ignorance* is a real pattern. Each
 becomes *no `believed(...)` node matches*, which is negation-as-failure -- so
 the honest question is whether the three deviation rules still say what they say
 when ignorance is absence. **They are the fixture for this change.**
+
+---
+
+# QUEUED by the seat/locus cut — reading the past, as rules
+
+The cut is finished and green (503/0, sweep 0/24). Four groups and two modules
+were deleted rather than converted, on the author's call *delete now, convert in
+a follow-up*. This is the follow-up, and it is **one conversion, not six**:
+every one of them bound a moment from an ordinary member, and every one of them
+is writable over the structural relations instead.
+
+    at ?m                 the locus of the entry that satisfied the member
+    in_delta(?m, ?e),     the same claim, over the raw chain -- and `anc`/`sanc`
+    entry_of(?e, p, +)    order the moments
+
+⭐ **PROVED REACHABLE before anything was deleted**, not assumed:
+
+    rule <after> = implies( { asking(?s), anc(?s, ?mq), in_delta(?mq, ?eq),
+                              entry_of(?eq, acts(?q), plus),
+                              anc(?s, ?mp), in_delta(?mp, ?ep),
+                              entry_of(?ep, acts(?p), plus),
+                              sanc(?mq, ?mp) },
+                           { acted_after(?q, ?p) } )
+    → acted_after(goblin, hero)
+
+⚠ **What that version is NOT the same as.** It is stratum 0 -- every antecedent
+member is structural -- so its conclusion is MINTED structure, not a deposited
+entry, and `_state()` will not show it. Every converted fixture has to read the
+graph or add an ordinary rule downstream of the recogniser. `<say>`/`<note>` in
+the deleted fixtures already did exactly that, so the shape is known.
+
+What is waiting, and where the record of each is:
+
+| gone | was | recorded at |
+|---|---|---|
+| `a_rule_can_relate_two_moments` | a member says WHERE its entry sits, and the round trip through `reify` keeps it | comment in `selftest.py` |
+| `the_skeleton_is_an_ordinary_member` | an ordinary rule matches the skeleton; a downward pattern is not refused | comment in `selftest.py` |
+| `a_span_is_a_locus` | **the design document's own worked example** -- *taking turns* over ten stretches | comment in `selftest.py` |
+| `probes/hindsight` | `holds_at` resolving at a named moment; unanchored and generic both decline | `docs/design/hindsight.md` |
+
+## ⚠⚠⚠ The one thing the conversion does NOT recover, and it has no home
+
+**Dating a claim to a stretch.** A span was a kind of LOCUS, and that is what
+made *it held throughout M1..M4* a different claim from *it held at M1*. Nothing
+in the tree can say the first now. `silence_over_a_stretch_is_sayable` is the
+nearest survivor and it deliberately does less: a recogniser carries its two
+endpoints itself and deposits an ordinary claim, which is `bundle.ugm`'s *the
+claim is deposited now, like every other claim, rather than dated to the
+stretch*.
+
+The refusal that went with it is the sharp part, because it was load-bearing:
+
+> a claim about an INSTANT does not become a claim about a stretch -- inheriting
+> it would answer *did it hold throughout* from an entry that cannot see a
+> denial in the middle.
+
+Under the scratchpad design that question gets harder, not easier: belief
+becomes presence, and a stretch has no presence. **Decide it before a corpus
+needs it**, or the first agent that reasons over a duration will be answering
+from an instant and nothing will say so.
+
+---
+
+# FOUND while finishing the cut — three that were not part of it
+
+## ⚠⚠⚠ 1. `close(<R1>, <R2>)` depends on where the chunk boundary falls
+
+`ugm.probes.walkers` was deleted for this and the finding is the reason to keep
+reading. Two rules with identical antecedents contend for one position. The
+recall table is matched in chunks of `SHORTLIST = 5`, and the loop stops
+widening the moment its window is non-empty -- so a rival on the far side of a
+boundary is **never matched**, and the doubt is never noticed.
+
+    23 rules (before)   step at 21, fork at 22   one chunk    window [step, fork]
+    21 rules (after)    step at 19, fork at 20   two chunks   window [step]
+    SHORTLIST = 6       -- the only change --                 window [step, fork]
+
+The bundle shrank by two rules with the situations deletion, and that was enough.
+§15-16 built the noticing and called arbitration total; this says the noticing is
+conditional on table position. **Not fixed, because the fix changes the loop
+every rule runs through**: keep widening while the next chunk's top score is
+within `TOLERANCE` of the window's, so a tie is finished before the loop stops.
+
+## ⚠⚠ 2. `current_state` was ordering by FIRST mention, and the order is semantics
+
+Introduced by the collapse to one time: `_claims` is keyed by first mention, so
+`[got[-1] for got in reversed(...)]` returns a proposition where its FIRST claim
+put it. `Machine._state`'s incremental path does not have the bug -- it deletes
+and re-inserts -- so the rebuild and the growth disagreed about order on **1,675
+of 5,919** comparisons. *A description with two candidates resolves to the most
+recent* rests on that order. Fixed: sort by the governing entry's own node,
+which is mint order.
+
+⭐ And the reason it was invisible: **`ugm.gates.state` was comparing an index
+against itself.** Its slow side called `current_state`, which after the collapse
+is one line over `chain._claims` -- the very index the maintained state is built
+from. The gate now walks the moments itself. That is the lesson the gate exists
+to enforce, applied to the gate.
+
+## ⚠ 3. `entry_of` matched nothing, silently
+
+`_members_of` required a four-argument member and a three-member entry. An entry
+has two members now, so **every rule that reads the chain found zero** --
+including the whole of `gates/agreement.py`'s `READ`. Nothing raised. The
+name-identity trap's shape with a different name: a member that is well formed,
+loads, and matches nothing.
+
+## ⚠⚠⚠ 4. Two §20 floor gates had NEVER been in a sweep
+
+`tools_sweep.sh` grepped `^def main`; `gates.agreement` and `gates.quiescence`
+call their entry point `run`. The file's own header already records this bug
+twice -- a hand-written list, then a flat glob -- and this is the third shape:
+**the question is not what the function is CALLED, it is whether the module is
+a door.** Keyed on `if __name__ == "__main__"` now, which took the sweep from
+24 modules to 29 and brought in `gates.bundle`, `probes.backward` and
+`probes.compose` as well.
+
+Both gates were broken by the cut and both are converted here. `agreement`'s
+`READ` lost `<beaten-locus>` and every remaining rule lost a key -- the read was
+ordered by locus first, with deposit order breaking ties *within* a locus, and
+there is one order left.
+
+⚠ Its fixture forks on purpose, and the fork had to move OFF the chain's end.
+`Chain.resolve` filters by no branch, so with the fork written last the gate
+compared a native read that ignores branches against a rule-level read anchored
+on the other one. **They disagreed, correctly, and the rule-level answer was the
+better of the two.** That is worth keeping in view: the native read's *nothing
+forks* precondition is now load-bearing and unchecked.
+
+⚠⚠⚠ **And `quiescence` still exits 1, for a reason older than this branch.**
+`<silent>` derives nothing in any of its 12 fixtures -- 5/6 of its own rules
+exercised -- and `run()` counts a blind rule as a failure, which is right.
+Checked against `6c370d2` rather than assumed: that commit prints the same 5/6
+and the same `<-- BLIND`. **A gate nobody ran had been saying this all along.**
+
+`<silent>` needs a candidate that is `unbound` -- a conclusion still generic
+after substitution -- and NOT `mentioning`. `SHAPES`' `<attach>` was written to
+be exactly that shape (`+resume(hall, <echo>)`, generic only because `<echo>`'s
+patterns are) and it is not reaching the rule. ⚠ First thing to check: whether
+a rule whose consequent NAMES a rule is marked `mentions`, which would make
+`unbound` and `mentioning` fire together and `<silent>` unreachable by
+construction. Left named rather than fixed, as `gates.state` was before it.

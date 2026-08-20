@@ -1,5 +1,27 @@
 # `walkers.py` — the argument
 
+> ⚠⚠⚠ **The module is DELETED (2026-08-20).** This file is kept because five
+> other documents cite what it measured, and because the prose *is* the record
+> of it — but nothing here describes live code.
+>
+> Why it went: `<step>` and `<fork>` have identical antecedents and contend for
+> one walker position, and the probe's claim was that the contention *is visible
+> as a window of two*. It is not, reliably. The recall table is matched in
+> chunks of `SHORTLIST = 5` and the loop stops widening the moment its window is
+> non-empty, so whether a rival is seen depends on where the two rules fall
+> relative to a chunk boundary. The situations deletion took two rules out of
+> the bundle (23 → 21), which moved `<step>` to index 19 — the last slot of the
+> chunk 15–19 — and `<fork>` to 20. `<step>` matched, the window filled, and
+> `<fork>` was never matched at all. Changing `SHORTLIST` to 6 and nothing else
+> restored the old numbers exactly.
+>
+> ⭐ That is a finding about the ENGINE and not only about the fixture: whether
+> the agent notices it is choosing under doubt — `close(<R1>, <R2>)` — depends
+> on table position. `docs/todo.md` carries it as an open question.
+>
+> ⚠ What is no longer measured anywhere: *moving loses a branch silently*, and
+> the by-path/by-node growth rates.
+
 Moved out of the module so the code reads as code. Each section is the
 prose that stood at the place the module now points from.
 

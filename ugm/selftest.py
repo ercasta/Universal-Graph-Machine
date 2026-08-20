@@ -15,11 +15,13 @@ from .core.rules import (CAUSES, IMPLIES, Member, RuleSet, match,
 _results: List[Tuple[str, str, bool]] = []
 
 
-# The bundle's own stratum-0 rules: §11's containment policy, which left
-# `Moment.at_or_after` for `bundle.ugm` so a corpus can argue with it. Named
-# here because two checks enumerate every stratum-0 rule and are about a
-# corpus's recognisers rather than about the bundle's.
-BUNDLE_STRATUM0 = {"span-complete", "span-itself"}
+# ⚠ `BUNDLE_STRATUM0 = {"span-complete", "span-itself"}` was here -- §11's
+# containment policy, which `Moment.at_or_after` consulted, and which two checks
+# filtered out so they measured a CORPUS's recognisers rather than the bundle's.
+# Both rules went with the locus, so the filter matched nothing and hid nothing:
+# a set of names that no longer exist is not a guard, it is a check that has
+# stopped looking. The bundle ships no stratum-0 rule now, and if it ever does
+# again the layering check below should fail and say so.
 
 
 def check(group: str, name: str, value: bool) -> None:
@@ -47,34 +49,46 @@ def chain_reads() -> None:
     on, a, b = g.atom("on"), g.atom("a"), g.atom("b")
     p = g.rel(on, a, b)
 
-    m0 = c.root
-    m1 = c.succeed(m0, None)
+    m1 = c.succeed(c.root, None)
+    c.deposit(proposition=p, sign=PLUS)
+    check("§6", "an asserted proposition holds", c.holds(p) == PLUS)
     m2 = c.succeed(m1, None)
+    check("§6", "a moment with no entry about it changes nothing", c.holds(p) == PLUS)
+    check("§5", "a proposition with no entry claims nothing", c.holds(g.rel(on, b, a)) is None)
 
-    c.deposit(seat=m1, locus=m1, proposition=p, sign=PLUS)
-    check("§6", "an asserted proposition holds at its own locus", c.holds(p, m1, m2) == PLUS)
-    check("§6", "no entry means inherit, not unknown", c.holds(p, m2, m2) == PLUS)
-    check("§5", "a proposition with no entry claims nothing", c.holds(g.rel(on, b, a), m2, m2) is None)
+    c.succeed(m2, None)
+    c.deposit(proposition=p, sign=MINUS)
+    check("§6", "a later claim overrides an earlier one", c.holds(p) == MINUS)
+    # ⚠ LOST with the second time: `the earlier moment is unchanged by the later
+    # claim` was `c.holds(p, m1, m3) == PLUS` -- the locus index. `resolve`
+    # answers about the chain's end and nothing else. *Did this hold THEN* is a
+    # corpus rule over `in_delta`/`anc`/`entry_of` now, not a Python service:
+    # see `Chain.resolve`. What survives of it is the next check.
+    check("§4", "the earlier entry is still in its own moment",
+          any(e.proposition == p and e.sign == PLUS for e in m1.delta))
 
-    m3 = c.succeed(m2, None)
-    c.deposit(seat=m3, locus=m3, proposition=p, sign=MINUS)
-    check("§6", "a later locus overrides an earlier one", c.holds(p, m3, m3) == MINUS)
-    check("§4", "the earlier moment is unchanged by the later claim", c.holds(p, m1, m3) == PLUS)
-
-    m4 = c.succeed(m3, None)
+    m4 = c.succeed(c.now, None)
     lvl = g.rel(g.atom("level"), g.atom("tank"))
-    c.deposit(seat=m1, locus=m1, proposition=lvl, sign=PLUS)
-    c.deposit(seat=m4, locus=m4, proposition=lvl, sign=UNSURE)
+    c.deposit(proposition=lvl, sign=PLUS)
+    c.succeed(m4, None)
+    c.deposit(proposition=lvl, sign=UNSURE)
     check(
         "§6",
         "`?` invalidates without replacing -- it does not return the old value",
-        c.holds(lvl, m4, m4) == UNSURE,
+        c.holds(lvl) == UNSURE,
     )
 
 
-def two_indices() -> None:
-    """§17's first new gate: after revising a belief about an earlier moment, both
-    questions answer, and answer differently."""
+def a_revision_is_a_second_entry() -> None:
+    """What is left of §17's two indices, and it is the half that was never
+    about a locus.
+
+    ⚠⚠⚠ The group this replaces was `two_indices`: deposit about M7 from M12,
+    then ask both *what I now think about M7* and *what I thought at M7* and get
+    different answers. Neither question is askable -- an entry has no locus, so
+    there is no second time to index by. What remains is the claim §12 makes
+    about any revision: it ADDS, so the original is still findable.
+    """
     m = Machine()
     g, c = m.g, m.chain
     tt = g.rel(g.atom("taking_turns"), g.atom("anna"), g.atom("bo"))
@@ -82,67 +96,73 @@ def two_indices() -> None:
     m7 = c.succeed(c.root, None)
     for _ in range(4):
         m7 = c.succeed(m7, None)
-    c.deposit(seat=m7, locus=m7, proposition=tt, sign=PLUS)
+    c.deposit(proposition=tt, sign=PLUS)
 
     m12 = m7
     for _ in range(5):
         m12 = c.succeed(m12, None)
-    # I now think they were not taking turns then: same locus, later deposit.
-    c.deposit(seat=m12, locus=m7, proposition=tt, sign=MINUS)
+    # I now think they were not taking turns.
+    c.deposit(proposition=tt, sign=MINUS)
 
-    check("§17", "what I now think about M7", c.holds(tt, m7, m12) == MINUS)
-    check("§17", "what I thought at M7", c.holds(tt, m7, m7) == PLUS)
-    check(
-        "§17",
-        "the two indices give different answers, so neither was lost",
-        c.holds(tt, m7, m12) != c.holds(tt, m7, m7),
-    )
+    check("§17", "what I now think", c.holds(tt) == MINUS)
     check(
         "§12",
         "nothing was invalidated: the original entry is still in its moment",
         any(e.proposition == tt and e.sign == PLUS for e in m7.delta),
     )
+    check(
+        "§12",
+        "and both claims are still enumerable, in order",
+        [e.sign for e in c.claims_about(tt)] == [PLUS, MINUS],
+    )
 
 
-# -- §13 the gate and frames ------------------------------------------------
+# -- §13 the gate ------------------------------------------------------------
 
 
 def gate() -> None:
+    """⚠⚠⚠ Four of this group's seven checks were about the FRAME, and there is
+    no frame. The stamp was *proposition and sign from the rule; locus, deposit,
+    licence and source from the frame* -- and two of those four came from a
+    register that said where the agent was standing. Gone with it:
+
+        the locus is stamped from the frame's topic
+        about-when and believed-since differ, honestly
+        a seat before its topic is refused where it is minted
+        topic defaults to the seat
+
+    What is left is the half §13 was actually for: the rule gives two of the
+    stamp's parts and may not give the rest, and the deposit lands where nothing
+    chose it.
+    """
     m = Machine()
     g, c, gate_ = m.g, m.chain, m.gate
     p = g.rel(g.atom("rain"), g.atom("tuesday"))
 
-    past = c.succeed(c.root, None)
-    now = c.succeed(past, None)
+    c.succeed(c.root, None)
+    now = c.succeed(c.now, None)
 
-    f = gate_.frame(seat=now, topic=past)
-    e = gate_.write(f, p, PLUS, licence=g.atom("supposing"))
-    check("§13", "the locus is stamped from the frame's topic", e.locus is past)
-    check("§13", "the deposit is the frame's seat", e in now.delta)
-    check("§13", "about-when and believed-since differ, honestly", e.locus is not now)
-
-    ok = False
-    try:
-        gate_.frame(seat=past, topic=now)
-    except ValueError:
-        ok = True
-    check("§13", "a seat before its topic is refused where it is minted", ok)
+    # ⚠ Held in a variable, not re-minted: `g.atom` does not intern, so
+    # `g.atom("supposing")` asked twice is two nodes and the comparison below
+    # fails while looking right. The name-identity trap, caught writing this.
+    why = g.atom("supposing")
+    e = gate_.write(p, PLUS, licence=why)
+    check("§13", "the deposit lands at the chain's end, which nothing chose",
+          e in now.delta and c.now is now)
+    check("§13", "licence is stamped, not claimed by the rule", e.licence is why)
 
     ok = False
     try:
-        gate_.write(f, g.rel(g.atom("rain"), g.var("?d")), PLUS)
+        gate_.write(g.rel(g.atom("rain"), g.var("?d")), PLUS)
     except ValueError:
         ok = True
     check("§13", "a generic proposition cannot be deposited", ok)
 
-    f2 = gate_.frame(seat=now)
-    check("§13", "topic defaults to the seat", f2.topic is now)
-    # ⚠ *Frames form a forest: ancestry is derived* was checked here, and the
-    # forest went with situations. `Frame` is a seat and a topic now, and the
-    # engine builds exactly one. §18's call stack is FACTS and is unaffected.
-    check("§13", "a frame is its seat and its topic, and nothing else",
-          (f2.node, f2.seat, f2.topic) == (f2.node, now, now)
-          and not hasattr(f2, "parent"))
+    # ...unless it is MENTIONED (§14). The machinery reifying a rule is
+    # mentioning; a rule's consequent is using. That distinction outlived the
+    # frame because it was never about where anyone was standing.
+    e2 = gate_.write(g.rel(g.atom("rain"), g.var("?d")), PLUS, mention=True)
+    check("§14", "a mentioned generic proposition can be", e2.mention)
 
 
 # -- §12 uncertainty ---------------------------------------------------------
@@ -305,7 +325,7 @@ def connectives_differ() -> None:
     m2.run(limit=5)
     check("§10", "`implies` lands in the same moment", m2.chain.now is seat_before)
     check("§10", "...and the conclusion is there to be read",
-          m2.chain.resolve(rain, m2.chain.now) is not None)
+          m2.chain.resolve(rain) is not None)
 
 
 def quiescence() -> None:
@@ -365,9 +385,8 @@ def trusting_a_channel() -> None:
     m2 = Machine()
     g2 = m2.g
     p2 = g2.rel(g2.atom("tt"), g2.atom("anna"))
-    m0 = m2.chain.root
-    e1 = m2.chain.deposit(seat=m0, locus=m0, proposition=p2, sign=PLUS)
-    e2 = m2.chain.deposit(seat=m0, locus=m0, proposition=p2, sign=MINUS)
+    e1 = m2.chain.deposit(proposition=p2, sign=PLUS)
+    e2 = m2.chain.deposit(proposition=p2, sign=MINUS)
     check("§5", "two claims about one proposition are two distinct entry nodes", e1.node != e2.node)
     check("§5", "so a fact about one does not land on the other", m2.chain.entry_by_node(e1.node).sign == PLUS)
 
@@ -400,7 +419,7 @@ def surface() -> None:
     m, kb = _loads("fact +on(a, b)\nfact -in(b, c)   # a comment\n")
     check("§3", "the surface writes a fact", m.holds(kb.term("on(a, b)")) == PLUS)
     check("§6", "and a signed one", m.holds(kb.term("in(b, c)")) == MINUS)
-    check("§13", "a loaded fact is stamped as having come from the KB", m.chain.resolve(kb.term("on(a, b)"), m.chain.now).source == m.KB)
+    check("§13", "a loaded fact is stamped as having come from the KB", m.chain.resolve(kb.term("on(a, b)")).source == m.KB)
 
     check("§4", "a fact may not contain a variable", _refuses("fact +on(?x, b)"))
     check(
@@ -824,8 +843,7 @@ def the_tick_limit_is_on_the_record() -> None:
           "with nothing left to do was stopped by nothing, and saying otherwise "
           "would make the record useless in the other direction",
           steps[-1].state == "quiescent"
-          and m.chain.holds(kb.term("bounded(ticks)"),
-                            m.chain.now, m.chain.now) is None)
+          and m.chain.holds(kb.term("bounded(ticks)")) is None)
 
     m2 = Machine()
     kb2 = load(m2, chr(10).join([
@@ -835,13 +853,11 @@ def the_tick_limit_is_on_the_record() -> None:
     check("§21", "⭐⭐⭐ ...and a run still working when the budget bites SAYS so, "
           "so a runaway stops being indistinguishable from a finished corpus",
           len(steps2) == 40 and steps2[-1].state == "applied"
-          and m2.chain.holds(kb2.term("bounded(ticks)"),
-                             m2.chain.now, m2.chain.now) == PLUS)
+          and m2.chain.holds(kb2.term("bounded(ticks)")) == PLUS)
     m2.run(limit=10)
     check("§19", "...and it is an OCCASION, so a corpus reacts to its own "
           "runaway rather than being cut off in silence",
-          m2.chain.holds(kb2.term("noticed(runaway)"),
-                         m2.chain.now, m2.chain.now) == PLUS)
+          m2.chain.holds(kb2.term("noticed(runaway)")) == PLUS)
 
     # ⚠⚠⚠ `Loader.term` parsed one term and dropped the rest of the string, and
     # `Loader.say` uses it -- so an agent could say one thing and the hearer
@@ -878,18 +894,26 @@ def silence_over_a_stretch_is_sayable() -> None:
     """
     from .core.text import load
 
+    # ⚠⚠⚠ `span_of(?s, ?a, ?b)` went with the locus, and it is NOT missed here.
+    # It minted one node standing for a stretch, because an entry could be dated
+    # to a stretch and `Moment.at_or_after` had to decide whether such a claim
+    # was visible. Nothing is dated to anything now, so the two endpoints are
+    # just two moments and a recogniser carries them itself. `bundle.ugm` says
+    # exactly this where the span rules used to be: *§11's recognitions over a
+    # stretch are still sayable -- the claim is deposited now, like every other
+    # claim, rather than dated to the stretch.* This is that sentence, run.
     src = chr(10).join([
         "rule <round> = implies(",
         "  { asking(?q), anc(?q, ?m), in_delta(?m, ?e),",
-        "    entry_of(?e, ?l, turn(hero, ?r), plus), span_of(?s, ?m, ?q) },",
-        "  { round_span(?r, ?s) } )",
+        "    entry_of(?e, turn(hero, ?r), plus) },",
+        "  { round_span(?r, ?m, ?q) } )",
         "rule <heard> = implies(",
-        "  { round_span(?r, ?s), span_of(?s, ?a, ?b), anc(?b, ?m), anc(?m, ?a),",
-        "    in_delta(?m, ?e), entry_of(?e, ?l, arrived(?c, ?what, ?sign), plus) },",
-        "  { heard(?s, ?c) } )",
-        "rule <silent> = implies( { round_span(?r, ?s), -heard(?s, player) },",
-        "                        { silent(?s, player) } )",
-        "rule <hero-acts>  = implies( { silent(?s, player), +turn(hero, ?r) },",
+        "  { round_span(?r, ?a, ?b), anc(?b, ?m), anc(?m, ?a),",
+        "    in_delta(?m, ?e), entry_of(?e, arrived(?c, ?what, ?sign), plus) },",
+        "  { heard(?r, ?c) } )",
+        "rule <silent> = implies( { round_span(?r, ?a, ?b), -heard(?r, player) },",
+        "                        { silent(?r, player) } )",
+        "rule <hero-acts>  = implies( { silent(?r, player), +turn(hero, ?r) },",
         "                             { +attacks(hero, ?r) } )",
         "rule <hero-holds> = implies( { +says(player, hold(hero), ?g), +turn(hero, ?r) },",
         "                             { +holds(hero, ?r) } )",
@@ -904,19 +928,17 @@ def silence_over_a_stretch_is_sayable() -> None:
         # ⚠ A ROUND IS A STRETCH, so it has duration whether or not anyone spoke.
         # Minting the span only when the chain happened to move made silence
         # unrepresentable: there was no span for nothing to have happened in.
-        now = m.chain.succeed(m.chain.moments[-1], None)
-        m.gate.reseat(m.focus, now)
+        now = m.chain.succeed(m.chain.now, None)
         m.ask_read(now)
-        # ⚠ The BUNDLE now ships stratum-0 rules of its own -- §11's containment
-        # policy, which used to be a Python branch in `Moment.at_or_after`. They
-        # sit in layer 0 and would otherwise appear here, so they are filtered:
-        # this check is about how the CORPUS's recognisers are layered, and
-        # widening the expected list to include them would blunt it.
-        layers = [[r.name for r in layer if r.name not in BUNDLE_STRATUM0]
-                  for layer in m.rules.strata()]
+        # ⚠ Unfiltered, and it used to be filtered: the bundle shipped two
+        # stratum-0 rules of its own and they sat in layer 0. Both went with the
+        # locus, so what this enumerates is the corpus's own recognisers and
+        # nothing else -- and a bundle rule appearing in layer 0 again would now
+        # show up here rather than being quietly dropped.
+        layers = [[r.name for r in layer] for layer in m.rules.strata()]
         m.settle_structure()
         m.run(limit=120)
-        at = lambda q: m.chain.holds(kb.term(q), m.chain.now, m.chain.now)
+        at = lambda q: m.chain.holds(kb.term(q))
         return layers, at("attacks(hero, 1)"), at("holds(hero, 1)")
 
     layers, attacks, holds = round_of(declare=False)
@@ -954,7 +976,7 @@ def a_guard_is_an_ordinary_member() -> None:
         "fact +wounded(hero)", "fact +wounded(ally)",
         "fact +poisoned(hero)", "fact -poisoned(ally)", ""]))
     m.run(limit=80)
-    at = lambda p: m.chain.holds(kb.term(p), m.chain.now, m.chain.now)
+    at = lambda p: m.chain.holds(kb.term(p))
     check("§12", "⭐⭐⭐ a negated member IS `unless`: the per-entity exception "
           "that §14's precedence cannot express -- `overrides` is per rule and "
           "per tick, `supersedes` needs a shared consumed entry, and this needs "
@@ -988,7 +1010,7 @@ def a_guard_is_an_ordinary_member() -> None:
         carried = any(x.sign == MINUS
                       and m2.g.show(x.pattern).startswith("poisoned")
                       for x in composed.antecedent)
-        apps = match(m2.g, m2.chain, composed, m2.chain.now, m2.chain.now,
+        apps = match(m2.g, m2.chain, composed,
                      structural=structural_relations(m2.chain))
         reaches = {m2.g.show(v) for a in apps for v in a.bindings.values()
                    if m2.g.show(v) in ("hero", "ally")}
@@ -1000,183 +1022,49 @@ def a_guard_is_an_ordinary_member() -> None:
               f"with the guard in {where} constituent", reaches == {"ally"})
 
 
-def a_span_is_a_locus() -> None:
-    """§11's spans, built -- and §13's worked example, run for the first time.
-
-    §11 has said *a locus is a moment or a span* since it was written, over a
-    box reading DESCRIBED AND NOT IMPLEMENTED, and §13's *taking turns* -- this
-    document's own worked example of a shape -- carried the matching one:
-    *neither of those two rules can be written in any corpus this engine
-    loads.* Both are discharged here.
-
-    See docs/design/selftest.md#a-span-is-a-locus.
-    """
-    from .core.text import load
-
-    # -- the span itself (§11) --------------------------------------------
-    m = Machine()
-    c = m.chain
-    ms = [c.root]
-    for _ in range(5):
-        ms.append(c.succeed(ms[-1], None))
-
-    s = c.span(ms[1], ms[4])
-    check("§11", "a span is a node with two members, a start and an end",
-          m.g.members(s.node) == (ms[1].node, ms[4].node))
-    check("§11", "...and it is INTERNED, so a stretch has one identity however "
-          "many recognisers reach it -- the twin trap, which a second node here "
-          "would split every claim about the span across",
-          c.span(ms[1], ms[4]) is s and c.span(ms[1], ms[4]).node is s.node)
-
-    # §11: *nothing prevents constructing a span whose start is not an ancestor
-    # of its end. Such a span is meaningless, so the check belongs at the
-    # minting site, where it is cheap and where the mistake is still
-    # attributable.*
-    inverted = degenerate = False
-    try:
-        c.span(ms[4], ms[1])
-    except ValueError:
-        inverted = True
-    try:
-        c.span(ms[2], ms[2])
-    except ValueError:
-        degenerate = True
-    check("§11", "an INVERTED span is refused where it is minted, not where it "
-          "is read", inverted)
-    check("§11", "...and so is a degenerate one -- `span(M2, M2)` is a second "
-          "name for a moment, and two ways to say one locus is the ambiguity "
-          "the read cannot afford", degenerate)
-
-    # -- inheritance is within a kind of locus (§10, §11) -------------------
-    tt = m.g.rel(m.g.atom("taking_turns"), m.g.atom("anna"), m.g.atom("bo"))
-    c.deposit(seat=ms[4], locus=s, proposition=tt, sign=PLUS)
-    check("§10", "⭐ a recognition over a stretch is an ordinary fact once the "
-          "stretch is OVER, so ordinary rules can read what a shape concluded",
-          c.holds(tt, ms[5], ms[5]) == PLUS)
-    check("§10", "...and not before it is over: at M2 the stretch to M4 has not "
-          "happened", c.holds(tt, ms[2], ms[2]) is None)
-
-    # ⭐⭐⭐ The load-bearing refusal, and the one that costs something.
-    rain = m.g.rel(m.g.atom("rain"), m.g.atom("tuesday"))
-    c.deposit(seat=ms[1], locus=ms[1], proposition=rain, sign=PLUS)
-    check("§11", "⭐⭐⭐ a claim about an INSTANT does not become a claim about a "
-          "stretch: *it rained at M1* is not *it rained throughout M1..M4*, and "
-          "inheriting it would answer *did it hold throughout* from an entry "
-          "that cannot see a denial in the middle",
-          c.holds(rain, s, ms[5]) is None and c.holds(rain, ms[2], ms[5]) == PLUS)
-
-    # -- the state's key (§10) ---------------------------------------------
-    # ⚠⚠⚠ Two recognitions over DIFFERENT stretches supersede nothing of each
-    # other. Keyed by proposition alone the state kept exactly one, and §13's
-    # recursion cannot see its own output -- so the shape stops after one step.
-    short = c.span(ms[2], ms[4])
-    c.deposit(seat=ms[4], locus=short, proposition=tt, sign=PLUS)
-    m.gate.reseat(m.focus, ms[5])
-    seen = {repr(e.locus) for e in m._state() if e.proposition == tt}
-    check("§10", "⭐⭐⭐ two recognitions over different stretches are BOTH in "
-          "view -- one entry per proposition was an assumption about loci, and "
-          "it is right exactly while every two of them are comparable",
-          seen == {"S1..4", "S2..4"})
-
-    # -- a rule may CONCLUDE at a locus it bound (§8, §12) ------------------
-    # ⚠⚠⚠ This was parsed, boundness-checked and reified, and the write ignored
-    # it: `{ +noted(?p) at ?mp }` matching entries at M1 and M2 deposited both at
-    # M2. Two entries differing only in a field no outcome check reads.
-    m2 = Machine()
-    load(m2, chr(10).join([
-        "rule <a> = causes( { +start(x) }, { +acts(hero) } )",
-        "rule <b> = causes( { +acts(hero) }, { +acts(goblin) } )",
-        "rule <back> = implies( { +acts(?p) at ?mp }, { +noted(?p) at ?mp } )",
-        "fact +start(x)", ""]))
-    m2.run(limit=120)
-    landed = {m2.g.show(e.proposition): repr(e.locus)
-              for mo in m2.chain.moments for e in mo.delta
-              if m2.g.show(e.proposition).startswith("noted(")}
-    check("§8", "⭐⭐⭐ a rule concludes at the locus its antecedent bound -- "
-          "`+noted(?p) at ?mp` lands where the act was, not where the frame is",
-          landed == {"noted(hero)": "M1", "noted(goblin)": "M2"})
-
-    # -- §13's worked example, over the raw chain -------------------------- ⚠
-    # It has to read the CHAIN rather than the state, and §12 says why in
-    # advance: *a single fact's own history is not relatable -- the superseded
-    # entry is not in the state*.
-    # → docs/design/selftest.md#13-s-worked-example-over-the-raw-chain
-    m3 = Machine()
-    c3 = m3.chain
-    kb3 = load(m3, chr(10).join([
-        "rule <tt-base> = implies(",
-        "  { asking(?q), anc(?q, ?p),",
-        "    in_delta(?p, ?ep), entry_of(?ep, ?p, acts(?b), plus),",
-        "    pred(?p, ?n),",
-        "    in_delta(?n, ?en), entry_of(?en, ?n, acts(?a), plus),",
-        "    pred(?n, ?m), span_of(?s, ?m, ?p) },",
-        "  { turns(?s, ?a, ?b) } )",
-        "rule <tt-step> = implies(",
-        "  { turns(?s2, ?b, ?a), span_of(?s2, ?n, ?e),",
-        "    in_delta(?n, ?en), entry_of(?en, ?n, acts(?a), plus),",
-        "    pred(?n, ?m), span_of(?s, ?m, ?e) },",
-        "  { turns(?s, ?a, ?b) } )",
-        "rule <say> = implies( { turns(?s, ?a, ?b), +watching(x) },",
-        "                     { +taking_turns(?a, ?b) at ?s } )",
-        "fact +watching(x)", ""]))
-    steps = [c3.root]
-    for _ in range(5):
-        steps.append(c3.succeed(steps[-1], None))
-    for i, who in enumerate(["anna", "bo", "anna", "bo", "anna"], start=1):
-        c3.deposit(seat=steps[i], locus=steps[i],
-                   proposition=kb3.term(f"acts({who})"), sign=PLUS)
-    m3.gate.reseat(m3.focus, steps[5])
-    m3.ask_read(steps[5])
-
-    check("§6", "the recogniser is stratum 0 by §6's own test -- every antecedent "
-          "member is structural, and nobody assigned it a layer",
-          sorted(r.name for r in m3.rules.rules
-                 if m3.rules.is_stratum0(r) and r.name not in BUNDLE_STRATUM0)
-          == ["tt-base", "tt-step"])
-    m3.settle_structure()
-    m3.run(limit=300)
-
-    said = sorted({(repr(e.locus), m3.g.show(e.proposition))
-                   for mo in c3.moments for e in mo.delta
-                   if m3.g.show(e.proposition).startswith("taking_turns")})
-    # anna acts at M1, M3, M5 and bo at M2, M4, so a stretch ending at an even
-    # moment is *anna then bo* and one ending at an odd moment is *bo then anna*.
-    want = [("S0..2", "taking_turns(anna, bo)"),
-            ("S0..3", "taking_turns(anna, bo)"),
-            ("S0..4", "taking_turns(anna, bo)"),
-            ("S0..5", "taking_turns(anna, bo)"),
-            ("S1..3", "taking_turns(bo, anna)"),
-            ("S1..4", "taking_turns(bo, anna)"),
-            ("S1..5", "taking_turns(bo, anna)"),
-            ("S2..4", "taking_turns(anna, bo)"),
-            ("S2..5", "taking_turns(anna, bo)"),
-            ("S3..5", "taking_turns(bo, anna)")]
-    check("§13", "⭐⭐⭐ THE DESIGN DOCUMENT'S OWN WORKED EXAMPLE RUNS: *taking "
-          "turns* recognised over every stretch it holds over, by a recursive "
-          "definition whose base case is two turns and whose step consumes one "
-          "and defers the rest", said == want)
-    check("§13", "...and the ALTERNATION is what was recognised -- the argument "
-          "swap in the step is the back-reference that makes this a definition "
-          "rather than *someone acts repeatedly*",
-          ("S0..5", "taking_turns(anna, bo)") in said
-          and ("S0..5", "taking_turns(bo, anna)") not in said)
-    widest = c3.span(steps[0], steps[5])
-    check("§11", "⭐ the extent is DESCRIBED, never enumerated: the recognition "
-          "spanning five moments stores two endpoints, and what lies between is "
-          "the chain's to settle -- membership is not stored because the "
-          "predecessor relation is single-valued",
-          len(m3.g.members(widest.node)) == 2
-          and [x.depth for x in (widest.start, widest.end)] == [0, 5])
-
-    # ⚠⚠⚠ **The recursion needs quiescence to ask at the CONSEQUENT's locus.**
-    # Asking at the frame's topic, the second recognition of one proposition is
-    # *nothing to do* however different the stretch -- so the shape produced its
-    # first two spans and stopped, with every rule right and the loop unable to
-    # tell it had not finished. Fixing the write alone did not reach it: the loop
-    # never got to the write, because the verdict was about another locus.
-    check("§18", "⚠⚠⚠ ...and quiescence asked at the consequent's own locus, "
-          "or the recursion halts after its first recognition with everything "
-          "green", len(said) == 10)
+# ⚠⚠⚠ DELETED WITH THE LOCUS: `a_span_is_a_locus`, and this is the LARGEST
+# single loss of the cut. Eleven checks, and §11's *a locus is a moment or a
+# span* went with the locus that the "or" was about.
+#
+# What a span WAS: one interned node with two members, minted by `Chain.span`,
+# refusing an inverted or degenerate stretch at the minting site. An entry could
+# be dated to it, and `Moment.at_or_after` consulted the bundle's `<span-
+# complete>`/`<span-itself>` to decide whether such a claim was visible from a
+# moment. `bundle.ugm` carries the argument for why all of that is gone: an
+# entry has no locus, so nothing can be about a stretch, and there is nothing
+# for the policy to decide.
+#
+# The checks, so each is findable from the thing that used to prove it:
+#
+#   §11  a span is a node with two members, and it is INTERNED
+#   §11  an INVERTED span is refused where it is minted, and so is a degenerate
+#        one -- two ways to say one locus is the ambiguity the read cannot afford
+#   §10  a recognition over a stretch is an ordinary fact once the stretch is
+#        OVER -- and not before it is over
+#   §11  ⭐⭐⭐ a claim about an INSTANT does not become a claim about a stretch.
+#        The load-bearing refusal: inheriting it would answer *did it hold
+#        throughout* from an entry that cannot see a denial in the middle
+#   §10  ⭐⭐⭐ two recognitions over DIFFERENT stretches are both in view --
+#        `_state` was keyed by `(proposition, span)` for this, and its comment
+#        records the collapse to `proposition` alone
+#   §8   ⭐⭐⭐ a rule concludes at the locus its antecedent bound: `+noted(?p)
+#        at ?mp` lands where the act was, not where the frame is
+#   §13  ⭐⭐⭐ **THE DESIGN DOCUMENT'S OWN WORKED EXAMPLE RAN HERE** -- *taking
+#        turns* recognised over all ten stretches it holds over, by a recursive
+#        stratum-0 definition whose base case is two turns and whose step
+#        consumes one and defers the rest, with the argument swap carrying the
+#        alternation. §11's *DESCRIBED, never enumerated* went with it.
+#   §18  ...and quiescence asked at the consequent's own LOCUS, or the recursion
+#        halted after its first recognition with everything green
+#
+# ⭐ What survives, and it is not nothing: `silence_over_a_stretch_is_sayable`
+# is the same claim without the span node -- a recogniser carries its two
+# endpoints itself and deposits an ordinary claim. That is `bundle.ugm`'s
+# *§11's recognitions over a stretch are still sayable*, run. What is NOT
+# recovered by it is the part that made a span a LOCUS: dating a claim to a
+# stretch, and therefore telling *it held throughout* from *it held then*.
+# ⚠⚠⚠ That distinction has no replacement anywhere in the tree. `docs/todo.md`
+# carries it as the sharpest open question of the scratchpad design.
 
 
 def worked_examples() -> None:
@@ -1211,7 +1099,7 @@ def worked_examples() -> None:
     # The trust rule's consequent is a bare variable: whatever the channel says.
     raining = kb.term("likely(raining(here))")
     check("§13", "a rule whose consequent is a variable believes what a channel said", m.holds(raining) == PLUS)
-    e = m.chain.resolve(raining, m.chain.now)
+    e = m.chain.resolve(raining)
     check("§13", "the channel in the rule is the channel delivered on", e is not None and any(t.source == kb.term("user") for t in m.chain.trail(e)))
     check("R5", "the trail reaches the utterance", len(m.why(raining)) > 1)
 
@@ -2104,7 +1992,7 @@ def a_request_can_be_re_asked() -> None:
     calls: List[int] = []
     scope: List = []
 
-    def oracle(machine, frame, e):
+    def oracle(machine, e):
         calls.append(1)
         # ⚠ `scope[0].atom`, not `machine.g.atom`. An answer built outside the
         # loader's table is a node no rule can name, and the first version of
@@ -2678,30 +2566,35 @@ def the_state_is_kept_not_rebuilt() -> None:
           "recent* rests on -- the order is semantics, not a detail of the walk",
           order and order[0] == p and order.index(p) < order.index(q))
 
-    # §17's two indices, inside the kept state: a claim about an EARLIER moment,
-    # deposited later, must not displace a claim about a later one.
+    # ⚠⚠⚠ TWO of this group's three checks were about the two indices, and both
+    # are gone with the locus. They were:
+    #
+    #   a later DEPOSIT about an earlier LOCUS does not displace a claim about a
+    #   later one -- latest locus first, and only then latest deposit
+    #   a claim about a moment later than what I am reasoning ABOUT is not in
+    #   that moment's state
+    #
+    # Both were *the kept state reproduces `resolve`'s ordering exactly*, and
+    # `resolve`'s ordering is now a list index. What is left to get wrong is the
+    # incremental growth itself, which is the check above and the one below.
     m2 = Machine()
-    early = m2.chain.now
-    later = m2.chain.succeed(early, None)
-    m2.gate.reseat(m2.focus, later)
-    m2._state()
-    m2.chain.deposit(seat=later, locus=later, proposition=p, sign=PLUS)
-    m2.chain.deposit(seat=later, locus=early, proposition=p, sign=MINUS)
+    m2.chain.succeed(m2.chain.now, None)
+    m2._state()                      # cache built AT the new moment, then grown
+    m2.chain.deposit(proposition=p, sign=PLUS)
+    m2.chain.deposit(proposition=p, sign=MINUS)
     held = {e.proposition: e.sign for e in m2._state()}
-    check("§17", "a later DEPOSIT about an earlier LOCUS does not displace a claim "
-          "about a later one -- latest locus first, and only then latest deposit",
-          held.get(p) == PLUS)
+    check("§17", "the later of two claims in one delta governs, incrementally",
+          held.get(p) == MINUS)
 
-    # ...and reasoning about the past does not see the present.
+    # ...and a claim deposited in a LATER moment than the one the cache was
+    # built at is picked up, rather than being missed because the cache is keyed
+    # by the seat it was built for.
     m3 = Machine()
-    e0 = m3.chain.now
-    e1 = m3.chain.succeed(e0, None)
-    m3.focus = m3.gate.frame(e1, topic=e0)
     m3._state()
-    m3.chain.deposit(seat=e1, locus=e1, proposition=q, sign=PLUS)
-    check("§4", "a claim about a moment later than what I am reasoning ABOUT is "
-          "not in that moment's state",
-          q not in {e.proposition for e in m3._state()})
+    m3.chain.succeed(m3.chain.now, None)
+    m3.chain.deposit(proposition=q, sign=PLUS)
+    check("§4", "a claim deposited after the state was cached is in it",
+          q in {e.proposition for e in m3._state()})
 
 
 def a_scope_can_span_documents() -> None:
@@ -2746,50 +2639,36 @@ def a_scope_can_span_documents() -> None:
           and m.holds(priv.term("red(kettle)")) is None)
 
 
-def a_rule_can_relate_two_moments() -> None:
-    """*The goblin acts after the hero.* (§8, §12, §20)
-
-    §12 says a member IS an entry, and that the short form is an abbreviation
-    whose locus the frame supplies. ⚠ What this does NOT buy, and the foreign
-    corpus was asked which half it needed: a matcher sees the resolved state,
-    one entry per proposition, so two...
-
-    See docs/design/selftest.md#a-rule-can-relate-two-moments.
-    """
-    from .core.text import load
-
-    m = Machine()
-    kb = load(m, chr(10).join([
-        "rule <a> = causes( { +start(x) }, { +acts(hero) } )",
-        "rule <b> = causes( { +acts(hero) }, { +acts(goblin) } )",
-        "rule <order> = implies( { +acts(hero) at ?mh, +acts(goblin) at ?mg },",
-        "                       { +sequence(?mh, ?mg) } )",
-        "fact +start(x)", ""]))
-    m.run(limit=80)
-    seq = [e for e in m._state() if e.sign == PLUS
-           and m.g.show(e.proposition).startswith("sequence(")]
-    check("§12", "⭐ a rule relates two moments: a member says WHERE its entry "
-          "sits, and the locus binds", len(seq) == 1)
-    check("§8", "...and they are distinct moments, not one bound twice",
-          bool(seq) and m.g.member(seq[0].proposition, 0)
-          is not m.g.member(seq[0].proposition, 1))
-
-    # ⚠⚠⚠ The part that would rot in silence. `adopt` reads a rule back out of
-    # the graph and `compose` builds one from two others -- a locus `reify` does
-    # not record is one they drop, and the rule that comes back is a DIFFERENT
-    # rule. The twin-trap family, fifth time.
-    r = [x for x in m.rules.rules if x.name == "order"][0]
-    built = m._read_rule(m.focus, r.node)
-    check("§20", "...and it SURVIVES the round trip through the graph, so a "
-          "rule the agent adopts is the rule the graph described",
-          built is not None
-          and [x.locus for x in built[1]] == [x.locus for x in r.antecedent])
-
-    # ...and a member with no locus is unchanged, which is most of them.
-    plain = [x for x in m.rules.rules if x.name == "a"][0]
-    check("§12", "...while the short form is untouched: no locus, and the frame "
-          "supplies one as it always did",
-          all(x.locus is None for x in plain.antecedent))
+# ⚠⚠⚠ DELETED WITH THE LOCUS: `a_rule_can_relate_two_moments`.
+#
+# *The goblin acts after the hero* (§8, §12, §20), written as `at ?m`:
+#
+#     rule <order> = implies( { +acts(hero) at ?mh, +acts(goblin) at ?mg },
+#                            { +sequence(?mh, ?mg) } )
+#
+# It proved three things and each is gone for a different reason. That a member
+# says WHERE its entry sits, and the locus binds -- `at ?m` is not parseable,
+# because an entry has no second time to bind to. That the two moments are
+# distinct rather than one bound twice. And, the part that would rot in silence,
+# that the locus SURVIVES the round trip through `reify`/`_read_rule` -- the
+# twin-trap family, whose fifth appearance this was.
+#
+# ⭐ The capability is not lost, and this is a queued conversion rather than a
+# concession: `in_delta`, `anc`, `entry_of` and `sanc` are ordinary structural
+# relations, so the same rule is writable in a corpus and answers the same. It
+# was PROBED before this was deleted, not assumed --
+#
+#     rule <after> = implies( { asking(?s), anc(?s, ?mq), in_delta(?mq, ?eq),
+#                               entry_of(?eq, acts(?q), plus),
+#                               anc(?s, ?mp), in_delta(?mp, ?ep),
+#                               entry_of(?ep, acts(?p), plus),
+#                               sanc(?mq, ?mp) },
+#                            { acted_after(?q, ?p) } )
+#     → acted_after(goblin, hero)
+#
+# ⚠ What that version is NOT the same as: it is stratum 0, so its conclusion is
+# MINTED structure rather than a deposited entry, and `_state()` will not show
+# it. `docs/todo.md` carries the conversion.
 
 
 def a_computation_happens_inside_the_application() -> None:
@@ -2858,7 +2737,8 @@ def a_computation_happens_inside_the_application() -> None:
 def a_member_can_name_what_it_matched() -> None:
     """`+on(?x, ?y) as ?t` -- reference, not description. (§8, §12)
 
-    at ?m says WHERE an entry sits; as ?t says WHAT it says, under a name. Same
+    `at ?m` said WHERE an entry sits and went with the locus; `as ?t` says WHAT
+    it says, under a name, and stays -- it was never about a second time. Same
     one-line mechanism, and it answers a question that had two unsatisfying
     answers before it. ⚠ And two members hoping to co-refer -- +tagged(?t),
     +on(?x, ?y) -- is coincidence, not reference: nothing links them, and it
@@ -2887,83 +2767,35 @@ def a_member_can_name_what_it_matched() -> None:
     # slot `reify` does not record is one `adopt` and `compose` drop, and the
     # rule that comes back is a different rule.
     r = [x for x in m.rules.rules if x.name == "r"][0]
-    built = m._read_rule(m.focus, r.node)
+    built = m._read_rule(r.node)
     check("§20", "...and it survives the round trip through the graph",
           built is not None
           and [x.binds for x in built[1]] == [x.binds for x in r.antecedent])
 
 
-def the_skeleton_is_an_ordinary_member() -> None:
-    """Structure, matched by an ordinary rule. (§5, §6, §11, §12)
-
-    §12 says a skeleton member *has no sign, no locus and no licence; nobody
-    asserted it*.
-
-    See docs/design/selftest.md#the-skeleton-is-an-ordinary-member.
-    """
-    from .core.text import load
-
-    m = Machine()
-    kb = load(m, chr(10).join([
-        "rule <a> = causes( { +start(x) }, { +acts(hero) } )",
-        "rule <b> = causes( { +acts(hero) }, { +acts(goblin) } )",
-        "rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq,",
-        "                          sanc(?mq, ?mp) },",
-        "                       { +acted_after(?q, ?p) } )",
-        "fact +start(x)", ""]))
-    m.run(limit=120)
-    got = sorted({m.g.show(e.proposition) for e in m._state() if e.sign == PLUS
-                  and m.g.show(e.proposition).startswith("acted_after")})
-    check("§6", "⭐ an ordinary rule matches the SKELETON directly -- no request, "
-          "no answerer, and no second matcher",
-          got == ["acted_after(goblin, hero)"])
-
-    # ⚠ Nothing is prohibited. A downward pattern is loadable and finds
-    # nothing, which is the same answer a rule gets for an entry nobody wrote.
-    # → docs/design/selftest.md#nothing-is-prohibited-a-downward-pattern-is-l
-    m2 = Machine()
-    kb2 = load(m2, chr(10).join([
-        "rule <a>  = causes( { +start(x) },   { +acts(hero) } )",
-        "rule <s1> = causes( { +acts(hero) }, { +step1(x) } )",
-        "rule <s2> = causes( { +step1(x) },   { +step2(x) } )",
-        "rule <down> = implies( { +acts(?p) at ?mp, +step2(x), sanc(?any, ?mp) },",
-        "                      { +reached(?any) } )",
-        "fact +start(x)", ""]))
-    m2.run(limit=200)
-    check("§4", "...and a DOWNWARD pattern is not refused -- it loads, and finds "
-          "nothing even where descendants exist, so *nothing is prohibited* survives",
-          not [e for e in m2._state() if e.sign == PLUS
-               and m2.g.show(e.proposition).startswith("reached")])
-
-    # ⭐⭐⭐ Every moment a structural member reached is an ancestor of where its
-    # conclusion sits. ⚠ The chain used to FORK here (the fixture supposed), and
-    # nothing forks it now -- so this asks the same question of a linear walk.
-    # ⚠⚠ `<mark>` has to be `causes` for the fixture to have a past at all:
-    # supposing was what advanced the seat, and with it gone an all-`implies`
-    # world lands in ONE moment and `sanc` reaches nothing. The check reported
-    # 0 comparisons and passed on `total > 0` -- caught here, not by the check.
-    m3 = Machine()
-    load(m3, chr(10).join([
-        "rule <mark>  = causes(  { +seen(?x) }, { +noted(?x) } )",
-        "rule <reach> = implies( { +noted(?x) at ?mx, sanc(?mx, ?up) },",
-        "                       { +sees(?x, ?up) } )",
-        "fact +seen(a)", "fact +seen(b)", ""]))
-    m3.run(limit=300)
-    total = off = 0
-    for mo in m3.chain.moments:
-        for e in mo.delta:
-            if not m3.g.show(e.proposition).startswith("sees("):
-                continue
-            up = m3.chain.moment_by_node(m3.g.member(e.proposition, 1))
-            if up is None:
-                continue
-            total += 1
-            if not e.locus.at_or_after(up):
-                off += 1
-    check("§17", "⭐⭐⭐ ...and it holds STRUCTURALLY: every moment a structural "
-          "member reached is on its own walk",
-          total > 0 and off == 0)
-
+# ⚠⚠⚠ DELETED WITH THE LOCUS: `the_skeleton_is_an_ordinary_member`.
+#
+# Three fixtures (§5, §6, §11, §12), and all three bound a moment with `at ?m`:
+#
+#     <after>  +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp)
+#              → acted_after(goblin, hero)   -- an ordinary rule matches the
+#                SKELETON directly: no request, no answerer, no second matcher
+#     <down>   +acts(?p) at ?mp, +step2(x), sanc(?any, ?mp)
+#              → a DOWNWARD pattern is not refused: it loads and finds nothing
+#                even where descendants exist, so *nothing is prohibited* holds
+#     <reach>  +noted(?x) at ?mx, sanc(?mx, ?up)
+#              → and it holds STRUCTURALLY: every moment a structural member
+#                reached is on the walk of the entry its conclusion sits in
+#
+# The third also read `e.locus.at_or_after(up)` in Python, and there is no
+# locus to walk from.
+#
+# ⭐ The HEADLINE claim is not uncovered: `the_matchers_are_one` and the seven
+# groups around it run stratum-0 rules over `asking`/`anc`/`pred`/`in_delta`/
+# `entry_of` and are untouched by this. What goes with these three is the part
+# that bound a moment from an ORDINARY member -- which is the same thing
+# `a_rule_can_relate_two_moments` lost, and the same conversion recovers it.
+# `docs/todo.md` carries both.
 
 def the_matchers_are_one() -> None:
     """§5's *one interpreter* and §6's *one more row, not one more branch*, made
@@ -3141,11 +2973,15 @@ def the_matchers_are_one() -> None:
     # → docs/design/selftest.md#a-fact-s-own-history-on-the-ordinary-loop
     m7 = Machine()
     kb7 = load(m7, chr(10).join([
+        # ⚠ The order used to be `sanc(?l2, ?l1)` over the two entries' LOCI.
+        # An entry has no locus, so the order is over the moments they were
+        # deposited in -- which is the only time there is now, and which is
+        # exactly what `resolve` reads.
         "rule <flip> = implies(",
         "  { asking(?s), anc(?s, ?d1), in_delta(?d1, ?e1),",
-        "    entry_of(?e1, ?l1, ?p, plus),",
+        "    entry_of(?e1, ?p, plus),",
         "    anc(?s, ?d2), in_delta(?d2, ?e2),",
-        "    entry_of(?e2, ?l2, ?p, minus), sanc(?l2, ?l1) },",
+        "    entry_of(?e2, ?p, minus), sanc(?d2, ?d1) },",
         "  { flipped(?p) } )",
         "rule <note> = implies( { flipped(?p), +watching(x) },",
         "                      { +changed(?p) } )",
@@ -3153,9 +2989,8 @@ def the_matchers_are_one() -> None:
     door = m7.g.rel(m7.g.atom("open"), m7.g.atom("door"))
     d1 = m7.chain.succeed(m7.chain.root, None)
     m7.gate.write(door, "+")
-    d2 = m7.chain.succeed(d1, None)
+    m7.chain.succeed(d1, None)
     m7.gate.write(door, "-")
-    m7.focus = m7.gate.frame(d2)
     steps = m7.run(limit=60)
     changed = [e for e in m7._state()
                if m7.g.relation_of(e.proposition) == kb7.term("changed")]
@@ -3185,7 +3020,7 @@ def the_matchers_are_one() -> None:
     m8.ask_read(m8.chain.moments[-1])
     from .core.rules import match as _match, Situation as _Sit
     up8 = [r for r in m8.rules.rules if r.name == "up"][0]
-    apps = _match(m8.g, m8.chain, up8, m8.chain.now, m8.chain.now, _Sit(m8.g, []),
+    apps = _match(m8.g, m8.chain, up8, _Sit(m8.g, []),
                   computes=m8.rules.computes, structural=m8.rules.skeleton())
     before_n = m8.g.count()
     first = [m8._would_change(a) for a in apps]
@@ -3207,10 +3042,15 @@ def the_matchers_are_one() -> None:
         # → docs/design/selftest.md#the-discriminating-case-and-the-check-was-v
         "rule <loose> = implies( { asking(?s), in_delta(?d, ?e) },",
         "                       { anywhere(?s, ?e) } )", ""]))
+    # ⚠ The two writes are INTERLEAVED with the forking, and they have to be:
+    # a deposit lands at `chain.now`, which is the latest moment made, so both
+    # writes issued after both `succeed`s would land on the right branch and
+    # leave the left one empty -- and the check below passes vacuously on an
+    # empty reach. It used to be a frame's seat that put them apart.
     r = m5.chain.root
     left = m5.chain.succeed(r, None)
-    right = m5.chain.succeed(r, None)
     m5.gate.write(m5.g.rel(m5.g.atom("on"), m5.g.atom("l")), "+")
+    right = m5.chain.succeed(r, None)
     m5.gate.write(m5.g.rel(m5.g.atom("on"), m5.g.atom("r")), "+")
     m5.ask_read(left)
     m5.settle_structure()
@@ -3256,7 +3096,7 @@ def a_half_finished_change_is_observable_and_actionable() -> None:
     """
     from .core.text import Loader
 
-    def calc(mm, frame, e):
+    def calc(mm, e):
         op, a, b = mm.g.members(e.proposition)
         x, y = int(mm.g.show(a)), int(mm.g.show(b))
         return mm.g.atom(str(x - y if mm.g.show(op) == "sub" else x + y))
@@ -3490,7 +3330,7 @@ def an_amount_is_a_tool_and_an_unknown_amount_is_a_node() -> None:
 
     m = Machine(); kb = Loader(m)
 
-    def minus(machine, frame, entry):
+    def minus(machine, entry):
         who, a, b = machine.g.members(entry.proposition)
         return machine.g.rel(kb.atom("purse"), who,
                              kb.atom(str(int(machine.g.show(a))
@@ -3664,7 +3504,7 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
     m4 = Machine()
     kb4 = Loader(m4)
     try:
-        kb4.answerer("mine", "compose", lambda mm, f, e: None)
+        kb4.answerer("mine", "compose", lambda mm, e: None)
         refused_reg = False
     except ParseError:
         refused_reg = True
@@ -3678,7 +3518,7 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
     # instead -- a kill-probe that raises where the answer is False reports
     # nothing, and that trap is now recorded five times in this file.
     check("§17", "...while a request of its own is registered as ever",
-          kb4.answerer("ownreq", "shorten", lambda mm, f, e: None) is not None)
+          kb4.answerer("ownreq", "shorten", lambda mm, e: None) is not None)
 
 
 def an_example_becomes_a_rule() -> None:
@@ -3720,7 +3560,7 @@ def an_example_becomes_a_rule() -> None:
         mm = Machine()
         kbb = Loader(mm)
 
-        def learn(machine, frame, entry):
+        def learn(machine, entry):
             """Two `pair(premise, conclusion)` arguments in, a rule node out."""
             gg = machine.g
             one, two = gg.members(entry.proposition)
@@ -3733,7 +3573,7 @@ def an_example_becomes_a_rule() -> None:
                 # was (they share no structure). Declining is an answer.
                 return None
             node = gg.instance(kbb.atom("learned"))
-            w = lambda p: machine.gate.write(frame, p, PLUS, licence=entry.node,
+            w = lambda p: machine.gate.write(p, PLUS, licence=entry.node,
                                              source=machine.KB, mention=True)
             w(gg.rel(machine.RULE, node))
             w(gg.rel(machine.CONN, node, machine.rules.IMPLIES))
@@ -3815,7 +3655,7 @@ def a_rule_can_author_a_rule() -> None:
         mm = Machine()
         kbb = Loader(mm)
 
-        def compose(machine, frame, entry):
+        def compose(machine, entry):
             """Builds `{+seen(?x)} => {+known(?x)}` and returns its node.
 
             The variable is minted here, once, and used in both patterns --
@@ -3828,7 +3668,7 @@ def a_rule_can_author_a_rule() -> None:
             g = machine.g
             x = g.var("?x")
             node = g.instance(kbb.atom("built"))
-            w = lambda p: machine.gate.write(frame, p, PLUS,
+            w = lambda p: machine.gate.write(p, PLUS,
                                              licence=entry.node,
                                              source=machine.KB, mention=True)
             w(g.rel(machine.RULE, node))
@@ -4014,7 +3854,7 @@ def the_agent_harmonizes_itself() -> None:
     # ints that mean something else. The twin trap across two graphs, which is
     # the same mistake a denial check in this suite made an hour earlier.
     def make_learner(kb):
-        def learn(machine, frame, entry):
+        def learn(machine, entry):
             gg = machine.g
             one, two = gg.members(entry.proposition)
             mapping: dict = {}
@@ -4023,7 +3863,7 @@ def the_agent_harmonizes_itself() -> None:
             if not gg.has_var(ant) or gg.is_var(ant) or gg.is_var(con):
                 return None
             node = gg.instance(kb.atom("learned"))
-            w = lambda p: machine.gate.write(frame, p, PLUS, licence=entry.node,
+            w = lambda p: machine.gate.write(p, PLUS, licence=entry.node,
                                              source=machine.KB, mention=True)
             w(gg.rel(machine.RULE, node))
             w(gg.rel(machine.CONN, node, machine.rules.IMPLIES))
@@ -4120,7 +3960,7 @@ def what_a_learned_rule_may_conclude() -> None:
         m = Machine()
         kb = Loader(m)
 
-        def learn(machine, frame, entry):
+        def learn(machine, entry):
             gg = machine.g
             one, two = gg.members(entry.proposition)
             mp: dict = {}
@@ -4131,7 +3971,7 @@ def what_a_learned_rule_may_conclude() -> None:
             if wrapped:
                 con = gg.rel(kb.atom("likely"), con)
             node = gg.instance(kb.atom("learned"))
-            w = lambda p: machine.gate.write(frame, p, PLUS, licence=entry.node,
+            w = lambda p: machine.gate.write(p, PLUS, licence=entry.node,
                                              source=machine.KB, mention=True)
             w(gg.rel(machine.RULE, node))
             w(gg.rel(machine.CONN, node, machine.rules.IMPLIES))
@@ -4346,7 +4186,7 @@ def a_join_is_not_a_scan() -> None:
     # application on the first pivot and dedups the second away -- so the walk
     # under test never runs, and the check passes vacuously. It did.
     later = m.chain.resolve(kb.term("b(t)"))
-    found = R.match(m.g, m.chain, rule, m.chain.now, m.chain.now, state,
+    found = R.match(m.g, m.chain, rule, state,
                     fresh=R.Situation(m.g, [later]))
     rel_of = lambda e: m.g.relation_of(e.proposition)
     check("§12", "however the join is walked, the trail records what each "
@@ -4526,16 +4366,20 @@ def a_tool_is_data() -> None:
     refused = _Machine()
     kb_r = _load(refused, "fact +nothing(x)\n")
     try:
-        kb_r.answerer("stub", "guess", lambda frame, entry: None)
+        # ⚠ The WRONG arity is three now, and it used to be two. The protocol
+        # was `(machine, frame, entry)`; the frame went with the seat, so a
+        # `(frame, entry)` stub -- which is what this check used to hand in --
+        # is a correctly-shaped answerer today and would be accepted.
+        kb_r.answerer("stub", "guess", lambda mach, frame, entry: None)
         raised = ""
     except TypeError as exc:
         raised = str(exc)
-    check("§5", "an answerer that cannot take (machine, frame, entry) is refused "
+    check("§5", "an answerer that cannot take (machine, entry) is refused "
           "AT REGISTRATION, naming itself -- not at the first write, from inside "
-          "the gate", "stub" in raised and "machine, frame, entry" in raised)
-    check("§5", "...and the three-argument one it should have been is accepted, "
+          "the gate", "stub" in raised and "machine, entry" in raised)
+    check("§5", "...and the two-argument one it should have been is accepted, "
           "so the refusal is about arity and not about tools",
-          kb_r.answerer("ok", "guess", lambda m, f, e: None) is not None)
+          kb_r.answerer("ok", "guess", lambda m, e: None) is not None)
 
     # The restriction that makes an unreliable tool safe to be wrong.
     from .core.machine import Machine
@@ -4543,7 +4387,7 @@ def a_tool_is_data() -> None:
     m = Machine()
     m.actuator("hands")
     kb2 = Loader(m)
-    kb2.answerer("oracle", "advice", lambda mach, f, e: kb2.term("smash(jug1)"))
+    kb2.answerer("oracle", "advice", lambda mach, e: kb2.term("smash(jug1)"))
     kb2.load(chr(10).join([
         "fact +achieves(smash(jug1), water(kettle))",
         "fact +intact(jug1)", "fact +goal(water(kettle))",
@@ -4904,7 +4748,7 @@ def support_can_be_withdrawn() -> None:
     # rule could ask what anything rested on and `why()` had to be a native walk.
     # `rests_on` joins `pred` and `in_delta` in the structural mirror: nobody
     # asserted it, it cannot be denied, dated or attributed.
-    derived = m.chain.resolve(kb.term("q(a)"), m.chain.now)
+    derived = m.chain.resolve(kb.term("q(a)"))
     check("§6", "an entry's support is readable from the graph",
           derived is not None and bool(m.chain.rests_on(derived)))
     check(
@@ -5236,10 +5080,14 @@ def the_index_agrees_with_the_walk() -> None:
     walk over a world with a revision about an earlier moment, which separates
     the two orderings.
 
-    ⚠ It used to fork as well -- nested suppositions -- and with situations gone
-    **nothing forks the chain any more**. `Moment.at_or_after` is kept as a walk
-    rather than collapsed to a depth comparison, and `resolve`'s own comment
-    says the collapse is now available. Not taken here: one deletion at a time.
+    ⚠ The walk it is checked against has SHRUNK with the read. It used to take
+    the greatest `(locus depth, seat depth, position)` over every claim, filtered
+    by `locus.at_or_after(e.locus)` and by *is this deposit on my branch*. Both
+    filters answered questions that no longer exist, so the brute force is now
+    *the last entry about this proposition, oldest moment to newest*. It is
+    still a genuinely different implementation from `_claims` -- it walks the
+    moments and their deltas, where the index is maintained at the deposit --
+    which is the whole point of keeping it.
     """
     from .core.text import load
 
@@ -5256,89 +5104,65 @@ def the_index_agrees_with_the_walk() -> None:
         "",
     ]))
     m.run(limit=400)
-    # A revision about an earlier moment: same locus, later deposit (§17).
-    old = m.chain.now.ancestors()[-1]
+    # A revision: a later claim about a proposition the run already settled.
     m.gate.write(kb.term("q(one)"), MINUS)
     m.gate.write(kb.term("p(three)"), PLUS)
     m.run(limit=400)
 
-    def brute(proposition, locus, seat):
+    def brute(proposition):
+        """The last claim about it, found by walking rather than by index."""
         best = None
-        for mo in seat.ancestors():
-            for e in reversed(mo.delta):
-                if e.proposition != proposition or not locus.at_or_after(e.locus):
-                    continue
-                if best is None or e.locus.depth > best.locus.depth:
+        for mo in m.chain.moments:          # oldest first, so later overwrites
+            for e in mo.delta:
+                if e.proposition == proposition:
                     best = e
         return best
 
     props = {e.proposition for mo in m.chain.moments for e in mo.delta}
-    seats = m.chain.moments
     disagreements, comparisons = [], 0
     for p in props:
-        for seat in seats:
-            for locus in seat.ancestors():
-                comparisons += 1
-                if m.chain.resolve(p) is not brute(p, locus, seat):
-                    disagreements.append((p, locus, seat))
+        comparisons += 1
+        if m.chain.resolve(p) is not brute(p):
+            disagreements.append(p)
 
     check(
         "§4",
         f"the indexed read agrees with the walk it replaced, {comparisons} comparisons",
         not disagreements,
     )
+    # ⚠ The old bound was `comparisons > 1000`, and it counted seat x locus x
+    # proposition. With one time there is one comparison per proposition, so the
+    # number falls by three orders of magnitude and the bound has to fall with
+    # it -- ⚠⚠⚠ but the thing it was GUARDING must not: a run whose chain never
+    # revised anything would agree trivially.
+    revised = [p for p in props if len(m.chain.claims_about(p)) > 1]
     check(
         "§4",
         "...over a world that revises, so the comparison could have failed",
-        len(m.chain.moments) > 6 and comparisons > 1000,
+        len(m.chain.moments) > 6 and comparisons > 20 and bool(revised),
     )
 
 
-def a_cause_moves_the_register() -> None:
-    """Found by a fixture that was trying to measure something else.
-
-    A `causes` rule lands in a *later* moment, so applying one advances the seat.
-    That was done by minting a fresh frame -- which dropped the parent and the
-    purpose.
-
-    §4 allows exactly one register. Advancing it is a **seat move**, not a new
-    frame, and §17 already says every seat move is a write -- which is what
-    `reseat` is for.
-
-    ⚠ Most of this fixture was about what the move did to a HYPOTHESIS -- an
-    orphaned register `_leave` could never fire on, and a seat move crossing out
-    of a frame wrapped. Both went with situations; what remains is the move
-    itself, which is the part that was owed to §17 all along.
-    """
-    from .core.text import load
-
-    # §17's *every seat move is a write*, which §21 carried as owed for as long
-    # as it has existed. This fixture is the one that found the move; these are
-    # the record of it.
-    # → docs/design/selftest.md#17-s-every-seat-move-is-a-write-which-21-ca
-    m3 = Machine()
-    kb3 = load(m3, chr(10).join([
-        "rule <a> = causes( { +p(?x) }, { +q(?x) } )",
-        "rule <watch> = implies( { +moved(?from, ?to) }, { +shifted(?to) } )",
-        "fact p(x)",
-        "",
-    ]))
-    began = m3.chain.now
-    m3.run(limit=60)
-    moves = [e for mo in m3.chain.moments for e in mo.delta
-             if m3.g.relation_of(e.proposition) is m3.gate.MOVED]
-    check("§17", "a `causes` application records the seat move as an entry",
-          len(moves) == 1)
-    check("§17", "...from the seat it left, to the seat it took",
-          bool(moves) and tuple(m3.g.members(moves[0].proposition))
-          == (began.node, m3.chain.now.node))
-    check("§17", "...licensed by the rule that moved it",
-          bool(moves) and moves[0].licence is not None
-          and m3.g.relation_of(moves[0].licence) is m3.APPLIED)
-    check("§12", "...and an ordinary rule can read the move, which is the point",
-          len([e for mo in m3.chain.moments for e in mo.delta
-               if m3.g.relation_of(e.proposition) is kb3.term("shifted")]) == 1)
-
+# ⚠⚠⚠ DELETED WITH THE SEAT: `a_cause_moves_the_register`.
+#
+# §17 said *every seat move is a write*, and §21 carried it as owed for as long
+# as it existed. `Gate.reseat` paid it: advancing the register deposited
+# `moved(?from, ?to)`, licensed by the rule that moved it, so an ordinary rule
+# could read the move -- which was the point. The four checks were that the
+# entry exists, that it names the seat left and the seat taken, that its licence
+# is the application, and that a corpus rule matches it.
+#
+# ⭐ The debt is not paid off, it is DISSOLVED. There is no register to move.
+# `Chain.now` is the chain's own end and nothing assigns it, so a `causes`
+# application appends a moment and there is no second thing to keep in step with
+# it. What `moved(?from, ?to)` reported is `pred(?to, ?from)`, which is ordinary
+# skeleton and which every structural rule already reads.
+#
+# ⚠ `Gate.MOVED`, `Gate.FRAME` and `Gate.PROCESS` were left as dead atoms by
+# this cut, and `moved` stayed in `gates/vocabulary.py`'s reserved list. All
+# four are gone now -- and it was `ugm.gates.vocabulary` that found them, not a
+# reading: its census reports a name that is classified and never minted, and
+# it named six at once.
 
 
 def reference_is_binding() -> None:
@@ -5430,12 +5254,17 @@ def the_chain_mirrors_nothing_of_its_own() -> None:
             n_entries += 1
             if g.relation_of(e.node) is not ch.ENTRY:
                 bad.append(("relation", e.node))
-            if g.member(e.node, 0) != e.locus.node:
-                bad.append(("locus", e.node))
-            if g.member(e.node, 1) != e.proposition:
+            # ⚠ Member 0 was the LOCUS and is the proposition now -- an entry
+            # is two members, not three. A mirror check that kept the old
+            # offsets would compare the proposition against a moment node and
+            # report every entry as broken, which is the loud failure; the
+            # quiet one is the opposite, and is why the count below matters.
+            if g.member(e.node, 0) != e.proposition:
                 bad.append(("proposition", e.node))
-            if g.member(e.node, 2) != ch.SIGN[e.sign]:
+            if g.member(e.node, 1) != ch.SIGN[e.sign]:
                 bad.append(("sign", e.node))
+            if len(g.members(e.node)) != 2:
+                bad.append(("arity", e.node))
             rests = {g.member(n, 1) for n in g.instances_of(ch.RESTS_ON)
                      if g.member(n, 0) == e.node}
             if rests != set(e.consumed):
@@ -5476,27 +5305,19 @@ def the_chain_mirrors_nothing_of_its_own() -> None:
     check("§20", "...and every Moment field is too -- pred, delta and depth",
           len(ch.moments) >= 2 and not mbad)
 
-    # A span is a node with two ordered members and NOTHING else; the Python
-    # object adds only `depth`, which is the end's. And a locus is a moment or a
-    # span (§8), so getting from a bound node back to the thing has to ask both
-    # -- which is the one place the two kinds meet.
-    a, b = ch.moments[0], ch.moments[-1]
-    sp = ch.span(a, b)
-    check("§11", "...and a Span is its own node: two members, and depth is the "
-          "end's -- nothing of its own",
-          g.relation_of(sp.node) is ch.SPAN
-          and g.members(sp.node) == (a.node, b.node)
-          and sp.start is a and sp.end is b and sp.depth == b.depth)
-    check("§8", "...and a locus resolves from its node to either kind",
-          ch.locus_by_node(sp.node) is sp
-          and ch.locus_by_node(b.node) is b
-          and ch.span_by_node(sp.node) is sp)
-    # Interned: two recognisers reaching one stretch must reach one node, or
-    # everything said about it splits in two.
-    check("§11", "...and a span is interned, so one stretch is one node",
-          ch.span(a, b) is sp)
+    # ⚠ Three mirror checks went with the span: that a `Span` is its own node
+    # with two ordered members and nothing of its own but the end's depth, that
+    # `locus_by_node` resolves a bound node back to EITHER kind -- the one place
+    # a moment and a span met -- and that a span is interned. There is one kind
+    # of locus now, and no locus, so there is nothing for either to mirror.
     check("§4", "...and a Moment carries no licence: it was written and never "
           "read, so it is not a cache of anything", not hasattr(ch.root, "licence"))
+    # ⭐ ...and neither does an Entry. This is the same rule applied to the field
+    # the cut removed: nothing may know an entry's locus, because there is none
+    # to know, and a leftover attribute is exactly how a deleted field survives.
+    check("§20", "...and an Entry has no locus field left to be a cache of "
+          "nothing", not any(hasattr(e, "locus")
+                             for mo in ch.moments for e in mo.delta))
 
 
 def a_cached_application_can_be_retracted() -> None:
@@ -5524,7 +5345,7 @@ def a_cached_application_can_be_retracted() -> None:
     ]))
     m.tick()  # one of them acts; BOTH applications are now cached
     waiting = [n for n in ("ann", "bob")
-               if m.chain.holds(kb.term(f"acted({n})"), m.chain.now) is None]
+               if m.chain.holds(kb.term(f"acted({n})")) is None]
     check(
         "§6", "both applications are cached before the structural fact appears",
         len(waiting) == 1,
@@ -5535,7 +5356,7 @@ def a_cached_application_can_be_retracted() -> None:
     check(
         "§12",
         "a structural fact appearing retracts the cached application it blocks",
-        m.chain.holds(kb.term(f"acted({waiting[0]})"), m.chain.now) is None,
+        m.chain.holds(kb.term(f"acted({waiting[0]})")) is None,
     )
 
 
@@ -6791,7 +6612,7 @@ def main() -> int:
 
     substrate()
     chain_reads()
-    two_indices()
+    a_revision_is_a_second_entry()
     gate()
     uncertainty_is_a_proposition()
     matching()
@@ -6825,15 +6646,12 @@ def main() -> int:
     the_state_is_kept_not_rebuilt()
     a_scope_can_span_documents()
     a_rule_can_author_a_rule()
-    a_rule_can_relate_two_moments()
     a_computation_happens_inside_the_application()
     a_member_can_name_what_it_matched()
-    the_skeleton_is_an_ordinary_member()
     a_guard_is_an_ordinary_member()
     a_verdict_names_what_it_settled()
     the_tick_limit_is_on_the_record()
     silence_over_a_stretch_is_sayable()
-    a_span_is_a_locus()
     the_matchers_are_one()
     a_half_finished_change_is_observable_and_actionable()
     a_reserved_name_no_longer_changes_meaning_silently()
@@ -6858,7 +6676,6 @@ def main() -> int:
     withdrawing_a_binding_withdraws_what_used_it()
     prohibitions_are_not_recalled()
     the_index_agrees_with_the_walk()
-    a_cause_moves_the_register()
     reference_is_binding()
     the_chain_mirrors_nothing_of_its_own()
     a_cached_application_can_be_retracted()

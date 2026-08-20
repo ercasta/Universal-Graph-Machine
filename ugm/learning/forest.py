@@ -227,7 +227,7 @@ def classify(examples, model: Optional[Forest] = None, rules: Sequence[str] = ()
     props = {name: set(p) for name, p, _ in examples}
     asked: List[str] = []
 
-    def answerer(mach, frame, e):
+    def answerer(mach, e):
         who = mach.g.show(mach.g.member(e.proposition, 0))
         asked.append(who)
         g, _r = (model or Forest()).votes(props.get(who, set()))
@@ -269,7 +269,7 @@ def verdicts(m, kb, examples) -> Dict[str, str]:
                 + [(f"{w}({concept}({name}))", w)
                    for w in ("certain", "likely", "possible")]
             ):
-                e = m.chain.resolve(kb.term(term), m.focus.topic)
+                e = m.chain.resolve(kb.term(term))
                 if e is not None and e.sign == "+":
                     held.append(f"{concept[3:]}/{label}")
                     break

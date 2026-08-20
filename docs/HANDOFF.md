@@ -1,4 +1,146 @@
-# Handoff — 2026-08-20v (INCOMPLETE — read this first)
+# Handoff — 2026-08-20w (the seat/locus cut is FINISHED)
+
+    python -m ugm.selftest      503 checks, 0 failing
+    ./tools_sweep.sh            1 failing, 29 run     <- 29 is FIVE MORE than
+                                                         any sweep has ever run,
+                                                         and the 1 is older than
+                                                         this branch. See §3.
+    ugm.gates.state             0 disagreements       <- was 1+1, and the gate
+                                                         was comparing an index
+                                                         with itself
+    ugm.gates.agreement         10 comparisons, 0 disagreeing, 6/6 rules killable
+    ugm.gates.quiescence        167 candidates, 0 disagreeing, 5/6 -- and the
+                                5/6 is the failure. `6c370d2` prints 5/6 too.
+    ugm.gates.vocabulary        18 checks, 0 failing
+
+The tree was RED at `c3ef33d` and the previous handoff called item 1 *~12
+groups, mechanical-ish*. It was twelve groups. It was **not** mechanical: the
+engine was not finished either, and four of the six engine defects below could
+not have been found by reading, because each is a thing that answers rather than
+raises.
+
+## 1. The engine was still half-converted, and every hole was SILENT
+
+    attention.py   `resolve(node, now, now)`; `Member(sign, pat, locus, binds)`
+                   for a three-field tuple
+    machine.py     `why()` still took a locus; `_contest` unpacked `_spent[key]`
+                   as four values where `_spend` writes three
+    rules.py       ⚠⚠⚠ `_members_of` wanted a FOUR-argument `entry_of` and a
+                   THREE-member entry. An entry has two members now, so **every
+                   rule that reads the chain matched nothing** -- the whole of
+                   `gates/agreement.py`'s `READ` included. Nothing raised.
+    machine.py     ⚠⚠⚠ the answerer protocol was `(machine, frame, entry)` and
+                   the call site had ALREADY been cut to two arguments. All 13
+                   registrations still declared three, so every tool in the tree
+                   was broken. Now `(machine, entry)`.
+    text.py        `at ?m` still PARSED and was silently dropped. Refused by
+                   name now, the way `@` is -- a notation that parses and is
+                   ignored is a rule that means something other than it says.
+
+## 2. ⚠⚠ `current_state` was ordering by FIRST mention, and the order is semantics
+
+`_claims` is keyed by first mention, so `[got[-1] for got in reversed(...)]`
+returns a proposition where its *first* claim put it. `Machine._state`'s
+incremental path does not have this bug -- it deletes and re-inserts -- so the
+rebuild and the growth disagreed on **1,675 of 5,919** comparisons. *A
+description with two candidates resolves to the most recent* rests on that
+order. Fixed by sorting on the governing entry's own node, which is mint order.
+
+### ⭐⭐⭐ And the reason nothing said so: the gate was comparing an index with itself
+
+`ugm.gates.state`'s slow side called `current_state`, which after the collapse
+is one line over `chain._claims` -- **the very index the maintained state is
+built from**. Both sides were the same implementation, so the column agreed on
+any bug they shared. It now walks the moments itself.
+
+> That is the lesson the gate exists to enforce (*an index is a
+> re-implementation of what it indexes*), applied to the gate. Worth checking of
+> the other three the next time a read is collapsed.
+
+## 3. ⚠⚠⚠ Two §20 floor gates had NEVER been in a sweep
+
+`tools_sweep.sh` grepped `^def main`. `gates.agreement` and `gates.quiescence`
+name their entry point `run`. The file's own header records this bug twice
+already -- a hand-written list, then a flat glob -- and this is the third
+shape: **the question is not what the function is called, it is whether the
+module is a door.** Keyed on `if __name__ == "__main__"` now, and the sweep went
+from 24 modules to 26.
+
+⚠⚠⚠ **`quiescence` has been exiting 1 for as long as it has existed.** Its
+`<silent>` rule derives nothing in any of its 12 fixtures -- 5/6 of its own
+rules exercised -- and `run()` counts a blind rule as a failure, correctly.
+Checked against `6c370d2`, the last fully green commit, rather than assumed: it
+prints the same 5/6 and the same `<-- BLIND`. **This is not the cut's doing. It
+is what a gate nobody ran had been saying all along.** Left named rather than
+fixed, as `gates.state` was left before it.
+
+Both were broken by the cut and both are converted. `agreement`'s `READ` lost
+`<beaten-locus>` and every remaining rule lost a key: the read was ordered by
+locus first with deposit order breaking ties *within* one locus, and there is
+one order left. ⚠ Its fixture forks on purpose, and the fork had to move OFF the
+chain's end -- `Chain.resolve` filters by no branch, so with the fork last the
+gate compared a native read that ignores branches against a rule-level one
+anchored on the other. They disagreed, correctly, and **the rule-level answer
+was the better of the two.**
+
+## 4. What was DELETED rather than converted, on the author's call
+
+*Delete now, convert in a follow-up.* Four suite groups and two modules, each
+with its losses written at the site of the check that used to prove them:
+
+    a_rule_can_relate_two_moments      `at ?m` binds, and survives `reify`
+    the_skeleton_is_an_ordinary_member an ordinary rule matches the skeleton
+    a_span_is_a_locus                  ⭐⭐⭐ **the design document's own worked
+                                       example** -- *taking turns* over ten
+                                       stretches -- and the instant/stretch
+                                       refusal. The largest single loss.
+    a_cause_moves_the_register         §17's *every seat move is a write*.
+                                       DISSOLVED rather than owed: `pred` is
+                                       what `moved(?from, ?to)` reported.
+    probes/hindsight                   `holds_at`, the second index, entire
+    probes/walkers                     see below
+
+⭐ **The conversion was PROVED REACHABLE before anything was deleted**, not
+assumed -- `asking`/`anc`/`in_delta`/`entry_of`/`sanc` derive
+`acted_after(goblin, hero)` from the same fixture. `docs/todo.md` carries it,
+with the one caveat that matters: such a rule is stratum 0, so its conclusion is
+minted structure and `_state()` will not show it.
+
+⚠⚠⚠ **The one thing the conversion does not recover, and it has no home:**
+dating a claim to a STRETCH. `silence_over_a_stretch_is_sayable` survives and
+deliberately does less -- a recogniser carries its own endpoints and deposits an
+ordinary claim. Telling *it held throughout* from *it held then* is gone, and
+under the scratchpad design it gets harder, not easier.
+
+## 5. ⚠⚠⚠ `close(<R1>, <R2>)` depends on where a chunk boundary falls
+
+`probes/walkers` was deleted for this, and the finding is why to keep reading.
+Two rules with identical antecedents contend for one position. The recall table
+is matched in chunks of `SHORTLIST = 5` and the loop stops widening the moment
+its window is non-empty -- so a rival on the far side of a boundary is **never
+matched, and the doubt is never noticed.**
+
+    23 rules (before)  step at 21, fork at 22  one chunk   window [step, fork]
+    21 rules (after)   step at 19, fork at 20  two chunks  window [step]
+    SHORTLIST = 6      -- the only change --               window [step, fork]
+
+The bundle shrank by two rules with the situations deletion. That was enough.
+§15-16 built the noticing and called arbitration total; this says the noticing
+is conditional on table position. **Not fixed: the fix changes the loop every
+rule runs through** -- keep widening while the next chunk's top is within
+`TOLERANCE` of the window's, so a tie is finished before the loop stops.
+
+## Where to pick up
+
+    1. `believed(p)`, item 2 of the previous handoff, and it is UNTOUCHED.
+       Nothing here started it. `docs/todo.md`'s `signs` entry decides the
+       shape: `-p` becomes `believed(not(p))` and `?` is DROPPED, because a
+       scratchpad records the erasure and absence becomes readable.
+    2. the queued `at ?m` conversion (§4 above), which is one conversion and
+       not six
+    3. §5's chunk boundary, if doubt-noticing is to be trustworthy
+
+# Handoff — 2026-08-20v (SUPERSEDED — the tree is green, see the top)
 
 **The tree is RED.** Last fully green commit: `6c370d2` (situations retired,
 `practice` rewritten, 534/0, one known `gates.state` bug).

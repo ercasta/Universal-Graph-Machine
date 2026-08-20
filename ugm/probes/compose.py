@@ -94,7 +94,7 @@ def _defeat_survives() -> bool:
     # Python call into a table. Nothing seeds a table any more: the arbitrator
     # reads what the graph says.
     order = lambda h, l: m.gate.write(
-        m.focus, m.g.rel(m.OVERRIDES, h.node, l.node), "+",
+        m.g.rel(m.OVERRIDES, h.node, l.node), "+",
         licence=m.g.rel(m.REIFIED, h.node), source=m.KB, mention=True)
     order(veto, B)
     composed = m.rules.compose(A, B)

@@ -20,16 +20,25 @@ from ..core.machine import Machine
 ROLES: Dict[str, List[str]] = {
     # Not vocabulary at all: a numeral is an atom whose name reads as a number.
     "literals": list("0123456789"),
-    # The surface's own marks -- connectives, signs, and the member modifier.
-    "the surface": ["causes", "implies", "not", "plus", "minus", "unsure", "at"],
+    # The surface's own marks -- connectives and signs. ⚠ `at` was the member
+    # modifier and is gone with the locus; the parser refuses it by name rather
+    # than dropping it, so it is a REFUSAL the surface knows about and not a
+    # word it reserves.
+    "the surface": ["causes", "implies", "not", "plus", "minus", "unsure"],
     # §4-§11: the history, and how to walk it. ⚠ It arrived unclassified and
     # this census is what caught it -- see docs/observations.md §2.14, where
     # the invariant was written down one message before it fired.
     # → docs/design/vocabulary.md#4-11-the-history-and-how-to-walk-it
+    # ⚠⚠⚠ Five names went with the locus, and this census is what proved they
+    # were gone rather than merely unused: `span` and `span_of` (a stretch was
+    # a kind of locus), `reaches` (the bundle policy deciding whether a claim
+    # about a stretch was visible from a moment), `holds_at` (the second index),
+    # and `moved` (`Gate.reseat`'s record of a seat move, and there is no seat).
+    # A name left here that nothing mints reads as vocabulary the agent has and
+    # does not use, which is the opposite of true.
     "the chain": ["anc", "sanc", "pred", "in_delta", "delta_next", "entry_of",
-                  "span", "span_of", "rests_on", "licensed_by",
-                  "arrived_on", "mentioned", "asking", "asked", "reaches",
-                  "moved", "holds_at", "time"],
+                  "rests_on", "licensed_by",
+                  "arrived_on", "mentioned", "asking", "asked", "time"],
     # R3/R4: rules are subjects, and rules are askable.
     "rules as data": ["rule", "ant", "con", "conn", "adopt", "compose",
                       "composed", "computes", "names", "binds", "exercised",
@@ -270,7 +279,7 @@ def main() -> int:
     with open("ugm/rules/delay.ugm", "r", encoding="utf-8") as fh:
         kb = load(m, fh.read())
     m.run(limit=300)
-    at = lambda q: m.chain.holds(kb.term(q), m.focus.topic, m.focus.seat)
+    at = lambda q: m.chain.holds(kb.term(q))
     want = {
         # a crew shortage is the carrier's own doing: care AND compensation
         "owed(ana, meals)": "+", "owed(ana, money)": "+",

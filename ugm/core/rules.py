@@ -774,8 +774,24 @@ def current_state(chain: Chain) -> List[Entry]:
     was about, asking `resolve` per key. With no locus there is no second key
     and no walk -- the governing entry is the last one deposited, and `_claims`
     already holds them in that order.
+
+    ⚠⚠⚠ **But `_claims` is keyed by FIRST mention, and the order is semantics.**
+    Iterating its values gives the propositions in the order they were first
+    spoken about, so a proposition claimed at M1 and revised at M9 comes back
+    where the M1 claim put it -- and *a description with two candidates resolves
+    to the most recent* then resolves to the wrong one. The incremental path in
+    `Machine._state` does not have this bug: it deletes and re-inserts, which
+    moves a re-claimed proposition to the newest end. So the two paths disagreed
+    about order, on 1,675 of 5,919 comparisons, and `ugm.gates.state` is what
+    said so -- once it stopped calling THIS function for its slow side.
+
+    Sorted by the governing entry's own node, which is mint order: entries are
+    `instance`s, so they are never interned and their ids are monotonic in the
+    order they were deposited.
     """
-    return [got[-1] for got in reversed(list(chain._claims.values())) if got]
+    got = [c[-1] for c in chain._claims.values() if c]
+    got.sort(key=lambda e: e.node, reverse=True)
+    return got
 
 
 class Situation:
@@ -1303,24 +1319,29 @@ def _bounded(g, chain, want, bindings):
 
 
 def _members_of(g, chain, want, bindings):
-    """`entry_of(?e, ?locus, ?prop, ?sign)` -- an entry's own three members.
+    """`entry_of(?e, ?prop, ?sign)` -- an entry's own two members.
 
-    §12's `?t = entry(?m, p, +)` prefix form, as a member rather than as
-    notation. An entry node IS `entry(locus, proposition, sign)`, so this reads
-    what is already there; nothing is stored for it.
+    §12's `?t = entry(p, +)` prefix form, as a member rather than as notation.
+    An entry node IS `entry(proposition, sign)`, so this reads what is already
+    there; nothing is stored for it.
 
     ⚠ Anchored on the ENTRY. Decomposing is single-valued -- one entry has one
-    locus, one proposition, one sign -- so from an anchored entry this yields at
-    most one binding, and unanchored it would enumerate the whole history.
+    proposition and one sign -- so from an anchored entry this yields at most
+    one binding, and unanchored it would enumerate the whole history.
+
+    ⚠⚠⚠ It took FOUR arguments, and the second was the locus. With the locus
+    gone the arity is three, and the guard below is what said so: `len(parts)
+    != 3` against an entry that now has two members made `entry_of` match
+    NOTHING, silently, in every rule that reads the chain.
     """
     args = g.members(want.pattern)
-    if len(args) != 4:
+    if len(args) != 3:
         return
     e = walk(g, args[0], bindings)
     if g.is_var(e) or g.relation_of(e) != chain.ENTRY:
         return
     parts = g.members(e)
-    if len(parts) != 3:
+    if len(parts) != 2:
         return
     b = bindings
     for pattern, got in zip(args[1:], parts):

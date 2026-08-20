@@ -40,7 +40,7 @@ def episode(advice: Optional[str], extra: List[str] = (), scoped: bool = True):
     kb = Loader(m)
     called: List[str] = []
 
-    def oracle(mach, frame, e):
+    def oracle(mach, e):
         called.append(mach.g.show(e.proposition))
         return kb.term(advice) if advice else None
 
@@ -104,7 +104,7 @@ def main() -> int:
     m2 = Machine()
     m2.actuator("hands")
     kb2 = Loader(m2)
-    kb2.answerer("oracle", "advice", lambda mach, f, e: kb2.term("smash(jug1)"))
+    kb2.answerer("oracle", "advice", lambda mach, e: kb2.term("smash(jug1)"))
     kb2.load("\n".join(no_trust))
     m2.run(limit=400)
     gate("⭐⭐⭐ a tool PROPOSES: delete the trust rule and the answer is on the "
@@ -114,7 +114,7 @@ def main() -> int:
 
     m3 = Machine()
     kb3 = Loader(m3)
-    kb3.answerer("oracle", "guess", lambda mach, f, e: kb3.atom("vessel"))
+    kb3.answerer("oracle", "guess", lambda mach, e: kb3.atom("vessel"))
     kb3.load("\n".join([
         "rule <ask> = implies( { +thing(?x) }, { +guess(?x) } )",
         "rule <trust> = implies( { +answered(<oracle>, guess(?x), ?k) },"
