@@ -589,9 +589,11 @@ is what this repo keeps getting caught by.
 
 ---
 
-# Measured 2026-08-20: how a variable crosses a statement boundary
+# Measured 2026-08-20: variable scope is UNIFORM, and there is no asymmetry
 
-Asked of the defect above, and it corrects it. `Loader.var` states the rule:
+The author's challenge to the entry above -- *if regular rules do not share
+variables across statements, why would dynamically written ones?* -- and it is
+right. `Loader.var` states the rule, and it holds for both:
 
     # Variables are scoped to a rule: `?w` in two rules is two variables,
     # because a rule is a statement and not a fragment of a larger one.
@@ -599,36 +601,46 @@ Asked of the defect above, and it corrects it. `Loader.var` states the rule:
     <a> = implies( { +p(?x) }, { +q(?x) } )     ant ?x 1392   con ?x 1392
     <b> = implies( { +q(?x) }, { +r(?x) } )     ant ?x 1430
 
-⭐ **Regular rules do not share variables across statements, and never need to.**
-A rule's variables are internal: matching binds them, substitution replaces them,
-and nothing outside the rule refers to them. There is nothing to share.
+⭐⭐⭐ **A rule described in ONE statement behaves exactly like a written one.**
+Scope is the statement in both cases. The two-scope failure was not a trap in
+variable scoping and not an asymmetry between written and described rules: it was
+**half a rule written in each of two statements**, and the variables are two
+because the rules are two.
 
-**A DESCRIPTION is different, and that is the whole asymmetry**: its variables
-become the AUTHORED rule's variables, so the unit of authorship stops coinciding
-with the unit of the rule.
+    rule <half> = implies( { +p(?x) }, { } )
+      -> REFUSED: line 1: expected a term, found '}'
 
-## Two mechanisms already exist, and neither is lexical
+⚠ **The syntax refuses that for a written rule and cannot refuse it for facts.**
+That -- and only that -- is what is really different. A description is facts, and
+facts do not have to add up to anything.
 
-**1. By NAMING.** A statement named in another statement brings its own variable
-nodes with it:
+## Where the split IS forced, the notation already forces the fix
 
-    fact <d1> = +desc(seen(?x), known(?x))              vars 1383, 1383
-    rule <names-it> = implies( { +go }, { +uses(<d1>) } )
-      consequent -> uses(desc(seen(?x), known(?x)))     vars 1383, 1383  SAME
+A source rule's arity varies (`<one>` has 1 antecedent member, `<three>` has 3)
+and a compiler rule has a FIXED number of premises, so a COMPUTED description is
+necessarily assembled over several firings -- one per member -- and those firings
+must agree on the anchor variable. Written without a bound one:
 
-This is what `_named_rule_vars` exempts from the binding check, and what
-`bundle.ugm`'s `resume` rules already stand on -- *`+resume(?h, <cb>)` is generic
-only because `<cb>`'s patterns are*.
+    rule <lift-ant> = implies( { +twin(?r,?t), +ant(?r,?p,?s,?i) },
+                               { +ant(?t, holds_in(?w, ?p), ?s, ?i) } )
+    -> REFUSED: rule 'lift-ant' concludes about a variable its antecedent
+       never binds -- the gate would refuse to deposit it (§13).
 
-**2. By BINDING.** A named fact carrying the variable as a member, bound by an
-ordinary premise. That is what `<anchor>` is in the compiler above.
+⭐⭐⭐ **So `<anchor>` is not a way ROUND a limitation; it is the only well-formed
+way to write it, and the parser says so.** A shared variable has to be a BOUND
+one, which is how everything else in this engine crosses a boundary.
 
-> So sharing is not LEXICAL and is available BY REFERENCE. The two-scope defect
-> is therefore not a missing capability -- it is a trap in which lexical LOOKS
-> referential: two statements each writing `?x` appear to share and do not.
+⚠ An earlier draft of this entry called that a *trap in which lexical looks
+referential* and said the unit of authorship stops coinciding with the unit of
+the rule. Neither survives: nothing forces a hand-written description to split,
+and where a computed one must, the language already refuses the wrong form.
 
-⭐ That is the same shape `_note_shadow` already reports for a reserved name in
-argument position -- one node with two meanings, or here two nodes with one
-name. A diagnostic is available at parse time and was not built; the binding
-check at quiescence catches it regardless, and catches the dropped-slot fault
-too, so it remains the one worth building first.
+## What is left of the defect, and it is simpler than what was claimed
+
+    The parser refuses a malformed WRITTEN rule.
+    Nothing refuses a malformed DESCRIBED one.
+
+Both faults measured above are exactly *a described rule the parser would have
+refused* -- the two-scope one and the dropped-`as`-slot one, which is why one
+check catches both. The fix is not new machinery and not a new diagnostic: it is
+`Loader._rule`'s existing check, applied where rules now also come from.
