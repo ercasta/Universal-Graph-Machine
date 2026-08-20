@@ -49,10 +49,13 @@ ROLES: Dict[str, List[str]] = {
     # `moved` sits here for `asking`'s reason rather than under deliberation:
     # both are about WHICH SEAT, which is a fact about the agent's place in the
     # history and not about what it is trying to do there.
+    # `holds_at` and `time` are computed, not stored -- like `pred` and
+    # `entry_of` beside them. Both were reserved in `core/chain.py` and never
+    # classified here, which is the gap this gate exists to catch.
     "the chain": ["anc", "sanc", "pred", "in_delta", "delta_next", "entry_of",
                   "span", "span_of", "rests_on", "licensed_by",
                   "arrived_on", "mentioned", "asking", "asked", "reaches",
-                  "moved"],
+                  "moved", "holds_at", "time"],
     # R3/R4: rules are subjects, and rules are askable.
     "rules as data": ["rule", "ant", "con", "conn", "adopt", "compose",
                       "composed", "computes", "names", "binds", "exercised",

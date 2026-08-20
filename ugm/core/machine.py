@@ -19,9 +19,9 @@ from .. import corpora as _corpora
 import inspect
 import heapq
 import os
-from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .chain import MINUS, PLUS, UNSURE, Chain, Entry, Locus, Moment, scope_of
+from .chain import MINUS, PLUS, Chain, Entry, Locus, Moment, scope_of
 from .channels import Arrival, Channels
 from .gate import Frame, Gate
 from .graph import Graph, NodeId
@@ -2054,48 +2054,6 @@ class Machine:
             self._claims(self.g.rel(self.FORGONE, app.rule.node, w))
             for w in self._wants(app)
         )
-
-    def _note_defeat(self) -> None:
-        """Say which rule beat which, here.
-
-            defeated(<loser>, <winner>)
-
-        §21's defect for the **tenth** time, and this one is the pattern's
-        purest case: `defeat` computes exactly this on every tick, uses it, and
-        throws it away. Twenty-two defeats happened across the whole suite and
-        no rule could ask about one of them -- so *which of my rules actually
-        fight* was a question about a run that no run recorded.
-
-        ⭐ It is the occasion, and §19 says that is all that ships. What to do
-        about a rule that keeps losing -- ask its author, raise a precedence,
-        mark it dormant, delete it -- is a corpus's, and there are at least four
-        sensible answers:
-
-            {+defeated(?l, ?w)} => {+doing(ask(?l))}  /  {+dormant(?l)}  /  nothing
-
-        ⚠ **A defeat is not recorded when arbitration ignored it.** If every
-        matched rule is defeated, §14's cycle fallback lets them all through so
-        that arbitration stays total -- and nobody was defeated, so writing that
-        somebody was would be recording an event that did not happen.
-
-        ⚠ Costs nothing when nothing is ordered, which is most corpora: the
-        authored precedence table is empty and this returns at the first line.
-        """
-        if not self.rules.precedence(self.OVERRIDES):
-            return
-        matched = list(self._matched_rules.values())
-        pairs = [
-            (loser, winner)
-            for loser in matched
-            for winner in _defeaters(self.rules, loser, matched)
-        ]
-        if not pairs or len({l.node for l, _ in pairs}) == len(matched):
-            return  # nothing matched, or the cycle fallback let everyone through
-        for loser, winner in pairs:
-            self._note(
-                self.g.rel(self.DEFEATED, loser.node, winner.node),
-                licence=self.g.rel(self.APPLIED, winner.node),
-            )
 
     def _reaching(self, a: NodeId, b: NodeId) -> bool:
         """Does any rule say that `a` reaches `b`? (§11's containment, moved.)
@@ -4526,29 +4484,6 @@ class Machine:
         # the stamp here.
         return sorted(out, key=_order_key)
 
-    @staticmethod
-    def _binding_stamp(app) -> tuple:
-        """A path-independent order for applications that CONSUMED THE SAME ENTRIES.
-
-        ⚠⚠⚠ Until structural members existed this could not arise: every
-        antecedent member was an entry, so two applications of one rule that
-        consumed the same entries were the same application. A structural member
-        binds without consuming (§12 -- it claims nothing, so there is nothing
-        to have read), so `sanc(?m, ?up)` yields one application per ancestor,
-        all with identical `consumed`.
-
-        The heap then fell through to insertion order, which the fast and slow
-        paths discover differently -- and `ugm.arbitration` reported 20
-        disagreements about the move, all of one rule, all `fast=reach
-        slow=reach`. That is §10's recorded trap exactly: *a deterministic
-        computation whose result depends on an undeclared enumeration order has
-        a tie-break nobody authored.*
-
-        Node identity is the stamp everywhere else here, so it is the stamp
-        here: sorted, so it cannot depend on which order the walk found them.
-        """
-        return tuple(sorted(v for v in app.bindings.values() if isinstance(v, int)))
-
     def _revive(self, cache: dict, k) -> None:
         """Put a candidate back in the running, and back on its rule's heap.
 
@@ -4745,28 +4680,6 @@ class Machine:
         if self._passed_up(app) or not self._would_change(app):
             return False
         return self._instantiation(app) not in self._spent
-
-    def _sharing(self, chosen: Application) -> List[Application]:
-        """The candidates `_forgo` has to consider: those serving a goal the
-        chosen application also serves. Read off `by_want` rather than by
-        scanning, which is what keeps a tick off the whole candidate set.
-
-        Empty when the chosen application serves no goal at all, which is
-        `_forgo`'s own first line and the common case."""
-        cache = self._verdicts
-        wants = self._wants(chosen)
-        if not wants:
-            return []
-        out, seen = [], set()
-        for w in wants:
-            for k in cache["by_want"].get(w, ()):
-                if k in seen or k not in cache["apps"] or k not in cache["live"]:
-                    continue
-                seen.add(k)
-                app = cache["apps"][k]
-                if app.rule is not chosen.rule and self._survives(app):
-                    out.append(app)
-        return out
 
     def _would_change(self, app: Application) -> bool:
         """Quiescence: an application that restates what the chain already says is

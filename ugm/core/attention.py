@@ -203,12 +203,9 @@ considered* -- without the loop having to justify an ordering it does not
 reason about.
 """
 
-from .. import corpora as _corpora
-import os
 import time
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from .chain import PLUS
 from .graph import NodeId
 from .machine import Machine, Step
 from .rules import (STOP, UNATTEND, Application, Attend, Member, Rule,
@@ -405,14 +402,6 @@ class Table:
             key=lambda r: (-(self.score[r.node] + lift.get(r.node, 0)),
                            self.rank[r.node]),
         )
-
-    @staticmethod
-    def _bare(name: str) -> str:
-        """`<flightless>` and `flightless` name the same rule. The surface
-        writes the marker, `Rule.name` does not carry it, and a buff that
-        silently hits nothing is the twin-node trap in its cheapest form -- the
-        run stayed green and the penguin kept flying."""
-        return name[1:-1] if name.startswith("<") and name.endswith(">") else name
 
     def _target(self, target: NodeId, bindings) -> Optional[NodeId]:
         """A rule node, or a variable the query bound to one."""
@@ -1148,24 +1137,6 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
                        chosen.rule.node)
 
 
-def _holds(m: Machine, table: Table, query: str, state: Situation):
-    """Does the postcondition's query hold here? It is an ordinary antecedent,
-    matched by the ordinary matcher -- the query rule is loaded with the corpus
-    and kept out of the table."""
-    r = table.by_name.get(query)
-    if r is None:
-        for x in m.rules.rules:
-            if x.name == query:
-                r = x
-                break
-    if r is None:
-        return []
-    return match(
-        m.g, m.chain, r, m.focus.topic, m.focus.seat, state,
-        computes=m.rules.computes, structural=m.rules.skeleton(),
-    )
-
-
 def _state(m: Machine) -> set:
     """What the agent ends up holding, as (proposition, sign). The comparison
     has to be over conclusions rather than over moves: two loops that reach the
@@ -1188,28 +1159,6 @@ rule <flightless> = implies( {{ +penguin(?x), +considered(?x) }}, {{ +grounded(?
 rule <classify>   = implies( {{ +asked(?x) }},                    {{ +considered(?x) }} )
 {post}
 """
-
-
-def _load(name: str, settling: bool = False) -> Machine:
-    m = Machine()
-    load_file(m, _corpora.path(name))
-    if settling:
-        load(m, SETTLE)
-    return m
-
-
-
-
-def _fight(run_it: bool):
-    """The dungeon, which is the largest corpus here -- 21 rules of its own, a
-    fight that takes tens of moves, and three tools. It cannot be loaded from
-    the file alone: `<dice>`, `<arith>` and `<beats>` are answerers registered
-    in Python, so the machine is built the way `ugm.dungeon` builds it and only
-    the loop differs."""
-    from ..probes import dungeon
-
-    m, _kb, _asked = dungeon.fight(seed=7, limit=400 if run_it else 0)
-    return m
 
 
 def penguin() -> int:

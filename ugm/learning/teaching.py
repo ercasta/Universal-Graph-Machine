@@ -108,9 +108,7 @@ from typing import Dict, List, Optional, Tuple
 
 from .. import corpora as _corpora
 
-from ..core.attention import (
-    SETTLE, Table, _fight, _load, _state, run,
-)
+from ..core.attention import SETTLE, Table, run
 from ..core.graph import NodeId
 from ..core.machine import Machine
 from ..core.chain import PLUS

@@ -104,10 +104,6 @@ QUEST = (Spec("dm", DM), Spec("p1", P1), Spec("p2", P2))
 LONELY = (Spec("dm", DM_ALONE), Spec("p1", P1))
 
 
-def _beliefs(t, who):
-    return t.beliefs()[who]
-
-
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

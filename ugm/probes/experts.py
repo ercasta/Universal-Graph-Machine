@@ -129,17 +129,6 @@ def pool_of(m: Machine, kb: Loader, expert: str) -> List[Rule]:
     return out
 
 
-def experts_named(m: Machine, kb: Loader) -> List[str]:
-    """Every expert the graph mentions, in first-seen order."""
-    seen: List[str] = []
-    for rel in ("knows", "extends"):
-        for inst in m.g.instances_of(kb.atom(rel)):
-            name = m.g.show(m.g.member(inst, 0))
-            if name not in seen:
-                seen.append(name)
-    return seen
-
-
 class Consultation:
     """One expert asking another, and the stack that makes recursion safe."""
 
