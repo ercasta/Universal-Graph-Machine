@@ -170,6 +170,36 @@ class Graph:
             for x in (kr,) + tuple(km):
                 self._mentions.setdefault(x, []).append(n)
 
+    def delete(self, n: NodeId) -> None:
+        """Take `n` out of the graph. The scratchpad's erase.
+
+        ⭐⭐⭐ **This is the un-claim.** Every other way of getting a proposition
+        back to *nothing has been said* was another claim -- `-p`, `+not(p)`, a
+        `withdraw` marker -- because an append-only chain can only be added to.
+        A scratchpad can be erased, and erasing is what `None` means.
+
+        ⚠⚠⚠ **No repoint and no cascade, and that is the author's call.**
+        `merge` had to repoint -- *without it, everything said before the merge
+        is LOST* -- because a merged node still means something. A deleted one
+        does not. Anything still naming `n` is left dangling on the argument
+        that **no rule matches an incomplete subgraph**: a premise that needs
+        `n` fails to bind, so the dangling half is unreachable rather than
+        wrong. `probes/erase.py` is that argument, measured.
+
+        ⚠ Structure only. What makes a proposition BELIEVED is an anchor node --
+        `believed(p)` -- so retracting a belief is deleting the anchor and never
+        the proposition, which rules mention and must keep.
+        """
+        rel, members = self._rel.get(n), self._members.get(n, ())
+        if rel is not None:
+            kr, km = ((rel, members) if not self._merges
+                      else self._key(rel, members))
+            self._drop_from_index(n, kr, km)
+            self._keyed.pop(n, None)
+        for d in (self._rel, self._members, self._name, self._is_var,
+                  self._has_var, self._vars_in):
+            d.pop(n, None)
+
     def _drop_from_index(self, n: NodeId, kr, km) -> None:
         """Take `n` out of every index it is in under `(kr, km)`."""
         if self._interned.get((kr, km)) == n:
@@ -281,10 +311,15 @@ class Graph:
     # -- reading ----------------------------------------------------------
 
     def relation_of(self, n: NodeId) -> Optional[NodeId]:
-        return self._rel[n]
+        """⚠ Tolerant of a DELETED node, and it has to be. `probes/erase`
+        measured the alternative: erasing a proposition still named by an entry
+        raised `KeyError` out of `Situation._keys`, because the state walk reads
+        the relation of every entry it indexes. *Dangling references can stay*
+        is only true if reading one answers rather than raises."""
+        return self._rel.get(n)
 
     def members(self, n: NodeId) -> Tuple[NodeId, ...]:
-        return self._members[n]
+        return self._members.get(n, ())
 
     def member(self, n: NodeId, i: int) -> NodeId:
         return self._members[n][i]
@@ -348,6 +383,8 @@ class Graph:
     def show(self, n: NodeId) -> str:
         if n in self._name:
             return self._name[n]
+        if n not in self._rel:
+            return f"#{n}(erased)"   # a dangling reference, printed as one
         r = self._rel[n]
         if r is None:
             return f"#{n}"

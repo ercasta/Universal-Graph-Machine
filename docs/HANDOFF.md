@@ -1,3 +1,77 @@
+# Handoff — 2026-08-20v (INCOMPLETE — read this first)
+
+**The tree is RED.** Last fully green commit: `6c370d2` (situations retired,
+`practice` rewritten, 534/0, one known `gates.state` bug).
+
+Two changes are in flight and they are NOT interleaved by accident -- the first
+is a prerequisite for the second, and the second is the one that matters.
+
+## 1. IN FLIGHT: `seat`/`topic`/`locus`/`Frame` retired (engine done, suite red)
+
+The author's call: *this change is all or none, there is no middle ground.*
+Gone from the engine: `Frame`, `Machine.focus`, `Chain` forks, `Moment
+.at_or_after`, `Locus`, `Span`, `Entry.locus`, `Member.locus` (`at ?m`),
+`gate.reseat` and `moved(?a,?b)`, `holds_at`, `reaches`, the span rules.
+
+    engine   -839 / +306, and it RUNS
+             q(one) = +            forward application
+             causes q(one) = +     the chain still advances, 2 moments
+    suite    mechanically converted (66 substitutions) and then RED -- it stops
+             at `chain_reads` calling `deposit(seat=…, locus=…)`. About a dozen
+             locus-specific groups still need rewriting, plus `probes/hindsight`
+             and `probes/clock`.
+
+⭐ Three collapses worth keeping: `resolve` went from *greatest (locus depth,
+seat depth, position), filtered by two ancestry walks* to a list index; an entry
+is now TWO members and so is a rule's, which were the same word for two shapes;
+and `Chain.now` replaces the register without being one -- nothing assigns it.
+
+## 2. THE POINT: the graph is a mutable SCRATCHPAD, and belief is an ANCHOR
+
+`docs/todo.md` carries this end to end. In one line: **stop computing a view of
+the state from a chain of changes; there is one graph, everything happens in it,
+and the chain becomes a log of what changed that the agent READS.**
+
+    boiling(?w)            structure. A rule's stored pattern. Never believed.
+    believed(boiling(k))   a node. Present = believed. Absent = not.
+    retract                DELETE the anchor. `p` survives as structure.
+
+⭐⭐⭐ **Deletion is the un-claim**, and it is the thing every other proposal in
+this session failed to be. `-p`, `+not(p)`, a `withdraw` marker: each is another
+claim, and an append-only chain can only be added to. A scratchpad can be
+erased. Recorded in `docs/todo.md` with what it costs and what it deletes
+(`mention` as a flag, and the signs).
+
+### Built here, and it is the only part of (2) that exists
+
+`Graph.delete(n)` -- no repoint, no cascade, per the author's call that dangling
+references may stay because *no rule matches an incomplete subgraph*.
+
+**`probes/erase.py` asks that of the matcher rather than trusting it: 4 checks,
+0 failing.**
+
+    both premises present   r(one) = +
+    one proposition erased  r(one) = None
+
+⚠⚠⚠ **And it was NOT true when first asked.** Erasing a proposition still named
+by an entry raised `KeyError` twice over -- out of `Situation._keys` and again
+out of `Graph.show` -- because the state walk reads the relation of every entry
+it indexes. *Dangling references can stay* is only true if reading one ANSWERS
+rather than raises, so `relation_of`, `members` and `show` are now tolerant and
+`show` prints `#n(erased)`. **That is the whole content of the author's call,
+and it needed two one-line changes to become true rather than none.**
+
+⚠ The probe also caught its own first draft: it asked for the erased node by
+name AFTER deleting it, and `kb.term(...)` re-mints -- so it compared against a
+different node. Take the id before the delete.
+
+## Where to pick up
+
+    1. finish the suite conversion for (1)      ~12 groups, mechanical-ish
+    2. then `believed(p)`                       signs, `Member.sign`, matching,
+                                                `_kept`, and the corpus syntax
+    ⚠ Not started: (2) is the big one and touches the surface notation.
+
 # Handoff — 2026-08-20u (practice rewritten, `at_or_after`, `Frame`)
 
 On top of `27f5faf`. Three follow-ons to the situations deletion.
