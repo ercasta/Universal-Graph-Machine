@@ -78,7 +78,7 @@ def install() -> None:
     run = Machine.run
 
     def counted(self, limit=100):
-        # ⚠ A flag on the machine, never a set of id() -- `ugm.harmony` records
+        # ⚠ A flag on the machine, never a set of id() -- the retired `ugm.harmony` recorded
         # why: an address is reused the moment a machine is collected, and that
         # census under-reported by 3.5x without anything looking wrong.
         if not getattr(self, "_shape_censused", False):

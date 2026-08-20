@@ -188,30 +188,6 @@ def a_lesson_outlives_its_rule() -> dict:
     return out
 
 
-def credit_costs_nothing_here() -> dict:
-    """What dropping the CREDIT half cost, on the world that had it.
-
-    `learned` used to recommend the rules that served the outcome as well as the
-    one that was passed up -- `prefer(<squeeze>, juice, 3)`, `prefer(<eff>,
-    water, 3)`. A rule that helped is a rule, and attention names a node, so
-    there is no node-keyed sentence that says it and those rows are gone.
-
-    ⚠ **Measured, not waved through.** The old rows are still loadable, so the
-    comparison is a real one: run the taught episode with them and without.
-    They change nothing here, because `<squeeze>` and `<eff>` had no rivals to
-    be lifted over -- which is the honest reason to let credit go, and is NOT an
-    argument that credit is unsayable in general. §21.
-    """
-    ep = Episode(world(jug_first=True))
-    CREDIT = ["fact prefer(<squeeze>, juice, 3)", "fact prefer(<eff>, water, 3)"]
-    out = {}
-    for label, rows in (("lesson only", ep.rows),
-                        ("lesson + old credit rows", ep.rows + CREDIT)):
-        e = Episode(world(jug_first=True) + chr(10).join(rows) + chr(10))
-        out[label] = (e.acts, e.harmed, e.water, e.juice)
-    return out
-
-
 TREE_JUG = ("rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
             " { +doing(smash(?j)) } )")
 TREE_TAP = ("rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
@@ -483,21 +459,18 @@ def main() -> int:
          "TO LOAD: a corpus of experience made unreadable by an edit elsewhere",
          ren["prefer row"][2] is not None)
 
-    # -- the credit half, and what dropping it cost ------------------------
-    print(chr(10)
-          + "The CREDIT rows that are no longer written, added back by hand:"
-          + chr(10))
-    cr = credit_costs_nothing_here()
-    print(f"  {'carried forward':<26} {'emitted':<16} {'jug':<8} {'water':<6} juice")
-    for label in ("lesson only", "lesson + old credit rows"):
-        acts, harmed, water, juice = cr[label]
-        print(f"  {label:<26} {str(acts[0] if acts else '-'):<16} "
-              f"{('broken' if harmed else 'intact'):<8} {str(water):<6} {juice}")
-    print()
-    gate("⚠ dropping credit costs nothing HERE -- the rules it recommended had "
-         "no rivals to be lifted over, which is why it is affordable to lose "
-         "and is not an argument that credit is unsayable",
-         cr["lesson only"] == cr["lesson + old credit rows"])
+    # ⚠⚠⚠ **THE CREDIT COMPARISON IS RETIRED, BECAUSE IT STOPPED BEING ONE.**
+    # It ran the taught episode with the old `prefer(<squeeze>, juice, 3)` rows
+    # added back by hand and reported that they changed nothing -- on the stated
+    # reason that those rules *had no rivals to be lifted over*. With `prefer`
+    # and `_priority` gone that reason is false: the rows change nothing because
+    # NOTHING READS THEM, so the two arms were identical by construction and the
+    # gate could not fail. `docs/HANDOFF.md` 20o predicted exactly this and
+    # asked for it to be re-read once the buffs went; this is that read.
+    #
+    # What it claimed is not refuted, it is UNMEASURABLE here -- there is no
+    # longer any way to add credit back and see. Recorded rather than repaired,
+    # because repairing it would mean re-adding the mechanism it was about.
 
     # -- and what cannot be said at all ------------------------------------
     print(chr(10) * 2

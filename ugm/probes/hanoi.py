@@ -3,7 +3,7 @@
     python -m ugm.probes.hanoi
 
 Every other fixture here measures which RULE to reach for. None could measure
-which BINDING, and ugm.workload -- the one built for scale -- has exactly ONE
+which BINDING, and the retired ugm.workload -- built for scale -- had exactly ONE
 individual (item), so it cannot measure it even in principle. ⚠ Minted per
 OCCASION and not per parameters, which matters here rather than in principle:
 solve(d1, x, z, y) occurs TWICE in a three-disk solution, so a call node

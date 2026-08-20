@@ -137,7 +137,7 @@ def sweep() -> "tuple":
     def swept(self, limit=100):
         # ⚠⚠ A flag on the machine, never a set of `id()` -- CPython reuses an
         # address the moment a machine is collected, which under-counted
-        # `ugm.harmony`'s census by 3.5× before it was found.
+        # the retired `ugm.harmony`'s census by 3.5× before it was found.
         if not getattr(self, "_swept", False):
             self._swept = True
             machines[0] += 1

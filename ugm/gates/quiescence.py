@@ -293,7 +293,7 @@ def _compare(drop: Tuple[str, ...] = (), stops: Tuple[int, ...] = STOPS,
 
         # The rules go in AFTER the harvest, and the machine is not ticked
         # again: this is an observer, and a gate that added rules to a
-        # running loop would be a second agent (`arbitration`'s own note).
+        # running loop would be a second agent (the retired `arbitration`'s own note).
         ldr = load(m, READ + QUIET)
         for name in SUPPLIED:
             m.rules.structural[ldr.term(name)] = _bounded

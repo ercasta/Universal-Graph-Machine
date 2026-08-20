@@ -27,7 +27,7 @@ def teacher(m: Machine, table: Table, window, state: Situation):
     """The shipped arbitration, as a gold teacher.
 
     It chooses over the FULL option set -- `_materialise` is the slow definition
-    `ugm.arbitration` holds the fast one to -- rather than over the window, so
+    the retired `ugm.arbitration` held the fast one to -- rather than over the window, so
     it is a genuine teacher and not a re-ranking of what the table already
     liked. Offline cost, which is what a teacher is allowed.
     """

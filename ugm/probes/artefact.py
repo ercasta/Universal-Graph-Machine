@@ -186,7 +186,7 @@ def main() -> int:
   **Parsing is absent.** This is the generation direction only, and generation
   is a function. Going the other way -- shell text, or prose, into claims -- is
   the intake seam, measured at 0/50 on raw prose and 26% on a book corpus in
-  the previous arc, and `ugm.workload` records it as a seam with no algorithm
+  the previous arc, and the retired `ugm.workload` recorded it as a seam with no algorithm
   at all. That is where a model belongs, and it is a different project.
 
   **The repair ADDS; it cannot REPLACE.** `cmd` is one node accumulating

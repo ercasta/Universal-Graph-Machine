@@ -5183,7 +5183,7 @@ def a_join_is_not_a_scan() -> None:
     # ⚠⚠⚠ **And `consumed` is filled by MEMBER, not by the order walked.** This
     # needs its own check because no outcome can show it: permuting `consumed`
     # permutes `heap`'s stamp and §12's trail, and the suite -- and
-    # `ugm.arbitration`, which compares two paths that would permute alike --
+    # the retired `ugm.arbitration`, which compared two paths that would permute alike --
     # both pass with it broken. Kill-probed exactly that way, 0 failing, which
     # is why the invariant is asserted here directly rather than through what
     # the agent concludes.

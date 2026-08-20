@@ -2952,7 +2952,7 @@ class Machine:
         Nothing in the loop calls this. It exists because `_choose` is an
         optimisation of a semantics, and §20's floor gate is the standing answer
         to that: the slow definition has to stay, so the fast one can be held to
-        it rather than trusted. `ugm.arbitration` runs both on every tick of
+        it rather than trusted. the retired `ugm.arbitration` ran both on every tick of
         every fixture and compares the move.
         """
         out = self._applications(proposed, state, materialise=True)
@@ -3258,7 +3258,7 @@ class Machine:
         ⚠⚠ **Only this direction is a signal, and it was measured rather than
         assumed.** *Written and never read* reports 11 to 17 names on healthy
         corpora -- the machinery's bookkeeping, plus a corpus's own OUTPUTS,
-        since nobody reads an answer. That is `ugm.harmony`'s false-positive
+        since nobody reads an answer. That was `ugm.harmony`'s false-positive
         shape arriving again. This direction reports **zero** on every corpus
         here, and one on a corpus with a typo in it.
         """
