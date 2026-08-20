@@ -8,7 +8,7 @@ learning, suppositions.
 
 from .core.chain import Chain, Entry, Moment, MINUS, PLUS, UNSURE
 from .core.channels import Channels
-from .core.gate import Frame, Gate
+from .core.gate import Gate
 from .core.graph import Graph
 from .core.machine import Machine, Step
 from .core.rules import CAUSES, IMPLIES, Member, Rule, RuleSet
@@ -17,7 +17,6 @@ __all__ = [
     "Chain",
     "Channels",
     "Entry",
-    "Frame",
     "Gate",
     "Graph",
     "Machine",

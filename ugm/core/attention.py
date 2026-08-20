@@ -226,7 +226,7 @@ def _is_defeated(m: Machine, rule: Rule, state) -> bool:
     beaten = False
     for h in higher:
         found = match(
-            m.g, m.chain, h, m.focus.topic, m.focus.seat, state,
+            m.g, m.chain, h, state,
             computes=m.rules.computes, structural=m.rules.skeleton(),
         )
         # ⚠⚠⚠ **Matched, NOT survived**, and the difference is the whole of it.
@@ -264,7 +264,7 @@ def _rivals(m: Machine, chosen: Application, state) -> List[Application]:
         if not any(m.g.relation_of(mm.pattern) is m.GOAL for mm in r.antecedent):
             continue
         out.extend(match(
-            m.g, m.chain, r, m.focus.topic, m.focus.seat, state,
+            m.g, m.chain, r, state,
             computes=m.rules.computes, structural=m.rules.skeleton(),
         ))
     return out
@@ -299,7 +299,7 @@ def _is_superseded(m: Machine, app: Application, state) -> bool:
     others: List[Application] = []
     for h in higher:
         others.extend(match(
-            m.g, m.chain, h, m.focus.topic, m.focus.seat, state,
+            m.g, m.chain, h, state,
             computes=m.rules.computes, structural=m.rules.skeleton(),
         ))
     return _superseded(m.rules, app, others)
@@ -461,7 +461,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # one: what the agent may read the chain about is where...
         # →
         # docs/design/attention.md#not-a-phase-the-world-may-have-spoken-since-the
-        m.g.rel(m.chain.ASKING, m.focus.seat.node)
+        m.g.rel(m.chain.ASKING, m.chain.now.node)
 
         # A rule the agent authored since the last tick enters the table now.
         if not fixed:
@@ -513,7 +513,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                     break  # the prefix ends here, and the rest is not matched
                 tried += 1
                 found = match(
-                    m.g, m.chain, r, m.focus.topic, m.focus.seat, state,
+                    m.g, m.chain, r, state,
                     computes=m.rules.computes,
                     structural=m.rules.skeleton(),
                 )
@@ -577,7 +577,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             fresh = False
             for rival in window[1:]:
                 node = m.g.rel(m.CLOSE, chosen.rule.node, rival.rule.node)
-                if m.chain.resolve(node, m.focus.topic, m.focus.seat) is None:
+                if m.chain.resolve(node, m.chain.now, m.chain.now) is None:
                     m._note(node)
                     fresh = True
             if fresh:
@@ -696,7 +696,7 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
             [], f"{name}-after",
         )
         for hit in match(
-            m.g, m.chain, probe, m.focus.topic, m.focus.seat, state,
+            m.g, m.chain, probe, state,
             computes=m.rules.computes, structural=m.rules.skeleton(),
         ):
             bound = dict(chosen.bindings)

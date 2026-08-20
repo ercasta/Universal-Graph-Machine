@@ -13,9 +13,9 @@ import heapq
 import os
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .chain import MINUS, PLUS, Chain, Entry, Locus, Moment, scope_of
+from .chain import MINUS, PLUS, Chain, Entry, Moment
 from .channels import Arrival, Channels
-from .gate import Frame, Gate
+from .gate import Gate
 from .graph import Graph, NodeId
 from .rules import (
     _defeaters,
@@ -70,7 +70,7 @@ class Answerer(NamedTuple):
     name: str
     node: NodeId
     request: NodeId
-    fn: object  # fn(machine, frame, entry) -> NodeId | None
+    fn: object  # fn(machine, entry) -> NodeId | None
 
 
 #: How many things may be attended at once. A knob, so `attention_span(3)` in a
@@ -317,7 +317,6 @@ class Machine:
         # about the agent's own rule set that no rule could ask -- and §22 needs
         # exactly that to decompose on surprise.
         # Where a rule's member says its entry must sit (§12's locus).
-        self.AT = self.g.atom("at")
         # ...and asking how two of them are ordered (§10, §22).
         # ...and the name a member gives what it matched (§12's `as`).
         # ⚠ NOT `self.BINDS`, which is the PLAN-bindings relation twelve lines
@@ -361,7 +360,6 @@ class Machine:
         # reasoning in. The frame itself is an ordinary node; only the pointer
         # is privileged.
         # → docs/design/machine.md#the-one-register-10-which-node-the-machinery
-        self.focus: Frame = self.gate.frame(self.chain.root)
 
         # Every name the machinery coins, in one place. The surface seeds its
         # table from this, so a name written in a rule is the SAME node the
@@ -409,7 +407,6 @@ class Machine:
             "spent": self.SPENT, "premises": self.PREMISES,
             "contested": self.CONTESTED,
             "compose": self.COMPOSE, "composed": self.COMPOSED,
-            "at": self.AT, "moved": self.gate.MOVED,
             # The skeleton, as names a corpus may write (§6, §12). `pred` is the
             # stored immediate predecessor; `anc`/`sanc` are the reflexive and
             # strict walks; the rest are what the chain deposits as it builds.
@@ -424,7 +421,6 @@ class Machine:
             "entry_of": self.chain.ENTRY_OF,
             # ...and a stretch of it. `span_of(?s, ?start, ?end)` mints when the
             # endpoints are bound and decomposes when the span is (§11).
-            "span_of": self.chain.SPAN_OF, "span": self.chain.SPAN,
             "asking": self.chain.ASKING, "asked": self.chain.ASKED,
             # ⚠ Without this line `time(?m, ?t)` in a corpus is a FRESH
             # atom -- `g.atom` does not intern -- so the rule is well
@@ -432,8 +428,6 @@ class Machine:
             # and nothing raises. The name-identity trap, caught here on
             # its fifth outing.
             "time": self.chain.TIME,
-            "holds_at": self.chain.HOLDS_AT,
-            "reaches": self.chain.REACHES,
             "names": self.NAMES, "computes": self.COMPUTES,
             "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
             "widened": self.WIDENED, "reached": self.REACHED,
@@ -581,7 +575,7 @@ class Machine:
         # the list or take something off it.
         for r in self.bundle:
             self.gate.write(
-                self.focus, self.g.rel(self.STANDING, r.node), PLUS,
+                self.g.rel(self.STANDING, r.node), PLUS,
                 licence=self.g.rel(self.REIFIED, r.node), source=self.KB, mention=True,
             )
         # ⭐⭐⭐ The apparatus eats its own cooking. ⚠ <remember> is the fourth,
@@ -623,7 +617,7 @@ class Machine:
             a = self.answerer(name, request, lambda _m, f, e, fn=fn: fn(f, e))
             if standing:
                 self.gate.write(
-                    self.focus, self.g.rel(self.STANDING, a.node), PLUS,
+                    self.g.rel(self.STANDING, a.node), PLUS,
                     licence=self.g.rel(self.REIFIED, a.node), source=self.KB,
                     mention=True,
                 )
@@ -732,10 +726,9 @@ class Machine:
         if rule.node in self._reified:
             return
         self._reified.add(rule.node)
-        f = self.focus
         src = self._authoring_source or self.KB
         w = lambda p: self.gate.write(
-            f, p, "+", licence=self.g.rel(self.REIFIED, rule.node), source=src, mention=True
+            p, "+", licence=self.g.rel(self.REIFIED, rule.node), source=src, mention=True
         )
         w(self.g.rel(self.RULE, rule.node))
         conn = self.rules.CAUSES if rule.connective == "causes" else self.rules.IMPLIES
@@ -745,32 +738,11 @@ class Machine:
         for i, m in enumerate(rule.antecedent):
             w(self.g.rel(self.ANT, rule.node, m.pattern,
                          self.rules.SIGN[m.sign], self._numeral(i)))
-            self._reify_locus(w, self.ANT, rule.node, i, m)
             self._reify_binds(w, self.ANT, rule.node, i, m)
         for i, m in enumerate(rule.consequent):
             w(self.g.rel(self.CON, rule.node, m.pattern,
                          self.rules.SIGN[m.sign], self._numeral(i)))
-            self._reify_locus(w, self.CON, rule.node, i, m)
             self._reify_binds(w, self.CON, rule.node, i, m)
-
-    def _reify_locus(self, w, side, node, i, m) -> None:
-        """...and WHERE the member's entry must sit, when it says (§12).
-
-        ⚠⚠⚠ **Not optional, and the least visible part of the feature.**
-        `adopt` reads a rule back out of the graph and `compose` builds one from
-        two others; a locus that reify does not record is a locus those two
-        silently drop, and the rule that comes back is a DIFFERENT rule. That is
-        the twin-trap family, which has bitten four times, and a corpus that
-        retracts in 57% of its rules -- which a foreign one measured -- would hit
-        it immediately rather than eventually.
-
-        A separate relation rather than a sixth member of `ant`/`con`, because
-        most members have no locus and §5 refuses a shape whose arity varies
-        with how much happens to be known about it.
-        """
-        if m.locus is None:
-            return
-        w(self.g.rel(self.AT, side, node, self._numeral(i), m.locus))
 
     def _reify_binds(self, w, side, node, i, m) -> None:
         """...and the name the member gives what it matched (§12's `as`).
@@ -797,17 +769,7 @@ class Machine:
         for r in self.rules.rules:
             self.reify(r)
 
-    # -- the register -----------------------------------------------------
-
-    @property
-    def focus(self) -> Frame:
-        return self._focus
-
-    @focus.setter
-    def focus(self, frame: Frame) -> None:
-        self._focus = frame
-
-    def _fit(self, frame: Frame, e: Entry) -> None:
+    def _fit(self, e: Entry) -> None:
         """Answer a match request (§5's wall, from the side that can be crossed).
 
         A rule concludes +fit(<R>, goal) -- *could this rule produce this?* --
@@ -837,7 +799,7 @@ class Machine:
             if b is None:
                 continue
             self.gate.write(
-                frame, self.g.rel(self.FITS, rule_node, goal), PLUS,
+                self.g.rel(self.FITS, rule_node, goal), PLUS,
                 licence=licence, source=self.KB, consumed=(e,), mention=True,
             )
             # The bindings, as facts about the plan. A rule cannot hold a binding
@@ -847,23 +809,22 @@ class Machine:
             plan = self.g.rel(self.PLAN, rule_node, goal)
             for var, val in b.items():
                 self.gate.write(
-                    frame, self.g.rel(self.BINDS, plan, var, val), PLUS,
+                    self.g.rel(self.BINDS, plan, var, val), PLUS,
                     licence=licence, source=self.KB, consumed=(e,), mention=True,
                 )
             for want in rule.antecedent:
                 self.gate.write(
-                    frame,
                     self.g.rel(self.NEED, rule_node, goal, substitute(self.g, want.pattern, b)),
                     PLUS,
                     licence=licence, source=self.KB, consumed=(e,), mention=True,
                 )
             return
         self.gate.write(
-            frame, self.g.rel(self.UNFIT, rule_node, goal), PLUS,
+            self.g.rel(self.UNFIT, rule_node, goal), PLUS,
             licence=licence, source=self.KB, consumed=(e,), mention=True,
         )
 
-    def _settle(self, frame: Frame, e: Entry) -> None:
+    def _settle(self, e: Entry) -> None:
         """Answer *is this goal already satisfied?* -- the second match.
 
         `+check(<plan>, goal)` asks it, and the answer must be computed **inside
@@ -923,23 +884,23 @@ class Machine:
                 s2 for var, s2 in env_from.items() if occurs(self.g, var, goal, {})
             )
             self.gate.write(
-                frame, self.g.rel(self.ACHIEVED, goal), PLUS,
+                self.g.rel(self.ACHIEVED, goal), PLUS,
                 licence=licence, source=self.KB, consumed=(e, s) + used, mention=True,
             )
             for var, val in b.items():
                 if var not in env:
                     self.gate.write(
-                        frame, self.g.rel(self.BINDS, plan, var, val), PLUS,
+                        self.g.rel(self.BINDS, plan, var, val), PLUS,
                         licence=licence, source=self.KB,
                         consumed=(e, s) + used, mention=True,
                     )
             return
         self.gate.write(
-            frame, self.g.rel(self.UNMET, plan, goal), PLUS,
+            self.g.rel(self.UNMET, plan, goal), PLUS,
             licence=licence, source=self.KB, consumed=(e,), mention=True,
         )
 
-    def _root(self, frame: Frame, e: Entry) -> None:
+    def _root(self, e: Entry) -> None:
         """Answer *is this what I was asked for, or something I asked myself?*
 
         §6 recorded the gap and §12 recorded why it could not be a rule: a root
@@ -956,15 +917,15 @@ class Machine:
         for node in self.g.instances_of(self.SUBGOAL):
             if self.g.member(node, 1) != wanted:
                 continue
-            s = self.chain.resolve(node, frame.topic, frame.seat)
+            s = self.chain.resolve(node)
             if s is not None and s.sign == PLUS:
                 return
         self.gate.write(
-            frame, self.g.rel(self.ROOTED, wanted), PLUS,
+            self.g.rel(self.ROOTED, wanted), PLUS,
             licence=self.g.rel(self.GOAL, wanted), source=self.KB, mention=True,
         )
 
-    def _count(self, frame: Frame, e: Entry) -> None:
+    def _count(self, e: Entry) -> None:
         """Answer *how many ground matches does this pattern have here?*
 
         count(goblin(?x)) a REQUEST, asked by a corpus rule counted(goblin(?x),
@@ -987,7 +948,7 @@ class Machine:
         # → docs/design/machine.md#distinct-propositions-not-applications-and-t
         seen = set()
         for hit in match(
-            self.g, self.chain, probe, frame.topic, frame.seat,
+            self.g, self.chain, probe, 
             self._situation(), computes=self.rules.computes,
             structural=self.rules.skeleton(),
         ):
@@ -1002,18 +963,18 @@ class Machine:
         for old in self.g.instances_of(self.COUNTED):
             if old == answer or self.g.member(old, 0) != e.proposition:
                 continue
-            if self.chain.resolve(old, frame.topic, frame.seat) is None:
+            if self.chain.resolve(old) is None:
                 continue
             self.gate.write(
-                frame, old, MINUS, licence=e.proposition, source=self.KB,
+                old, MINUS, licence=e.proposition, source=self.KB,
                 mention=True,
             )
         self.gate.write(
-            frame, answer, PLUS,
+            answer, PLUS,
             licence=e.proposition, source=self.KB, mention=True,
         )
 
-    def _supported(self, frame: Frame, e: Entry) -> None:
+    def _supported(self, e: Entry) -> None:
         """Answer *does anything still hold this up?* -- the third negative
 
         existential, and it gets the treatment the other two got.
@@ -1026,30 +987,21 @@ class Machine:
         for claim in self.chain.claims_about(about):
             if claim.sign != PLUS:
                 continue
-            if not self._seat_holds(claim):
-                continue
             if all(self._current(c) for c in self.chain.rests_on(claim)):
                 return  # something still holds it up
         self.gate.write(
-            frame, self.g.rel(self.UNSUPPORTED, about), PLUS,
+            self.g.rel(self.UNSUPPORTED, about), PLUS,
             licence=self.g.rel(self.SUPPORT, about), source=self.KB,
             consumed=(e,), mention=True,
         )
-
-    def _seat_holds(self, claim: Entry) -> bool:
-        """Is this entry on the branch the register is standing on? Containment
-        again: an entry made inside a supposition is not support out here."""
-        return self.focus.seat.at_or_after(claim.locus) or claim.locus is self.focus.seat
 
     def _current(self, c: Entry) -> bool:
         """Is this consumed entry still what `resolve` returns for its own
         proposition? The chain is append-only, but `resolve` is not monotone --
         a later denial makes what an entry rested on no longer the claim."""
-        return self.chain.resolve(
-            c.proposition, self.focus.topic, self.focus.seat
-        ) is c
+        return self.chain.resolve(c.proposition) is c
 
-    def _verdict(self, frame: Frame, e: Entry) -> None:
+    def _verdict(self, e: Entry) -> None:
         """Answer *did anything fit this goal?* -- the aggregate, and the last
 
         thing the goal phase was doing that no rule could do. blocked is a
@@ -1081,7 +1033,6 @@ class Machine:
         fits = answered
         for settled in self._as_settled(wanted, state):
             self.gate.write(
-                frame,
                 self.g.rel(self.PURSUED if fits else self.BLOCKED, settled),
                 PLUS,
                 licence=self.g.rel(self.VERDICT, wanted),
@@ -1121,7 +1072,7 @@ class Machine:
                 out.append(got)
         return out or [wanted]
 
-    def _remember(self, frame: Frame, e: Entry) -> None:
+    def _remember(self, e: Entry) -> None:
         """Answer *what comes to mind about this?* (§19).
 
         The first version of this answered *every rule*, which made it a slower
@@ -1137,10 +1088,10 @@ class Machine:
         """
         if self.g.relation_of(e.proposition) is not self.RECALL or e.sign != PLUS:
             return
-        self._answer_recall(frame, self.g.member(e.proposition, 0), e)
+        self._answer_recall(self.g.member(e.proposition, 0), e)
 
     def _answer_recall(
-        self, frame: Frame, about: NodeId, because: Optional[Entry] = None
+        self, about: NodeId, because: Optional[Entry] = None
     ) -> None:
         candidates = self.rules.by_conclusion.get(self.g.relation_of(about), ())
         licence = self.g.rel(self.RECALL, about)
@@ -1150,14 +1101,14 @@ class Machine:
             ):
                 continue
             self.gate.write(
-                frame, self.g.rel(self.RECALLED, r.node, about), PLUS,
+                self.g.rel(self.RECALLED, r.node, about), PLUS,
                 licence=licence, source=self.KB,
                 consumed=(because,) if because is not None else (), mention=True,
             )
 
     # -- norms ------------------------------------------------------------
 
-    def _forbid(self, frame: Frame, proposition: NodeId, sign: str) -> Optional[NodeId]:
+    def _forbid(self, proposition: NodeId, sign: str) -> Optional[NodeId]:
         """§19's carve-out, and the whole of it.
 
         > Recall may be incomplete about what to do. It may not be incomplete >
@@ -1176,7 +1127,7 @@ class Machine:
                 continue
             if unify(self.g, pattern, proposition, {}) is None:
                 continue
-            e = self.chain.resolve(node, frame.topic, frame.seat)
+            e = self.chain.resolve(node)
             if e is not None and e.sign == PLUS:
                 return node
         return None
@@ -1221,7 +1172,7 @@ class Machine:
                 continue
             for w in wants & self._wants(a):
                 self.gate.write(
-                    self.focus, self.g.rel(self.FORGONE, a.rule.node, w), PLUS,
+                    self.g.rel(self.FORGONE, a.rule.node, w), PLUS,
                     licence=self.g.rel(self.APPLIED, chosen.rule.node),
                     source=self.KB, mention=True,
                 )
@@ -1261,12 +1212,11 @@ class Machine:
                 probe = Rule(
                     r.node, r.connective,
                     [Member(x.sign, substitute(self.g, x.pattern, bound),
-                            x.locus, x.binds)
+                            x.binds)
                      for x in r.antecedent],
                     [], (r.name or "?") + "-reaches",
                 )
-                if match(self.g, self.chain, probe, self.focus.topic,
-                         self.focus.seat, Situation(self.g, []),
+                if match(self.g, self.chain, probe, Situation(self.g, []),
                          computes=self.rules.computes,
                          structural=self.rules.skeleton()):
                     answer = True
@@ -1287,8 +1237,8 @@ class Machine:
         if self._claims(proposition):
             return
         self.gate.write(
-            self.focus, proposition, PLUS,
-            licence=licence or self.g.rel(self.QUIET, self.focus.seat.node),
+            proposition, PLUS,
+            licence=licence or self.g.rel(self.QUIET, self.chain.now.node),
             source=self.KB, mention=True,
         )
 
@@ -1376,14 +1326,14 @@ class Machine:
         self._attention = []
         for node in self._attended():
             self.gate.write(
-                self.focus, self.g.rel(self.ATTENTION, node), MINUS,
-                licence=licence or self.g.rel(self.QUIET, self.focus.seat.node),
+                self.g.rel(self.ATTENTION, node), MINUS,
+                licence=licence or self.g.rel(self.QUIET, self.chain.now.node),
                 source=self.KB, mention=True,
             )
             dropped += 1
         return dropped
 
-    def _unafforded(self, frame, e) -> None:
+    def _unafforded(self, e) -> None:
         """An attempt at something the palette does not afford, on the record.
 
         ⭐ The engine's whole share of an action. What is LEGAL is the world
@@ -1413,7 +1363,7 @@ class Machine:
             # not a claim ON it.
             # →
             # docs/design/machine.md#the-palette-is-the-author-s-and-this-is-w
-            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            e = self.chain.resolve(node)
             if e is not None and e.licence is not None and (
                     self.g.relation_of(e.licence) is self.APPLIED):
                 continue
@@ -1432,7 +1382,7 @@ class Machine:
         """
         best = None
         for node in self.g.instances_of(relation):
-            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            e = self.chain.resolve(node)
             if e is None or e.sign != PLUS:
                 continue
             name = self.g.show(self.g.member(node, 0))
@@ -1456,7 +1406,7 @@ class Machine:
             return False
         self._widened = True
         self.widenings += 1
-        self._note(self.g.rel(self.WIDENED, self.focus.seat.node))
+        self._note(self.g.rel(self.WIDENED, self.chain.now.node))
         return True
 
     def _outstanding(self) -> bool:
@@ -1465,12 +1415,10 @@ class Machine:
         for node in self.g.instances_of(self.GOAL):
             if self.g.has_var(node):
                 continue
-            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            e = self.chain.resolve(node)
             if e is None or e.sign != PLUS:
                 continue
-            got = self.chain.resolve(
-                self.g.member(node, 0), self.focus.topic, self.focus.seat
-            )
+            got = self.chain.resolve(self.g.member(node, 0))
             if got is None or got.sign != PLUS:
                 return True
         return False
@@ -1487,14 +1435,14 @@ class Machine:
         if not self._out_of_mind() or not self._outstanding():
             return False
         self.recoveries += 1
-        self._note(self.g.rel(self.REACHED, self.focus.seat.node))
+        self._note(self.g.rel(self.REACHED, self.chain.now.node))
         # A claim, deposited rather than a flag, so *why is billing back?* has an
         # answer and a corpus can argue with the escalation as it can with
         # anything else. `due` is the same fact that wakes a dormant rule.
         for c in self._out_of_mind():
             self.gate.write(
-                self.focus, self.g.rel(self.DUE, c), PLUS,
-                licence=self.g.rel(self.QUIET, self.focus.seat.node),
+                self.g.rel(self.DUE, c), PLUS,
+                licence=self.g.rel(self.QUIET, self.chain.now.node),
                 source=self.KB, mention=True,
             )
         return True
@@ -1518,20 +1466,20 @@ class Machine:
         for node in self.g.instances_of(self.ENOUGH):
             if self.g.has_var(node):
                 continue  # a description is not a claim; §15's condition again
-            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            e = self.chain.resolve(node)
             if e is not None and e.sign == PLUS:
                 reason = node
                 break
         if reason is None:
             return None
-        if self.focus.seat.node in self._vetoed:
+        if self.chain.now.node in self._vetoed:
             # The veto has already been exercised here, and it did not merely
             # cost a tick: it handed the loop back.
             # →
             # docs/design/machine.md#the-veto-has-already-been-exercised-here-and-it
             return None
         if self._notice_open():
-            self._vetoed.add(self.focus.seat.node)
+            self._vetoed.add(self.chain.now.node)
             return None
         return reason
 
@@ -1543,23 +1491,23 @@ class Machine:
 
         See docs/design/machine.md#notice-open.
         """
-        seat = self.focus.seat.node
+        seat = self.chain.now.node
         stopped = False
         for node in self.g.instances_of(self.GOAL):
             if self.g.has_var(node):
                 continue
-            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            e = self.chain.resolve(node)
             if e is None or e.sign != PLUS:
                 continue
             (wanted,) = self.g.members(node)
             if (seat, wanted) in self._noticed:
                 continue
-            got = self.chain.resolve(wanted, self.focus.topic, self.focus.seat)
+            got = self.chain.resolve(wanted)
             if got is not None and got.sign == PLUS:
                 continue
             self._noticed.add((seat, wanted))
             self.gate.write(
-                self.focus, self.g.rel(self.OPEN, wanted), PLUS,
+                self.g.rel(self.OPEN, wanted), PLUS,
                 licence=self.g.rel(self.GOAL, wanted), source=self.KB, mention=True,
             )
             stopped = True
@@ -1579,12 +1527,12 @@ class Machine:
 
         See docs/design/machine.md#notice-attempts.
         """
-        seat = self.focus.seat.node
+        seat = self.chain.now.node
         noticed = False
         for node in self.g.instances_of(self.ATTEMPT):
             if self.g.has_var(node):
                 continue
-            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            e = self.chain.resolve(node)
             if e is None or e.sign != PLUS:
                 continue
             (asked,) = self.g.members(node)
@@ -1615,12 +1563,12 @@ class Machine:
         This is §16's ordering trap -- being careful has to come before the step
         it is about -- and it is the second time it has decided a design.
         """
-        seat = self.focus.seat
+        seat = self.chain.now
         if seat.node in self._stopped:
             return False
         self._stopped.add(seat.node)
         self.gate.write(
-            self.focus, self.g.rel(self.STOPPED, seat.node, reason), PLUS,
+            self.g.rel(self.STOPPED, seat.node, reason), PLUS,
             licence=self.g.rel(self.ENOUGH, reason), source=self.KB,
         )
         return True
@@ -1633,13 +1581,13 @@ class Machine:
 
         See docs/design/machine.md#wake.
         """
-        seat = self.focus.seat
+        seat = self.chain.now
         if seat.node in self._quieted:
             return False
         self._quieted.add(seat.node)
         self._notice_attempts()
         self.gate.write(
-            self.focus, self.g.rel(self.QUIET, seat.node), PLUS,
+            self.g.rel(self.QUIET, seat.node), PLUS,
             licence=self.g.rel(self.QUIET, seat.node), source=self.KB,
         )
         return True
@@ -1662,7 +1610,7 @@ class Machine:
         self.rules.computes[rel] = fn
         # ...and it is on the record, so *which of these exist* is a query
         # rather than a fact about the source (§17).
-        self.gate.write(self.focus, self.g.rel(self.COMPUTES, rel), PLUS,
+        self.gate.write(self.g.rel(self.COMPUTES, rel), PLUS,
                         licence=self.g.rel(self.REIFIED, rel), source=self.KB,
                         mention=True)
         return rel
@@ -1682,7 +1630,7 @@ class Machine:
             inspect.signature(fn).bind(None, None, None)
         except TypeError:
             raise TypeError(
-                f"answerer {name!r} does not take (machine, frame, entry) -- an "
+                f"answerer {name!r} does not take (machine, entry) -- an "
                 f"answerer is called with three arguments and returns the answer "
                 f"node, or None for *I have nothing to say*"
             ) from None
@@ -1694,12 +1642,12 @@ class Machine:
         a = Answerer(name, node, rel, fn)
         self.answerers.append(a)
         self.gate.write(
-            self.focus, self.g.rel(self.ANSWERS, node, a.request), PLUS,
+            self.g.rel(self.ANSWERS, node, a.request), PLUS,
             licence=self.g.rel(self.REIFIED, node), source=self.KB, mention=True,
         )
         return a
 
-    def _answer(self, frame: Frame, e: Entry) -> None:
+    def _answer(self, e: Entry) -> None:
         """Call whatever answers this request, and record what it said.
 
         Three things it deliberately is not. Not a conclusion. What lands is
@@ -1730,22 +1678,22 @@ class Machine:
                     self.chain.SIGN[MINUS],
                     self.g.rel(self.STANDING, a.node),
                 )
-                if self.chain.resolve(refusal, frame.topic, frame.seat) is None:
+                if self.chain.resolve(refusal) is None:
                     self.gate.write(
-                        frame, refusal, PLUS,
+                        refusal, PLUS,
                         licence=self.g.rel(self.STANDING, a.node),
                         source=self.KB, mention=True,
                     )
-            said = a.fn(self, frame, e)
+            said = a.fn(self, e)
             if said is None:
                 continue
             self.gate.write(
-                frame, self.g.rel(self.ANSWERED, a.node, e.proposition, said), PLUS,
+                self.g.rel(self.ANSWERED, a.node, e.proposition, said), PLUS,
                 licence=self.g.rel(self.APPLIED, a.node), source=self.KB,
                 mention=True,
             )
 
-    def _again(self, frame: Frame, e: Entry) -> None:
+    def _again(self, e: Entry) -> None:
         """Re-deliver a request, because a corpus said an occasion warrants it.
 
         §6: *a request can only be made once.* <ask-check> asks whether a
@@ -1764,7 +1712,7 @@ class Machine:
             return
         request, occasion = members
         self.gate.write(
-            frame, request, PLUS,
+            request, PLUS,
             licence=self.g.rel(self.AGAIN, request, occasion),
             source=self.KB,
             consumed=(e,),
@@ -1784,7 +1732,7 @@ class Machine:
         self._actuators.append(node)
         return node
 
-    def _dispatch(self, frame: Frame, e: Entry) -> None:
+    def _dispatch(self, e: Entry) -> None:
         """The outbound boundary, at the write rather than in the loop.
 
         A rule concludes +doing(p) like any other fact; this carries it past
@@ -1804,7 +1752,7 @@ class Machine:
             # ⚠⚠⚠ Replaying a session must not re-do it.
             # → docs/design/machine.md#replaying-a-session-must-not-re-do-it-t
             self.gate.write(
-                frame, self.g.rel(self.TAKEN, what), "+",
+                self.g.rel(self.TAKEN, what), "+",
                 licence=self.g.instance(self.UTTERANCE, self.KB, what),
                 source=self.KB, consumed=(e,),
             )
@@ -1813,7 +1761,7 @@ class Machine:
         # The smallest unarguable record that something left the agent. What it
         # MEANS is `<did>`, and what follows from it is `<assert-act>`.
         self.gate.write(
-            frame, self.g.rel(self.EMITTED, what), "+",
+            self.g.rel(self.EMITTED, what), "+",
             licence=self.g.instance(self.UTTERANCE, self.KB, what),
             source=self.KB, consumed=(e,),
         )
@@ -1826,7 +1774,7 @@ class Machine:
     # deleting: the suite runs in 6.42s against 6.38s, so the table was buying
     # nothing but the two ways it could be wrong.
 
-    def _adopt(self, frame: Frame, e: Entry) -> None:
+    def _adopt(self, e: Entry) -> None:
         """Make a rule the graph describes into a rule the loop reads.
 
         adopt(<R>) ⭐⭐⭐ reify went one way. ⚠ Refused inside a supposition, and
@@ -1841,7 +1789,7 @@ class Machine:
         (node,) = self.g.members(e.proposition)
         if any(r.node == node for r in self.rules.rules):
             return  # already live -- restating is not revising (§8)
-        built = self._read_rule(frame, node)
+        built = self._read_rule(node)
         if built is None:
             return
         connective, ant, con = built
@@ -1853,7 +1801,7 @@ class Machine:
         # ⚠ The node the graph described, never a fresh one. See `RuleSet.rule`.
         self.rules.rule(connective, ant, con, self.g.show(node), node)
 
-    def _compose(self, frame: Frame, e: Entry) -> None:
+    def _compose(self, e: Entry) -> None:
         """Collapse two rules into one, because a corpus asked.
 
         compose(<a>, <b>) ⟹ composed(<c>, <a>, <b>) §4 calls composition the
@@ -1881,19 +1829,18 @@ class Machine:
         if composed is None:
             return None  # nothing of the first's consequent meets the second
         self.gate.write(
-            frame,
             self.g.rel(self.COMPOSED, composed.node, first.node, second.node),
             PLUS, licence=e.node, source=self.KB, mention=True,
         )
         for higher, lower in self.rules.inherit:
             self.gate.write(
-                frame, self.g.rel(self.OVERRIDES, higher.node, lower.node),
+                self.g.rel(self.OVERRIDES, higher.node, lower.node),
                 PLUS, licence=e.node, source=self.KB, mention=True,
             )
         self.rules.inherit = []
         return None
 
-    def _read_rule(self, frame: Frame, node: NodeId):
+    def _read_rule(self, node: NodeId):
         """What the graph says this rule is, or `None` if it does not say.
 
         Read at the frame's own position through `resolve`, so a retracted part
@@ -1923,20 +1870,6 @@ class Machine:
                     return mm[3]
             return None
 
-        def locus_at(relation, i):
-            """...and the member's locus, if the graph says it has one (§12).
-
-            Read the same way as everything else here -- through `_claims`, at
-            the frame's position -- so amending a rule's locus is denying a
-            fact, exactly as amending its members is.
-            """
-            for q in self.g.instances_of(self.AT):
-                mm = self.g.members(q)
-                if (len(mm) == 4 and mm[0] is relation and mm[1] is node
-                        and self.g.show(mm[2]) == str(i) and self._claims(q)):
-                    return mm[3]
-            return None
-
         def side(relation):
             out = []
             for p in self.g.instances_of(relation):
@@ -1945,7 +1878,6 @@ class Machine:
                 members = self.g.members(p)
                 i = self.g.show(members[3])
                 out.append((i, Member(sign_of.get(members[2], PLUS), members[1],
-                                      locus_at(relation, int(i)),
                                       slot(self.NAMES, relation, int(i)))))
             return [m for _, m in sorted(out, key=lambda pair: int(pair[0]))]
 
@@ -1954,7 +1886,7 @@ class Machine:
             return None  # a rule that concludes nothing is not a rule
         return connective, side(self.ANT), con
 
-    def _expect(self, frame: Frame, proposition: NodeId, sign: str, licence: NodeId) -> None:
+    def _expect(self, proposition: NodeId, sign: str, licence: NodeId) -> None:
         """Forward application deposits what it predicts (§16).
 
         Without the deposit there is nothing to be surprised against -- an
@@ -1962,7 +1894,7 @@ class Machine:
         because the rule was weak but because there is nothing there to match.
         """
         self.gate.write(
-            frame, self.g.rel(self.EXPECTS, proposition, self.rules.SIGN[sign]), "+",
+            self.g.rel(self.EXPECTS, proposition, self.rules.SIGN[sign]), "+",
             licence=licence, source=self.KB, mention=True,
         )
 
@@ -2137,7 +2069,7 @@ class Machine:
         return out
 
     def _claims(self, proposition: NodeId) -> bool:
-        e = self.chain.resolve(proposition, self.focus.topic, self.focus.seat)
+        e = self.chain.resolve(proposition)
         return e is not None and e.sign == PLUS
 
     def _deliver(self, a: Arrival) -> None:
@@ -2147,16 +2079,16 @@ class Machine:
 
         See docs/design/machine.md#deliver.
         """
-        self._report(self.focus, a)
+        self._report(a)
 
-    def _report(self, own: Frame, a: Arrival) -> None:
+    def _report(self, a: Arrival) -> None:
         """The body of `_deliver`."""
         utterance = self.g.instance(self.UTTERANCE, a.channel, a.proposition)
         report = self.g.rel(
             self.ARRIVED, a.channel, a.proposition, self.rules.SIGN[a.sign]
         )
         self.gate.write(
-            own, report, PLUS, licence=utterance, source=a.channel,
+            report, PLUS, licence=utterance, source=a.channel,
         )
 
     def _apply(self, app: Application) -> Tuple[Entry, ...]:
@@ -2174,19 +2106,16 @@ class Machine:
         if app.rule.node not in self._exercised:
             self._exercised.add(app.rule.node)
             self.gate.write(
-                self.focus, self.g.rel(self.EXERCISED, app.rule.node), PLUS,
+                self.g.rel(self.EXERCISED, app.rule.node), PLUS,
                 licence=licence, source=self.KB, mention=True,
             )
         if app.rule.connective == "causes":
-            # The register MOVES; it is not replaced. Minting a fresh frame here
-            # dropped the parent, the purpose and the wrap -- so a `causes` rule
-            # applied under a hypothesis orphaned the register, `_leave` could
-            # never fire, and everything concluded under that hypothesis stayed
-            # inside it with nothing saying so. §4 allows one register; advancing
-            # it is a seat move, and §17 says a seat move is what `reseat` is for.
-            self.gate.reseat(self.focus, self.chain.succeed(self.focus.seat, licence),
-                             licence=licence, source=self.KB)
-        frame = self.focus
+            # ⭐ A `causes` rule lands in a LATER moment, so applying one advances
+            # the chain. There is no register to move and nothing to say about
+            # having moved it: the chain's end is where the next entry lands, and
+            # `succeed` is the whole of the move. `reseat` and its `moved(?a, ?b)`
+            # record went with the frame that had a seat to move.
+            self.chain.succeed(self.chain.now, licence)
         mention = self._is_mention(app)
 
         # ⭐⭐⭐ §6's price, charged by §6's own test. ⚠ That is the whole of the
@@ -2211,54 +2140,18 @@ class Machine:
         for m in app.rule.consequent:
             grounded = substitute(self.g, m.pattern, app.bindings)
             if app.rule.connective == "causes":
-                self._expect(frame, grounded, m.sign, licence)
+                self._expect(grounded, m.sign, licence)
             wrote.append(
                 self.gate.write(
-                    frame,
                     grounded,
                     m.sign,
                     licence=licence,
                     source=self.KB,  # the rule is the licence; the KB is the channel
                     consumed=app.consumed,
                     mention=mention,
-                    locus=self._conclude_at(m, app.bindings),
                 )
             )
         return tuple(wrote)
-
-    def _conclude_at(self, member, bindings, strict: bool = True) -> Optional[Locus]:
-        """A consequent member's own locus (§8), or None for the frame's topic.
-
-        ⚠⚠⚠ This was parsed, boundness-checked, reified -- and ignored.
-
-        See docs/design/machine.md#conclude-at.
-        """
-        if member.locus is None:
-            return None
-        node = substitute(self.g, member.locus, bindings)
-        if self.g.is_var(node):
-            return None  # unbound: the frame's topic, as before
-        locus = self.chain.locus_by_node(node)
-        if locus is None:
-            if not strict:
-                return None
-            raise ValueError(
-                f"a consequent's locus must be a moment or a span, and "
-                f"{self.g.show(node)} is neither"
-            )
-        if not self.focus.seat.at_or_after(locus):
-            if not strict:
-                return None
-            # The gate's own rule for a frame, one level down: a claim about a
-            # locus the seat does not reach is a claim about the future, and §8
-            # gives it nowhere to sit.
-            raise ValueError(
-                f"cannot conclude at {locus}: the seat {self.focus.seat} does "
-                f"not reach it"
-            )
-        return locus
-
-    # -- stratum 0 (§6) ----------------------------------------------------
 
     def _mint_structure(self, app: Application) -> int:
         """A stratum-0 rule's conclusion: an ordinary interned relation
@@ -2337,7 +2230,7 @@ class Machine:
                 for r in pending:
                     added = 0
                     for app in match(
-                        self.g, self.chain, r, self.focus.topic, self.focus.seat,
+                        self.g, self.chain, r,
                         Situation(self.g, []),
                         computes=self.rules.computes,
                         structural=self.rules.skeleton(),
@@ -2390,12 +2283,12 @@ class Machine:
         # domain comes back.
         # → docs/design/machine.md#what-is-in-mind-for-facts-the-agent-ha
         hidden = self._out_of_mind()
-        topic, seat = self.focus.topic, self.focus.seat
+        seat = self.chain.now
         # ⚠ `_merges` is part of the key: a merge changes which entries answer
         # which member, and the kept state is MAINTAINED rather than rebuilt --
         # so without this the state keeps answering with the index it had
         # before two things became one.
-        key = (topic.node, seat.node, hidden, self.g._merges)
+        key = (seat.node, hidden, self.g._merges)
         cache = self._state_cache.get(key)
         if cache is None:
             props: dict = {}
@@ -2403,16 +2296,15 @@ class Machine:
             goals: dict = {}
             # Oldest first, so the dict's insertion order is claim order and
             # reading it back reversed gives the walk's newest-first order.
-            for e in reversed(current_state(self.chain, topic, seat)):
+            for e in reversed(current_state(self.chain)):
                 if e.source in hidden:
                     continue
-                # ⚠ (proposition, span) rather than proposition -- see
-                # `chain.scope_of`. Two recognitions over different stretches
-                # supersede nothing of each other, and keyed by proposition the
-                # state kept exactly one of them.
-                props[(e.proposition, scope_of(e.locus))] = (
-                    (e.locus.depth, seat.depth, 0), e
-                )
+                # ⚠ Keyed by the proposition alone. It used to be
+                # `(proposition, span)`, because two recognitions over different
+                # stretches superseded nothing of each other -- and a span was a
+                # LOCUS. With no locus there is one order and the later claim
+                # governs, which is what §10's read always said.
+                props[e.proposition] = (0, e)
                 sit.add(e)
                 self._count_goal(goals, e, +1)
             cache = {"pos": len(seat.delta), "props": props,
@@ -2423,20 +2315,14 @@ class Machine:
         props, sit, goals = cache["props"], cache["sit"], cache["goals"]
         for i in range(cache["pos"], len(seat.delta)):
             e = seat.delta[i]
-            if not topic.at_or_after(e.locus):
-                continue  # a claim about a moment later than what we are about
             if e.source in hidden:
                 continue  # a domain that is not in mind
-            k = (e.locus.depth, seat.depth, i)
-            scope = (e.proposition, scope_of(e.locus))
-            prev = props.get(scope)
+            prev = props.get(e.proposition)
             if prev is not None:
-                if k <= prev[0]:
-                    continue
-                del props[scope]          # re-inserted below, so it moves to
+                del props[e.proposition]  # re-inserted below, so it moves to
                 sit.drop(prev[1])         # the newest end of the order, and
                 self._count_goal(goals, prev[1], -1)  # stops being in play
-            props[scope] = (k, e)
+            props[e.proposition] = (i, e)
             sit.add(e)
             self._count_goal(goals, e, +1)
         cache["pos"] = len(seat.delta)
@@ -2518,7 +2404,7 @@ class Machine:
         # anyway. Wake the domain and those facts are behind every rule's cursor
         # forever -- so the escalation brings a domain back and the agent still
         # cannot see it. Measured exactly that way before this line existed.
-        fk = (self.focus.topic.node, self.focus.seat.node, hidden)
+        fk = (self.chain.now.node, self.chain.now.node, hidden)
         cache = self._match_cache.get(fk)
         if cache is None:
             cache = {"pos": 0, "apps": {}, "rule_pos": {}, "by_prop": {},
@@ -2539,8 +2425,8 @@ class Machine:
         # they are talking about, and one of them owning the key is how.
         self._verdicts = cache
 
-        here = len(self.focus.seat.delta)
-        delta = self.focus.seat.delta[cache["pos"]:]
+        here = len(self.chain.now.delta)
+        delta = self.chain.now.delta[cache["pos"]:]
         cache["pos"] = here
 
         # 0. Structure derived since the last look. It sits in no delta, so the
@@ -2593,7 +2479,7 @@ class Machine:
                 if app is None:
                     continue
                 alive = all(
-                    self.chain.resolve(c.proposition, self.focus.topic, self.focus.seat)
+                    self.chain.resolve(c.proposition)
                     is c
                     for c in app.consumed
                 )
@@ -2610,18 +2496,18 @@ class Machine:
             cache["rule_pos"][r.node] = here
             if start is None:
                 found = match(
-                    self.g, self.chain, r, self.focus.topic, self.focus.seat, state,
+                    self.g, self.chain, r, state,
                     computes=self.rules.computes,
                     structural=self.rules.skeleton(),
                 )
             elif start < here:
                 if start not in deltas:
                     deltas[start] = Situation(self.g, [
-                        e for e in self.focus.seat.delta[start:here]
+                        e for e in self.chain.now.delta[start:here]
                         if e.source not in hidden
                     ])
                 found = match(
-                    self.g, self.chain, r, self.focus.topic, self.focus.seat, state,
+                    self.g, self.chain, r, state,
                     fresh=deltas[start], computes=self.rules.computes,
                     structural=self.rules.skeleton(),
                 )
@@ -2757,7 +2643,7 @@ class Machine:
         ):
             return
         concluded = tuple(e.proposition for e in wrote if e.sign == PLUS)
-        self._spent[key] = (app.rule.node, app.consumed, concluded, self.focus)
+        self._spent[key] = (app.rule.node, app.consumed, concluded)
         # ...and RETIRE it, rather than leaving it in the candidate set to be
         # skipped.
         # → docs/design/machine.md#and-retire-it-rather-than-leaving-it-in-the
@@ -2770,7 +2656,7 @@ class Machine:
                 self.SPENT, app.rule.node,
                 self.g.rel(self.PREMISES, *sorted(e.node for e in app.consumed))))
 
-    def _contest(self, frame: Frame, e: Entry) -> None:
+    def _contest(self, e: Entry) -> None:
         """The price of refraction, paid rather than accepted.
 
         Firing once turns a loud contradiction into a silent one. <grant>'s
@@ -2784,34 +2670,12 @@ class Machine:
         for key in list(self._spent_by_prop.get(e.proposition, ())):
             rule_node, consumed, _, _f = self._spent[key]
             if not all(
-                self.chain.resolve(c.proposition, frame.topic, frame.seat) is c
+                self.chain.resolve(c.proposition) is c
                 for c in consumed
             ):
                 continue  # the premises moved: the rule may run again on its own
             self._note(self.g.rel(self.CONTESTED, rule_node, e.proposition),
                        licence=self.g.rel(self.APPLIED, rule_node))
-
-    def _forget_spent(self, frame: Frame) -> None:
-        """A frame's refraction ends with the frame.
-
-        `_match_cache` is already per-seat, and says why: *the cache belongs to
-        a seat, because a `Situation` does. Supposing forks.* Refraction is the
-        same kind of state and needs the same scope -- an instantiation spent
-        inside a hypothesis must not stay spent outside it, or **supposing
-        changes what the agent believes**, which is the one thing supposing may
-        not do (`_adopt`'s argument, and `_dispatch`'s).
-
-        Found by measurement rather than foresight: leaving it global broke the
-        modality pipeline, hypothesis explanation and structural containment on
-        a forking chain -- every one of them a check about supposing.
-        """
-        gone = [k for k, v in self._spent.items() if v[3] is frame]
-        for k in gone:
-            _, _, concluded, _ = self._spent.pop(k)
-            for p in concluded:
-                bucket = self._spent_by_prop.get(p)
-                if bucket is not None:
-                    bucket.discard(k)
 
     def _markers(self, rule) -> Tuple[NodeId, ...]:
         """The `+kind` marks in a rule's consequent, cached on the rule node.
@@ -2913,7 +2777,7 @@ class Machine:
                 # docs/design/machine.md#genuinely-generic-the-rule-s-consequent-names-s
                 return False
             touched.append(grounded)
-            forbidding = self._forbid(self.focus, grounded, m.sign)
+            forbidding = self._forbid(grounded, m.sign)
             if forbidding is not None:
                 # A forbidden conclusion never lands, so the chain never says it
                 # and the rule would match again on every tick, forever. What
@@ -2925,17 +2789,10 @@ class Machine:
                     self.REFUSED, grounded, self.rules.SIGN[m.sign], forbidding
                 )
                 touched.append(record)
-                if self.chain.resolve(record, self.focus.topic, self.focus.seat) is None:
+                if self.chain.resolve(record) is None:
                     return True
                 continue
-            # ⚠⚠⚠ At the consequent's OWN locus, and this is the same defect as
-            # the write's twice over.
-            # →
-            # docs/design/machine.md#at-the-consequent-s-own-locus-and-this-is
-            at = self._conclude_at(m, app.bindings, strict=False)
-            cur = self.chain.resolve(
-                grounded, self.focus.topic if at is None else at, self.focus.seat
-            )
+            cur = self.chain.resolve(grounded)
             if cur is None or cur.sign != m.sign:
                 return True
         return False
@@ -3004,9 +2861,15 @@ class Machine:
         return sorted(n for n in read
                       if not written.get(n) and n not in self.reserved)
 
-    def holds(self, proposition: NodeId, locus: Optional[Moment] = None) -> Optional[str]:
-        locus = self.focus.topic if locus is None else locus
-        return self.chain.holds(proposition, locus, self.focus.seat)
+    def holds(self, proposition: NodeId) -> Optional[str]:
+        """What the agent believes about this proposition, or None.
+
+        ⚠ It used to take a `locus` -- *what did you believe THEN* -- and that
+        went with the locus itself. History is not lost: `in_delta`, `pred`,
+        `anc` and `entry_of` are ordinary structural relations, so asking about
+        the past is a rule a corpus writes rather than a second Python read.
+        """
+        return self.chain.holds(proposition)
 
     # -- experience -------------------------------------------------------
 
@@ -3020,14 +2883,14 @@ class Machine:
         rule_at = self._statements()
         earned: List[Tuple[Rule, NodeId]] = []
         seen_pairs = set()
-        for s in current_state(self.chain, self.focus.topic, self.focus.seat):
+        for s in current_state(self.chain):
             if s.sign != PLUS or self.g.relation_of(s.proposition) is not self.GOAL:
                 continue
             wanted = self.g.member(s.proposition, 0)
             key = self.g.relation_of(wanted)
             if key is None:
                 continue
-            got = self.chain.resolve(wanted, self.focus.topic, self.focus.seat)
+            got = self.chain.resolve(wanted)
             if got is None or got.sign != PLUS:
                 # Nothing was achieved, so there is nothing to credit. Note what
                 # this does NOT do: blame. A rule that was applied on a failed
@@ -3037,7 +2900,7 @@ class Machine:
                 # own failures.
                 continue
             for node in self._support(wanted):
-                e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+                e = self.chain.resolve(node)
                 if e is None or e.licence is None:
                     continue
                 if self.g.relation_of(e.licence) is not self.APPLIED:
@@ -3048,7 +2911,7 @@ class Machine:
                 seen_pairs.add((rule.node, key))
                 earned.append((rule, key))
                 self.gate.write(
-                    self.focus, self.g.rel(self.HELPED, rule.node, key), PLUS,
+                    self.g.rel(self.HELPED, rule.node, key), PLUS,
                     licence=self.g.rel(self.ACHIEVED, wanted), source=self.KB,
                     mention=True,
                 )
@@ -3073,18 +2936,18 @@ class Machine:
         # cost two and that one cost one*.
         tally: dict = {}
         licence_for: dict = {}
-        for s in current_state(self.chain, self.focus.topic, self.focus.seat):
+        for s in current_state(self.chain):
             if s.sign != PLUS or self.g.relation_of(s.proposition) is not self.GOAL:
                 continue
             wanted = self.g.member(s.proposition, 0)
             if self.g.has_var(wanted):
                 continue
             key = self.g.relation_of(wanted)
-            got = self.chain.resolve(wanted, self.focus.topic, self.focus.seat)
+            got = self.chain.resolve(wanted)
             if key is None or got is None or got.sign != MINUS:
                 continue
             for node in self._support(wanted) | {wanted}:
-                e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+                e = self.chain.resolve(node)
                 if e is None or e.licence is None:
                     continue
                 if self.g.relation_of(e.licence) is not self.APPLIED:
@@ -3105,7 +2968,6 @@ class Machine:
         for (node, key), lost in tally.items():
             self._harm[node] = self._harm.get(node, 0) + len(lost)
             self.gate.write(
-                self.focus,
                 self.g.rel(self.HARMED, node, key, self.NUMERAL[min(len(lost), 9)]),
                 PLUS, licence=self.g.rel(self.GOAL, licence_for[(node, key)]),
                 source=self.KB, mention=True,
@@ -3148,7 +3010,7 @@ class Machine:
             if p in seen:
                 continue
             seen.add(p)
-            e = self.chain.resolve(p, self.focus.topic, self.focus.seat)
+            e = self.chain.resolve(p)
             if e is None:
                 continue
             for s in self.chain.trail(e):
@@ -3240,13 +3102,13 @@ class Machine:
                 if r is not None:
                     required.add(r)
         out: List[NodeId] = []
-        for s in current_state(self.chain, self.focus.topic, self.focus.seat):
+        for s in current_state(self.chain):
             if s.sign != PLUS or self.g.relation_of(s.proposition) is not self.GOAL:
                 continue
             w = self.g.member(s.proposition, 0)
             if self.g.has_var(w):
                 continue
-            e = self.chain.resolve(w, self.focus.topic, self.focus.seat)
+            e = self.chain.resolve(w)
             if e is not None and e.sign == MINUS:
                 lost.add(w)
         for w in lost:
@@ -3256,7 +3118,7 @@ class Machine:
                     continue
                 if p in lost or self.g.has_var(p) or p in out:
                     continue
-                e = self.chain.resolve(p, self.focus.topic, self.focus.seat)
+                e = self.chain.resolve(p)
                 if e is not None and e.sign == PLUS:
                     out.append(p)
         return out
@@ -3295,7 +3157,7 @@ class Machine:
             return None
         held: List[NodeId] = []
         spoken: Dict[NodeId, set] = {}
-        for s in current_state(self.chain, self.focus.topic, self.focus.seat):
+        for s in current_state(self.chain):
             p = s.proposition
             rel = self.g.relation_of(p)
             if s.sign != PLUS or rel is None or self.g.has_var(p):
@@ -3416,7 +3278,7 @@ class Machine:
         for node in self.g.instances_of(self.FORGONE):
             if self.g.has_var(self.g.member(node, 1)):
                 continue
-            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            e = self.chain.resolve(node)
             if e is None or e.sign != PLUS or e.licence is None:
                 continue
             if self.g.relation_of(e.licence) is not self.APPLIED:
@@ -3449,7 +3311,7 @@ class Machine:
             # meant to hold as stated, and belongs on the same member.
             if self.g.has_var(self.g.member(node, 1)):
                 continue
-            e = self.chain.resolve(node, self.focus.topic, self.focus.seat)
+            e = self.chain.resolve(node)
             if e is None or e.sign != PLUS or e.licence is None:
                 continue
             if self.g.relation_of(e.licence) is not self.APPLIED:
@@ -3701,8 +3563,8 @@ class Machine:
         correctness, because a missing support link removes a weak link from the
         minimum and the conclusion becomes falsely confident.
         """
-        locus = self.focus.topic if locus is None else locus
-        e = self.chain.resolve(proposition, locus, self.focus.seat)
+        locus = self.chain.now if locus is None else locus
+        e = self.chain.resolve(proposition, locus, self.chain.now)
         if e is None:
             return []
         lines = [self._line(e)]
@@ -3711,7 +3573,7 @@ class Machine:
         return lines
 
     def _line(self, e: Entry) -> str:
-        bits = [f"{e.sign}{self.g.show(e.proposition)} @{e.locus}"]
+        bits = [f"{e.sign}{self.g.show(e.proposition)}"]
         if e.source is not None:
             bits.append(f"via {self.g.show(e.source)}")
         if e.licence is not None:

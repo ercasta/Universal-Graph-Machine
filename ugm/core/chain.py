@@ -2,7 +2,7 @@
 
 A moment is a signed delta, a predecessor and a licence. A proposition claims
 nothing; the claim is a separate node, the entry, with exactly three members --
-locus, proposition, sign.
+proposition and sign.
 
 See docs/design/chain.md.
 """
@@ -28,7 +28,6 @@ class Entry(NamedTuple):
     source are ordinary facts about the entry (§5)."""
 
     node: NodeId  # the entry's own identity, so other facts can be about it
-    locus: "Locus"
     proposition: NodeId
     sign: str
     licence: Optional[NodeId]  # what produced it: an application, an utterance
@@ -68,155 +67,8 @@ class Moment:
             m = m.predecessor
         return out
 
-    def at_or_after(self, other: "Locus") -> bool:
-        """Is `other` this moment or one of its ancestors?
-
-        A depth comparison is not enough ONCE ANYTHING FORKS. Two moments on
-        different branches can share a depth while neither is on the other's
-        walk, and a depth test would answer a question asked on one branch with
-        a claim made on the other. That is the containment property, so where
-        the chain forks it has to be ancestry.
-
-        ⭐⭐⭐ **But a chain that has never forked pays one integer compare.**
-        Retiring situations removed the engine's only source of forks -- nothing
-        in the loop calls `succeed` on anything but the latest moment -- so the
-        common chain is linear and the walk was pure cost: measured over the
-        suite, 586,596 of 1,544,658 comparisons walked NINE OR MORE steps.
-
-        ⚠⚠⚠ **The fast path is guarded on a counter, not on the deletion.**
-        `docs/todo.md` proposed collapsing this outright on the argument that
-        *nothing forks now*, and that is false: `Chain.succeed` still forks on
-        demand, `selftest.the_matchers_are_one` forks ON PURPOSE to prove a
-        containment property, and the collapse answers that case WRONG --
-
-            two siblings off the root:  walk False, depth True
-
-        -- while the suite stays 534/0 either way, because nothing ever asks
-        `at_or_after` about the two siblings. A green suite would have signed
-        off an unsound read. This is `Graph._merges`' pattern exactly: the
-        cheap answer is exact until something makes it not, and the something
-        is counted where it happens.
-
-        ⚠ **The span case is no longer decided here.** *A span is at or before
-        this moment once the stretch is complete* is a decision, not a walk, and
-        it lives in `bundle.ugm` now as `<span-complete>` -- a rule a corpus can
-        argue with, override or delete. What is left in Python is the walk,
-        which the author's line permits, and a lookup that argues for nothing.
-        """
-        if isinstance(other, Span):
-            return bool(self.chain and self.chain.consult(self.node, other.node))
-        if self.chain is not None and not self.chain.forks:
-            return other.depth <= self.depth
-        # ⚠ Sound on ANY shape and free: an ancestor is never deeper.
-        if other.depth > self.depth:
-            return False
-        m: Optional["Moment"] = self
-        while m is not None:
-            if m is other:
-                return True
-            m = m.predecessor
-        return False
-
     def __repr__(self) -> str:
         return f"M{self.depth}"
-
-
-class Span:
-    """A stretch of the chain: a node with exactly two members, a start moment
-    and an end moment (§11).
-
-    Some claims are not about a moment at all. *They are taking turns* is not
-    true of any instant; its subject is a stretch. So a locus is a moment **or a
-    span**, which §8 has said since it was written and the engine did not build.
-
-    **The contents are not stored**, and the reason is structural rather than
-    frugal: the predecessor relation is single-valued, so the walk back from the
-    end is unique and the chain already settles what lies between. Storing them
-    would be a second answer to *what is in this span* that could disagree with
-    the first.
-
-    ⭐⭐⭐ **Inheritance is within a kind of locus, and that is the whole of the
-    read's growth.** Three of the four directions are decided here:
-
-        moment .at_or_after(span)    -- ✅ the stretch is over; the recognition
-                                        stands, and ordinary rules can use it
-        span   .at_or_after(moment)  -- ❌ a claim about an INSTANT is not a
-                                        claim about a stretch
-        span   .at_or_after(span)    -- the same span, and no other
-
-    The ❌ is the load-bearing one. Letting a moment's claim inherit into a span
-    would answer *did it hold throughout* from an entry that says only *it held
-    then* -- and a denial in the middle of the stretch is exactly what the read
-    cannot see, because `resolve` returns one winner rather than scanning an
-    interval. That would be a leak of the worst kind: free, unarguable, and
-    wrong only sometimes. A corpus that wants *it held at the start, so it held
-    throughout* writes the rule, and then it is dated, attributed and deniable
-    like every other claim. §12's grade deletion made the same trade: the free
-    ordinal becomes the arguable one.
-
-    ⚠ Containment between two spans -- a claim over M7..M12 answering about
-    M9..M11 -- is NOT read here either, for the same reason and with the same
-    remedy. Interval relations are ordinary facts about endpoints (§11), so
-    `during(?s2, ?s1)` is a corpus's to conclude and to reason from.
-    """
-
-    def __init__(self, node: NodeId, start: "Moment", end: "Moment",
-                 chain: Optional["Chain"] = None) -> None:
-        self.node = node
-        self.start = start
-        self.end = end
-        self.chain = chain
-        # ⚠ The end, because that is when the stretch is over and the claim is
-        # available. Recency in `resolve`'s key is *how recent is the thing this
-        # is about*, and for a stretch that is where it finishes.
-        self.depth = end.depth
-
-    def at_or_after(self, other: "Locus") -> bool:
-        """Both remaining cases are policy and neither is decided here.
-
-        `<span-itself>` in `bundle.ugm` says a span reaches itself; **nothing
-        says a span reaches a moment**, and that is the honest way to write no
-        -- a rule that does not exist rather than a branch that returns False.
-        """
-        return bool(self.chain and self.chain.consult(self.node, other.node))
-
-    def __repr__(self) -> str:
-        return f"S{self.start.depth}..{self.end.depth}"
-
-
-# A locus is a moment or a span (§8), and after this line that is true of the
-# engine and not only of the document.
-Locus = Union[Moment, Span]
-
-
-def scope_of(locus: Locus) -> Optional[NodeId]:
-    """What a claim at this locus can be SUPERSEDED WITHIN.
-
-    ⭐⭐⭐ **The resolved state is one entry per proposition, and that was an
-    assumption about loci rather than about propositions.** It is right exactly
-    while every two loci are comparable -- on a chain of moments one is always at
-    or before the other, so the later claim governs and keeping one answer is the
-    whole of §10's read. Spans are not comparable: *they took turns over M1..M4*
-    and *over M2..M4* are two claims, neither superseding the other, and a state
-    keyed on the proposition alone silently kept one.
-
-    So a claim is superseded only by a claim it is comparable with, and the key
-    says which: `None` for a moment, since all moments share one order, and the
-    span's own node for a span, since each is its own.
-
-    ⚠⚠ **What this is NOT load-bearing for, because the probe corrected the
-    claim.** I wrote first that §13's recursion cannot see its own output without
-    it, and that is false of the shape actually built: *taking turns* recurses in
-    the STRUCTURAL layer, which never consults the resolved state, so removing
-    this breaks exactly one check -- the one that asserts it directly -- and the
-    ten recognitions still land. It would be load-bearing for a recursion written
-    over ENTRIES, and that route is blocked one step earlier anyway (§12: a single
-    fact's own history is not in the resolved state). So what this buys is
-    **reading** two recognitions over different stretches, which is what any rule
-    downstream of a shape does, and it is asserted directly because nothing else
-    can see it.
-    """
-    return locus.node if isinstance(locus, Span) else None
 
 
 class Chain:
@@ -247,8 +99,8 @@ class Chain:
         self.ANC = g.atom("anc")
         self.IN_DELTA = g.atom("in_delta")
         # An entry's own three members, as a relation a rule may write:
-        # `entry_of(?e, ?locus, ?prop, ?sign)`. Nothing is deposited for it --
-        # the entry node already IS `entry(locus, proposition, sign)`, so this
+        # `entry_of(?e, ?prop, ?sign)`. Nothing is deposited for it --
+        # the entry node already IS `entry(proposition, sign)`, so this
         # is §12's `?t = entry(...)` prefix form arriving as a member instead of
         # as notation. The read could not be written without it: every rule
         # below `in_delta` needs an entry's locus and sign, and until now only a
@@ -265,39 +117,12 @@ class Chain:
         # the same five-moment fixture derived 10,638 facts to answer 28
         # questions. Seeded beside the seat, and by the same one caller.
         self.ASKED = g.atom("asked")
-        # Whether one locus can see a claim made at another, WHERE THAT IS A
-        # DECISION rather than a walk. Moment-to-moment is ancestry and stays a
-        # walk; the three span cases are policy, they live in `bundle.ugm`, and
-        # this is the relation they conclude.
-        self.REACHES = g.atom("reaches")
-        # ...and how the machinery asks. Set by the Machine, which is the only
-        # thing that has both a chain and a rule set. `None` means nothing has
-        # been told the policy, and then no span reaches anything -- the honest
-        # default, since the answer comes from rules and there are none.
-        #
-        # Python consulting rules is not the boundary this design polices: the
-        # author's line is about logic BURIED in Python, and a lookup that
-        # argues for nothing is not that. `_forbid` reads `forbidden`,
-        # `precedence()` reads what the graph claims, `_recall` reads `dormant`
-        # -- this is the same door with a general name.
-        self.consult = lambda a, b: False
         self.IS_MOMENT = g.atom("moment_of")
         # `time(<moment>, <millis>)` -- structural, like `pred`, because nobody
         # asserted it and nothing can deny it. Deposited only when the clock is
         # on, so a corpus asking for it on a clockless run finds nothing, which
         # is the honest answer rather than a zero.
         self.TIME = g.atom("time")
-        # `holds_at(<proposition>, <moment>, <sign>)` -- what a proposition
-        # RESOLVED TO at a moment. Not stored and not walked: computed, like
-        # `entry_of`, by asking `resolve` the question it already answers.
-        self.HOLDS_AT = g.atom("holds_at")
-        # A stretch of the chain, as a member a rule may write (§11):
-        # `span_of(?s, ?start, ?end)`. Nothing is deposited for it -- the span
-        # node already IS `span(start, end)` -- so this is `entry_of`'s shape
-        # one construct along, and for `entry_of`'s reason: the read cannot be
-        # written without a way to get at a node's own members.
-        self.SPAN = g.atom("span")
-        self.SPAN_OF = g.atom("span_of")
         # Position within a delta. A moment's entries are ordered -- two claims
         # about the same locus are told apart by which was deposited later -- and
         # that order lived in a Python list, where no rule could reach it.
@@ -339,12 +164,7 @@ class Chain:
         g.rel(self.IS_MOMENT, self.root.node)
         self._stamp(self.root)
         self.moments: List[Moment] = [self.root]
-        # How many times `succeed` was given anything but the latest moment.
-        # Zero for every chain the engine builds; `at_or_after` reads it to
-        # decide whether a depth compare is exact. See `Moment.at_or_after`.
-        self.forks = 0
         self._moment_by_node: Dict[NodeId, Moment] = {self.root.node: self.root}
-        self._span_by_node: Dict[NodeId, Span] = {}
         # Entries by the proposition they are about: (seat, position, entry).
         # Deposit-side, so it indexes what was asserted and never what was
         # derived -- the condition §12 puts on any index in this design.
@@ -363,11 +183,6 @@ class Chain:
         # nowhere in the repository, while §4 claimed *which of the two this is
         # is said by the licence and by nothing else*. The moment's own
         # succession is `pred`; what a moment is FOR is a fact about it.
-        # ⚠ Counted BEFORE the append, and it is what licenses `at_or_after`'s
-        # depth compare. A caller that succeeds an older moment has forked the
-        # chain, and from then on ancestry is the only sound answer.
-        if self.moments and self.moments[-1] is not predecessor:
-            self.forks += 1
         m = Moment(self.g.instance(self.MOMENT), predecessor, self)
         self.g.rel(self.IS_MOMENT, m.node)
         self.g.rel(self.PRED, m.node, predecessor.node)
@@ -379,6 +194,17 @@ class Chain:
         # is read off a state is maintained where the state is.
         self._moment_by_node[m.node] = m
         return m
+
+    @property
+    def now(self) -> Moment:
+        """The chain's end -- where the next entry lands.
+
+        ⭐ This replaces `Machine.focus.seat`. It is not a register: nothing
+        assigns it, so nothing can assign it wrongly. §4 allowed exactly one
+        privileged pointer and the engine no longer needs even that one, because
+        the only reason to hold a standpoint was that the graph could fork.
+        """
+        return self.moments[-1]
 
     def moment_of(self, node: NodeId) -> Optional[Moment]:
         """The moment a node names, or None. Public because a structural walker
@@ -404,8 +230,6 @@ class Chain:
 
     def deposit(
         self,
-        seat: Moment,
-        locus: Locus,
         proposition: NodeId,
         sign: str,
         licence: Optional[NodeId] = None,
@@ -413,17 +237,24 @@ class Chain:
         consumed: Tuple[NodeId, ...] = (),
         mention: bool = False,
     ) -> Entry:
-        """Place an entry in `seat`'s delta, about `locus`.
+        """Place an entry in the latest moment's delta.
 
         Callers should not reach this directly -- it is what the gate of §13
         wraps, and the gate is the only thing that knows where the stamps come
         from.
+
+        ⭐⭐⭐ **Two members, and the rule side already had two.** An entry was
+        `entry(locus, proposition, sign)` here and `entry(pattern, sign)` in a
+        rule's moment -- the same word for two shapes, which is the twin trap
+        with a different name. With the locus gone they are one shape, and a
+        rule's moment and a chain's moment are finally the same construct.
+
+        ⚠ **Where an entry lands is the latest moment, and that is not a
+        register.** It is the chain's own end. Nothing chooses it, so nothing
+        can choose it wrongly.
         """
-        # Three members, and never a fourth (§8): locus, proposition, sign. The
-        # sign was previously kept beside the node in Python, which made the
-        # implementation disagree with the design in the one place a rule would
-        # have had to look.
-        node = self.g.instance(self.ENTRY, locus.node, proposition, self.SIGN[sign])
+        seat = self.moments[-1]
+        node = self.g.instance(self.ENTRY, proposition, self.SIGN[sign])
         self.g.rel(self.IN_DELTA, seat.node, node)
         if seat.delta:
             self.g.rel(self.DELTA_NEXT, node, seat.delta[-1].node)
@@ -435,9 +266,7 @@ class Chain:
             self.g.rel(self.ARRIVED_ON, node, source)
         if mention:
             self.g.rel(self.MENTIONED, node)
-        e = Entry(
-            node, locus, proposition, sign, licence, source, consumed, mention,
-        )
+        e = Entry(node, proposition, sign, licence, source, consumed, mention)
         seat.delta.append(e)
         # ...and an index by the entry's own node. `entry_by_node` was a scan of
         # every moment's delta, so the trail walk it serves was quadratic in the
@@ -450,43 +279,40 @@ class Chain:
         # entry ever deposited to answer a question about one proposition;
         # measured, that was 70% of the engine's runtime after the walk itself
         # had been fixed. The entries for one proposition are almost always one.
-        self._claims.setdefault(proposition, []).append((seat, len(seat.delta) - 1, e))
+        self._claims.setdefault(proposition, []).append(e)
         return e
 
     # -- reading (§4) -----------------------------------------------------
 
-    def resolve(
-        self, proposition: NodeId, locus: Locus, seat: Optional[Moment] = None
-    ) -> Optional[Entry]:
-        """Does this proposition hold at `locus`, as believed at `seat`?
+    def resolve(self, proposition: NodeId) -> Optional[Entry]:
+        """What the chain says about this proposition: the LAST claim made.
 
-        Latest locus first, then latest deposit. Both are needed; why, and what
-        each one alone would get wrong: docs/design/chain.md.
+        ⭐⭐⭐ This was the design's most consequential cost (§4) and it is now a
+        list index. It used to take the greatest `(locus depth, seat depth,
+        position)` over every claim, filtered by two ancestry walks -- one for
+        *is this locus at or before the one I asked about* and one for *is this
+        deposit on my branch*.
+
+        Both filters are gone because both questions are gone. Nothing forks, so
+        every deposit is on the one branch; and an entry has no locus, so there
+        is no second time to order by. **Later supersedes earlier, and that is
+        the whole read.**
+
+        ⚠⚠⚠ What this cannot answer, said plainly: *did this hold THEN*. That is
+        no longer a Python service and it is not lost -- `in_delta`, `pred`,
+        `anc` and `entry_of` are ordinary structural relations, so a corpus that
+        wants history writes the rule and gets a dated, attributable, deniable
+        answer instead of a privileged one. §4's two times were the engine
+        keeping a second way to ask.
         """
-        if seat is None:
-            seat = self.moments[-1]
-        best: Optional[Entry] = None
-        best_key = ()
-        # Both orderings as one comparison: the greatest
-        # (locus depth, seat depth, position). ⚠ The ancestry test below cannot
-        # be folded in -- supposing forks. docs/design/chain.md.
-        for m, pos, e in self._claims.get(proposition, ()):
-            if not locus.at_or_after(e.locus):  # inheritance: locus or earlier
-                continue
-            if not seat.at_or_after(m):  # ...and it must be on this branch
-                continue
-            key = (e.locus.depth, m.depth, pos)
-            if best is None or key > best_key:
-                best, best_key = e, key
-        return best
+        got = self._claims.get(proposition)
+        return got[-1] if got else None
 
-    def holds(
-        self, proposition: NodeId, locus: Locus, seat: Optional[Moment] = None
-    ) -> Optional[str]:
+    def holds(self, proposition: NodeId) -> Optional[str]:
         """The sign, or None if the chain says nothing. `?` is not None: it stops
         the walk and reports ignorance, which is the one thing writing nothing
         could never say (§6)."""
-        e = self.resolve(proposition, locus, seat)
+        e = self.resolve(proposition)
         return None if e is None else e.sign
 
     def trail(self, e: Entry) -> List[Entry]:
@@ -510,48 +336,11 @@ class Chain:
     def moment_by_node(self, node: NodeId) -> Optional[Moment]:
         return self._moment_by_node.get(node)
 
-    def span(self, start: Moment, end: Moment) -> Span:
-        """Mint the stretch from `start` to `end` (§11).
-
-        ⭐ **Interned, so a span has one identity however often it is built.**
-        Two recognisers reaching the same stretch must reach the same node or
-        everything said about it splits in two -- the twin trap, which this
-        design has paid for often enough to reach for `rel` first.
-
-        ⚠ **The ancestry check is HERE, and §11 says why**: nothing prevents
-        constructing a span whose start is not an ancestor of its end, such a
-        span is meaningless, and this is the site where the mistake is still
-        attributable. A degenerate span is refused too -- `span(M7, M7)` is a
-        second name for a moment, and two ways to say one locus is exactly the
-        ambiguity the read cannot afford.
-
-        ⚠ Spans are minted by recognisers and never enumerated: any two moments
-        form one, so the population is quadratic in the history.
-        """
-        if not end.at_or_after(start):
-            raise ValueError(f"span start {start} is not an ancestor of {end}")
-        if end is start:
-            raise ValueError(f"a span needs a stretch: {start} to {end} is one moment")
-        node = self.g.rel(self.SPAN, start.node, end.node)
-        got = self._span_by_node.get(node)
-        if got is None:
-            got = Span(node, start, end, self)
-            self._span_by_node[node] = got
-        return got
-
-    def span_by_node(self, node: NodeId) -> Optional[Span]:
-        return self._span_by_node.get(node)
-
-    def locus_by_node(self, node: NodeId) -> Optional[Locus]:
-        """A locus is a moment or a span (§8), and a bound locus arrives as a
-        node -- so getting from the name back to the thing has to ask both."""
-        return self._moment_by_node.get(node) or self._span_by_node.get(node)
-
     def claims_about(self, proposition: NodeId) -> List[Entry]:
         """Every entry ever deposited about this proposition, in order. The
         deposit-side index, which §12 permits precisely because it indexes what
         was asserted and never what was derived."""
-        return [e for _, _, e in self._claims.get(proposition, ())]
+        return list(self._claims.get(proposition, ()))
 
     def rests_on(self, e: Entry) -> List[Entry]:
         """What this entry was derived from, one hop, read from the graph rather

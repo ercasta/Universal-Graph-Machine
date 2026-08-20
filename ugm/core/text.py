@@ -575,7 +575,7 @@ class Loader:
         if self.m._claims(prop):
             return
         self.m.gate.write(
-            self.m.focus, prop, "+",
+            prop, "+",
             licence=self.m.g.rel(self.m.REIFIED, node),
             source=self.source, mention=True,
         )
@@ -693,8 +693,7 @@ class Loader:
                     scope.setdefault(self.m.g.show(v), v)
         query = tuple(
             Member(mm.sign, self.build(mm.term, scope),
-                   self.build(mm.at, scope) if mm.at else None,
-                   self.build(mm.binds, scope) if mm.binds else None)
+                      self.build(mm.binds, scope) if mm.binds else None)
             for mm in clause.query
         )
         spends = tuple(
@@ -917,11 +916,9 @@ class Loader:
             raise ParseError(f"line {s.line}: <{s.name}> is already declared")
         scope: Dict[str, NodeId] = {}
         ant = [Member(m.sign, self.build(m.term, scope),
-                      self.build(m.at, scope) if m.at else None,
                       self.build(m.binds, scope) if m.binds else None)
                for m in s.antecedent]
         con = [Member(m.sign, self.build(m.term, scope),
-                      self.build(m.at, scope) if m.at else None,
                       self.build(m.binds, scope) if m.binds else None)
                for m in s.consequent]
         # A consequent that NAMES a rule drags that rule's own variables in with
@@ -935,8 +932,7 @@ class Loader:
                 and not _describes(written.term)
                 and not self._covered(m.pattern, ant,
                                       self._named_rule_vars(written.term)))
-            or (m.locus is not None and self.m.g.has_var(m.locus)
-                and not self._covered(m.locus, ant))
+
         ]
         if unbound:
             raise ParseError(
@@ -968,12 +964,6 @@ class Loader:
         have = set()
         for m in ant:
             have |= _vars_in(g, m.pattern)
-            # ⚠ A locus variable IS bound by the antecedent -- `+p(?x) at ?m`
-            # binds `?m` from the entry that matched. Without this the check
-            # rejects every rule that relates two moments, which is the whole
-            # point of the slot.
-            if m.locus is not None:
-                have |= _vars_in(g, m.locus)
             if m.binds is not None:
                 have |= _vars_in(g, m.binds)
         return wanted <= have
@@ -1009,7 +999,6 @@ class Loader:
                 f"are generic (§4)."
             )
         self.m.gate.write(
-            self.m.focus,
             prop,
             s.member.sign,
             licence=self.m.g.rel(self.LOADED, prop),
@@ -1028,7 +1017,7 @@ class Loader:
         """
         prop = self.m.g.rel(self.atom(rel), a, b)
         self.m.gate.write(
-            self.m.focus, prop, PLUS,
+            prop, PLUS,
             licence=self.m.g.rel(self.LOADED, prop),
             source=self.source,
             # A rule node carries the variables of its own patterns, so a claim

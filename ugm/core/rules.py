@@ -10,7 +10,7 @@ the same moment needs no skeleton, and the skeleton is what §8 adds for chains.
 
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from .chain import Chain, Entry, MINUS, Moment, Span, scope_of
+from .chain import Chain, Entry, MINUS, Moment
 from .graph import Graph, NodeId
 
 CAUSES = "causes"
@@ -88,10 +88,9 @@ class Member(NamedTuple):
 
     sign: str
     pattern: NodeId
-    # ⭐ WHERE the entry must sit, as a pattern to bind (§8, §12). ⚠ The matcher
-    # had the locus all along -- every Entry carries one.
-    # → docs/design/rules.md#where-the-entry-must-sit-as-a-pattern-to-bind
-    locus: Optional[NodeId] = None
+    # ⚠ `at ?m` -- WHERE the entry must sit -- went with the locus itself. An
+    # entry has no second time to bind to. A rule that wants history reads
+    # `in_delta`/`anc`/`entry_of`, which are ordinary structural relations.
     # ⭐ ...and a name for WHAT matched. at ?m says where the entry sits; as ?t
     # says what its proposition is, so a rule can refer to the very thing it
     # matched rather than describing it again.
@@ -766,34 +765,17 @@ def already_there(
 # -- match ------------------------------------------------------------------
 
 
-def current_state(chain: Chain, locus: Moment, seat: Moment) -> List[Entry]:
-    """Every proposition the chain has an answer for at `locus`, as believed at
-    `seat`, resolved to the one entry that governs it. This is the walk of §4,
-    and it is the design's single most consequential cost."""
-    # ⚠ Keyed by proposition AND by the span it is about (`scope_of`): two
-    # recognitions over different stretches supersede nothing of each other, so
-    # each is asked about separately. On a chain of moments the scope is always
-    # `None` and this is the walk it always was.
-    keys: List[Tuple[NodeId, Optional["Span"]]] = []
-    seen = set()
-    for m in seat.ancestors():  # newest moment first
-        for e in reversed(m.delta):  # ...and newest within a moment
-            k = (e.proposition, scope_of(e.locus))
-            if k not in seen:
-                seen.add(k)
-                keys.append((e.proposition, e.locus if k[1] is not None else None))
-    out = []
-    for p, span in keys:
-        if span is None:
-            e = chain.resolve(p, locus, seat)
-        elif locus.at_or_after(span):
-            # A stretch that is not over yet is not yet anything to read.
-            e = chain.resolve(p, span, seat)
-        else:
-            e = None
-        if e is not None:
-            out.append(e)
-    return out
+def current_state(chain: Chain) -> List[Entry]:
+    """Every proposition the chain has an answer for, resolved to the one entry
+    that governs it. Newest first.
+
+    ⭐⭐⭐ This was *the design's single most consequential cost* (§4): a walk over
+    every moment's delta, newest first, keyed by proposition AND by the span it
+    was about, asking `resolve` per key. With no locus there is no second key
+    and no walk -- the governing entry is the last one deposited, and `_claims`
+    already holds them in that order.
+    """
+    return [got[-1] for got in reversed(list(chain._claims.values())) if got]
 
 
 class Situation:
@@ -968,8 +950,6 @@ def match(
     g: Graph,
     chain: Chain,
     rule: Rule,
-    locus: Moment,
-    seat: Moment,
     state: Optional["Situation"] = None,
     fresh: Optional["Situation"] = None,
     computes: Optional[Dict[NodeId, Callable]] = None,
@@ -984,7 +964,7 @@ def match(
     See docs/design/rules.md#match.
     """
     if state is None:
-        state = Situation(g, current_state(chain, locus, seat))
+        state = Situation(g, current_state(chain))
     computes = computes or {}
     structural = structural or {}
     results: List[Application] = []
@@ -1064,9 +1044,6 @@ def match(
             source = fresh if i == pivot else state
             for e in source.candidates(g, want, bindings):
                 b = unify(g, want.pattern, e.proposition, bindings)
-                if b is not None and want.locus is not None:
-                    # The entry knows where it sits; bind the pattern to it.
-                    b = unify(g, want.locus, e.locus.node, b)
                 if b is not None and want.binds is not None:
                     # ...and what it says, as a whole, under a name.
                     b = unify(g, want.binds, e.proposition, b)
@@ -1165,41 +1142,6 @@ def _stored(g, chain, want, bindings):
         if b is not None:
             yield b
 
-
-
-def _holds_at(g, chain, want, bindings):
-    """`holds_at(?p, ?m, ?sign)` -- what a proposition RESOLVED TO at a moment.
-
-    §12's at ?m binds the LOCUS OF THE ENTRY THAT SATISFIED a member, and the
-    resolved state keeps one entry per proposition -- the winner. ⚠ Nothing is
-    minted.
-
-    See docs/design/rules.md#holds-at.
-    """
-    args = g.members(want.pattern)
-    if len(args) != 3:
-        return
-    prop = substitute(g, args[0], bindings)
-    if g.has_var(prop):
-        return  # the proposition is not yet ground: nothing to resolve
-    mnode = walk(g, args[1], bindings) if g.is_var(args[1]) else args[1]
-    if g.is_var(mnode):
-        return  # unanchored: this would ask about every moment there is
-    moment = chain.moment_of(mnode)
-    if moment is None:
-        return
-    entry = chain.resolve(prop, moment, moment)
-    if entry is None:
-        return  # nothing was ever claimed about it there, which is not a denial
-    sign = chain.SIGN[entry.sign]
-    slot = args[2]
-    current = walk(g, slot, bindings) if g.is_var(slot) else slot
-    if g.is_var(current):
-        out = dict(bindings)
-        out[current] = sign
-        yield out
-    elif current is sign:
-        yield dict(bindings)
 
 
 def _components(deps: Dict[NodeId, set]) -> Dict[int, set]:
@@ -1388,49 +1330,6 @@ def _members_of(g, chain, want, bindings):
     yield b
 
 
-def _span_of(g, chain, want, bindings):
-    """`span_of(?s, ?start, ?end)` -- a stretch of the chain (§11).
-
-    entry_of's shape one construct along, and read the same two ways: *
-    endpoints bound -- the span is MINTED. ⚠ Unanchored it yields nothing, and
-    here that is not politeness but the population: any two moments form a
-    span, so enumerating them is quadratic in the...
-
-    See docs/design/rules.md#span-of.
-    """
-    args = g.members(want.pattern)
-    if len(args) != 3:
-        return
-    s = walk(g, args[0], bindings)
-    if not g.is_var(s):
-        span = chain.span_by_node(s)
-        if span is None:
-            return  # not a span: a member that names one matches nothing
-        b = bindings
-        for pattern, got in zip(args[1:], (span.start.node, span.end.node)):
-            b = unify(g, pattern, got, b)
-            if b is None:
-                return
-        yield b
-        return
-    start = walk(g, args[1], bindings)
-    end = walk(g, args[2], bindings)
-    if g.is_var(start) or g.is_var(end):
-        return  # unanchored: quadratic, and meaningless until recognised over
-    first, last = chain.moment_by_node(start), chain.moment_by_node(end)
-    if first is None or last is None:
-        return
-    # §11's ancestry check, at the minting site. In the matcher it is a member
-    # that finds nothing -- the engine's uniform answer to a pattern nothing
-    # satisfies -- while `Chain.span` raises, because a machinery reaching there
-    # with an inverted pair has made a mistake that is still attributable.
-    if last is first or not last.at_or_after(first):
-        return
-    b = unify(g, args[0], chain.span(first, last).node, bindings)
-    if b is not None:
-        yield b
-
-
 def structural_relations(chain) -> Dict[NodeId, Callable]:
     """The skeleton, as members an ordinary rule may write (§6, §12).
 
@@ -1456,14 +1355,12 @@ def structural_relations(chain) -> Dict[NodeId, Callable]:
         chain.ARRIVED_ON: _stored,
         chain.MENTIONED: _stored,
         chain.ENTRY_OF: _members_of,
-        chain.SPAN_OF: _span_of,
         chain.ASKING: _bounded,
         chain.ASKED: _bounded,
         # `time(?m, ?t)` -- stored, so it refuses an unbound moment for
         # `_stored`'s reason: it is a fact about the whole history, and an
         # unanchored read would walk all of it.
         chain.TIME: _stored,
-        chain.HOLDS_AT: _holds_at,
     }
 
 

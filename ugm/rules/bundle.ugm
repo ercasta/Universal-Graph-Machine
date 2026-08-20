@@ -229,15 +229,14 @@ rule <give-up> = implies(
 # an entry that says only *it held then*, and a denial in the middle of the
 # stretch is exactly what `resolve` cannot see. Written as a missing rule rather
 # than as a returned False, so a corpus that disagrees adds a row.
-
-# The stretch is over, so the recognition stands and ordinary rules can use it.
-rule <span-complete> = implies( { span_of(?s, ?a, ?e), anc(?m, ?e) },
-                                { reaches(?m, ?s) } )
-
-# A span reaches itself and no other span. Containment between two spans -- a
-# claim over M7..M12 answering about M9..M11 -- is an ordinary fact about
-# endpoints, so `during(?s2, ?s1)` is a corpus's to conclude and to reason from.
-rule <span-itself> = implies( { span_of(?s, ?a, ?e) }, { reaches(?s, ?s) } )
+# ⚠⚠⚠ **The span rules went with the locus.** `<span-complete>` and
+# `<span-itself>` concluded `reaches(?m, ?s)`, which was the policy `Moment
+# .at_or_after` consulted to decide whether a claim ABOUT A STRETCH was visible
+# from a moment. An entry has no locus now, so nothing can be about a stretch
+# and there is nothing for the policy to decide. §11's recognitions over a
+# stretch are still sayable -- `span(?a, ?b)` is an ordinary node and a corpus
+# can conclude whatever it likes about one -- but the claim is deposited now,
+# like every other claim, rather than dated to the stretch.
 
 
 # -- the call stack (§18) ----------------------------------------------------
