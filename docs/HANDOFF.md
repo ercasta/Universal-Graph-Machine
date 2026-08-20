@@ -1,3 +1,111 @@
+# Handoff — 2026-08-20o (`prefer` retired: the lift, `<relevant>`, and what it cost)
+
+Landed as `eb24325 wip`, on top of `6680954`. 20m's costed plan, executed.
+
+    selftest         650/0  (was 649; 1 added)
+    ./tools_sweep.sh 1 failing -- `vocabulary`, the pre-existing 18/2
+
+## What went
+
+    attention.run       the `prefer` lift block -- `_priority` over `_in_play`
+    bundle.ugm          <relevant>, which concluded prefer(?r, ?wanted, 1)
+
+⚠ `lift` is bound before the `asked` block now. Deleting the block took the
+binding with it, exactly as 20m warned for `attended` — a `NameError` on the
+next statement rather than anything subtle, but the same shape twice.
+
+Four comments in `attention.py` still compared live behaviour to *`prefer`'s
+lift*. Updated, because a comparison to a deleted mechanism reads as a
+description of a live one.
+
+## ⚠⚠⚠ The sharpest cost, and it is now a CHECK rather than a handoff line
+
+`<relevant>` was means-ends analysis as a bundled rule: `fits(?r, ?wanted)` ->
+`prefer(?r, ?wanted, 1)`. 20m recorded that the KNOWLEDGE is untouched, and that
+is true — the backward reader still works out which rule serves the goal and
+still says so in `fits`. What was not recorded is the other half:
+
+> **Knowing which rule serves the goal and preferring it were two things, and
+> only the first survives keying on nodes.**
+
+`the_better_move_wins` used to check that the agent picks `<toward>` over the
+useless `<wander>` authored before it, with *delete `<relevant>` and authored
+order picks the useless one* as its control. **The control is now the
+behaviour.** Both checks are kept, inverted, so the loss is measurable later
+rather than only argued now.
+
+Nothing replaced it because nothing could: attention names a NODE and `fits`
+names a RULE, so *prefer the rules serving my goal* is not a sentence attention
+can say. An agent that wants it back writes the one-line rule into its own
+corpus, which is the same recourse it always had. The rule is left in the
+bundle's comment for exactly that.
+
+## ⚠⚠ A check that has now been wrong in TWO different columns
+
+`attention that names everything discriminates nothing`:
+
+    first   asserted the COST (`tried`) -- an accident of how much apparatus sat
+            in the table; three more bundle rules reversed the sign
+    then    asserted the untaught move comes back -- also false, because the
+            queue grades by POSITION, so three attended things still have an
+            order and the run goes to `r10`, not back to `r9`
+
+⭐ What naming everything actually loses is the ability to say WHICH ONE MATTERS:
+attend one thing and its rule goes first, attend three and the one you named
+does not. Something is still lifted — just not yours, which is worse than no
+lift for a lesson trying to teach something. Both halves are gated now.
+
+## ⚠⚠⚠ The bundle is not free, for the fourth and fifth time
+
+Removing a rule shifts declaration RANK in every corpus, and rank breaks the tie
+when scores are equal at the floor. Two fixtures moved, and neither is a bug:
+
+    ugm.attention   `stop`'s null result was BIT-IDENTICAL and is not any more.
+                    The trigger now moves the run by exactly one move, in
+                    OPPOSITE directions with and without `stop` (65 vs 64, 8 vs
+                    9). Rank noise: it still does not let a self-gating check
+                    apply earlier, which is the claim.
+    ugm.walkers     `ordering changed WHEN and not WHAT` -- the two tick counts
+                    now COINCIDE at 18, so it changed neither.
+
+Both were repaired by asserting the claim instead of the coincidence:
+
+* `attention` asserts a BOUND — at most a move either way, against the 55 that
+  `stop` is worth — written with the numbers in it so a drift shows. Equality
+  was the sharper test and is no longer available.
+* `walkers` stops asserting the tick count at all. Third time that fixture has
+  been moved by an edit elsewhere (call-stack rules in 20e, a bundled
+  `<unattended>`, now this).
+
+> **A check on a tick count in that fixture is measuring the size of the bundle,
+> not the thing it names.**
+
+## What survives, deliberately
+
+`fits` and the whole backward reader. `stop`. `arbitrate` and `_materialise` —
+the gold teacher in `teaching.py` and the chooser in `ugm.hanoi`. `review()`,
+which is still read by `selftest` and `ugm.tools`; only the row-WRITING went.
+
+## Next: the buffs, which is the larger half and untouched
+
+`boost`/`damp`/`reset` and the apparatus behind them: `Buff`, `Table.spend`,
+`LIFE`, `MAX_LIFT`, `live`, `age`, `clear`, `trace`, `rebuilt`, `_rerank`,
+`reflex`, and `teaching.py`'s bigram/query/occasion arms. Also `_priority`,
+`_rank` and `_in_play` in `machine.py`, and the `PREFER` atom itself.
+
+⚠ `_priority` and `_in_play` are NOT dead, which is worth checking before
+deleting them: the lift was their loudest caller, but `Machine._recall` still
+narrows by `_priority` when a `budget` knob is set — and that defaults to off,
+so nothing in the suite exercises it. A path nothing executes is exactly what
+20l deleted three instruments for, so decide it deliberately rather than by
+grep.
+⚠ `_rank` is read by `teaching.teacher`; retiring it means the gold teacher
+ranks by authored order, which is simpler and probably right.
+⚠ `learning.a_lesson_outlives_its_rule` loads a `prefer` row on purpose and
+survives — the ParseError it gates on comes from `<use-tap>` being undeclared,
+not from `prefer` being unknown. But `credit_costs_nothing_here` would then pass
+for a trivial reason and should be re-read when the buffs go.
+
 # Handoff — 2026-08-20n (learning and practice, rewritten onto attention)
 
 On top of `a3b5474`. The open decision of 20m, taken: **option 1**.
