@@ -446,9 +446,11 @@ two, and `known(door)` is `+`.
 > This falsifies `a_rule_can_author_a_rule`'s own stated reason for being a
 > Python tool: *the variable is minted here, once, and used in both patterns --
 > **which is exactly what no corpus can do**, and the whole reason this is a
-> function rather than a rule.* A corpus CAN do it. What a corpus cannot do is
-> share a variable ACROSS statements, and a named fact carrying `?w` as a
-> bindable member is the way round that -- which is what `<anchor>` is.
+> function rather than a rule.* A corpus CAN do it.
+
+⚠ **Corrected below**: a first draft of this entry said *what a corpus cannot do
+is share a variable ACROSS statements*. That is false, and the notation has two
+mechanisms for it already.
 
 ## ⚠⚠ The slots are dropped by default -- the twin-trap family, in a corpus
 
@@ -584,3 +586,49 @@ with `mention=True`, and under deposit-as-install that installs.
 being describable in the graph WITHOUT being live. `reify` writes a description
 for every live rule, so the two are already almost the same set -- but *almost*
 is what this repo keeps getting caught by.
+
+---
+
+# Measured 2026-08-20: how a variable crosses a statement boundary
+
+Asked of the defect above, and it corrects it. `Loader.var` states the rule:
+
+    # Variables are scoped to a rule: `?w` in two rules is two variables,
+    # because a rule is a statement and not a fragment of a larger one.
+
+    <a> = implies( { +p(?x) }, { +q(?x) } )     ant ?x 1392   con ?x 1392
+    <b> = implies( { +q(?x) }, { +r(?x) } )     ant ?x 1430
+
+⭐ **Regular rules do not share variables across statements, and never need to.**
+A rule's variables are internal: matching binds them, substitution replaces them,
+and nothing outside the rule refers to them. There is nothing to share.
+
+**A DESCRIPTION is different, and that is the whole asymmetry**: its variables
+become the AUTHORED rule's variables, so the unit of authorship stops coinciding
+with the unit of the rule.
+
+## Two mechanisms already exist, and neither is lexical
+
+**1. By NAMING.** A statement named in another statement brings its own variable
+nodes with it:
+
+    fact <d1> = +desc(seen(?x), known(?x))              vars 1383, 1383
+    rule <names-it> = implies( { +go }, { +uses(<d1>) } )
+      consequent -> uses(desc(seen(?x), known(?x)))     vars 1383, 1383  SAME
+
+This is what `_named_rule_vars` exempts from the binding check, and what
+`bundle.ugm`'s `resume` rules already stand on -- *`+resume(?h, <cb>)` is generic
+only because `<cb>`'s patterns are*.
+
+**2. By BINDING.** A named fact carrying the variable as a member, bound by an
+ordinary premise. That is what `<anchor>` is in the compiler above.
+
+> So sharing is not LEXICAL and is available BY REFERENCE. The two-scope defect
+> is therefore not a missing capability -- it is a trap in which lexical LOOKS
+> referential: two statements each writing `?x` appear to share and do not.
+
+⭐ That is the same shape `_note_shadow` already reports for a reserved name in
+argument position -- one node with two meanings, or here two nodes with one
+name. A diagnostic is available at parse time and was not built; the binding
+check at quiescence catches it regardless, and catches the dropped-slot fault
+too, so it remains the one worth building first.
