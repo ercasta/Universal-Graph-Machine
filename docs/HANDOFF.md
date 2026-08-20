@@ -1,3 +1,69 @@
+# Handoff — 2026-08-20b (the action palette, declared)
+
+Built on top of `a9f9124`. Step 1 of the action/competence design.
+
+    selftest    628/0  (was 624; 4 added)
+    vocabulary  18/2 — `holds_at`, `time`. Unchanged.
+    modules     all 28 green
+
+## What was built
+
+A sixth surface statement kind, beside `rule`, `fact`, `expert`, `say`, `trigger`:
+
+    action move(?x, ?y)
+
+A SIGNATURE and nothing else. It says what the agent may ask to do; what happens
+when it asks is the world model's business, and one of those rules may REFUSE —
+which is step 2. Reified as `afforded(move(?x, ?y))`.
+
+⚠ **Mentioned, not claimed.** The signature is generic and the surface refuses
+`fact +move(?x, ?y)` outright — *a fact may not contain a variable* — so what is
+deposited is a claim ABOUT a pattern, exactly as `reify` deposits
+`ant(<R>, heat(?a, ?w))`. Checked both ways.
+
+⭐⭐⭐ **The reification buys the ROUND TRIP, and that is the argument for it.**
+One rule ranges over the whole palette:
+
+    rule <survey> = implies( { +afforded(?a) }, { +available(?a) } )
+
+and an action declared AFTER that rule is still found by it. Without the
+declaration a corpus needs one hand-written fallback per action, and a new
+action is a fallback nobody remembers to add. Same property `adopt` has for
+rules.
+
+⚠ `conn(?r, causes)` was the nearest thing to a palette and answers a different
+question: how a rule relates to the world, not that the agent may deliberately
+do it. *Fire causes smoke* and *I may strike a match* are both `causes`.
+
+## ⚠⚠⚠ Spelled `afforded`, and the reason is a trap walked into for the third time
+
+`ugm/modality.py` uses `action(replace, ?p)` as a DOMAIN relation — the
+recommended repair for a blocked filter. Reserving `action` took the word from
+it and broke two checks in §12/§13.
+
+This is the third time in one thread: `child` (caught, `ugm.walkers` uses it),
+`spawn` (caught by a name collision with a fixture's rule), `action` (NOT
+caught). The rule is *grep every corpus for a name before reserving it* and it
+works only when it is actually run — I ran it for the seven call-stack names and
+did not run it for this one.
+
+The surface keyword is still `action`, because a keyword is not a relation.
+
+## What is next
+
+**Step 2**: request → resolve → refuse. The agent deposits `want_perform(...)`,
+a world-model rule effects it on the next tick, another refuses an illegal one
+explicitly instead of silently not matching. That silence is what the whole
+design is against.
+
+**Then**: auto-attention on the right-hand side (replacing, node-decomposed,
+learned lessons additive), two-tier scoring (leaf matches then compound bonus),
+and TF-IDF over rules with length normalisation — recomputed per expert pool,
+because how discriminating a term is depends on what else you know.
+
+**And then retire `_in_play` and `prefer`**, which attention subsumes once
+relation atoms are in the attended set.
+
 # Handoff — 2026-08-20 (the recursion is learned, and two rules are not)
 
 Built on top of `049ab17`.

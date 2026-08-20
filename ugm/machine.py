@@ -430,6 +430,32 @@ class Machine:
         # are words a WORLD uses, and reserving one takes it from every corpus
         # that has a family or a task in it. These are deliberation words and
         # nothing else.
+        # ⭐⭐⭐ **The action palette, declared rather than implied.** `action
+        # move(?x, ?y)` says *this is something the agent may do*, and it says
+        # nothing about how it is done: the request is `?a` deposited, and the
+        # world model's own rules resolve it -- or REFUSE it, which is the whole
+        # point. An illegal move that simply fails to match is indistinguishable
+        # from nothing having happened, and that silence is this repository's
+        # most-recorded failure mode.
+        #
+        # ⚠ `conn(?r, causes)` was the nearest thing to this and it is the wrong
+        # question: it says how a rule relates to the world, not that the agent
+        # may deliberately do it. *Fire causes smoke* and *I may strike a match*
+        # are both `causes`.
+        #
+        # ⚠⚠⚠ Spelled `afforded`, and NOT `action`, because `ugm.modality` uses
+        # `action(replace, ?p)` as a DOMAIN relation -- the recommended repair
+        # for a blocked filter. Reserving `action` took the word from it and
+        # broke two checks. Third time this trap has been walked into in one
+        # thread; the rule is to grep every corpus for a name before reserving
+        # it, and it works only when it is actually run. The surface keyword is
+        # still `action`, because a keyword is not a relation.
+        #
+        # ⚠⚠ The signature is generic -- `move(?x, ?y)` -- so it is MENTIONED
+        # rather than claimed, exactly as a rule's own patterns are (`reify`).
+        # The gate refuses to deposit a proposition with a variable in it, and
+        # rightly; what is deposited here is a claim ABOUT a pattern.
+        self.AFFORDED = self.g.atom("afforded")
         self.CALL = self.g.atom("call")
         self.STAGE = self.g.atom("stage")
         self.SPAWN = self.g.atom("spawn")
@@ -630,6 +656,7 @@ class Machine:
             "again": self.AGAIN,
             "dormant": self.DORMANT, "due": self.DUE, "prefer": self.PREFER,
             "attention": self.ATTENTION,
+            "afforded": self.AFFORDED,
             "call": self.CALL, "stage": self.STAGE, "spawn": self.SPAWN,
             "awaits": self.AWAITS, "returned": self.RETURNED,
             "advances": self.ADVANCES, "closes": self.CLOSES,
@@ -807,7 +834,7 @@ class Machine:
                              self.COUNT, self.COUNTED, self.NEW,
                              self.DUE, self.VERDICT, self.PURSUED, self.PREFER,
                              self.ATTENTION,
-                             self.CALL, self.STAGE, self.SPAWN,
+                             self.AFFORDED, self.CALL, self.STAGE, self.SPAWN,
                              self.AWAITS, self.RETURNED,
                              self.ADVANCES, self.CLOSES,
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,

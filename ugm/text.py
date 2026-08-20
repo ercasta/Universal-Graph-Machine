@@ -278,6 +278,21 @@ class Parser:
                     )
                 base = b.text
             return Statement("expert", name.text, base, (), (), None, "", t.line)
+        if t.text == "action":
+            # ⭐⭐⭐ **The action palette, declared:**
+            #
+            #     action move(?x, ?y)
+            #
+            # A SIGNATURE and nothing else. It says what the agent may ask to
+            # do; the world model's own rules say what happens when it asks, and
+            # one of them may refuse. Keeping those apart is the point: an
+            # illegal request that merely fails to match is silence, and this
+            # design's standing complaint is that silence reads as a corpus bug.
+            #
+            # ⚠ No angle brackets. `<...>` names STATEMENTS, and an action is
+            # not a statement -- it is a term the agent may deposit, so it is
+            # named the way a relation instance is named, by being written.
+            return Statement("action", "", "", (), (), self.member(), "", t.line)
         if t.text in ("after", "frozen", "when"):
             # A trigger, and it stands on its own: what a rule MEANS and what
             # experience has learned about when to reach for it are different
@@ -1004,7 +1019,29 @@ class Loader:
                 self._fact(s)
             elif s.kind == "say":
                 self._say(s)
+            elif s.kind == "action":
+                self._action(s)
         return statements
+
+    def _action(self, s: Statement) -> None:
+        """Declare an action, and put it in the graph where a rule can find it.
+
+        ⚠⚠⚠ **Mentioned, not claimed.** `move(?x, ?y)` is generic and the gate
+        refuses to deposit a proposition with a variable in it -- correctly, and
+        `a_rule_can_introduce_a_thing` is the same wall from the other side. So
+        what is deposited is `action(move(?x, ?y))`, a claim ABOUT a pattern,
+        exactly as `reify` deposits `ant(<R>, heat(?a, ?w))`.
+
+        ⭐ Which is what makes the palette DISCOVERABLE: `+action(?a)` is an
+        ordinary premise, so one fallback rule can range over every action --
+        including ones declared after it was written. Without the declaration a
+        corpus needs one hand-written fallback per action, and a new action is a
+        fallback nobody remembers to add.
+        """
+        assert s.member is not None
+        scope: Dict[str, NodeId] = {}
+        term = self.build(s.member.term, scope)
+        self.m._note(self.m.g.rel(self.m.AFFORDED, term))
 
     def _name(self, s: Statement) -> None:
         """Build a named fact's proposition ONCE, and register the name.

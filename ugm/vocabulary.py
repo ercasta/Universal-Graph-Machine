@@ -81,6 +81,10 @@ ROLES: Dict[str, List[str]] = {
         # `child`/`done`/`then`, because reserving `child` takes it from every
         # corpus that has a family in it.
         "call", "stage", "spawn", "awaits", "returned", "advances", "closes",
+        # The action palette, declared rather than implied. `conn(?r, causes)`
+        # was the nearest thing and answers a different question -- how a rule
+        # relates to the world, not that the agent may deliberately do it.
+        "afforded",
         # Refraction (§14): what has already run, on what, and the
         # contradiction that stopping a loop would otherwise hide.
         "spent", "premises", "contested",

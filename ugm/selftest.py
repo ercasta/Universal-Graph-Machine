@@ -8071,6 +8071,72 @@ def a_recursion_can_be_learned_from_watching_it() -> None:
           and not solve_learned(3, only, thin_data, limit=4000)["solved"])
 
 
+def the_action_palette_is_declared_and_discoverable() -> None:
+    """§4: what the agent may DO, as data.
+
+    ⭐⭐⭐ `conn(?r, causes)` was the nearest thing to an action palette and it
+    answers a different question: how a rule relates to the world, not that the
+    agent may deliberately do it. *Fire causes smoke* and *I may strike a match*
+    are both `causes`.
+
+    ⚠ The signature is generic, so it is MENTIONED rather than claimed -- the
+    gate refuses to deposit a proposition with a variable in it, and rightly.
+    `afforded(move(?x, ?y))` is a claim ABOUT a pattern, exactly as `reify`
+    deposits `ant(<R>, heat(?a, ?w))`.
+
+    ⭐ What the reification buys is the ROUND TRIP: one fallback rule ranges
+    over every action, including ones declared after it was written. Without it
+    a corpus needs one hand-written fallback per action, and a new action is a
+    fallback nobody remembers to add.
+    """
+    from .text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "action move(?x, ?y)",
+        "action rest(?who)",
+        "rule <survey> = implies( { +afforded(?a) }, { +available(?a) } )",
+        ""]))
+    m.run(limit=30)
+    declared = [m.g.show(m.g.member(n, 0)) for n in m.g.instances_of(m.AFFORDED)
+                if m.holds(n) == PLUS]
+    check("§4", "an action is declared as a SIGNATURE and lands in the graph, "
+          "where the pattern is mentioned rather than claimed -- a proposition "
+          "with a variable in it cannot be deposited at all",
+          sorted(declared) == ["move(?x, ?y)", "rest(?who)"])
+
+    found = [m.g.show(m.g.member(n, 0))
+             for n in m.g.instances_of(kb.atoms["available"]) if m.holds(n) == PLUS]
+    check("§4", "⭐ ...and a rule RANGES over the palette: one rule, every "
+          "action, none of them named in it",
+          sorted(found) == ["move(?x, ?y)", "rest(?who)"])
+
+    # ⭐⭐⭐ The round trip, which is the whole argument for reifying rather than
+    # keeping the palette in Python: an action declared after the rule was
+    # written is still found, so a new action needs no new fallback.
+    load(m, "action climb(?who, ?what)" + chr(10))
+    m.run(limit=30)
+    later = [m.g.show(m.g.member(n, 0))
+             for n in m.g.instances_of(kb.atoms["available"]) if m.holds(n) == PLUS]
+    check("§4", "⭐⭐⭐ an action declared AFTER the rule that ranges over the "
+          "palette is found by it anyway -- which is what a corpus with a "
+          "hand-written fallback per action can never have",
+          "climb(?who, ?what)" in later)
+
+    # And the contrast that says the mention is doing real work: the surface
+    # REFUSES the same term as a fact, and says why.
+    from .text import ParseError
+    refused = None
+    try:
+        load(Machine(), "fact +move(?x, ?y)" + chr(10))
+    except ParseError as e:
+        refused = str(e)
+    check("§4", "⚠ ...while the same generic term written as a FACT is refused "
+          "outright -- *a fact may not contain a variable* -- which is why an "
+          "action has to be a claim ABOUT a pattern and not the pattern itself",
+          refused is not None and "may not contain a variable" in refused)
+
+
 def a_table_can_outlive_a_run() -> None:
     """§4: let a caller pass its table in.
 
@@ -8668,6 +8734,7 @@ def main() -> int:
     a_teacher_cannot_supervise_what_it_cannot_see()
     a_recursion_is_a_node_with_a_phase()
     a_recursion_can_be_learned_from_watching_it()
+    the_action_palette_is_declared_and_discoverable()
 
     failed = 0
     group = None
