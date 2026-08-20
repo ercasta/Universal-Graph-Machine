@@ -1,3 +1,58 @@
+# Handoff — 2026-08-20d (step 3 attempted, measured, and backed out)
+
+On top of `39e8c14`. **No behaviour changed.** The suite is 632/0 and every
+module is green because the code was reverted; what is committed is the finding.
+
+## What was tried
+
+Attending the last move's RIGHT-HAND SIDE by default — every node it wrote,
+decomposed, replacing rather than accumulating, learned lessons additive.
+
+| how the lift was computed | suite |
+|---|---|
+| flat, every rule attention touches | **10 checks failed** |
+| counted, by how many attended nodes a rule is about | **13 failed** |
+| counted, capped below `STANDING` | **13 failed** |
+
+Against one gain: Hanoi 100 ticks → 99.
+
+## ⭐ Why, which is the part worth keeping
+
+**A flat lift moved 34% of the pool by the same amount every tick.** That
+reorders nothing inside that third — it is *attention that names everything
+discriminates nothing* arriving as the default rather than as a mistake a corpus
+makes.
+
+**Counting fixed the flatness and exposed the next defect**: `<move>` has 15
+ground nodes against `<ask>`'s 2, so a big rule matches more of anything.
+Measured cost of wiring it alone — `ugm.teaching`'s `focus` arm lost **44 domain
+conclusions against 3** on the dungeon, the one corpus with a real learned
+attention policy, and the run collapsed from 143 moves to 82.
+
+**Capping below `STANDING` did not help**, which says the problem is the shape
+of the score and not its size. An uncapped count reached 23 against a standing
+rule's 10 — attention deciding the whole order and the apparatus losing its
+authored place, which §19's carve-out forbids — but fixing that changed nothing
+about the count.
+
+⚠ **And the measurement it was built to move went the wrong way.** 20c recorded
+a decline arriving at tick ~101 and named this step as the fix. A pending
+`attempt` that no rule wrote is not in the last write set, so under the default
+it was never declined at all. *Attend what just happened* and *attend what is
+still outstanding* are different, and only the first was built.
+
+## What this says about the order of work
+
+The default needs the scoring, not the other way round:
+
+    length normalisation   stops a big rule winning by size
+    inverse frequency      stops `stage` and `on` lifting everything
+
+Both are step 4. Step 3 alone is measurably negative three ways, so **they want
+doing together**, with the dungeon's `focus` arm as the gate — it is the only
+fixture that has ever been sensitive to this, and it caught the regression the
+selftest did not.
+
 # Handoff — 2026-08-20c (an attempt is answered, not ignored)
 
 Built on top of `c07b2b1`. Step 2 of the action/competence design.

@@ -116,6 +116,41 @@ against 195, pointing the other way. The cost was the wrong column: what
 attention that names everything loses is DISCRIMINATION, and that is checkable
 -- it moves no rule ahead of any other, so the first move is the untaught one.
 
+## ⚠⚠⚠ Attending the last move's RIGHT-HAND SIDE by default: built, and BACKED OUT
+
+The obvious next step, and it does not survive contact. *What I was just doing
+is part of my representation of the world* — so after a move, attend to every
+node it wrote, decomposed (`on(d1, z)` gives `on(d1,z)`, `on`, `d1`, `z`),
+replacing rather than accumulating, with learned lessons adding to it.
+
+Three variants, measured on the whole suite:
+
+| how the lift was computed | suite |
+|---|---|
+| flat, every rule attention touches | **10 checks failed** |
+| counted, by how many attended nodes a rule is about | **13 failed** |
+| counted, capped below `STANDING` so the apparatus keeps its place | **13 failed** |
+
+...against one measured gain: Hanoi 100 ticks to 99.
+
+⭐ **The diagnosis is why the note is worth more than the code.** A flat lift
+moved **34% of the pool by the same amount every tick**, which reorders nothing
+inside that third — *attention that names everything discriminates nothing*,
+arriving as a default. Counting fixed the flatness and exposed the next
+problem: `<move>` has 15 ground nodes against `<ask>`'s 2, so a big rule matches
+more of anything. Wired on its own, counting cost the `focus` arm of
+`ugm.teaching` **44 domain conclusions against 3** on the dungeon — the one
+corpus with a real learned attention policy.
+
+⚠ And the thing it was built to fix got WORSE. `ugm.hanoi` records a decline
+arriving at tick ~101; a pending `attempt` that no rule wrote is not in the last
+write set, so under the default it stopped being declined at all.
+
+**So the default wants doing WITH the scoring work, not before it** — length
+normalisation is what stops a big rule winning on size, and an inverse-frequency
+weight is what stops `stage` and `on` lifting everything. Neither exists yet, and
+this is what it looks like without them.
+
 ## ...and where a lesson about it lives: a postcondition, never a rule
 
 `attend(?x)` is the sixth thing a postcondition can spend, and the first that
