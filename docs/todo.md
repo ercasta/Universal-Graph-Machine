@@ -139,6 +139,118 @@ The indices change key shape in one step or the engine does not run. This is one
 large commit, not a staged landing. Do `graph` -> `gate` -> `chain` -> `machine`
 -> `selftest` -> corpora, and expect red until the last of them.
 
+## Probed 2026-08-20, on the CURRENT engine, with no changes to it
+
+Four experiments. Everything below was run against `87beb46`; none of it needed
+engine support, which is the point.
+
+### 1. Anchors as ordinary nodes — WORKS, but costs every rule
+
+Rules written relative to an anchor by binding: `{ +in(?w, reading(?p, low)) }
+=> { +in(?w, symptom(?p, restricted)) }`.
+
+    in(h1, action(replace, pump7))       +       the hypothesis concludes
+    in(actual, action(replace, pump7))   None    <- containment, BY BINDING
+    action(replace, pump7)               None    the bare form never appears
+
+⭐ The containment CHECK is an ordinary premise. A rule gated on `+world(?w)`
+acts in reality and declines in a hypothesis -- *what would happen if we set fire
+to the house*, answered without burning it down, with no machinery.
+
+⭐ Reality is an unprivileged anchor (`actual`). No special case.
+
+⚠ **The lifting objection does not apply**, which was worth checking: the
+generic reified `<lift>` rule handles a ground pipeline (`likely(r(x))` -> `+`)
+and NOT a variable-carrying one (`likely(action(replace, pump7))` -> `None`).
+That kills a lifting-based replacement; it says nothing against binding, because
+`?w` is bound by ordinary matching.
+
+⚠ **The cost is on EVERY rule**: every premise and conclusion wrapped in
+`in(?w, ...)`, on 51 of the 72 authored rules. This is what the swap shape
+below avoids, and why the swap shape supersedes it.
+
+### 2. The bundle needs NO anchor — 21 of 72 rules unchanged
+
+The shipped bundle works unchanged over an anchored domain:
+
+    in(actual, boiling(kettle))               +
+    pursued(in(actual, water(kettle)))        +     backward reading works
+    fits(<pour>, in(actual, water(kettle)))   +     the rule-fitting reader works
+
+Its rules are about the AGENT's machinery (`goal`, `pursued`, `fits`, `quiet`)
+and take an anchored proposition as an ARGUMENT without needing anchoring.
+
+### 3. Nesting — flat wins, then drop it
+
+    flat `within(h2, h1)` + one generic <inherit> rule    WORKS
+    nested term `in(h1, in(h2, p))`                       produces nothing
+
+⭐ Nesting is ONE rule: `{ +within(?c,?p), +in(?p,?f) } => { +in(?c,?f) }`, and
+`?f` binding a whole proposition is handled by the matcher.
+
+⭐⭐⭐ **And use did not leak into mention.** `<inherit>`'s unconstrained `?f`
+picked up exactly the four asserted facts and none of the rules' own MENTIONED
+antecedent patterns. Anchored rules reify identically to plain ones.
+
+⚠ But `<inherit>` copies eagerly, and measured it is DEARER than doing without:
+
+                                     h1 concludes   entries   nodes
+    no h1                                None         159      1600
+    h1: only the delta                   None         160      1607
+    h1: delta + <inherit>                  +          177      1750
+    h1: context asserted BY HAND           +          167      1659
+
+> **A hypothesis must be given its CONTEXT, not just its delta** -- and doing so
+> by hand beats blanket inheritance, because the agent copies only what the
+> hypothesis needs.
+
+⚠⚠⚠ And the failure is SILENT: under-assembled context (`None`) is
+indistinguishable from a genuine negative. Gate it -- *a rule that would have
+applied but for premises absent here* is an ordinary aggregate, not machinery.
+
+### 4. SWAP OUT / SWAP BACK — the shape to build, and it needs no rule rewriting
+
+The author's design, and it supersedes anchors: mutate the REAL graph so
+ordinary rules fire unchanged, and link individual deltas to the supposition so
+reality can be swapped back in. Marked by `(moment, index into its delta)`.
+
+    reality before               boiling = None
+    inside the supposition       boiling = +
+    after swapping back          boiling = -, heat = -, tap = + (untouched)
+    4 deltas linked, 2 about the world
+
+⚠⚠⚠ **Refraction bookkeeping SURVIVED the swap-back** -- `exercised(<boil>)`
+and `spent(<boil>, premises(...))`. The agent then believes it already used the
+rule on those premises, so **a hypothesis burns that rule's chance to act for
+real.** This is the defect to design against.
+
+⚠ **`boiling @peak` was not shown to survive as history.** Every write landed in
+the same moment, so there was no past to read. Untested, not refuted -- it needs
+the seat to advance between supposing and swapping back.
+
+## THE THREE REFINEMENTS — the author's, and they resolve the above
+
+**1. Refraction should leverage MATERIALISATION.** Materialise the rule
+application in the graph instead of keeping separate bookkeeping, and refraction
+becomes an ordinary graph check. The leak in experiment 4 then cannot happen:
+there is no second kind of record to be left behind, so swapping back removes
+the application like anything else. `exercised`/`spent` stop being a special
+layer.
+
+**2. Swapping back is SYMMETRIC: + and - return to None, not to -.** Restoring
+reality must leave no scar. A proposition never considered and one considered
+and rejected are different claims, and experiment 4 produced the second where it
+owed the first -- `boiling` went `None` -> `+` -> `-`, and `-` is wrong.
+
+⚠ This is a deliberate departure from *deniable, not forgotten*, scoped to
+supposition deltas. The RECORD of what was supposed lives in the chain's
+history; it must not live in current belief as a denial.
+
+**3. No special `@` markers -- if everything is in the graph, reads are ordinary
+graph readings.** The locus/`at`/`holds_at` apparatus stops being a second way
+of asking. Check what this costs before cutting: §12's `at ?m`, `hindsight`, and
+`chain`'s two-times (locus vs deposit) are the things it touches.
+
 ### What is GAINED, so it is not only a loss
 
 The 95-nodes-per-supposition leak `docs/situations.md` concedes and never fixed
