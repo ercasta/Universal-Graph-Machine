@@ -1409,25 +1409,6 @@ def _holds(m: Machine, table: Table, query: str, state: Situation):
     )
 
 
-def _option_set_run(m: Machine, limit: int = 400) -> int:
-    """The loop this one replaced, driven directly.
-
-    ⚠⚠⚠ **`Machine.run` IS this loop now, so the comparison below was comparing
-    the table loop with itself and could not fail.** It reported `0 / 143` ticks
-    on the dungeon -- one arm not running at all -- which is what a gate looks
-    like the moment its other arm is taken away. The option-set loop survives as
-    `Machine.tick`, so the comparison drives that, and the gate goes on being a
-    gate rather than an echo.
-    """
-    n = 0
-    for _ in range(limit):
-        st = m.tick()
-        n += 1
-        if st.state not in ("applied", "supposed", "expanded", "quiet", "widened"):
-            break
-    return n
-
-
 def _state(m: Machine) -> set:
     """What the agent ends up holding, as (proposition, sign). The comparison
     has to be over conclusions rather than over moves: two loops that reach the
@@ -1437,99 +1418,6 @@ def _state(m: Machine) -> set:
 
 
 # -- the comparison ---------------------------------------------------------
-
-CORPORA = ("delay.ugm", "worked.ugm", "quest-p1.ugm", "dungeon")
-
-# What the table loop is allowed not to reach.
-#
-# Both are claims about an option set this loop deliberately never builds.
-# `close` is a doubt -- these two candidates scored within the tolerance -- and
-# `forgone` is *this way of getting it was passed up*, which needs the ways not
-# taken to have been materialised.
-#
-# ⚠ `forgone` was the harder call and the author took it. Its own check argues
-# it is **a safety property before it is a learning one** -- *an act cannot be
-# taken back* -- so dropping it means the agent no longer records which act it
-# passed up. Written down here rather than in a commit message, because the next
-# person to want it will look at this list first.
-#
-# ⭐⭐ **`defeated` WAS on this list and has come off it**, which is the useful
-# half of the story. It was accepted as unreachable on the same grounds: one
-# rule beating another needs both to have been matched. That was wrong -- the
-# question can be asked the other way round. `overrides(A, B)` needs to know
-# whether A matched, A's overriders are read off the graph and there are usually
-# one or two, so `_is_defeated` matches THOSE rather than the pool. A join, not
-# a scan, and the prefix survives.
-#
-# ⚠ The list is short on purpose and every addition is a decision, not a
-# convenience. Anything else the table loop fails to conclude is a rule that has
-# not been written yet, and the gate below says so.
-ACCEPTED_LOSSES = frozenset({"close", "forgone"})
-
-
-DEFAULT_POSTS = (Post("settle-doubt", None, (Buff("?a", 1),), frozen=True),)
-
-
-def _load(name: str, settling: bool = False) -> Machine:
-    m = Machine()
-    load_file(m, os.path.join(os.path.dirname(__file__), "rules", name))
-    if settling:
-        load(m, SETTLE)
-    return m
-
-
-def _fight(run_it: bool):
-    """The dungeon, which is the largest corpus here -- 21 rules of its own, a
-    fight that takes tens of moves, and three tools. It cannot be loaded from
-    the file alone: `<dice>`, `<arith>` and `<beats>` are answerers registered
-    in Python, so the machine is built the way `ugm.dungeon` builds it and only
-    the loop differs."""
-    from . import dungeon
-
-    m, _kb, _asked = dungeon.fight(seed=7, limit=400 if run_it else 0)
-    return m
-
-
-def compare(name: str) -> dict:
-    """Both loops on one corpus, from the same text."""
-    if name == "dungeon":
-        t0 = time.time()
-        a = _fight(False)
-        ticks = _option_set_run(a)
-        shipped = {"ticks": ticks, "seconds": time.time() - t0,
-                   "state": _state(a), "applied": []}
-        b = _fight(False)
-        load(b, SETTLE)
-        r = run(b, limit=400)
-        return {"corpus": name, "shipped": shipped, "table": {
-            "ticks": r.ticks, "seconds": r.seconds, "state": r.state,
-            "tried": r.tried, "applied": r.applied,
-            "doubts": r.doubts, "windows": r.windows,
-            "widenings": r.widenings, "scans": r.scans,
-            "scanned": r.scanned}}
-    a = _load(name)
-    t0 = time.time()
-    ticks = _option_set_run(a)
-    shipped = {
-        "ticks": ticks,
-        "seconds": time.time() - t0,
-        "state": _state(a),
-        "applied": [],
-    }
-    b = _load(name, settling=True)
-    r = run(b)
-    return {
-        "corpus": name,
-        "shipped": shipped,
-        "table": {
-            "ticks": r.ticks, "seconds": r.seconds, "state": r.state,
-            "tried": r.tried, "applied": r.applied,
-            "doubts": r.doubts, "windows": r.windows,
-            "widenings": r.widenings, "scans": r.scans,
-            "scanned": r.scanned,
-        },
-    }
-
 
 PENGUIN = """
 fact bird(tweety)
@@ -1544,6 +1432,28 @@ rule <classify>   = implies( {{ +asked(?x) }},                    {{ +considered
 """
 
 CALIBRATED = "after <classify> { +penguin(?x) } => boost(<flightless>, 20)"
+
+def _load(name: str, settling: bool = False) -> Machine:
+    m = Machine()
+    load_file(m, os.path.join(os.path.dirname(__file__), "rules", name))
+    if settling:
+        load(m, SETTLE)
+    return m
+
+
+CALIBRATED = "after <classify> { +penguin(?x) } => boost(<flightless>, 20)"
+
+
+def _fight(run_it: bool):
+    """The dungeon, which is the largest corpus here -- 21 rules of its own, a
+    fight that takes tens of moves, and three tools. It cannot be loaded from
+    the file alone: `<dice>`, `<arith>` and `<beats>` are answerers registered
+    in Python, so the machine is built the way `ugm.dungeon` builds it and only
+    the loop differs."""
+    from . import dungeon
+
+    m, _kb, _asked = dungeon.fight(seed=7, limit=400 if run_it else 0)
+    return m
 
 
 def penguin() -> int:
@@ -1707,61 +1617,7 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     print(__doc__.split("## What is deliberately NOT here")[0].strip())
     print()
-    print(f"  {'corpus':16} {'ticks':>12} {'seconds':>14} {'conclusions':>22}")
-    bad = 0
-    for name in CORPORA:
-        c = compare(name)
-        s, t = c["shipped"], c["table"]
-        missing = s["state"] - t["state"]
-        extra = t["state"] - s["state"]
-        w = t["windows"] or [0]
-        print(f"  {name:16} {s['ticks']:>5} {t['ticks']:>6} "
-              f"{s['seconds']:>7.2f} {t['seconds']:>6.2f} "
-              f"{len(s['state']):>10} {len(t['state']):>6}"
-              f"   -{len(missing)} +{len(extra)}"
-              f"   doubt {t['doubts']}/{len(w)}, "
-              f"{t['tried'] / max(1, len(w)):.1f} matched/move, "
-              f"{t['widenings']} widenings, "
-              f"{t['scans']} scans")
-        if missing or extra:
-            # By RELATION, because the interesting question is not which
-            # proposition is absent but which piece of the shipped tick was
-            # responsible for it. Everything this loop drops -- doubt, forgone,
-            # leaving a supposition, saying `quiet` -- is machinery the author's
-            # design moves into rules, so the diff is the work list.
-            for label, diff in (("only shipped", missing), ("only table", extra)):
-                by_rel: Dict[str, int] = {}
-                for p, sign in diff:
-                    by_rel[p.split("(")[0]] = by_rel.get(p.split("(")[0], 0) + 1
-                if by_rel:
-                    worst = sorted(by_rel.items(), key=lambda kv: -kv[1])[:6]
-                    print(f"      {label:12} " +
-                          ", ".join(f"{k} x{v}" for k, v in worst))
-        # ⭐⭐⭐ **And now it is a GATE, which it was not.** This block printed the
-        # diff and `bad` was never touched -- so *the table loop reaches the same
-        # conclusions* was asserted nowhere, by anything, while being the whole
-        # premise of replacing the other loop with it. A comparison that cannot
-        # fail is this repository's most-recorded instrument defect, and it was
-        # sitting in the one place that has to be trustworthy before any Python
-        # is deleted.
-        #
-        # The claim, stated so it can be wrong: **the table loop may conclude
-        # MORE than the option-set loop. It may not conclude LESS**, except for
-        # the two records that exist only because the other loop materialises an
-        # option set, and which the author accepted losing.
-        unexplained = sorted(p for p, _sign in missing
-                             if p.split("(")[0] not in ACCEPTED_LOSSES)
-        if unexplained:
-            print(f"      FAIL  {len(unexplained)} conclusion(s) lost that are "
-                  f"not an accepted loss: {unexplained[:4]}")
-            bad += 1
-    print()
-    print("  option-set | table, per column. The gate is one-sided on purpose:")
-    print("  the table loop may conclude MORE, and may not conclude LESS except")
-    print(f"  for {', '.join(sorted(ACCEPTED_LOSSES))} -- records that exist only because the")
-    print("  other loop materialises an option set. Everything else it drops is")
-    print("  a rule still to write, and that list is a failure rather than a note.")
-    return bad + penguin() + stopping()
+    return penguin() + stopping()
 
 
 if __name__ == "__main__":

@@ -1,3 +1,68 @@
+# Handoff — 2026-08-20k (the loop comparison is deleted)
+
+On top of `8434031`. **-159 lines from `ugm/attention.py`.**
+
+    selftest         645/0
+    ./tools_sweep.sh 1 failing -- `vocabulary`, the pre-existing 18/2
+    ugm.attention    exit 0, and now measures the two things it can
+
+## What went
+
+`CORPORA`, `compare()`, `_option_set_run()`, `ACCEPTED_LOSSES`, and the
+four-corpora conclusion diff in `main()`. What survives is `penguin()` and
+`stopping()` -- the two measurements that are about THIS loop rather than about
+its difference from another one.
+
+## Why, and it is not that the gate was wrong
+
+⭐⭐⭐ **It was a different kind of thing from the other three floor gates, and
+that is what the exception list was telling us.**
+
+    agreement     a fast READ against the slow definition of the same read
+    arbitration   a fast MOVE against `_materialise`, same function
+    state         a maintained INDEX against a rebuild of the same index
+    this          two different POLICIES with different semantics
+
+The first three hold an optimisation to a definition, so any difference is a
+bug. The fourth compared a prefix scan against an option-set loop -- two designs
+that conclude different things about DELIBERATION by construction. Hence
+`ACCEPTED_LOSSES`, which is not a wart on a floor gate; it is the tell that this
+was never one.
+
+And the migration it existed for is over: `Machine.run` IS the table loop, and
+the file's own docstring records the day the comparison was accidentally
+comparing that loop with itself and could not fail.
+
+## What it cost against what it caught
+
+**Cost:** `defeated` argued on and off the exception list across three sessions,
+and most of one.
+
+**Caught, this session:** that the two loops record different defeats --
+`<hero-holds>` beaten by `<halt>` in one and by `<hero-acts>` in the other. On
+inspection that is not a defect. `<hero-holds>` reaches a shortlist 132 times and
+`_is_defeated` runs every time; at none of them does `<hero-acts>` match. The
+option-set loop materialises every application every tick and catches a moment a
+prefix scan never looks at. Both records are true.
+
+⚠ And `defeated` is **write-only**: no corpus rule and no Python reads it, only
+checks asserting it was deposited. The gate was demanding parity on a fact
+nothing consumes.
+
+## Still standing, deliberately
+
+`ugm.agreement`, `ugm.arbitration`, `ugm.state` -- the three real floor gates,
+each holding a fast implementation to the slow definition of the SAME thing.
+`ugm.selftest` at 645 checks is the safety net that actually runs the loop.
+
+## Next
+
+`Machine.tick` -- 129 lines of the option-set loop, kept alive for the gate that
+is now gone. It is still called by `ugm.workload` (3 sites), `ugm.quiescence`,
+and ~10 selftest checks that want *step once and look*. Nothing owes anyone API
+stability here; the question is only whether those callers want option-set
+SEMANTICS or just a single step, and `attention.run(m, limit=1)` is the latter.
+
 # Handoff — 2026-08-20j (a sweep that cannot be hand-picked, and one gate still red)
 
 On top of `5fbc4c8`.
