@@ -250,6 +250,19 @@ class Parser:
             # kinds of claim, kept in different documents. A corpus loads its
             # experience or does not.
             return self.trigger(t)
+        if t.text == "alias":
+            # A shorthand the corpus defines: `alias attacks(?a, ?t) = { ... }`.
+            # The head is a plain term whose arguments are the variables the
+            # body may use; the body is a block of ordinary members. Expansion
+            # is the loader's -- by the time anything downstream looks, an
+            # alias use IS its expansion, at the member level only: a nested
+            # occurrence (`mention(m, attacks(a, b))`) is a denotation and is
+            # left exactly as written.
+            head = self.term()
+            self.expect("=")
+            body = self.block()
+            return Statement("alias", head.head, "", body, (),
+                             RuleMember(PLUS, head, None), "", t.line)
         if t.text == "fact":
             # A fact may be NAMED, and the name goes in the same angle brackets
             # a rule's does, because it is the same namespace: names of
@@ -560,6 +573,14 @@ class Loader:
             {} if scope is None else machine.scopes.setdefault(scope, {})
         )
         self.vars: Dict[str, NodeId] = {}
+        # Aliases: shorthand a corpus defines for itself, expanded at load and
+        # gone by the time anything downstream looks. Loader-scoped like the
+        # name table, because a shorthand is a way of WRITING this document.
+        self.aliases: Dict[str, Tuple[Term, Tuple[RuleMember, ...]]] = {}
+        # One counter for every fresh name expansion mints, so two uses of one
+        # alias -- in one rule or across a corpus -- never share a variable or
+        # a marker by accident.
+        self._alias_fresh = 0
         self.rule_nodes: Dict[str, NodeId] = {}
         self.rules_by_name: Dict[str, object] = {}
         # Names this corpus used in an ARGUMENT position that resolved to a
@@ -874,6 +895,10 @@ class Loader:
                 statements = Parser(tokenise(src)).program()
         else:
             statements = Parser(tokenise(src)).program()
+        # Aliases first: everything after this pass may be written in them.
+        for s in statements:
+            if s.kind == "alias":
+                self._alias(s)
         named = [s for s in statements if s.kind == "fact" and s.name]
 
         # Three passes, and the order is forced rather than chosen. A rule may
@@ -921,6 +946,140 @@ class Loader:
                 self._action(s)
         return statements
 
+    def _alias(self, s: Statement) -> None:
+        """Register a shorthand: `alias attacks(?a, ?t) = { +is(+e, attack),
+        +agent(+e, ?a), +target(+e, ?t) }`.
+
+        The head's arguments are the ONLY names the use-site supplies; anything
+        else in the body is the alias's own. A body variable that is not a
+        parameter is renamed fresh per use (existential -- two uses never share
+        it). A `+kind` marker in the body is the entity the shorthand stands
+        up, and what it becomes depends on where the alias is used:
+
+            in a fact         a labelless entity, minted at load
+            in an antecedent  a fresh variable, joining the expanded members
+            in a consequent   a `+kind` marker still -- one entity per firing
+
+        Expansion is at MEMBER level only. `mention(m, attacks(a, b))` keeps
+        the compound as written: nested is a denotation (docs/world-model.md),
+        and expanding it would put words in the mention's mouth.
+        """
+        assert s.member is not None
+        head = s.member.term
+        if head.is_var or head.is_rule or head.fn is not None or head.mint:
+            raise ParseError(
+                f"line {s.line}: an alias head is a plain `name(?params)`"
+            )
+        if any((not a.is_var) or a.args or a.mint for a in head.args):
+            raise ParseError(
+                f"line {s.line}: alias parameters are bare variables -- "
+                f"`{head.head}(?a, ?t)`, nothing structured"
+            )
+        if len({a.head for a in head.args}) != len(head.args):
+            raise ParseError(
+                f"line {s.line}: alias {head.head!r} repeats a parameter"
+            )
+        if head.head in self.aliases:
+            raise ParseError(
+                f"line {s.line}: alias {head.head!r} is already defined"
+            )
+        if head.head in self.m.reserved:
+            raise ParseError(
+                f"line {s.line}: {head.head!r} is the machinery's word, and an "
+                f"alias would shadow every rule written against it"
+            )
+        if not s.antecedent:
+            raise ParseError(f"line {s.line}: an alias body is one or more members")
+        self.aliases[head.head] = (head, s.antecedent)
+
+    def _is_alias_use(self, t: Term) -> bool:
+        return (t.fn is None and not t.is_var and not t.is_rule
+                and not t.mint and t.head in self.aliases)
+
+    def _expand(self, members: Tuple[RuleMember, ...], context: str, line: int,
+                entities: Optional[Dict[str, NodeId]] = None
+                ) -> Tuple[RuleMember, ...]:
+        out: List[RuleMember] = []
+        for m in members:
+            out.extend(self._expand_member(m, context, line, entities, 0))
+        return tuple(out)
+
+    def _expand_member(self, m: RuleMember, context: str, line: int,
+                       entities: Optional[Dict[str, NodeId]], depth: int
+                       ) -> List[RuleMember]:
+        if not self._is_alias_use(m.term):
+            return [m]
+        if depth > 16:
+            raise ParseError(
+                f"line {line}: alias {m.term.head!r} expands into itself"
+            )
+        if m.sign != PLUS:
+            raise ParseError(
+                f"line {line}: an alias stands for several claims, and a sign "
+                f"other than `+` does not distribute over them -- write the "
+                f"expansion out to deny part of it"
+            )
+        if m.binds is not None:
+            raise ParseError(
+                f"line {line}: `as` names what ONE member matched, and an alias "
+                f"expands to several -- expose the entity as an alias parameter "
+                f"instead"
+            )
+        head, body = self.aliases[m.term.head]
+        if len(m.term.args) != len(head.args):
+            raise ParseError(
+                f"line {line}: {m.term.head!r} takes {len(head.args)} "
+                f"argument(s), given {len(m.term.args)}"
+            )
+        mapping = {p.head: a for p, a in zip(head.args, m.term.args)}
+        rename: Dict[str, str] = {}
+        self._alias_fresh += 1
+        n = self._alias_fresh
+        out: List[RuleMember] = []
+        for bm in body:
+            term = self._alias_term(bm.term, mapping, rename, n, context,
+                                    entities, line)
+            binds = (self._alias_term(bm.binds, mapping, rename, n, context,
+                                      entities, line)
+                     if bm.binds is not None else None)
+            out.extend(self._expand_member(
+                RuleMember(bm.sign, term, binds), context, line, entities,
+                depth + 1))
+        return out
+
+    def _alias_term(self, t: Term, mapping: Dict[str, Term],
+                    rename: Dict[str, str], n: int, context: str,
+                    entities: Optional[Dict[str, NodeId]], line: int) -> Term:
+        if t.mint:
+            if t.args or t.is_var or t.fn is not None:
+                raise ParseError(
+                    f"line {line}: an alias body mints with a bare `+name` marker"
+                )
+            fresh = rename.setdefault(t.head, f"{t.head}~{n}")
+            if context == "con":
+                return Term(fresh, (), False, mint=True)
+            v = f"?{fresh}"
+            if context == "fact" and entities is not None and v not in entities:
+                entities[v] = self.m.g.entity()
+            return Term(v, (), True)
+        walk = lambda a: self._alias_term(a, mapping, rename, n, context,
+                                          entities, line)
+        if t.fn is not None:
+            return t._replace(fn=walk(t.fn), args=tuple(walk(a) for a in t.args))
+        if t.is_var:
+            if t.head in mapping:
+                got = mapping[t.head]
+                if not t.args:
+                    return got
+                # The parameter stood in RELATION position: apply what the
+                # use-site supplied to the substituted arguments.
+                return Term("", tuple(walk(a) for a in t.args), False, fn=got)
+            fresh = rename.setdefault(t.head, f"{t.head}~{n}")
+            return t._replace(head=fresh, args=tuple(walk(a) for a in t.args))
+        if t.args:
+            return t._replace(args=tuple(walk(a) for a in t.args))
+        return t
+
     def _action(self, s: Statement) -> None:
         """Declare an action, and put it in the graph where a rule can find it.
 
@@ -950,11 +1109,19 @@ class Loader:
         assert s.member is not None
         if s.name in self.rule_nodes:
             raise ParseError(f"line {s.line}: <{s.name}> is already declared")
+        if self._is_alias_use(s.member.term):
+            raise ParseError(
+                f"line {s.line}: a name names ONE proposition, and "
+                f"{s.member.term.head!r} expands to several -- name the "
+                f"expansion's members instead"
+            )
         self.rule_nodes[s.name] = self.build(s.member.term, {})
 
     def _rule(self, s: Statement) -> None:
         if s.name in self.rule_nodes:
             raise ParseError(f"line {s.line}: <{s.name}> is already declared")
+        s = s._replace(antecedent=self._expand(s.antecedent, "ant", s.line),
+                       consequent=self._expand(s.consequent, "con", s.line))
         scope: Dict[str, NodeId] = {}
         ant = [Member(m.sign, self.build(m.term, scope),
                       self.build(m.binds, scope) if m.binds else None)
@@ -1022,6 +1189,33 @@ class Loader:
 
     def _fact(self, s: Statement) -> None:
         assert s.member is not None
+        if self._is_alias_use(s.member.term):
+            if s.name:
+                raise ParseError(
+                    f"line {s.line}: a name names ONE proposition, and "
+                    f"{s.member.term.head!r} expands to several"
+                )
+            # The alias's markers become entities HERE, minted once and shared
+            # by every member of the expansion -- which is the whole shorthand:
+            # one written line, one thing in the world, several claims about it.
+            entities: Dict[str, NodeId] = {}
+            expanded = self._expand((s.member,), "fact", s.line, entities)
+            scope: Dict[str, NodeId] = dict(entities)
+            for em in expanded:
+                prop = self.build(em.term, scope)
+                if self.m.g.has_var(prop):
+                    raise ParseError(
+                        f"line {s.line}: {s.member.term.head!r} leaves a body "
+                        f"variable unbound in a fact -- a fact is ground, so "
+                        f"everything in the body must come from a parameter or "
+                        f"a `+` mint"
+                    )
+                self.m.gate.write(
+                    prop, em.sign,
+                    licence=self.m.g.rel(self.LOADED, prop),
+                    source=self.source, mention=False,
+                )
+            return
         scope: Dict[str, NodeId] = {}
         # A named fact was built when its name was registered, and it must not be
         # built again: a second build mints fresh variables and a second node.

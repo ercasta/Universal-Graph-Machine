@@ -6832,6 +6832,79 @@ def a_relationship_is_among_ids_a_denotation_is_a_query() -> None:
           "its own, with nothing to retry or re-author",
           len(smuggled) == 1)
 
+
+def an_alias_is_shorthand_for_structure() -> None:
+    """`alias attacks(?a, ?t) = { ... }`: a corpus defines its own shorthand
+    for a complex structure, and the loader expands it -- in facts, in
+    antecedents and in consequents, at member level only. A `+kind` marker in
+    the body is the entity the shorthand stands up: a load-minted entity in a
+    fact, a fresh joining variable in an antecedent, a per-firing mint in a
+    consequent. Nested occurrences are DENOTATIONS and stay as written.
+    """
+    from .core.text import ParseError, load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "alias attacks(?a, ?t) = { +is(+e, attack),",
+        "                          +agent(+e, ?a), +target(+e, ?t) }",
+        "fact +attacks(gob, hero)",
+        "fact +attacks(orc, hero)",
+        "fact +mention(m9, attacks(gob, hero))",
+        "rule <threat> = implies( { +attacks(?x, hero) }, { +threat(?x) } )",
+        "rule <seen> = implies( { +saw(?w, ?a, ?t) }, { +attacks(?a, ?t) } )",
+        "fact +saw(scout, wolf, hero)", ""]))
+    m.run(limit=300)
+    g = m.g
+
+    held = [n for n in g.instances_of(kb.atoms["agent"]) if m.holds(n) == PLUS]
+    by_agent = {g.member(n, 1): g.member(n, 0) for n in held}
+    gob_e = by_agent.get(kb.atom("gob"))
+    check("world model", "⭐⭐⭐ an alias in a FACT is the structure it stands "
+          "for: one written line, one load-minted labelless entity, several "
+          "claims about it",
+          gob_e is not None and g.relation_of(gob_e) is None
+          and g.show(gob_e) == f"#{gob_e}"
+          and m.holds(g.rel(kb.atoms["is"], gob_e, kb.atom("attack"))) == PLUS
+          and m.holds(g.rel(kb.atoms["target"], gob_e, kb.atom("hero"))) == PLUS)
+    check("world model", "⭐ ...and two uses are two entities, because the "
+          "marker is per use and never per alias",
+          len({by_agent.get(kb.atom("gob")), by_agent.get(kb.atom("orc"))}) == 2
+          and None not in {by_agent.get(kb.atom("gob")),
+                           by_agent.get(kb.atom("orc"))})
+
+    threats = {g.member(n, 0) for n in g.instances_of(kb.atoms["threat"])
+               if m.holds(n) == PLUS}
+    check("world model", "⭐⭐⭐ an alias in an ANTECEDENT is a query over the "
+          "structure: the marker becomes a variable joining the expanded "
+          "members, and it reads structure however it was deposited",
+          threats == {kb.atom("gob"), kb.atom("orc"), kb.atom("wolf")})
+
+    wolf_e = by_agent.get(kb.atom("wolf"))
+    check("world model", "⭐⭐ an alias in a CONSEQUENT keeps the mint: "
+          "<seen> concluded the shorthand and a fresh entity was stood up "
+          "for its firing",
+          wolf_e is not None and g.relation_of(wolf_e) is None
+          and m.holds(g.rel(kb.atoms["is"], wolf_e, kb.atom("attack"))) == PLUS)
+
+    nested = g.rel(kb.atoms["mention"], kb.atom("m9"),
+                   g.rel(kb.atoms["attacks"], kb.atom("gob"), kb.atom("hero")))
+    check("world model", "⚠⚠⚠ a NESTED occurrence is not expanded: "
+          "`mention(m9, attacks(gob, hero))` keeps the compound as written -- "
+          "nested is a denotation, and expanding it would put words in the "
+          "mention's mouth",
+          m.holds(nested) == PLUS and len(held) == 3)
+
+    refused_sign = False
+    try:
+        load(Machine(), chr(10).join([
+            "alias a(?x) = { +p(?x) }", "fact -a(q)", ""]))
+    except ParseError:
+        refused_sign = True
+    check("world model", "⚠ a signed alias use is REFUSED rather than "
+          "distributed: `-` over several claims is a different statement "
+          "than the author wrote",
+          refused_sign)
+
     # ⚠ The honest limit, stated because it is the failure mode this invites.
     # Refraction bounds re-firing on ONE set of premises. It cannot bound a
     # generative CHAIN -- mint, conclude about the new node, mint again -- since
@@ -6938,6 +7011,7 @@ def main() -> int:
     two_things_can_turn_out_to_be_one()
     a_rule_can_introduce_a_thing()
     a_relationship_is_among_ids_a_denotation_is_a_query()
+    an_alias_is_shorthand_for_structure()
     attention_is_about_a_node_not_a_rule()
     attention_is_learned_from_what_the_move_bound()
     a_lesson_about_attention_is_learned_from_play()

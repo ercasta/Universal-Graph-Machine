@@ -72,6 +72,20 @@ matching things in the world. *The goblin you attacked three turns ago* and
 value, cacheable and explicitly invalidated. List, Bag, Set, All, Some, count,
 greater, smaller live here.
 
+**A corpus can name the shape once: an alias.** Reified structure is three
+lines where the old style was one, so the surface lets a corpus define the
+shorthand itself:
+
+    alias attacks(?a, ?t) = { +is(+e, attack), +agent(+e, ?a), +target(+e, ?t) }
+
+An alias use *is* its expansion, at member level, and the `+e` marker is the
+entity the shorthand stands up: in a `fact` it is minted at load (one entity,
+several claims about it); in an antecedent it becomes a fresh variable joining
+the expanded members (a query over the structure); in a consequent it stays a
+mint marker (one entity per firing). A *nested* occurrence —
+`mention(m, attacks(gob, hero))` — is not expanded: nested is a denotation,
+and expanding it would put words in the mention's mouth.
+
 **Relationships hold only among things with atom ids — entities and other
 relationships. Never among denotations.** A denotation cannot fill a role. It
 can only be *resolved*, by rules, to the entity it denotes — and the entity
