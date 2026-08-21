@@ -1,9 +1,16 @@
 """An agent that plans, acts, observes and explains itself, on one graph
 substrate. The design is `docs/rules-design.md`; every module here cites it.
+`docs/guide.md` is the practical one: how to write a corpus and run it.
 
-Slice one is the machine: channels, processes, frames and the gate, with basic
-forward rules. Deliberately absent -- spans, shapes, backward reading, recall
-learning, suppositions.
+⚠ This docstring used to end *deliberately absent -- spans, shapes, backward
+reading, recall learning, suppositions*, which described a first slice and
+outlived it by a long way: all of those were built except spans, which were
+built and then REMOVED with the locus. A roadmap in a package docstring is a
+claim that goes stale in one direction only.
+
+The engine is `ugm.core`; nothing outside it is needed to run an agent.
+`ugm.gates` are release criteria, `ugm.probes` are measured questions, and
+`ugm.learning` is what an episode teaches the next one.
 """
 
 from .core.chain import Chain, Entry, Moment, MINUS, PLUS, UNSURE

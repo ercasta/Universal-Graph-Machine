@@ -43,6 +43,29 @@ jobs:
           echo "Built wheels:"
           ls -l book/docs/wheels
 
+      # ⚠⚠⚠ A wheel that EXISTS is not a wheel that IMPORTS, and `ls` cannot
+      # tell them apart. `packages = ["ugm"]` shipped four files and none of
+      # `ugm/core`, so every wheel this job published for the playground raised
+      # ModuleNotFoundError on `import ugm` -- for as long as the tree has had
+      # subpackages, with a green build every time. Install it somewhere clean
+      # and run the thing.
+      - name: Smoke-test the wheel (it must import and run, not merely exist)
+        run: |
+          python -m venv /tmp/wheelcheck
+          /tmp/wheelcheck/bin/pip install --quiet book/docs/wheels/*.whl
+          /tmp/wheelcheck/bin/python - <<'PY'
+          import ugm
+          from ugm.core.machine import Machine
+          from ugm.core.text import load
+          m = Machine()
+          kb = load(m, "rule <r> = implies( { +p(?x) }, { +q(?x) } )\nfact +p(a)\n")
+          m.run(limit=20)
+          assert m.holds(kb.term("q(a)")) == "+", "the wheel imports but does not reason"
+          import ugm.corpora, importlib.resources as r
+          assert (r.files("ugm") / "rules" / "bundle.ugm").is_file(), "the bundle corpus is missing from the wheel"
+          print("wheel ok:", ugm.__name__, "->", m.holds(kb.term("q(a)")))
+          PY
+
       - name: Build the MkDocs site
         run: mkdocs build --strict --site-dir site
         working-directory: book
