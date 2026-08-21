@@ -14,7 +14,7 @@ fact +person(paul)
 Run it, and ask about Paul:
 
 ```
-$ python -m ugm mortal.ugm --why "mortal(paul)"
+$ python3 -m ugm mortal.ugm --why "mortal(paul)"
 mortal.ugm: 3 ticks, ended quiescent
 
 why mortal(paul)?

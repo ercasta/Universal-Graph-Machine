@@ -72,8 +72,7 @@ Measured three ways, and they agreed:
 > **A knob that is read and not obeyed is the same defect wearing the fix's
 > clothes.**
 
-So the fourth member is gone, and the entry is back to three members and never a
-fourth.
+So the grade is gone, and the entry is back to two members and never a third.
 
 And the larger half: **the closed set went with it.** Five ordinal names the
 engine knew became whatever modalities a corpus cares to write, with whatever

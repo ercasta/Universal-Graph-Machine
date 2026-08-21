@@ -110,7 +110,7 @@ is recorded as one.
 
 ## What it costs
 
-Startup is not a constraint: **6ms per machine**, 17 shipped rules each, and six
+Startup is not a constraint: **about 5ms per machine**, 18 shipped rules each, and six
 agents cost **37ms**.
 
 And the transport is a swap rather than a redesign — one OS process per agent

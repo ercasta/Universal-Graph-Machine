@@ -24,7 +24,7 @@ fact +goal(boiling(kettle))
 ```
 
 ```
-20 ticks, ended quiescent
+21 ticks, ended quiescent
 
 asked for:
   boiling(kettle)  [held]  via <boil>
@@ -187,10 +187,12 @@ rule behind it: a stratum-0 conclusion drawn inside a hypothesis is visible from
 everywhere. Chapter 16 measures it. Acting is the case somebody thought about;
 it is worth knowing that it was the only one.
 
-So the boundary is muted inside a supposition. The general form:
+The general form, and it outlived the supposition machinery that prompted it
+(Chapter 16):
 
-> Conclusions stay at their locus. What crosses out of a frame is a claim
-> *about* the frame, made from outside it.
+> A conclusion is a claim, and it is deposited. An **act** is not: it leaves
+> the agent, so deciding to act and acting are two different things, and only
+> the first is recoverable from the record.
 
 What planning needs from an act is the **decision** — that this is what I would
 do — and the decision is a conclusion, which crosses. The doing does not.

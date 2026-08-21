@@ -50,7 +50,7 @@ why amount(ana,600)?
 ```
 
 Eight lines, and every one of them is a claim that is still sitting in memory
-with its own sign, locus, source and licence. Nothing was reconstructed.
+with its own sign, source and licence. Nothing was reconstructed.
 
 And Raj:
 

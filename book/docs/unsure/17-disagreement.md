@@ -37,12 +37,14 @@ and regeneration is defeated every tick, for ever.
 The sibling relation doesn't help either. `supersedes(<poison>, <regen>)` needs
 a **shared consumed entry**, and these two applications consumed
 `poisoned(a)` and `wounded(a)` respectively, which have nothing in common — so
-nothing is defeated at all, and `b` and `a` both heal.
+nothing is defeated at all. Both rules therefore apply, and what decides
+`heals(a)` is the ordinary read: `<poison>` writes second, so *later supersedes
+earlier* and the denial stands. `b`, whom nobody poisoned, heals.
 
 | how it's written | `heals(a)` | `heals(b)` | |
 |---|---|---|---|
 | `fact overrides(<poison>, <regen>)` | `−` | **nothing** | b is collateral damage |
-| `fact supersedes(<poison>, <regen>)` | **`+`** | `+` | nothing is defeated at all |
+| `fact supersedes(<poison>, <regen>)` | `−` | `+` | nothing is defeated; the later claim simply wins |
 | the exception as a **premise** | `−` | `+` | correct |
 
 > **Precedence orders rules. It does not carve out cases.**

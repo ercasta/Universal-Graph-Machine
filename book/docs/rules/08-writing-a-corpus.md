@@ -25,7 +25,7 @@ fact overrides(<boil>, <cool>)
 
 What the language may **not** write is an entry, a moment, or a stamp. An author
 who could supply a deposit could date a claim to a time when it wasn't held. So
-the locus, the licence and the source always come from the machinery.
+the licence and the source always come from the machinery.
 
 ## The pattern worth building a world on
 
@@ -140,7 +140,7 @@ the antecedent, as a negated member.
 Load a corpus with a hole in it and it says so before running:
 
 ```
-$ python -m ugm goal.ugm
+$ python3 -m ugm goal.ugm
 note: nothing writes heat, and a rule reads it -- so that rule can never apply.
 A misspelling on either side does this; so does a fact you meant to assert and
 did not

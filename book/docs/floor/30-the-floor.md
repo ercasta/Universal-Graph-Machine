@@ -1,6 +1,6 @@
 # What cannot be a convention
 
-Nearly everything in this book is **taught**. Moments, entries, signs, spans,
+Nearly everything in this book is **taught**. Moments, entries, signs,
 rules, modalities, channels, frames, goals, plans — all of it is a
 representation of reality the agent uses, not machinery the engine is built out
 of.
@@ -128,8 +128,8 @@ Something must always answer. Selection cannot be allowed to search forever or
 to return nothing, because the interpreter has no outside to fall back to.
 
 **Totality** is floor. **What it consults is convention** — an authored
-precedence relation over rules, read from the graph at the position the agent is
-standing (Chapter 17).
+precedence relation over rules, read from the graph as it stands
+(Chapter 17).
 
 The floor requires only that the final tiebreak **does not itself reason**. It
 does not require that the answer be kept anywhere. An earlier draft said *a

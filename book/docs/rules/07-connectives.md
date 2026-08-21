@@ -25,7 +25,7 @@ the obvious candidates and they fall:
   still happen.
 
 Interval relations — *before*, *during*, *overlaps* — aren't connectives either.
-They're ordinary facts about moments and spans, which are already nodes. Adding
+They're ordinary facts about moments, which are already nodes. Adding
 them to a closed set would buy nothing and would start multiplicative growth:
 `likely_causes`, `possibly_prevents`, and so on forever, each fusing strength
 with defeasibility and recording neither.
@@ -61,7 +61,7 @@ The two-connective split is precisely what makes that plan unwritable.
 
 ## The thing nobody expected the connective to decide
 
-`implies` deposits into the same moment. `causes` moves the seat to a successor.
+`implies` deposits into the same moment. `causes` advances the chain to a successor.
 
 Which means the connective silently decides whether your loop terminates.
 
@@ -78,12 +78,12 @@ rule <tick> = causes( { +quiet(?m) }, { +turn(?m) } )
 ```
 
 ```
-200 ticks, ended applied
-  stopped at the tick limit (200); it had not finished
+400 ticks, ended applied
+  stopped at the tick limit (400); it had not finished
 ```
 
 Same rule, one word different. `quiet` is an occasion the machinery deposits
-when nothing else applied. `causes` moves the seat, which mints a *fresh* quiet,
+when nothing else applied. `causes` advances the chain, which mints a *fresh* quiet,
 which warrants the next firing, forever.
 
 The criterion is:
