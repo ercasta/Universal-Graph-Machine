@@ -11,11 +11,11 @@ Dimension: something that has positions, so that entities and relationships can 
  
 List, Bag, Set, All, Some, count, greater, smaller: fundamental concepts (greater and smaller refer to dimensions). But they are queries!
 
-Query: a criterion or set of criteria to match something.
+Query: a criterion or set of criteria to match something. It applies to a span, and has a truthy value that can be cached and invalidated.
 
 narrower / wider. Applicable to query. A query could be said to be narrower or wider w.r.t. another. (substitution principle).
 
-Span: an identified set of entities and relationships that can be treated as an entity.
+Span: an identified set of entities and relationships that can be treated as an entity (again; it's an entity, in a given relationship with other entities. So a car is an entity and it also has wheels).
 
 Request: a "gravitational force" that pulls an action.
 
