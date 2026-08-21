@@ -56,7 +56,7 @@ ROLES: Dict[str, List[str]] = {
         "close", "forgone", "helped", "harmed",
         # The gap between two spans, which a rule cannot compute because it
         # cannot speak about a set: `<difference>` materialises it.
-        "delta", "missing", "extra", "matched",
+        "delta", "missing", "extra", "matched", "now",
         # Triggers: a rule the engine consults on what another rule is about
         # to conclude, and what it may say about one.
         "intercepts", "producing", "instead", "drop", "rewrote", "after",

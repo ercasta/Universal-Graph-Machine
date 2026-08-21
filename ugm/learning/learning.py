@@ -18,10 +18,14 @@ BASE = [
     "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
     "rule <squeeze> = implies( { +fruit(?f), +jug(?j), +intact(?j) }, { +juice(?j) } )",
 ]
+# Both routes SPEND the want they serve, and that is what makes taking one
+# passing up the other. Nothing in the engine does it: an occasion is consumed,
+# and a goal is an occasion. Without the denial both routes run, the agent fills
+# the kettle AND smashes the jug, and the episode has no choice to learn from.
 TAP = ("rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
-       " { +doing(fill(?w)) } )")
+       " { -goal(water(?w)), +doing(fill(?w)) } )")
 JUG = ("rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
-       " { +doing(smash(?j)) } )")
+       " { -goal(water(?w)), +doing(smash(?j)) } )")
 
 
 def world(vessel: str = "kettle", jug: str = "jug1", jug_first: bool = True) -> str:

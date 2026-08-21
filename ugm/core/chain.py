@@ -1,4 +1,4 @@
-"""Moments (§4) and entries (§5), and the walk that reads them.
+"""Moments and entries, and the walk that reads them.
 
 A moment is a signed delta, a predecessor and a licence. A proposition claims
 nothing; the claim is a separate node, the entry, with exactly three members --
@@ -12,7 +12,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from .graph import Graph, NodeId
 
-# -- the closed sets of §10 -------------------------------------------------
+# -- the closed sets  -------------------------------------------------
 
 PLUS = "+"
 MINUS = "-"
@@ -25,7 +25,7 @@ UNSURE = "?"
 
 class Entry(NamedTuple):
     """The unit of assertion. Three members, and never a fourth: licence and
-    source are ordinary facts about the entry (§5)."""
+    source are ordinary facts about the entry"""
 
     node: NodeId  # the entry's own identity, so other facts can be about it
     proposition: NodeId
@@ -40,7 +40,7 @@ class Entry(NamedTuple):
 
 
 class Moment:
-    """A state of affairs: the design's only such construct (§4).
+    """A state of affairs: the design's only such construct.
 
     `depth` exists so the two indices have a total order to compare on. In a
     linear chain it is the position; forking would need a real ancestry test,
@@ -77,20 +77,20 @@ class Chain:
     def __init__(self, g: Graph, clock: bool = False) -> None:
         self.g = g
         # Off by default: a source of nondeterminism is requested, not
-        # inherited. ⚠ Not a way to ORDER moments -- `pred`/`anc` do that
+        # inherited. Not a way to ORDER moments -- `pred`/`anc` do that
         # exactly. This answers *how long ago*. docs/design/chain.md.
         self.clock = clock
         self.ENTRY = g.atom("entry")
         self.MOMENT = g.atom("moment")
-        # The structural mirror (§6). `pred` and `in_delta` are plain relation
+        # The structural mirror. `pred` and `in_delta` are plain relation
         # instances, not entries: nobody asserted them, they cannot be denied,
-        # dated or attributed. That is exactly §12's skeleton, and it is what
+        # dated or attributed. That is exactly the skeleton, and it is what
         # makes them matchable by a stratum-0 rule.
         self.PRED = g.atom("pred")
-        # Strict ancestry, as a name an ordinary rule may write (§12). Not
+        # Strict ancestry, as a name an ordinary rule may write. Not
         # materialised -- `structural_relations` walks it -- because the walk is
         # bounded and upward, and a stored transitive closure would be a cache
-        # of something derived (§3).
+        # of something derived.
         self.SANC = g.atom("sanc")
         # ...and the reflexive one. `anc(?m, ?m)` holds, which is what lets a
         # read asked AT the seat find what the seat itself deposited -- the case
@@ -101,21 +101,19 @@ class Chain:
         # An entry's own three members, as a relation a rule may write:
         # `entry_of(?e, ?prop, ?sign)`. Nothing is deposited for it --
         # the entry node already IS `entry(proposition, sign)`, so this
-        # is §12's `?t = entry(...)` prefix form arriving as a member instead of
+        # is `?t = entry(...)` prefix form arriving as a member instead of
         # as notation. The read could not be written without it: every rule
         # below `in_delta` needs an entry's locus and sign, and until now only a
         # second matcher's `capture` could reach them.
         self.ENTRY_OF = g.atom("entry_of")
         # `asking(<seat>)` -- what the read is anchored on, and what binds its
-        # first member. ⚠ Without it a seat can only be bound by enumerating
+        # first member. Without it a seat can only be bound by enumerating
         # every moment. docs/design/chain.md.
         self.ASKING = g.atom("asking")
         # ...and WHAT is being asked about. A read answers about a proposition,
         # so a read that derives candidates for every proposition in the history
-        # is answering questions nobody put. It went unnoticed while §7 hid two
-        # thirds of the chain from the matcher: with the reified entries visible
-        # the same five-moment fixture derived 10,638 facts to answer 28
-        # questions. Seeded beside the seat, and by the same one caller.
+        # is answering questions nobody put. 
+        # Seeded beside the seat, and by the same one caller.
         self.ASKED = g.atom("asked")
         self.IS_MOMENT = g.atom("moment_of")
         # `time(<moment>, <millis>)` -- structural, like `pred`, because nobody
@@ -138,7 +136,7 @@ class Chain:
         # walk. §21's defect for the ninth time, and the fix is the one the other
         # eight got.
         self.RESTS_ON = g.atom("rests_on")
-        # ⭐ EXPERIMENT (docs/observations.md §2.8). What LICENSED an entry --
+        # What LICENSED an entry --
         # `loaded(p)` for something the agent was told, `applied(<R>)` for
         # something it worked out. Beside `rests_on` and for its reason: nobody
         # asserted it, it cannot be denied, dated or attributed; it is *how the
@@ -148,9 +146,9 @@ class Chain:
         # finding 1 of the audit in Part 1: the discriminator between *told* and
         # *inferred* sat on every entry and no rule could read it.
         self.LICENSED_BY = g.atom("licensed_by")
-        # ...and the other two fields §5 called "ordinary facts about the entry"
-        # while keeping them in Python. `arrived_on` is §13's channel;
-        # `mentioned` is §14's use/mention. Skeleton, for `rests_on`'s reason:
+        # ...and the other two fields called "ordinary facts about the entry"
+        # while keeping them in Python. `arrived_on` is  channel;
+        # `mentioned` is use/mention. Skeleton, for `rests_on`'s reason:
         # nobody asserted them, they are how the entry was made.
         self.ARRIVED_ON = g.atom("arrived_on")
         self.MENTIONED = g.atom("mentioned")
@@ -179,18 +177,16 @@ class Chain:
         # stratum-0 rule was written that needed to tell two of them apart. The
         # design says a moment is a node so that facts can be about it; that is
         # false the moment they are all the same node.
-        # The licence is no longer carried: it was assigned here and read
-        # nowhere in the repository, while §4 claimed *which of the two this is
-        # is said by the licence and by nothing else*. The moment's own
+        # The moment's own
         # succession is `pred`; what a moment is FOR is a fact about it.
         m = Moment(self.g.instance(self.MOMENT), predecessor, self)
         self.g.rel(self.IS_MOMENT, m.node)
         self.g.rel(self.PRED, m.node, predecessor.node)
         self._stamp(m)
         self.moments.append(m)
-        # ...and by node, because a rule can now name a moment (§12's `at`) and
+        # ...and by node, because a rule can now name a moment and
         # something has to get from the name back to the thing. Maintained here,
-        # where moments are made, rather than scanned for -- §7's rule that what
+        # where moments are made, rather than scanned for -- the rule that what
         # is read off a state is maintained where the state is.
         self._moment_by_node[m.node] = m
         return m
@@ -268,8 +264,8 @@ class Chain:
         # stop being invisible now that support is a question the agent asks.
         self._by_node[node] = e
         # One index, over what was asserted rather than over what was derived --
-        # the same licence §3 gives the substrate, applied to the chain. `resolve`
-        # is the design's most consequential cost (§4) and it was scanning every
+        # the same licence gives the substrate, applied to the chain. `resolve`
+        # is the design's most consequential cost and it was scanning every
         # entry ever deposited to answer a question about one proposition;
         # measured, that was 70% of the engine's runtime after the walk itself
         # had been fixed. The entries for one proposition are almost always one.
@@ -285,8 +281,7 @@ class Chain:
         no longer a Python service and it is not lost -- `in_delta`, `pred`,
         `anc` and `entry_of` are ordinary structural relations, so a corpus that
         wants history writes the rule and gets a dated, attributable, deniable
-        answer instead of a privileged one. §4's two times were the engine
-        keeping a second way to ask.
+        answer instead of a privileged one. 
         """
         got = self._claims.get(proposition)
         return got[-1] if got else None
@@ -294,13 +289,13 @@ class Chain:
     def holds(self, proposition: NodeId) -> Optional[str]:
         """The sign, or None if the chain says nothing. `?` is not None: it stops
         the walk and reports ignorance, which is the one thing writing nothing
-        could never say (§6)."""
+        could never say"""
         e = self.resolve(proposition)
         return None if e is None else e.sign
 
     def trail(self, e: Entry) -> List[Entry]:
         """Every entry this one rests on, transitively. This is what makes *why
-        do you believe that* answerable, and per §12 it is load-bearing for
+        do you believe that* answerable, and it is load-bearing for
         soundness rather than only for explanation."""
         seen: Dict[NodeId, Entry] = {}
         frontier = [e]
@@ -321,7 +316,7 @@ class Chain:
 
     def claims_about(self, proposition: NodeId) -> List[Entry]:
         """Every entry ever deposited about this proposition, in order. The
-        deposit-side index, which §12 permits precisely because it indexes what
+        deposit-side index, which permits precisely because it indexes what
         was asserted and never what was derived."""
         return list(self._claims.get(proposition, ()))
 

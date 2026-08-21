@@ -197,32 +197,6 @@ class Report(NamedTuple):
     scanned_nodes: int = 0
 
 
-def _rivals(m: Machine, chosen: Application, state) -> List[Application]:
-    """The other ways of getting what this move is getting.
-
-    ⭐⭐⭐ Complete forgoing looked like it needed the option set, and it does
-    not. *What else could have served this want* ranges over every rule only if
-    you ask it that way round. ⚠ Only when the move serves a want at all, which
-    is the common case being cheap rather than an optimisation: most moves
-    consume no goal and pay nothing.
-
-    See docs/design/attention.md#rivals.
-    """
-    if not m._wants(chosen):
-        return []
-    out: List[Application] = []
-    for r in m.rules.rules:
-        if r is chosen.rule:
-            continue
-        if not any(m.g.relation_of(mm.pattern) is m.GOAL for mm in r.antecedent):
-            continue
-        out.extend(match(
-            m.g, m.chain, r, state,
-            computes=m.rules.computes, structural=m.rules.skeleton(),
-        ))
-    return out
-
-
 def _dormant(m: Machine, r: Rule) -> bool:
     """Claimed `dormant` and not yet claimed `due`.
 
@@ -569,7 +543,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # Something applied, so the shortlist is trusted again.
             # →
             # docs/design/attention.md#and-the-backstop-the-doubt-already-stands-an
-        m._forgo(window + _rivals(m, chosen, state), chosen)
         m._widened = False
         wrote = m._apply(chosen)
         m._attend_written(wrote)

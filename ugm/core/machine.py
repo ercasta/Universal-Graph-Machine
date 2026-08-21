@@ -257,7 +257,6 @@ class Machine:
         # Forgoing: the thing arbitration was assumed to do and never did.
         # →
         # docs/design/machine.md#forgoing-the-thing-arbitration-was-assumed-to-d
-        self.FORGONE = self.g.atom("forgone")
         # Tools. ⚠ THE one loaded node.
         # → docs/design/machine.md#tools-21-s-honest-debt-taken-a-request-answe
         self.LOADED = self.g.atom("loaded")
@@ -442,6 +441,11 @@ class Machine:
         # not mean, so the tool that knows the answer says it: `matched(<gap>)`
         # when the two spans differ in nothing.
         self.MATCHED = self.g.atom("matched")
+        # The span a corpus cannot otherwise name: the world as it stands. A
+        # moment is a node, but the moments are the machinery's and no corpus
+        # has a hand to name one -- so `delta(now, <wanted>, <gap>)` is how a
+        # rule asks about the gap between here and there.
+        self.NOW = self.g.atom("now")
         self.EXTRA = self.g.atom("extra")
         # The world model's split (docs/world-model.md): a relation declared
         # `relationship(<rel>)` holds among things that have ids -- entities and
@@ -483,7 +487,7 @@ class Machine:
             "quiet": self.QUIET,
             "enough": self.ENOUGH, "stopped": self.STOPPED, "open": self.OPEN,
             "helped": self.HELPED, "harmed": self.HARMED,
-            "forgone": self.FORGONE, "exercised": self.EXERCISED,
+            "exercised": self.EXERCISED,
             "root": self.ROOT, "rooted": self.ROOTED,
             "count": self.COUNT, "counted": self.COUNTED,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
@@ -504,7 +508,7 @@ class Machine:
             "advances": self.ADVANCES, "closes": self.CLOSES,
             "refused": self.REFUSED,
             "delta": self.DELTA, "missing": self.MISSING,
-            "matched": self.MATCHED,
+            "matched": self.MATCHED, "now": self.NOW,
             "intercepts": self.INTERCEPTS, "producing": self.PRODUCING,
             "after": self.AFTER,
             "instead": self.INSTEAD, "drop": self.DROP,
@@ -650,7 +654,7 @@ class Machine:
                              self.NEED, self.CHECK, self.UNMET,
                              self.QUIET, self.DORMANT,
                              self.ENOUGH, self.STOPPED, self.OPEN, self.HELPED, self.HARMED,
-                             self.FORGONE, self.EXERCISED,
+                             self.EXERCISED,
                              self.ROOT, self.ROOTED,
                              self.COUNT, self.COUNTED, self.NEW,
                              self.DUE, self.VERDICT, self.PURSUED,
@@ -1300,39 +1304,20 @@ class Machine:
                 out.add(self.g.member(e.proposition, 0))
         return out
 
-    def _forgo(self, applications, chosen) -> None:
-        """Taking one way of getting something is passing up the others.
-
-        This is what arbitration was assumed to do and did not: a rule that
-        lost was deferred, so quiescence ran it anyway and an agent with two
-        ways to do something did both -- including the destructive one. ⚠ The
-        apparatus is exempt on both sides -- §13's carve-out again.
-
-        See docs/design/machine.md#forgo.
-        """
-        wants = self._wants(chosen)
-        if not wants or self._claims(self.g.rel(self.STANDING, chosen.rule.node)):
-            return
-        for a in applications:
-            if a.rule is chosen.rule:
-                continue
-            if self._claims(self.g.rel(self.STANDING, a.rule.node)):
-                continue
-            for w in wants & self._wants(a):
-                self.gate.write(
-                    self.g.rel(self.FORGONE, a.rule.node, w), PLUS,
-                    licence=self.g.rel(self.APPLIED, chosen.rule.node),
-                    source=self.KB, mention=True,
-                )
-
-    def _passed_up(self, app) -> bool:
-        """Has this way of getting what it serves already been passed up?"""
-        if self._claims(self.g.rel(self.STANDING, app.rule.node)):
-            return False
-        return any(
-            self._claims(self.g.rel(self.FORGONE, app.rule.node, w))
-            for w in self._wants(app)
-        )
+    # `_forgo` and `_passed_up` were here, with `_rivals` in the loop beside
+    # them: taking one way of getting something deposited `forgone(<other>, w)`
+    # about every rival way, and that deposit was what excluded the rival.
+    #
+    # Passing up is the corpus's now, and it is the first law rather than a
+    # mechanism: a rule that serves a want SPENDS it -- `{ +goal(open(?d)) } =>
+    # { -goal(open(?d)), +doing(unlock(?d)) }` -- so the other way has nothing
+    # left to match. Measured before deleting: with the goal spent, one act
+    # leaves the agent where two did.
+    #
+    # What went with it is the naming. Nothing records which way was passed up,
+    # because nothing has to: the alternative did not lose an argument, it
+    # never became applicable. Handing it back is re-asserting the goal, where
+    # it used to be denying the `forgone` claim about it.
 
     def _reaching(self, a: NodeId, b: NodeId) -> bool:
         """Does any rule say that `a` reaches `b`? (§11's containment, moved.)
@@ -2137,6 +2122,8 @@ class Machine:
         `at(work)` is a proposition in the span, and `at` and `work` are what it
         is made of, not things the span holds.
         """
+        if root == self.NOW:
+            root = self.chain.now.node
         for mo in self.chain.moments:
             if mo.node == root:
                 # The apparatus's own records are not part of the world: a
@@ -2180,6 +2167,22 @@ class Machine:
             return None
         have, want, gap = members
         held, wanted = self._contents(have), self._contents(want)
+        # A gap that is asked again is asked about NOW, so a difference that has
+        # closed since the last answer has to be denied rather than left
+        # standing. Without this the entries accumulate: the water arrives, the
+        # want is met, and `missing(<gap>, water(kettle))` still reads `+` --
+        # measured, and it is the difference between a gap that guides and one
+        # that only ever grew.
+        for rel, still in ((self.MISSING, wanted - held), (self.EXTRA, held - wanted)):
+            for node in self.g.instances_of(rel):
+                members = self.g.members(node)
+                if len(members) != 2 or members[0] != gap:
+                    continue
+                if members[1] not in still and self._claims(node):
+                    self.gate.write(
+                        node, MINUS, licence=e.proposition, source=self.KB,
+                        consumed=(e,), mention=True,
+                    )
         differed = False
         for prop, rel in ((wanted - held, self.MISSING),
                           (held - wanted, self.EXTRA)):
@@ -2194,6 +2197,13 @@ class Machine:
                     licence=e.proposition, source=self.KB, consumed=(e,),
                     mention=True,
                 )
+        if differed and self._claims(self.g.rel(self.MATCHED, gap)):
+            # ...and the same for the closure: a gap that has re-opened is not
+            # matched any more.
+            self.gate.write(
+                self.g.rel(self.MATCHED, gap), MINUS, licence=e.proposition,
+                source=self.KB, consumed=(e,), mention=True,
+            )
         if not differed:
             # The empty gap, said outright. A rule can read every difference
             # one at a time and still not be able to say there were none: that
@@ -3276,7 +3286,6 @@ class Machine:
         every fixture and compares the move.
         """
         out = self._applications(proposed, state, materialise=True)
-        out = [a for a in out if not self._passed_up(a)]
         out = [a for a in out if self._would_change(a)]
         # ⚠⚠⚠ Sorted, because arbitrate picks the FIRST among applications of
         # one rule and until now nothing said which that was.
@@ -3407,7 +3416,7 @@ class Machine:
         # goes back to quadratic (measured: 60 facts weighed 1,950 candidates,
         # 120 weighed 7,500). Running the verdict first keeps the withholding
         # machinery intact and lets refraction filter what survives it.
-        if self._passed_up(app) or not self._would_change(app):
+        if not self._would_change(app):
             return False
         # ⚠⚠⚠ An absence is re-asked at the door. A candidate matched while
         # `no p` held may be applied ticks later, and nothing consumed records
@@ -4017,27 +4026,46 @@ class Machine:
             keep, best = trial, low
         return rows_for(keep)
 
+    def _wants_served(self, node: NodeId) -> set:
+        """Which wants a rule was serving, read off the trail rather than off a
+        record kept for the purpose: an entry licensed by `applied(<R>)` names
+        what it consumed, and a consumed `goal(w)` is what makes `<R>` a way of
+        getting `w`."""
+        out = set()
+        for mo in self.chain.moments:
+            for e in mo.delta:
+                if e.licence is None:
+                    continue
+                if self.g.relation_of(e.licence) is not self.APPLIED:
+                    continue
+                if self.g.member(e.licence, 0) != node:
+                    continue
+                for c in e.consumed:
+                    got = self.chain.entry_by_node(c)
+                    if got is None:
+                        continue
+                    if self.g.relation_of(got.proposition) is self.GOAL:
+                        (want,) = self.g.members(got.proposition)
+                        if not self.g.has_var(want):
+                            out.add(want)
+        return out
+
     def _choosers(self, harmed: set) -> List[Rule]:
         """Of the rules blamed, the ones that made a CHOICE rather than took part.
 
         A blame walk reaches everything on the support of what was lost -- the
-        rule that decided, the act, and the physics that carried it out. Only the
-        first had an alternative, and forgoing is what says so: a rule that
-        licensed a `forgone` deposit is one that was picked over something else.
+        rule that decided, the act, and the physics that carried it out. Only
+        the first had an alternative, and what says so is that it consumed a
+        goal: a rule serving a want was picked over the other ways of serving
+        it. This used to read `forgone` deposits, which recorded the same thing
+        during the run; passing up is the corpus's now, so the trail is asked
+        instead.
         """
         at = self._statements()
         out: List[Rule] = []
-        for node in self.g.instances_of(self.FORGONE):
-            if self.g.has_var(self.g.member(node, 1)):
-                continue
-            e = self.chain.resolve(node)
-            if e is None or e.sign != PLUS or e.licence is None:
-                continue
-            if self.g.relation_of(e.licence) is not self.APPLIED:
-                continue
-            n = self.g.member(e.licence, 0)
-            r = at.get(n)
-            if n in harmed and isinstance(r, Rule) and r not in out:
+        for node in harmed:
+            r = at.get(node)
+            if isinstance(r, Rule) and r not in out and self._wants_served(node):
                 out.append(r)
         return out
 
@@ -4046,34 +4074,36 @@ class Machine:
 
         Blame names the rule that did the damage; it is silent about what else
         was available, because the rule that was passed up never ran and so is
-        on no trail. Forgoing already recorded it. ⚠ An alternative that is
-        itself blamed earns nothing; learned filters both halves through the
-        same suppression, so a world whose every route does damage...
+        on no trail. This is computed rather than recorded: the harmed rule
+        consumed `goal(w)`, and another rule that reads a goal of that shape is
+        another way of getting `w`. Asked once, here, where a lesson is being
+        drawn -- it used to be asked on every move, and deposited.
 
-        See docs/design/machine.md#instead-of.
+        ⚠ What makes two rules alternatives is that they answer the same want,
+        not that they conclude the same thing, which is `_wants`'s argument and
+        the reason this reads goals rather than consequents.
         """
         rule_at = self._statements()
         out: List[Tuple[Rule, NodeId]] = []
-        for node in self.g.instances_of(self.FORGONE):
-            # ⚠ The WANT must be ground, not the whole node. A `forgone` node
-            # names a rule, and a rule node is generic by construction -- so
-            # `has_var(node)` is true of every real deposit, and guarding on it
-            # silently returned nothing. Same shape as `blame`'s guard, which is
-            # about generic subgoals like `heat(?a, kettle)` that were never
-            # meant to hold as stated, and belongs on the same member.
-            if self.g.has_var(self.g.member(node, 1)):
+        for node in harmed:
+            wants = self._wants_served(node)
+            if not wants:
                 continue
-            e = self.chain.resolve(node)
-            if e is None or e.sign != PLUS or e.licence is None:
-                continue
-            if self.g.relation_of(e.licence) is not self.APPLIED:
-                continue
-            if self.g.member(e.licence, 0) not in harmed:
-                continue
-            alt = rule_at.get(self.g.member(node, 0))
-            key = self.g.relation_of(self.g.member(node, 1))
-            if alt is not None and key is not None:
-                out.append((alt, key))
+            for r in self.rules.rules:
+                if r.node == node or r in [o for o, _ in out]:
+                    continue
+                if not any(self.g.relation_of(mm.pattern) is self.GOAL
+                           for mm in r.antecedent):
+                    continue
+                for w in wants:
+                    if any(unify(self.g, mm.pattern, self.g.rel(self.GOAL, w), {})
+                           is not None
+                           for mm in r.antecedent
+                           if self.g.relation_of(mm.pattern) is self.GOAL):
+                        key = self.g.relation_of(w)
+                        if key is not None:
+                            out.append((r, key))
+                        break
         return out
 
     def _rendered(self) -> List[dict]:
