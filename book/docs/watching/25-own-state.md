@@ -23,16 +23,17 @@ because there was nothing to match against.
 
 Three obligations follow.
 
-**1. Applying a rule deposits a predicted moment.** Applying `causes(A, B)` at
-M3 mints a moment whose predecessor is M3 and whose licence is *R applied,
-predicted*, carrying B's entries plus a due-time from the timing member
-(Chapter 23). Without the deposit there is nothing to be surprised against.
+**1. Applying a rule deposits what it predicts.** Applying `causes(A, B)`
+writes `+expects(<B>, plus)` — a claim *about* a proposition and a sign.
+Without the deposit there is nothing to be surprised against.
 
-Note what this avoids. A bespoke relation like `expected(+boiling(w), by t+7)`
-isn't writable in this vocabulary at all, because it puts a **sign inside a
-proposition**. The moment form isn't a workaround for that restriction — it's
-better, because it makes surprise a **comparison of two moments**, which is an
-operation the design already needs.
+Note the shape. A sign appears here **as an argument**, not inside the
+proposition: `expects(p, plus)` mentions a sign where `+p` uses one, which is
+what makes the prediction an ordinary readable claim rather than a new kind of
+thing. (The design first proposed a *predicted moment* instead — a whole
+successor carrying B's entries and a due-time. What shipped is smaller, and it
+gave up the due-time with it: the agent notices that a prediction was
+contradicted, never that one is *late*.)
 
 **2. The continuation is a moment.** What the agent is doing, where it is in it,
 and what it's waiting for are signed entries — not a stack frame.
@@ -45,11 +46,12 @@ preempted and an interpreter's cannot.
 **3. Surprise is an ordinary rule that wins on precedence.**
 
 ```
-<S> = causes(
-    where  ?t' = now
-    given  +predicted(?p, ?m), +due(?p, ?t), after(?t', ?t), +deviates(?p, ?actual)
-    then   +goal(explain_failure(?p)), -committed(?proc) )
+rule <S> = causes( { +deviates(?p) },
+                   { +goal(explain_failure(?p)) } )
 ```
+
+`deviates(?p)` is arity **one** and it is what the four bundled rules below
+conclude; there is no `due`/`after` to consult, for the reason just given.
 
 > **There is no interrupt mechanism.**
 

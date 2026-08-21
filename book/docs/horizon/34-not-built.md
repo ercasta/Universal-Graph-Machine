@@ -78,49 +78,48 @@ Chapter 29.
 
 ## Genuinely absent
 
-**Containment holds for entries and fails for structure.** A conclusion drawn
-inside a supposition is not believed outside it — Chapter 16, and it is
-structural rather than promised. A **stratum-0** conclusion drawn inside the
-same supposition is in the graph and visible everywhere, because it is an
-interned relation instance: undated, unattributed, deniable by nothing, and
-belonging to no moment. Probed on a corpus that supposes something and derives
-one ordinary structural fact about it:
+**Nothing contains what a rule derives into the graph.** Supposing used to
+contain *entries* structurally — a conclusion drawn inside a hypothesis could
+not be read outside it — and it never contained **structure**: a stratum-0
+conclusion is an interned relation instance, undated, unattributed, deniable by
+nothing, and belonging to no moment, so it was visible everywhere.
 
-```
-is secret(a) BELIEVED at the root?     None      the entry is contained
-is said(secret(a)) in the graph?       True      the structure is not
-```
+The supposition machinery is gone (Chapter 16), which removes the *mechanism*
+and not the problem. A corpus that holds a hypothesis in the proposition —
+`given(h1, p)` — contains its claims exactly as well as it writes them, and
+contains nothing at all that a rule concludes as structure, because structure
+has no wrapper to carry the hypothesis in. And the leak is not visible to
+`why`: structure carries no licence, so nothing can say which premise put it
+there.
 
-And the leaked structure is readable: add a rule outside the hypothesis that
-matches it, and the agent ends up believing something *at the root* that it only
-ever supposed. Chapter 16 runs that second half, with the `why` trail that cannot
-show which premise did it — structure carries no licence.
+This is not a corner — the universal, counting, and reading rules as facts all
+run on that layer. What is unbuilt is any way to scope a structural conclusion
+to the assumption it was derived under.
 
-Ancestry cannot fix it, because the leak is not in the read: `at_or_after` is
-checked when an **entry** is resolved, and a structural fact is never resolved —
-it is enumerated straight out of the argument index. This is not a corner: the
-universal, counting, and reading rules as facts all run on that layer. The
-proposed answer is *situations* — a design, not a build — in which a structural
-conclusion lives in a materialisation and dies with it, so containment falls out
-rather than being enforced on every read.
+**A walker cannot avoid where it has been.** Position is a fact and termination
+is a denial (Chapter 24), but *do not go where you have been* asks about
+**absence**, and for a long time the only negation available over entries was
+`−`, which means *denied* rather than *absent* — so a maze with a cycle spawned
+without limit.
 
-**A walker cannot avoid where it has been.** Position is a fact and termination is
-a denial (Chapter 24), but *do not go where you have been* is a negation over
-**entries**, where `−` means *denied* rather than *absent* — so a maze with a
-cycle spawns without limit. The honest fix is the same stratum-0 bridge the
-universal uses, and it is unbuilt rather than refused.
+⚠ This one is **now buildable**: `no at(?w, ?room)` is exactly the missing
+question (Chapter 6). The item stays on the list because nothing in the tree
+demonstrates it — the probe that measured walkers was deleted — so *buildable*
+is not yet *built*.
 
 **No vocabulary for incompatibility.** You can deny a proposition. You cannot
 say that two propositions **cannot both hold**. That's a real gap, noticed when
 an older engine's `refutes` had nothing to port to.
 
-**Calibration currently costs conclusions.** The table's attention-spending
-mechanism is built (Chapter 28); the learning process that is supposed to
-calibrate it is not working. Gated against the uncalibrated table: on one corpus
-the teacher agreed with the table's own order **21 of 21** times, so there was
-nothing to teach and every lesson made it worse; on the other there was plenty to
-teach and the lessons still lost up to **213** conclusions. Chapter 29 has both
-rows and why they have to be read together.
+**Calibration buys very little, and can still cost.** The table's
+attention-spending mechanism is built (Chapter 28); the learning process meant
+to calibrate it barely moves the result. Gated against the uncalibrated table:
+on one corpus the teacher agreed with the table's own order **17 of 17** times,
+so there was nothing to teach — the lesson gained 4 conclusions and lost none;
+on the other, with plenty to teach, both the taught and untaught runs lost the
+same **3** conclusions (7 counting bookkeeping), so the lesson recovered
+nothing it was supposed to. Chapter 29 has both rows and why they have to be
+read together.
 
 **Two agents can never refer to the same time.** Every moment renders as
 `moment()`, so a moment cannot cross a wire even if a parser accepted it.
@@ -153,7 +152,7 @@ is sayable — it's *nothing arrived on this channel over this stretch*, and
 Chapter 19's spans are what make it bounded and checkable. Over an **open**
 domain of channels it is not, because a corpus relation cannot be structural.
 
-**A `?` conclusion crossing out of a supposition** has no defined form. `+` and
+**A `?` conclusion carried out of a hypothesis** has no defined form. `+` and
 `−` both become terms under the wrapper; `?` is a statement about *reading* and
 cannot.
 
