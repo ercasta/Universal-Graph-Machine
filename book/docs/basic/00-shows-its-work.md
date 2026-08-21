@@ -18,8 +18,8 @@ $ python -m ugm mortal.ugm --why "mortal(paul)"
 mortal.ugm: 3 ticks, ended quiescent
 
 why mortal(paul)?
-  +mortal(paul) @M0, via kb, licensed by applied(<mortality>)
-    because +person(paul) @M0, via kb, licensed by loaded(person(paul))
+  +mortal(paul), via kb, licensed by applied(<mortality>)
+    because +person(paul), via kb, licensed by loaded(person(paul))
 ```
 
 Nobody wrote down that Paul is mortal. The machine worked it out, and then
@@ -31,7 +31,7 @@ keep a log.
 That four-line reply has more in it than it looks.
 
 ```
-+mortal(paul) @M0, via kb, licensed by applied(<mortality>)
++mortal(paul), via kb, licensed by applied(<mortality>)
 ```
 
 - **`+`** — the sign. This is *claimed to hold*. There are three signs and they
@@ -39,7 +39,6 @@ That four-line reply has more in it than it looks.
 - **`mortal(paul)`** — the proposition. On its own it claims nothing; it is
   just the *idea* that Paul is mortal. Chapter 2 is about why that separation
   is forced rather than fussy.
-- **`@M0`** — the **locus**: which state of affairs this is a claim *about*.
 - **`via kb`** — where it came from. Here, the knowledge base you typed. It
   could have been a person, a sensor, or a message.
 - **`licensed by applied(<mortality>)`** — what authorised it. A rule was
@@ -47,8 +46,8 @@ That four-line reply has more in it than it looks.
   about it.
 
 And the `because` line is not a paraphrase. It is the actual claim the rule
-consumed, with its own sign, locus, source and licence — `loaded(...)` this
-time, because nothing derived it; you asserted it.
+consumed, with its own sign, source and licence — `loaded(...)` this time,
+because nothing derived it; you asserted it.
 
 ## Now ask about somebody it has never heard of
 

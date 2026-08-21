@@ -38,15 +38,15 @@ fact +delayed(kt881, long)  fact +cause(kt881, storm)  fact +booked(raj, kt881)
 
 ```
 why amount(ana,600)?
-  +amount(ana, 600) @M0, via kb, licensed by applied(<far>)
-    because +owed(ana, money) @M0, via kb, licensed by applied(<compensate>)
-    because +flying(ana, bl204) @M0, via kb, licensed by loaded(flying(ana, bl204))
-    because +distance(bl204, long) @M0, via kb, licensed by loaded(distance(bl204, long))
-    because +disrupted(bl204) @M0, via kb, licensed by applied(<cancel>)
-    because +booked(ana, bl204) @M0, via kb, licensed by loaded(booked(ana, bl204))
-    because -extraordinary(bl204) @M0, via kb, licensed by applied(<crewing>)
-    because +cause(bl204, crew) @M0, via kb, licensed by loaded(cause(bl204, crew))
-    because +cancelled(bl204) @M0, via kb, licensed by loaded(cancelled(bl204))
+  +amount(ana, 600), via kb, licensed by applied(<far>)
+    because +owed(ana, money), via kb, licensed by applied(<compensate>)
+    because +flying(ana, bl204), via kb, licensed by loaded(flying(ana, bl204))
+    because +distance(bl204, long), via kb, licensed by loaded(distance(bl204, long))
+    because +disrupted(bl204), via kb, licensed by applied(<cancel>)
+    because +booked(ana, bl204), via kb, licensed by loaded(booked(ana, bl204))
+    because -extraordinary(bl204), via kb, licensed by applied(<crewing>)
+    because +cause(bl204, crew), via kb, licensed by loaded(cause(bl204, crew))
+    because +cancelled(bl204), via kb, licensed by loaded(cancelled(bl204))
 ```
 
 Eight lines, and every one of them is a claim that is still sitting in memory
@@ -59,10 +59,10 @@ why owed(raj,money)?
   nothing concluded it -- see what is BLOCKED above
 
 why owed(raj,meals)?
-  +owed(raj, meals) @M0, via kb, licensed by applied(<care>)
-    because +disrupted(kt881) @M0, via kb, licensed by applied(<late>)
-    because +booked(raj, kt881) @M0, via kb, licensed by loaded(booked(raj, kt881))
-    because +delayed(kt881, long) @M0, via kb, licensed by loaded(delayed(kt881, long))
+  +owed(raj, meals), via kb, licensed by applied(<care>)
+    because +disrupted(kt881), via kb, licensed by applied(<late>)
+    because +booked(raj, kt881), via kb, licensed by loaded(booked(raj, kt881))
+    because +delayed(kt881, long), via kb, licensed by loaded(delayed(kt881, long))
 ```
 
 Meals yes, money no — and the machine can tell you why each way.

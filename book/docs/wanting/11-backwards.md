@@ -130,13 +130,13 @@ You can watch the whole thing happen. Here's the trail for the *acting* version
 of this corpus (Chapter 14), read bottom-up:
 
 ```
-    because +goal(boiling(kettle)) @M0, licensed by loaded(goal(boiling(kettle)))
-    because +recall(boiling(kettle)) @M0, licensed by applied(<ask-recall>)
-    because +recalled(<boil>, boiling(kettle)) @M0, licensed by recall(boiling(kettle))
-    because +fit(<boil>, boiling(kettle)) @M0, licensed by applied(<ask-fit>)
-    because +fits(<boil>, boiling(kettle)) @M0, licensed by wanted(<boil>, boiling(kettle))
-    because +need(<boil>, boiling(kettle), heat(anna, kettle)) @M0, ...
-    because +goal(heat(anna, kettle)) @M0, licensed by applied(<expand>)
+    because +goal(boiling(kettle)), licensed by loaded(goal(boiling(kettle)))
+    because +recall(boiling(kettle)), licensed by applied(<ask-recall>)
+    because +recalled(<boil>, boiling(kettle)), licensed by recall(boiling(kettle))
+    because +fit(<boil>, boiling(kettle)), licensed by applied(<ask-fit>)
+    because +fits(<boil>, boiling(kettle)), licensed by wanted(<boil>, boiling(kettle))
+    because +need(<boil>, boiling(kettle), heat(anna, kettle)), ...
+    because +goal(heat(anna, kettle)), licensed by applied(<expand>)
 ```
 
 Every step of the planner's own reasoning is a dated, licensed claim you can ask

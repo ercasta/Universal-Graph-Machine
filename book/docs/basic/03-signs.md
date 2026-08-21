@@ -60,9 +60,9 @@ fact -poisoned(b)
 
 ```
 why heals(b)?
-  +heals(b) @M0, via kb, licensed by applied(<regen>)
-    because +wounded(b) @M0, via kb, licensed by loaded(wounded(b))
-    because -poisoned(b) @M0, via kb, licensed by loaded(poisoned(b))
+  +heals(b), via kb, licensed by applied(<regen>)
+    because +wounded(b), via kb, licensed by loaded(wounded(b))
+    because -poisoned(b), via kb, licensed by loaded(poisoned(b))
 ```
 
 > **Write your negatives.** A state description that lists only what *is* true

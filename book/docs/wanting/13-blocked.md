@@ -39,9 +39,9 @@ there was nowhere in the graph where such a claim was true.
 You can see it in the licence:
 
 ```
-because +blocked(heat(anna, kettle)) @M0, licensed by verdict(heat(anna, kettle))
-because +verdict(heat(anna, kettle)) @M0, licensed by applied(<give-up>)
-because +quiet(moment()) @M0, licensed by quiet(moment())
+because +blocked(heat(anna, kettle)), licensed by verdict(heat(anna, kettle))
+because +verdict(heat(anna, kettle)), licensed by applied(<give-up>)
+because +quiet(moment()), licensed by quiet(moment())
 ```
 
 `quiet` first. Then a rule called `<give-up>` reaches a verdict. Then `blocked`.

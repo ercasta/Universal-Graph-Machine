@@ -26,9 +26,9 @@ fact +cloudy(monday, morning)
 
 ```
 why likely(wet(streets))?
-  +likely(wet(streets)) @M0, licensed by concluded(frame(moment(), moment()))
-    because +wet(streets) @M1, licensed by applied(<wet>)
-    because +rain(monday, afternoon) @M1, licensed by supposing(rain(monday, afternoon))
+  +likely(wet(streets)), licensed by concluded(frame(moment(), moment()))
+    because +wet(streets), licensed by applied(<wet>)
+    because +rain(monday, afternoon), licensed by supposing(rain(monday, afternoon))
 ```
 
 Read the licences bottom-up. `supposing(rain(...))` — inside the frame, rain is
@@ -143,8 +143,8 @@ And it is worse than a wrong answer, because the wrong answer cannot be traced:
 
 ```
 why alarm(a)?
-  +alarm(a) @M0, licensed by applied(<alarm>)
-    because +awake(guard) @M0, licensed by loaded(awake(guard))
+  +alarm(a), licensed by applied(<alarm>)
+    because +awake(guard), licensed by loaded(awake(guard))
 ```
 
 `said(secret(a))` is the premise that made the difference and it is not in the

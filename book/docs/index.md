@@ -154,12 +154,12 @@ Ask it why:
 
 ```
 why owed(ana,money)?
-  +owed(ana, money) @M0, via kb, licensed by applied(<compensate>)
-    because +disrupted(bl204) @M0, via kb, licensed by applied(<cancel>)
-    because +booked(ana, bl204) @M0, via kb, licensed by loaded(booked(ana, bl204))
-    because -extraordinary(bl204) @M0, via kb, licensed by applied(<crewing>)
-    because +cause(bl204, crew) @M0, via kb, licensed by loaded(cause(bl204, crew))
-    because +cancelled(bl204) @M0, via kb, licensed by loaded(cancelled(bl204))
+  +owed(ana, money), via kb, licensed by applied(<compensate>)
+    because +disrupted(bl204), via kb, licensed by applied(<cancel>)
+    because +booked(ana, bl204), via kb, licensed by loaded(booked(ana, bl204))
+    because -extraordinary(bl204), via kb, licensed by applied(<crewing>)
+    because +cause(bl204, crew), via kb, licensed by loaded(cause(bl204, crew))
+    because +cancelled(bl204), via kb, licensed by loaded(cancelled(bl204))
 ```
 
 Three things are worth noticing before you read another word.

@@ -29,12 +29,12 @@ rule <lasting> = implies( { +conn(?r, causes) },        { +persists(?r) } )
 
 ```
 why has_a_guard(<regen>)?
-  +has_a_guard(<regen>) @M1, via kb, licensed by applied(<guarded>)
-    because +ant(<regen>, poisoned(?x), -, 1) @M0, via kb, licensed by reified(<regen>)
+  +has_a_guard(<regen>), via kb, licensed by applied(<guarded>)
+    because +ant(<regen>, poisoned(?x), -, 1), via kb, licensed by reified(<regen>)
 
 why persists(<bleed>)?
-  +persists(<bleed>) @M1, via kb, licensed by applied(<lasting>)
-    because +conn(<bleed>, causes) @M0, via kb, licensed by reified(<bleed>)
+  +persists(<bleed>), via kb, licensed by applied(<lasting>)
+    because +conn(<bleed>, causes), via kb, licensed by reified(<bleed>)
 ```
 
 *Which of my rules have an exception in them? Which of my conclusions will

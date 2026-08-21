@@ -168,11 +168,11 @@ say world: -boiling(k2)
 
 ```
 why deviates(boiling(k2))?
-  +deviates(boiling(k2)) @M2, licensed by applied(<deviation-+-contradicted>)
-    because +expects(boiling(k2), +) @M1, licensed by applied(<boils>)
-    because -boiling(k2) @M2, licensed by applied(<trust>)
-    because +says(world, boiling(k2), -) @M0, licensed by applied(<intake>)
-    because +arrived(world, boiling(k2), -) @M0, via world
+  +deviates(boiling(k2)), licensed by applied(<deviation-+-contradicted>)
+    because +expects(boiling(k2), +), licensed by applied(<boils>)
+    because -boiling(k2), licensed by applied(<trust>)
+    because +says(world, boiling(k2), -), licensed by applied(<intake>)
+    because +arrived(world, boiling(k2), -), via world
 ```
 
 Everything a learner needs is on that trail, and none of it was instrumented to

@@ -20,7 +20,7 @@ Run it:
 
 ```
 why heals(a)?
-  -heals(a) @M0, licensed by applied(<poison>)
+  -heals(a), licensed by applied(<poison>)
     because +wounded(a), +poisoned(a)
 
 why heals(b)?

@@ -25,13 +25,13 @@ rule <gauge-no>    = implies( { +says(gauge, ?p, minus) },{ -?p } )
 
 ```
 why likely(raining(here))?
-  +likely(raining(here)) @M0, licensed by applied(<trust_user>)
-    because +says(user, raining(here), +) @M0, licensed by applied(<intake>)
-    because +arrived(user, raining(here), +) @M0, via user, licensed by utterance(...)
+  +likely(raining(here)), licensed by applied(<trust_user>)
+    because +says(user, raining(here), +), licensed by applied(<intake>)
+    because +arrived(user, raining(here), +), via user, licensed by utterance(...)
 
 why boiling(kettle)?
-  -boiling(kettle) @M0, licensed by applied(<gauge-no>)
-    because +says(gauge, boiling(kettle), -) @M0, licensed by applied(<intake>)
+  -boiling(kettle), licensed by applied(<gauge-no>)
+    because +says(gauge, boiling(kettle), -), licensed by applied(<intake>)
 ```
 
 The user is trusted only as far as *likely*. The gauge is taken at its word,

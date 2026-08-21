@@ -58,14 +58,14 @@ Run it and ask:
 
 ```
 why owns(hero,dagger)?
-  +owns(hero, dagger) @M1, via kb, licensed by applied(<buy>)
-    because +offer(hero, smith, dagger) @M0, via kb, licensed by applied(<can-buy>)
-    because +purse(hero, 20) @M0, via kb, licensed by loaded(purse(hero, 20))
-    because +wants(hero, dagger) @M0, via kb, licensed by loaded(wants(hero, dagger))
-    because +sells(smith, weapon) @M0, via kb, licensed by loaded(sells(smith, weapon))
-    because +weapon(dagger) @M0, via kb, licensed by applied(<blades>)
-    because +stocks(smith, dagger) @M0, via kb, licensed by loaded(stocks(smith, dagger))
-    because +blade(dagger) @M0, via kb, licensed by loaded(blade(dagger))
+  +owns(hero, dagger), via kb, licensed by applied(<buy>)
+    because +offer(hero, smith, dagger), via kb, licensed by applied(<can-buy>)
+    because +purse(hero, 20), via kb, licensed by loaded(purse(hero, 20))
+    because +wants(hero, dagger), via kb, licensed by loaded(wants(hero, dagger))
+    because +sells(smith, weapon), via kb, licensed by loaded(sells(smith, weapon))
+    because +weapon(dagger), via kb, licensed by applied(<blades>)
+    because +stocks(smith, dagger), via kb, licensed by loaded(stocks(smith, dagger))
+    because +blade(dagger), via kb, licensed by loaded(blade(dagger))
 ```
 
 The smith sells daggers, though nothing ever said so. One line — *a blade is a

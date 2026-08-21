@@ -43,13 +43,13 @@ The trail, top to bottom:
 
 ```
 why boiling(kettle)?
-  +boiling(kettle) @M1, licensed by applied(<boil>)
-    because +heat(anna, kettle) @M0, licensed by applied(<assert-act>)
-    because +water(kettle) @M0, licensed by loaded(water(kettle))
-    because +did(heat(anna, kettle)) @M0, licensed by applied(<did>)
-    because +emitted(heat(anna, kettle)) @M0, licensed by utterance(kb, heat(anna, kettle))
-    because +doing(heat(anna, kettle)) @M0, licensed by applied(<use-hob>)
-    because +blocked(heat(anna, kettle)) @M0, licensed by verdict(heat(anna, kettle))
+  +boiling(kettle), licensed by applied(<boil>)
+    because +heat(anna, kettle), licensed by applied(<assert-act>)
+    because +water(kettle), licensed by loaded(water(kettle))
+    because +did(heat(anna, kettle)), licensed by applied(<did>)
+    because +emitted(heat(anna, kettle)), licensed by utterance(kb, heat(anna, kettle))
+    because +doing(heat(anna, kettle)), licensed by applied(<use-hob>)
+    because +blocked(heat(anna, kettle)), licensed by verdict(heat(anna, kettle))
 ```
 
 Four rules you never wrote appear in there — `<assert-act>`, `<did>`,

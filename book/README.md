@@ -32,7 +32,7 @@ book/
     rules/              # Part 2 — rules
     wanting/            # Part 3 — goals, plans, acting
     unsure/             # Part 4 — modality, supposition, precedence, norms
-    world/              # Part 5 — spans, shapes, channels, tools, time
+    world/              # Part 5 — stretches, shapes, channels, tools, time
     watching/           # Part 6 — the agent's own state, stopping, recall, learning
     floor/              # Part 7 — the floor, the bootstrap, zero phases
     horizon/            # Part 8 — the web of meaning, and what is not built
