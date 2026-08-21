@@ -113,6 +113,7 @@ denied, never absent, and open-world reasoning stays honest.
 | **the agent's own state** | goals, plans, expectations and surprise as ordinary entries; preemption is a precedence claim over ordinary rules |
 | **acquisition** | a rule is a node, so a rule can be the conclusion of a rule |
 | **attention** | a score per rule; take the first that matches, then spend — the rules stay fixed and the **postconditions** are what learning calibrates |
+| **suspending it** | attention is a **stack** of queues, not one queue: `push` opens a frame on the nodes a sub-line is about, `pop` returns and carries one node back. A frame carries the expert whose rules are in play and its table, so a consultation is a resume rather than a re-run |
 | **several agents** | two minds are two scopes, not two frames; what crosses is an utterance, and belief is the hearer's trust rule |
 | **several experts** | the other axis: one graph and one history, separate rule sets and tables. `knows`/`extends` are ordinary facts, so inheritance is one rule and *which rules has this expert* is a query |
 
@@ -133,7 +134,7 @@ ugm/
   gates/       6   agreement, quiescence, state, bundle, vocabulary, necessity
                    RELEASE CRITERIA -- each holds a fast path to the slow
                    definition of the same thing. Red here is a regression.
-  probes/     17   worlds and measured questions. Red here is a FINDING, and a
+  probes/     16   worlds and measured questions. Red here is a FINDING, and a
                    probe whose question is settled is a candidate for deletion.
   rules/           the shipped `.ugm` corpora  (see `ugm/corpora.py`)
   selftest.py      the runner
@@ -151,7 +152,7 @@ failure, plus a set of gates that each hold a fast path to a slow definition on 
 every fixture**:
 
 ```bash
-python -m ugm.selftest           # 646 checks, 0 failing
+python -m ugm.selftest           # 513 checks, 0 failing
 ./tools_sweep.sh                 # every module with a main(), found on disk
 
 python -m ugm.gates.agreement    # the kept resolution against the raw walk
@@ -172,6 +173,7 @@ python -m ugm.learning.learning     # the same world twice, with "no better" an 
 python -m ugm.learning.practice     # rehearsing a goal inside a supposition against enacting it
 python -m ugm.probes.table          # several agents talking, in-process against one process each
 python -m ugm.probes.experts        # several experts over ONE graph, consulting each other
+python -m ugm.probes.frames         # the attention stack: what a flat queue evicts, and what a frame keeps
 ```
 
 > **An agreement gate that agrees is worth nothing until it could have disagreed.** Every gate deletes

@@ -784,10 +784,12 @@ construction. Left named rather than fixed, as `gates.state` was before it.
 
 ---
 
-# Queued: the ATTENTION STACK — `push` and `pop` as postconditions
+# ✅ BUILT: the ATTENTION STACK — `push` and `pop` as postconditions
 
-The author's, 2026-08-21. Not started. Argued and measured below so whoever
-takes it starts from numbers.
+The author's, 2026-08-21. **Built 2026-08-21** -- see *BUILT 2026-08-21* at the
+end of this section for what was measured, what it cost, what was settled and
+the one measurement still unclaimed. Everything between here and there is the
+argument as it stood before, kept because the numbers were taken against it.
 
 ⭐ **The author's call: this is the FIRST thing to implement**, ahead of
 `believed(p)` and the queued `at ?m` conversion -- and probably in a fresh
@@ -1049,6 +1051,114 @@ Two things, and neither has a number yet.
 
 ⚠ A frame that fixes nothing measurable is a mechanism this design would refuse
 on its own terms.
+
+## ⭐⭐⭐ BUILT 2026-08-21 — and the three measurements were taken FIRST
+
+    python -m ugm.probes.frames    21 checks, 0 failing
+    python -m ugm.selftest         513 checks, 0 failing   (was 503)
+
+### 1. Is the eviction loss real in a corpus that already exists? YES, and it is enormous
+
+`_push_attention` now counts a **readmit**: a node that fell off the bottom of
+the queue and was later wanted back. That is the outer focus a sub-line evicted
+while it was still live -- the agent rediscovering by ordinary matching what it
+already knew it was doing. Over the probes as they ship, unchanged:
+
+    ugm.probes.dungeon    15 machines,  13,986 readmits,  15 of 15 affected
+    ugm.probes.hanoi      36 machines,   8,487 readmits,  25 of 36 affected
+    ugm.probes.experts     4 machines,      26 readmits,   4 of 4 affected
+    ugm.learning.maze      3 machines,      12 readmits,   3 of 3 affected
+
+Nobody had this number before. The queue's forgetting was argued from two
+back-outs and a constant; it is four figures per dungeon run.
+
+⚠ **And the loss is a DEMOTION, not an erasure** -- which nearly made the probe
+pass on a technicality. `attend(?g)` deposits a standing `attention(g)` claim
+and `_attended()` puts a standing claim at the BOTTOM rather than dropping it,
+so *was it forgotten* is the wrong question. What the queue loses is the node's
+PLACE, and position is the strength: `_pull` weighs depth 0 at 6 and the bottom
+of a full queue at 1. Measured on the probe's own corpus: front of the queue ->
+position 7 of 9.
+
+### 2. Do experts discriminate after IDF? Partly, and the limit has a shape
+
+Measured on `probes/experts.py`'s own corpus, which was written for a different
+probe:
+
+    survey(plot1)  -> surveyor    surveyor 110, geometry 0, arithmetic 0
+    area(plot1)    -> geometry    geometry 81, surveyor 81, arithmetic 0
+    twice(3)       -> arithmetic  arithmetic 81, geometry 81, surveyor 0
+
+⭐ IDF does what it was chosen for: `question`, `reply` and the rest are in
+every pool, score **zero**, and stop drowning the signal. `survey` separates
+cleanly.
+
+⚠⚠ **What is LEFT after discounting is a tie between the expert that ANSWERS and
+the expert that ASKS**, because both key on `area`. The tie falls to authored
+order. That is signal rather than separation, and it is the honest answer to the
+question the entry asked. The obvious next lever -- score the ANTECEDENT only,
+on the argument that what an expert can be ASKED is its input side -- was tried
+and measured: same picks, all scores halved. Not taken, because it buys nothing
+and loses the consequent's evidence.
+
+### 3. How far does a re-run diverge from a resume? NOT MEASURED
+
+`probes/experts.py` still re-runs the caller with a fresh table on every
+consultation return; frames make a resume possible but nothing has been ported
+to them. The number remains unclaimed. ⚠ Do not read the frames probe's §4 as
+this measurement -- it shows the table SURVIVES a frame, which is the
+precondition, not the divergence.
+
+### What the stack costs, stated because the probe would otherwise report only
+the column it won on
+
+    343 rules matched flat   ->  358 framed     (+4%)
+     55 widenings flat       ->   58 framed
+     11 ticks                ->   11 ticks
+
+**It is not a speed-up.** `_pull` lifts from a shorter queue inside a frame, so
+the shortlist widens slightly further. The stack buys the line above staying
+put, and pays a few percent of matching for it.
+
+### Settled while building, and each was OPEN above
+
+    whose budget    ONE run, one `limit`, across every frame it opens. A chain
+                    of consultations does NOT multiply the budget.
+    the cycle key   `(expert, frozenset(nodes))` over the whole stack. `A -> B
+                    -> A` about something NEW is ordinary recursion and is
+                    allowed; the same expert on the same nodes is refused, on
+                    the record, as `declined(pushed, ?n, already_open)`.
+    a depth bound   `FRAME_DEPTH = 8`, a knob (`frame_depth(?n)`) beside
+                    `attention_span`. Asserted directly in two places, never
+                    read off the stack's own output.
+    stop vs pop     `stop` still ends the run; a pop with nothing to return to
+                    is `declined(popped, ?n, at_root)`. *Does `stop` become pop
+                    the root* stays open and stays not required.
+    what a frame    queue, expert, table, the nodes it was opened on, and the
+    holds           `attention` claims it made. `_widened` was a candidate and
+                    was not taken -- it is per-run, not per-frame.
+    the pool floor  a nested `run()` may not pop the frame its caller was in
+                    (`Machine._floor`). Without it a consulted expert could
+                    return past its own caller, which is this stack's version
+                    of the bug `probes/experts.py` records: a structure that
+                    looks like a stack and is not one.
+    no expert       a push whose nodes score zero everywhere keeps the rules of
+                    the frame BELOW and says so. Picking the first expert
+                    declared would be a coin flip wearing a mechanism's clothes.
+
+### ⚠⚠⚠ FOUND while building, and it is not part of the stack
+
+`_attention_asked` ordered standing `attention` claims **by iterating a Python
+set** -- so which of several equally-claimed nodes lifted hardest was decided by
+node id, which is to say by how many atoms the machinery happened to mint before
+the corpus was loaded. Adding six reserved names reordered a shortlist in a
+check that had been green for weeks, and nothing raised: a set is a perfectly
+good answer to *which*, and no answer at all to *which first*.
+
+Read in graph order now. ⭐ The §19 check it broke is SHARPER for it: attention
+that names everything now produces **exactly the bare order**, more cheaply --
+stated as an identity rather than as a difference, where the old version
+asserted "the order still moves" on the strength of the accident.
 
 ---
 

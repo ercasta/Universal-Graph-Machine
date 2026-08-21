@@ -78,6 +78,55 @@ class Answerer(NamedTuple):
 #: things, which is what *concentrating* would mean here.
 ATTENTION_SPAN = 7
 
+#: How deep the attention stack may go. A backstop against a corpus that pushes
+#: its way down for ever on ever-changing nodes, which the cycle test cannot see
+#: -- the nodes are different every time. ⚠ Copied from `probes/experts.py`'s
+#: `DEPTH`, and so is its caution: an earlier draft of that file returned to the
+#: outer loop instead of servicing nested consultations in place, so the stack
+#: was never deeper than one, the cycle test could never fire, and a check
+#: asserting depth passed while the stack was flat.
+FRAME_DEPTH = 8
+
+
+class Frame:
+    """One turn of attention: a queue, the EXPERT whose rules are in play, and
+    that expert's table.
+
+    ⭐⭐⭐ **The attention stack and the consultation stack are one construct,
+    not two.** `push` is how one expert calls another and `pop` is how it gets
+    the result back. A frame is not only a queue of nodes: it is everything a
+    sub-line of work has that the line above it must not lose, and the table is
+    in that list because `tick`'s own docstring says what losing it costs --
+    *a caller stepping by hand would lose every buff between one tick and the
+    next and be measuring a different agent each time*.
+
+    ⚠⚠⚠ **The graph is untouched by push and pop.** This is not a transaction,
+    there is no rollback, and nothing derived inside a frame stops existing when
+    it is popped. Attention management is the whole of this. The one thing a pop
+    does take back is the frame's own `attention` claims, and it DENIES them
+    rather than dropping them -- `_unattend` scoped to a frame, for the reason
+    `_unattend` gives.
+
+    ⚠ The expert is held by NAME -- a node -- never as a frozen rule list, and
+    `_expert_pool` is read on demand: `knows(?e, ?r)` can be CONCLUDED mid-run,
+    `<inherit>` derives more of them, and a pool frozen at push time could not
+    see one. The same finding as `pool_of` is *read, never kept*.
+    """
+
+    __slots__ = ("queue", "expert", "table", "on", "claimed")
+
+    def __init__(self, expert: Optional[NodeId] = None, on=()) -> None:
+        self.queue: List[Tuple[NodeId, int]] = []
+        # None means *the rules of the frame below*: a push that discriminates
+        # nothing suspends attention without changing whose rules are in play,
+        # which is the pure attention-stack case and is worth having alone.
+        self.expert = expert
+        self.table = None
+        self.on: Tuple[NodeId, ...] = tuple(on)
+        # What this frame deposited `attention(...)` for, so a pop can deny
+        # exactly what it claimed and nothing the frame below claimed.
+        self.claimed: List[NodeId] = []
+
 
 class Machine:
     def __init__(self, clock: bool = False) -> None:
@@ -244,6 +293,30 @@ class Machine:
         # it, the way `budget(3)` already is one. Shrinking it is forgetting
         # sooner; growing it is holding more in mind at a weaker gradient.
         self.SPAN = self.g.atom("attention_span")
+        # How deep the attention stack may go, as a knob beside the span. The
+        # two bound the same thing from opposite ends: the span says how much
+        # one frame holds, the depth says how many frames there may be.
+        self.DEPTH = self.g.atom("frame_depth")
+        # ⭐⭐⭐ Which expert holds which rule, and which expert inherits which.
+        # These are the SURFACE's names -- `expert geometry extends arithmetic`
+        # writes them -- and they are reserved here because the engine now reads
+        # them too: `push` picks an expert, and a name minted beside the loader's
+        # table would be a second `knows` that never meets the corpus's. The
+        # twin trap, and `reserved` is the standing answer to it.
+        self.KNOWS = self.g.atom("knows")
+        self.EXTENDS = self.g.atom("extends")
+        # A frame was opened, and on what. `pushed(<expert>, <node>)` -- or
+        # `pushed(<node>)` where nothing discriminated an expert.
+        self.PUSHED = self.g.atom("pushed")
+        # ...and closed, carrying one node back: `popped(<expert>, <node>)`.
+        self.POPPED = self.g.atom("popped")
+        # ⭐⭐⭐ **The pick AND the scores it beat**, in hundredths, as numerals a
+        # rule can compare. An unarguable step cannot buy back vetoability; what
+        # it must not lose is LEGIBILITY, and every other engine decision nobody
+        # can override is deposited here -- `refused`, `unafforded`, `declined`.
+        # On a life-or-death step the pick will be wrong eventually, and `why()`
+        # should answer rather than shrug.
+        self.SUITS = self.g.atom("suits")
         # §18's call stack, as facts -- the plumbing under a recursive plan,
         # and deliberately NOT a strategy for making one. ⚠ advances/closes are
         # DATA, not rules.
@@ -393,6 +466,10 @@ class Machine:
             "dormant": self.DORMANT, "due": self.DUE,
             "attention": self.ATTENTION,
             "attention_span": self.SPAN,
+            "frame_depth": self.DEPTH,
+            "knows": self.KNOWS, "extends": self.EXTENDS,
+            "pushed": self.PUSHED, "popped": self.POPPED,
+            "suits": self.SUITS,
             "afforded": self.AFFORDED, "attempt": self.ATTEMPT,
             "declined": self.DECLINED, "unafforded": self.UNAFFORDED,
             "unattended": self.UNATTENDED,
@@ -539,7 +616,8 @@ class Machine:
                              self.ROOT, self.ROOTED,
                              self.COUNT, self.COUNTED, self.NEW,
                              self.DUE, self.VERDICT, self.PURSUED,
-                             self.ATTENTION, self.SPAN,
+                             self.ATTENTION, self.SPAN, self.DEPTH,
+                             self.PUSHED, self.POPPED, self.SUITS,
                              self.AFFORDED, self.ATTEMPT, self.DECLINED,
                              self.UNAFFORDED, self.UNATTENDED, self.CALL, self.STAGE, self.SPAWN,
                              self.AWAITS, self.RETURNED,
@@ -626,7 +704,26 @@ class Machine:
         # ten quiet ticks should not forget what you were doing, and ten busy
         # ones...
         # → docs/design/machine.md#attention-is-a-bounded-queue-newest-first
-        self._attention: List[Tuple[NodeId, int]] = []
+        # ⭐⭐⭐ ...and a STACK of those queues, because the queue forgets two
+        # ways and a filter cannot help with either: at span 7 a long enough
+        # sub-line evicts anything, however well chosen. A stack does not
+        # filter, it SUSPENDS -- the outer frame is off the queue entirely, so
+        # it cannot be evicted however long the inner line runs.
+        self._frames: List[Frame] = [Frame()]
+        # ⚠ Set once, at startup, and kept: `(document frequency, term counts)`
+        # over experts. Adding an expert re-scores every other one and changes
+        # which expert is picked for unrelated frames -- a FEATURE, not a bug,
+        # written down so nobody debugs it as nondeterminism. See `_idf`.
+        self._idf_cache = None
+        # What the queue has forgotten, and how often it wanted it back. The
+        # measurement `docs/todo.md` asks for before the stack is believed.
+        self._evicted: set = set()
+        self._readmitted = 0
+        # ⚠ The lowest frame the RUNNING loop may pop back to. A nested `run()`
+        # -- a consultation, a supposition, a table of agents -- serves the frame
+        # it started on and must not pop the caller's out from under it, so the
+        # floor moves with the run rather than being fixed at the root.
+        self._floor = 0
         # The table a hand-stepping caller keeps between `tick` calls.
         self._step_table = None
         self._booting = False
@@ -1239,6 +1336,282 @@ class Machine:
             source=self.KB, mention=True,
         )
 
+    # -- the attention stack ----------------------------------------------
+
+    @property
+    def _attention(self) -> List[Tuple[NodeId, int]]:
+        """The TOP frame's queue, which is what every reader of it wants.
+
+        ⭐ A property rather than a rename, because *what the agent is thinking
+        about* has one answer at any moment and it is the innermost line of
+        work's. Everything the flat queue did it still does; what changed is
+        that there can be more than one, and only one of them is live.
+        """
+        return self._frames[-1].queue
+
+    @_attention.setter
+    def _attention(self, queue) -> None:
+        self._frames[-1].queue = list(queue)
+
+    def _frame(self) -> "Frame":
+        """The frame in play. There is always at least one -- the root, which is
+        never popped, because a run that returned from its outermost line would
+        have nothing to return to and `stop` is what ends a run."""
+        return self._frames[-1]
+
+    def _push_frame(self, nodes, licence: Optional[NodeId] = None):
+        """Suspend what the agent was doing and open a frame on `nodes`.
+
+        ⭐⭐⭐ **This is a call.** The nodes are what the new line of work is
+        about; the expert is computed FROM them, so `push` names nodes and never
+        an expert -- a rule that had to name one would be choosing the callee,
+        which is the thing selection exists to do.
+
+        ⚠ Returns None if the push was refused, and a refusal is DEPOSITED: a
+        consultation that returned nothing and one that was never opened are two
+        different things, and the second is the agent's own business to react to.
+        """
+        nodes = [n for n in nodes
+                 if n is not None and not self.g.has_var(n)]
+        if not nodes:
+            # ⚠ Ground only, and silently so -- the same judgement `_spend_one`
+            # makes about `attend(?x)` naming a variable the move did not bind.
+            # A frame about no one is not a frame.
+            return None
+        expert, scores = self._pick_expert(nodes)
+        for cand, score in scores:
+            # The pick and the scores it beat, before the frame is opened, so
+            # they stand even when the push is then refused.
+            self._note(self.g.rel(self.SUITS, cand, self._numeral(score)),
+                       licence)
+        key = (expert, frozenset(nodes))
+        if any((f.expert, frozenset(f.on)) == key for f in self._frames):
+            # ⚠ The cycle test is on the PAIR -- the expert AND what it is being
+            # asked about -- never on the expert alone. `A -> B -> A` about
+            # something NEW is ordinary recursion and must stay allowed; the same
+            # expert on the same nodes is the loop. `probes/experts.py` keys on
+            # `(expert, question)` for exactly this reason, and with frames the
+            # stack is the natural place to keep it.
+            self._declined_frame(self.PUSHED, expert, nodes[0],
+                                 "already_open", licence)
+            return None
+        if len(self._frames) >= (self._knob(self.DEPTH, FRAME_DEPTH)
+                                 or FRAME_DEPTH):
+            self._declined_frame(self.PUSHED, expert, nodes[0],
+                                 "too_deep", licence)
+            return None
+        frame = Frame(expert, nodes)
+        self._frames.append(frame)
+        # Reversed, so the FIRST node named ends up at the front of the new
+        # queue: `push(?a, ?b)` reads left to right and position is the
+        # gradient, so the leftmost has to lift hardest.
+        for node in reversed(nodes):
+            self._attend(node, licence)
+        for node in nodes:
+            self._note(self.g.rel(self.PUSHED, expert, node)
+                       if expert is not None
+                       else self.g.rel(self.PUSHED, node), licence)
+        return frame
+
+    def _pop_frame(self, node: Optional[NodeId] = None,
+                   licence: Optional[NodeId] = None) -> bool:
+        """Return to the frame below, attending `node` on it.
+
+        ⭐ `pop(?x)` carries one node back: the attention-level analogue of a
+        return value. Without it the agent returns from a sub-line with no idea
+        it concluded anything and has to rediscover it by ordinary matching --
+        which is what `probes/experts.py` does today, re-running the caller from
+        the top because there is nothing to resume into.
+
+        ⚠⚠ The frame's own `attention` claims are DENIED, and nothing else is
+        touched. Everything the frame concluded stands: popping a set of graph
+        changes is a different feature, it does not exist, and it is not wanted.
+        """
+        if len(self._frames) - 1 <= self._floor:
+            # ⚠ The root is not popped. Whether `stop` should BE *pop the root*
+            # is elegant and not required; until it is, a pop with nothing to
+            # return to is declined on the record rather than raised, because a
+            # corpus that pops too often is arguing with itself and that is its
+            # business.
+            self._declined_frame(self.POPPED, None, node, "at_root", licence)
+            return False
+        frame = self._frames.pop()
+        for n in frame.claimed:
+            # Denied, not forgotten -- `_unattend`'s finding, scoped to a frame.
+            # Left standing they would go on lifting rules from the bottom of
+            # `_attended()` for the rest of the run, and the suspension would
+            # leak the very thing it exists to put away.
+            self.gate.write(
+                self.g.rel(self.ATTENTION, n), MINUS,
+                licence=licence or self.g.rel(self.QUIET, self.chain.now.node),
+                source=self.KB, mention=True,
+            )
+        if node is not None and not self.g.has_var(node):
+            self._attend(node, licence)
+        self._note(self.g.rel(self.POPPED, frame.expert, node)
+                   if frame.expert is not None and node is not None
+                   else self.g.rel(self.POPPED,
+                                   node if node is not None
+                                   else self.chain.now.node),
+                   licence)
+        return True
+
+    def _declined_frame(self, what: NodeId, expert, node, why: str,
+                        licence: Optional[NodeId] = None) -> None:
+        """A push or a pop that did not happen, on the record.
+
+        On the record, never silent: `declined` is already what this machinery
+        writes when an attempt is well formed and refused anyway, and a stack
+        that quietly did nothing would be indistinguishable from one that had
+        nothing to do."""
+        self._note(self.g.rel(
+            self.DECLINED, what,
+            node if node is not None else self.chain.now.node,
+            self.g.atom(why)), licence)
+
+    # -- picking the expert -------------------------------------------------
+
+    def _expert_pool(self, expert: Optional[NodeId]) -> List["Rule"]:
+        """The rules this expert may consider, read off the graph.
+
+        ⚠ Read, never kept: a registry built at load could not see a `knows` a
+        rule concluded, and `<inherit>` concludes them.
+        """
+        if expert is None:
+            return list(self.rules.rules)
+        by_node = {r.node: r for r in self.rules.rules}
+        out: List["Rule"] = []
+        for inst in self.g.instances_of(self.KNOWS):
+            members = self.g.members(inst)
+            if len(members) != 2 or members[0] is not expert:
+                continue
+            if not self._claims(inst):
+                continue
+            r = by_node.get(members[1])
+            if r is not None and r not in out:
+                out.append(r)
+        # Declaration order, so the table's tiebreak means what it means
+        # everywhere else: the order the author wrote them in.
+        order = {r.node: i for i, r in enumerate(self.rules.rules)}
+        out.sort(key=lambda r: order.get(r.node, 0))
+        return out
+
+    def _experts(self) -> List[NodeId]:
+        """Everyone who knows anything, in the order the graph met them."""
+        out: List[NodeId] = []
+        for inst in self.g.instances_of(self.KNOWS):
+            members = self.g.members(inst)
+            if len(members) != 2 or self.g.has_var(members[0]):
+                continue
+            if not self._claims(inst):
+                continue
+            if members[0] not in out:
+                out.append(members[0])
+        return out
+
+    def _terms_of(self, expert: NodeId) -> Dict[NodeId, int]:
+        """What an expert's rules are ABOUT: ground terms, counted.
+
+        ⭐ Decomposed with `_nodes_of`, which is attention's own scoring: a
+        proposition is every node it is made of, and each part counts. The
+        discussion was had once for rules; this is it for experts.
+        """
+        counts: Dict[NodeId, int] = {}
+        for r in self._expert_pool(expert):
+            for mm in list(r.antecedent) + list(r.consequent):
+                for node in self._nodes_of(mm.pattern, []):
+                    if self.g.is_var(node) or self.g.has_var(node):
+                        continue
+                    counts[node] = counts.get(node, 0) + 1
+        return counts
+
+    def _idf(self):
+        """`(terms per expert, inverse document frequency)` -- computed ONCE.
+
+        ⭐⭐⭐ **IDF is the principled repair of a collapse this repository
+        measured**, not a generic scoring choice. `_salient` compared raw
+        relation sets and `_relations_required` collapsed to `{goal, in}` for
+        every route, so it could not tell two routes apart, `leaves()` returned
+        nothing, and the agent rehearsed, was harmed, blamed correctly and
+        learned nothing with no error anywhere. A term in every expert's pool
+        gets weight ZERO here and stops drowning the signal; the discriminating
+        terms carry the score.
+
+        ⭐ It also supersedes a hand-rolled guard. `_pull` takes the STRONGER,
+        not the sum, because *adding them would make the weight a popularity
+        count* -- a crude defence against ubiquity. IDF is the well-founded
+        version of the same defence, which is what makes a weighted SUM safe
+        here where a raw one was not.
+
+        ⚠ Computed once, at the first pick, over the whole KB as loaded. Pools
+        are read and never kept, and `knows(?e, ?r)` can be concluded mid-run,
+        so an expert's actual pool can GROW after its scores were computed. The
+        two facts are in tension by design rather than by oversight.
+        """
+        if self._idf_cache is not None:
+            return self._idf_cache
+        import math
+
+        docs = {e: self._terms_of(e) for e in self._experts()}
+        total = len(docs)
+        df: Dict[NodeId, int] = {}
+        for terms in docs.values():
+            for t in terms:
+                df[t] = df.get(t, 0) + 1
+        idf = {t: math.log(total / d) for t, d in df.items()} if total else {}
+        self._idf_cache = (docs, idf)
+        return self._idf_cache
+
+    def _pick_expert(self, nodes):
+        """Which expert a frame about `nodes` belongs to, by TF-IDF.
+
+        ⚠⚠⚠ **Unarguable, and knowingly so.** Like attention it is life or
+        death -- an expert that is never picked cannot object that it was not --
+        and §19 already answered this shape of problem. The answer was never a
+        veto over the choice: *recall may be incomplete about what to do; it may
+        not be incomplete about what you must not do.* `_forbid` runs outside
+        recall entirely, so the mitigation for an unarguable selection is not
+        making it arguable, it is knowing what must not ride on it.
+
+        Returns `(expert or None, [(expert, hundredths) ...])`. ⚠ **None when
+        nothing discriminates.** A score of zero everywhere means the terms are
+        in every pool or in none, and picking the first expert declared would be
+        a coin flip wearing a mechanism's clothes -- so the frame keeps the
+        rules of the frame below and says so.
+        """
+        docs, idf = self._idf()
+        if not docs:
+            return None, []
+        # ⭐ The query, decomposed exactly as an expert's pool is, with a BONUS
+        # for compounds: matching a whole proposition is a stronger signal than
+        # matching the relation it is made of, because the parts are what
+        # everything shares.
+        query: Dict[NodeId, int] = {}
+        for node in nodes:
+            for term in self._nodes_of(node, []):
+                if self.g.is_var(term) or self.g.has_var(term):
+                    continue
+                bonus = 2 if self.g.members(term) else 1
+                query[term] = query.get(term, 0) + bonus
+        scores = []
+        for expert, terms in docs.items():
+            score = 0.0
+            for term, weight in query.items():
+                if term in terms:
+                    score += weight * terms[term] * idf.get(term, 0.0)
+            # Hundredths, so the deposit is a numeral a rule can compare and
+            # `why()` can read back.
+            scores.append((expert, int(round(score * 100))))
+        best = max(s for _e, s in scores)
+        if best <= 0:
+            return None, scores
+        # Ties by the order the graph met the expert, which is authored order --
+        # the same tiebreak the table uses, one construct along.
+        for expert, score in scores:
+            if score == best:
+                return expert, scores
+        return None, scores
+
     def _attend(self, node: NodeId, licence: Optional[NodeId] = None,
                 weight: int = 1) -> bool:
         """*Think about this one.* -- what a postcondition spends when it
@@ -1254,6 +1627,9 @@ class Machine:
         if self._claims(prop):
             return False
         self._note(prop, licence)
+        # ⚠ Recorded against the frame that made it, so a pop denies exactly
+        # what its own line of work claimed and nothing the line below did.
+        self._frames[-1].claimed.append(node)
         return True
 
     def _attend_written(self, wrote) -> None:
@@ -1300,11 +1676,23 @@ class Machine:
         recently, and a queue that held duplicates would let one node crowd out
         everything else the agent knows it is doing.
         """
-        self._attention = [(n, w) for n, w in self._attention if n != node]
-        self._attention.insert(0, (node, max(1, weight)))
+        queue = self._frames[-1].queue
+        if node in self._evicted:
+            # ⚠⚠⚠ **The number the stack has to justify itself against.** A node
+            # that fell off the bottom and is wanted AGAIN is an outer focus a
+            # sub-line evicted while it was still live -- the agent rediscovering
+            # by ordinary matching what it already knew it was doing. Counted
+            # rather than argued: *a frame that fixes nothing measurable is a
+            # mechanism this design would refuse on its own terms.*
+            self._readmitted += 1
+            self._evicted.discard(node)
+        queue[:] = [(n, w) for n, w in queue if n != node]
+        queue.insert(0, (node, max(1, weight)))
         span = self._knob(self.SPAN, ATTENTION_SPAN)
         if span is not None and span > 0:
-            del self._attention[span:]
+            for n, _w in queue[span:]:
+                self._evicted.add(n)
+            del queue[span:]
 
     def _unattend(self, licence: Optional[NodeId] = None) -> int:
         """Stop thinking about whatever it was -- `reset`, for attention.
@@ -2019,8 +2407,16 @@ class Machine:
         ⚠ Ordered by the QUEUE where a claim is in it, so a claim just made
         outranks one standing since the corpus loaded.
         """
-        claimed = {n for n, _w in self._claimed_attention()}
-        out = [n for n, _w in self._attention if n in claimed]
+        # ⚠⚠⚠ **GRAPH order for the tail, and it was a SET.** `for n in {...}`
+        # iterated by node id, so which standing claim lifted hardest was decided
+        # by how many atoms the machinery happened to mint before the corpus was
+        # loaded -- and adding one reserved name reordered a shortlist in a check
+        # that had been green for weeks. Nothing raised, because a set is a
+        # perfectly good answer to *which*; it is only no answer at all to
+        # *which first*, and position is the strength here.
+        claimed = [n for n, _w in self._claimed_attention()]
+        want = set(claimed)
+        out = [n for n, _w in self._attention if n in want]
         for n in claimed:
             if n not in out:
                 out.append(n)

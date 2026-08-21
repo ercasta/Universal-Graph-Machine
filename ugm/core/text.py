@@ -13,7 +13,8 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 from .chain import MINUS, PLUS, UNSURE
 from .graph import NodeId
 from .machine import Machine
-from .rules import CAUSES, IMPLIES, STOP, UNATTEND, Attend, Member
+from .rules import (CAUSES, IMPLIES, STOP, UNATTEND, Attend, Member, Pop,
+                    Push)
 
 SIGNS = {"+": PLUS, "-": MINUS, "?": UNSURE}
 
@@ -349,7 +350,8 @@ class Parser:
                          (PostClause(query, tuple(spends), frozen, learned),))
 
     def spend(self) -> Tuple["Term", int]:
-        """What a postcondition spends: `attend(...)`, `unattend` or `stop`.
+        """What a postcondition spends: `attend`, `unattend`, `stop`, `push`
+        or `pop`.
 
         ⚠⚠⚠ **`boost(<R>, n)` AND `damp(<R>, n)` ARE GONE, AND SO IS `reset`.**
         They named a RULE, which is what the whole retirement is about: a rule
@@ -395,9 +397,37 @@ class Parser:
                 weight = int(n.text)
             self.expect(")")
             return (Attend(target, weight), 0)
+        if t.kind == "name" and t.text == "push":
+            # ⭐⭐⭐ **A frame, not a filter.** Three fixes for the queue's
+            # forgetting have been tried here and all three were filters on a
+            # flat queue -- claimed vs derived, excluding bookkeeping, a learned
+            # weight. None of them can help, because at span 7 a long enough
+            # sub-line evicts anything however well chosen. `push` suspends
+            # instead: the outer frame is off the queue entirely.
+            #
+            # ⚠ It names NODES, variadically, and the leftmost lifts hardest --
+            # `attend(?x)` is the precedent, and the variables are the HOST
+            # rule's own, bound by the move that spent it. What it does NOT name
+            # is an expert: that is computed from the nodes.
+            self.expect("(")
+            terms = [self.term()]
+            while self.at(","):
+                self.next()
+                terms.append(self.term())
+            self.expect(")")
+            return (Push(terms), 0)
+        if t.kind == "name" and t.text == "pop":
+            # ⭐ `pop(?x)` attends ?x on the RESTORED frame: the attention-level
+            # analogue of a return value. Without it the agent returns from a
+            # sub-line with no idea it concluded anything.
+            self.expect("(")
+            target = self.term()
+            self.expect(")")
+            return (Pop(target), 0)
         raise ParseError(
             f"line {t.line}: a postcondition spends attention, so it says "
-            f"`attend(...)`, `unattend` or `stop`, not {t.text!r}"
+            f"`attend(...)`, `unattend`, `stop`, `push(...)` or `pop(...)`, "
+            f"not {t.text!r}"
         )
 
     def block(self) -> Tuple[RuleMember, ...]:
@@ -710,6 +740,9 @@ class Loader:
             # in the host rule's scope like everything else here -- which is what
             # makes `attend(?x)` *that* `?x`.
             (t if t is STOP or t is UNATTEND
+             else Push(tuple(self.build(x, scope) for x in t.terms))
+             if isinstance(t, Push)
+             else Pop(self.build(t.term, scope)) if isinstance(t, Pop)
              else Attend(self.build(t.term, scope), t.weight), delta)
             for t, delta in clause.spends
         )

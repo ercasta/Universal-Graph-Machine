@@ -78,6 +78,47 @@ class _Unattend:
 UNATTEND = _Unattend()
 
 
+class Push:
+    """The postcondition that opens a fresh attention frame on what it names.
+
+    ⭐⭐⭐ **A row, not a branch.** `attend` deposits a claim, `unattend` denies
+    one, `stop` ends the run -- and this suspends. §5's test is that adding a
+    connective adds rows to the one list that already exists for this, and the
+    list is `text.py`'s `spend()` and `attention.py`'s dispatch.
+
+    ⚠ It names NODES and never an expert. Which expert the frame belongs to is
+    computed from them (`Machine._pick_expert`), because a rule that had to name
+    the callee would be doing the selecting.
+    """
+
+    __slots__ = ("terms",)
+
+    def __init__(self, terms) -> None:
+        self.terms = tuple(terms)
+
+    def __repr__(self) -> str:
+        return f"push({', '.join(str(t) for t in self.terms)})"
+
+
+class Pop:
+    """...and the one that returns, carrying one node back to the frame below.
+
+    ⭐ `pop` is `stop` scoped to a frame, and `stop`'s own design note is the
+    argument for it, written before anyone asked: *done is the output of a rule
+    that checks against the goal*. A goal-management rule that finds its goal
+    reached spends `pop`; the loop still knows nothing about goals, only that a
+    rule spent attention by saying so.
+    """
+
+    __slots__ = ("term",)
+
+    def __init__(self, term=None) -> None:
+        self.term = term
+
+    def __repr__(self) -> str:
+        return f"pop({self.term})"
+
+
 class Member(NamedTuple):
     """A signed entry in a rule's antecedent or consequent.
 

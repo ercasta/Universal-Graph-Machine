@@ -5659,12 +5659,20 @@ def attention_is_about_a_node_not_a_rule() -> None:
           "matters: attend one and its rule goes first, attend three and the "
           "one you named does not",
           lifted.applied[0] == "r11" and everything.applied[0] != "r11")
-    check("§19", "...and it is not that the lift stopped working -- the order "
-          f"still moves ({bare.applied[:3]} bare, {everything.applied[:3]} "
-          f"attended) and it is still cheaper ({bare.tried} rules matched, "
-          f"{everything.tried} attended), it is just not the thing the lesson "
-          "was about that came forward",
-          everything.applied != bare.applied
+    # ⚠⚠⚠ ...and now a THIRD time, in a third column, and this one was the
+    # check's own footing. `_attention_asked` ordered standing claims by
+    # iterating a SET, so which of three equally-claimed nodes lifted hardest
+    # was decided by node id -- and adding one reserved atom to the machinery
+    # reordered it. The tail is read in GRAPH order now, so three claims lift in
+    # the order they were authored, and the result is sharper than what stood
+    # here: the order is exactly the bare order.
+    check("§19", "...and it is not that the lift stopped working -- it is still "
+          f"cheaper ({bare.tried} rules matched bare, {everything.tried} with "
+          f"everything attended; {bare.widenings} widenings against "
+          f"{everything.widenings}) and the moves are the BARE order "
+          f"({everything.applied[:3]}), which is the point stated as an "
+          "identity rather than as a difference",
+          everything.applied == bare.applied
           and everything.tried < bare.tried
           and everything.widenings < bare.widenings)
     check("§19", "⚠ and the STATE is what the lift is read through, not the "
@@ -6253,6 +6261,142 @@ def attention_is_a_bounded_queue() -> None:
           order[0] is kb2.term("b") and kb2.term("a") in order)
 
 
+def attention_suspends_rather_than_filtering() -> None:
+    """§19: the queue is a STACK of queues, and `push`/`pop` are two more rows.
+
+    ⭐⭐⭐ Three fixes for the queue's forgetting have been tried here and every
+    one was a filter on a flat queue -- claimed vs derived, excluding
+    bookkeeping, a learned weight. None of them can help, because at span 7 a
+    long enough sub-line evicts anything however well chosen. A stack does not
+    filter: the outer frame is off the queue entirely.
+
+    ⚠⚠⚠ The graph is untouched by both. Nothing derived inside a frame stops
+    existing when it is popped, and the one thing a pop takes back is the
+    frame's own `attention` claims -- denied, in `_unattend`'s sense, not
+    dropped.
+
+    The measurement is `python -m ugm.probes.frames`; this is the vocabulary.
+    """
+    from .core.machine import ATTENTION_SPAN, FRAME_DEPTH
+    from .core.text import load
+    from .core.attention import run as table_run
+
+    m = Machine()
+    outer, inner = m.g.atom("outer"), m.g.atom("inner")
+    m._attend(outer)
+    m._push_frame([inner])
+    for i in range(ATTENTION_SPAN + 3):
+        m._push_attention(m.g.atom("noise%d" % i))
+    check("§19", "⭐⭐⭐ a sub-line long enough to overflow the span cannot "
+          "evict the line above it: the outer focus is not in the frame at all, "
+          "so there is nothing for the queue to forget",
+          outer not in [n for n, _w in m._attention]
+          and m._frames[0].queue[0][0] is outer)
+
+    m._pop_frame(m.g.atom("answer"))
+    back = [n for n, _w in m._attention]
+    check("§19", "⭐ ...and a pop restores it, with the node the sub-line "
+          "carried back in front of it -- the attention-level analogue of a "
+          "return value",
+          m.g.show(back[0]) == "answer" and back[1] is outer
+          and len(m._frames) == 1)
+    check("§19", "⚠⚠ the frame's own `attention` claim is DENIED rather than "
+          "dropped, because dropping a Python set is not readable by any rule "
+          "and cannot be argued with",
+          m.holds(m.g.rel(m.ATTENTION, inner)) == MINUS)
+
+    # ...and the surface says it, in the one list that already had three rows.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "rule <call> = implies( { +ask(?q), +known(?q) }, { +asking(?q) } )",
+        "after <call> => push(?q)",
+        "rule <work> = implies( { +asking(?q), +known(?q) }, { +done(?q) } )",
+        "after <work> => pop(?q)",
+        "fact +ask(sum)", "fact +known(sum)", ""]))
+    table_run(m2, limit=20)
+    check("§5", "⭐⭐⭐ `push` and `pop` are ROWS, not branches: two more cases "
+          "in the one function that already parsed `attend`, `unattend` and "
+          "`stop`, and two more in the one place that dispatches them",
+          m2.holds(kb2.term("done(sum)")) == PLUS and len(m2._frames) == 1)
+    check("§19", "...and both are on the record, so *why is the agent thinking "
+          "about this* answers with a rule and a moment for a focus CHANGE too",
+          m2.holds(kb2.term("pushed(sum)")) == PLUS
+          and m2.holds(kb2.term("popped(sum)")) == PLUS)
+
+    # The backstop, asserted directly rather than read off anything the stack
+    # itself printed -- `probes/experts.py` records a depth check that passed
+    # while the stack was flat.
+    deep = Machine()
+    for i in range(FRAME_DEPTH + 4):
+        deep._push_frame([deep.g.atom("d%d" % i)])
+    check("§19", f"⚠⚠⚠ the stack is BOUNDED at {FRAME_DEPTH} frames, and the "
+          "refusal is deposited -- a push that quietly did nothing is "
+          "indistinguishable from one that had nothing to do",
+          len(deep._frames) == FRAME_DEPTH
+          and any(deep.g.show(deep.g.member(i, 2)) == "too_deep"
+                  for i in deep.g.instances_of(deep.DECLINED)
+                  if len(deep.g.members(i)) == 3))
+
+
+def an_expert_is_picked_from_what_the_frame_is_about() -> None:
+    """§19: `push` names nodes; the EXPERT is computed from them, by TF-IDF.
+
+    ⚠⚠⚠ Unarguable, and knowingly so -- and §19 already answered this shape of
+    problem. The answer was never a veto over the choice: *recall may be
+    incomplete about what to do; it may not be incomplete about what you must
+    not do.* So the mitigation is knowing what must not ride on it (`_forbid`
+    runs outside recall entirely) plus LEGIBILITY: the pick and the scores it
+    beat are both deposited.
+
+    ⭐⭐⭐ And IDF is the principled repair of a collapse this repository
+    measured, not a generic scoring choice: `_salient` compared raw relation
+    sets, `_relations_required` collapsed to `{goal, in}` for every route, and
+    the agent learned nothing with no error anywhere. A term in every pool
+    weighs zero here.
+    """
+    from .core.text import Loader
+    from .core.attention import SETTLE, run as table_run
+
+    m = Machine()
+    kb = Loader(m, scope="selftest-experts")
+    kb.load(chr(10).join([
+        "rule <inherit> = implies( { +extends(?e, ?f), +knows(?f, ?r) },",
+        "                          { +knows(?e, ?r) } )",
+        "expert baker",
+        "rule <bake> = implies( { +dough(?d), +oven(?o) }, { +bread(?d) } )",
+        "expert smith",
+        "rule <forge> = implies( { +iron(?i), +forge(?f) }, { +blade(?i) } )",
+        "fact +dough(rye)", "fact +iron(ore)", ""]))
+    kb.load(SETTLE)
+    table_run(m, limit=20)
+
+    who, scores = m._pick_expert([kb.term("dough(rye)")])
+    named = {m.g.show(e): s for e, s in scores}
+    check("§19", f"⭐⭐⭐ the expert is computed FROM the nodes pushed, never "
+          f"named by the rule that pushed them -- a rule that had to name the "
+          f"callee would be doing the selecting ({named})",
+          m.g.show(who) == "baker" and named["smith"] == 0)
+    check("§19", "⚠ and nothing to discriminate is answered with NOTHING: a "
+          "frame that scores zero everywhere keeps the rules of the frame "
+          "below, because picking the first expert declared would be a coin "
+          "flip wearing a mechanism's clothes",
+          m._pick_expert([m.g.atom("weather")])[0] is None)
+
+    m._push_frame([kb.term("iron(ore)")])
+    check("§19", "⭐⭐⭐ ...and the pick and THE SCORES IT BEAT are both "
+          "deposited, because on a life-or-death step nobody can override, "
+          "`why()` has to answer rather than shrug",
+          m.holds(m.g.rel(m.PUSHED, kb.atom("smith"),
+                          kb.term("iron(ore)"))) == PLUS
+          and any(m._claims(i) for i in m.g.instances_of(m.SUITS)
+                  if m.g.member(i, 0) is kb.atom("baker")))
+    check("§19", "⚠ a frame holds the expert by NAME and reads its pool on "
+          "demand, because `knows(?e, ?r)` can be CONCLUDED mid-run -- "
+          "`<inherit>` derives more of them, and a pool frozen at push time "
+          "could not see one",
+          [r.name for r in m._expert_pool(kb.atom("smith"))] == ["forge"])
+
+
 def a_table_can_outlive_a_run() -> None:
     """§4: let a caller pass its table in.
 
@@ -6704,6 +6848,8 @@ def main() -> int:
     outstanding_business_is_not_dropped_in_silence()
     what_was_learned_is_a_document()
     attention_is_a_bounded_queue()
+    attention_suspends_rather_than_filtering()
+    an_expert_is_picked_from_what_the_frame_is_about()
 
     failed = 0
     group = None

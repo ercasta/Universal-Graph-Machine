@@ -1,3 +1,90 @@
+# Handoff — 2026-08-21 (the ATTENTION STACK is built)
+
+    python -m ugm.selftest      513 checks, 0 failing   <- was 503; 10 new
+    python -m ugm.probes.frames  21 checks, 0 failing   <- new
+    ./tools_sweep.sh            1 failing, 30 run       <- 30 is one more than
+                                                           any sweep has run,
+                                                           and the 1 is
+                                                           `quiescence` at 5/6,
+                                                           which is older than
+                                                           this branch
+    ugm.gates.vocabulary        18 checks, 0 failing    <- six new reserved
+                                                           names, classified
+
+`docs/todo.md`'s *the ATTENTION STACK* entry is now marked ✅ BUILT and carries a
+`BUILT 2026-08-21` section with every number below. Read that before reopening
+anything here.
+
+## What was built
+
+`Machine._attention` is a **stack of frames**, and the postcondition vocabulary
+gained two rows in the one list that already had three:
+
+    push(?a, ?b, ...)   open a frame on those nodes
+    pop(?x)             return to the frame below, attending ?x on it
+
+A frame carries `(queue, expert, table, the nodes it was opened on, the
+attention claims it made)`. The expert is picked from the pushed nodes by
+**TF-IDF over experts**, computed once at the first pick. `push` is a call and
+`pop` is a return, so the attention stack and the consultation stack are one
+construct.
+
+⚠⚠⚠ **The graph is untouched by both.** Not a transaction, no rollback, nothing
+derived inside a frame stops existing when it is popped. The one thing a pop
+takes back is the frame's own `attention` claims, and it DENIES them.
+
+## The three measurements, taken before the mechanism was believed
+
+1. **The eviction loss is real, and it is four figures.** `_push_attention`
+   counts a *readmit* -- a node that fell off the bottom and was wanted back.
+   Unchanged probes: **dungeon 13,986** over 15 machines, **hanoi 8,487** over
+   36, experts 26, maze 12. Nobody had this number before.
+2. **Experts discriminate after IDF, partly.** `survey` separates cleanly
+   (110/0/0). `area` TIES the expert that answers with the expert that asks,
+   and the tie falls to authored order. Signal, not separation.
+3. **Re-run vs resume: NOT MEASURED.** `probes/experts.py` still re-runs with a
+   fresh table on every return. Frames make the resume possible; nothing is
+   ported to them yet. ⚠ The frames probe's §4 is the precondition, not this.
+
+...and the cost, which the probe reports because reporting only the winning
+column would be measuring its own conclusion: **+4% rules matched, same ticks.**
+The stack is not a speed-up.
+
+## ⚠⚠⚠ One defect found on the way, and it was not in the stack
+
+`_attention_asked` ordered standing `attention` claims **by iterating a Python
+set**, so which of several equally-claimed nodes lifted hardest was decided by
+node id -- by how many atoms the machinery happened to mint before the corpus
+loaded. Adding six reserved names reordered a shortlist in a check that had
+been green for weeks, and nothing raised. Read in graph order now, and the §19
+check it broke is sharper for it: attention that names everything produces
+**exactly the bare order**, more cheaply.
+
+## Where to look
+
+    core/machine.py    `Frame`, `_push_frame`, `_pop_frame`, `_pick_expert`,
+                       `_idf`, `_expert_pool`, `FRAME_DEPTH`, `_floor`
+    core/rules.py      `Push`, `Pop`
+    core/text.py       `spend()` -- two more rows
+    core/attention.py  `_spend_one` dispatch, and `run()`'s per-tick frame switch
+    probes/frames.py   the measurements
+    gates/vocabulary.py  the six new reserved names, classified as deliberation
+
+## What is NOT done
+
+- **Nothing is ported to frames.** `probes/experts.py` still uses its own
+  `(expert, question)` stack and its own re-run. Porting it is what would
+  produce measurement 3, and it is the obvious next step.
+- **`stop` is still not *pop the root*.** Elegant, still not required.
+- **An unpopped frame** is reclaimed when the machine is, and is not yet a thing
+  the agent can be asked about. `docs/todo.md` OPEN 4 called the second answer
+  this design's usual one; it is still open.
+- **What must NOT ride on the expert pick** (§19's carve-out) has not been
+  enumerated. `_forbid` runs outside recall and is unaffected, but nobody has
+  gone through the rest.
+
+---
+
 # Handoff — 2026-08-20w (the seat/locus cut is FINISHED)
 
     python -m ugm.selftest      503 checks, 0 failing

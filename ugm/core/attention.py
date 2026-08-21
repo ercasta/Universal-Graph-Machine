@@ -15,7 +15,8 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .graph import NodeId
 from .machine import Machine, Step
-from .rules import (STOP, UNATTEND, Application, Attend, Member, Rule,
+from .rules import (STOP, UNATTEND, Application, Attend, Member, Pop, Push,
+                    Rule,
                     Situation, _superseded, match, substitute)
 from .text import load, load_file
 
@@ -436,6 +437,18 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     # → docs/design/attention.md#a-caller-may-bring-its-own-table-and-doc
     if table is None:
         table = Table(m.g, pool, _standing(m))
+    # ⭐⭐⭐ **The frame this run serves, and the floor it may not pop past.** A
+    # nested run -- a consultation, a supposition, a table of agents -- starts on
+    # whatever frame its caller was in, and popping the caller's frame out from
+    # under it would be this stack's version of the bug `probes/experts.py`
+    # records: a structure that looks like a stack and is not one.
+    root = len(m._frames) - 1
+    served = m._frames[root]
+    if served.table is None:
+        served.table = table
+    root_table = table
+    prev_floor = m._floor
+    m._floor = root
     base = table.now + 1 if table.ticked else 0
     by_rule: Dict[str, List[Post]] = {}
     for p in posts:
@@ -463,8 +476,33 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # docs/design/attention.md#not-a-phase-the-world-may-have-spoken-since-the
         m.g.rel(m.chain.ASKING, m.chain.now.node)
 
+        # ⭐⭐⭐ **Whose line of work is this?** A `push` spent last tick left a
+        # new frame on the stack, and the loop picks up ITS table here. That is
+        # the whole of what turns a consultation into a resume: `experts.py`
+        # re-runs the caller with a FRESH table on every return, and `tick`'s own
+        # docstring says what that costs -- *a caller stepping by hand would lose
+        # every buff between one tick and the next and be measuring a different
+        # agent each time*.
+        #
+        # ⚠ A frame with no expert keeps the rules of the frame below, table and
+        # all: a push that discriminated nothing suspends attention without
+        # changing whose rules are in play, and that case is worth having alone.
+        current = m._frames[-1]
+        if current is not served:
+            served = current
+            if current.table is None:
+                current.table = (
+                    Table(m.g, m._expert_pool(current.expert), _standing(m))
+                    if current.expert is not None else table
+                )
+            table = current.table
+        # ⚠ The pool is FIXED inside an expert's frame, whatever the caller said:
+        # absorbing every authored rule into a consulted expert's table is the
+        # `pool` argument's own point undone one construct along.
+        frame_fixed = fixed or current.expert is not None
+
         # A rule the agent authored since the last tick enters the table now.
-        if not fixed:
+        if not frame_fixed:
             table.absorb([r for r in m.rules.rules if r.name not in queries],
                          _standing(m))
 
@@ -618,6 +656,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             break
     # ⚠ The loop ran out of ITERATIONS, not out of work.
     # → docs/design/attention.md#the-loop-ran-out-of-iterations-not-out-of-w
+    m._floor = prev_floor
     if steps and steps[-1].state == "applied":
         m.exhausted += 1
         m._note(m.g.rel(m.BOUNDED, m.TICKS))
@@ -627,7 +666,11 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         if v[0] > was[0]:
             scanned[k] = [v[0] - was[0], v[1] - was[1]]
     return Report(
-        len(applied), applied, time.time() - t0, tried, _state(m), table,
+        # ⚠ The ROOT table, not whichever frame the run ended in. A caller that
+        # handed its table in gets that table back, which is what `a table can
+        # outlive a run` is about, and a consulted expert's table belongs to its
+        # frame rather than to this report.
+        len(applied), applied, time.time() - t0, tried, _state(m), root_table,
         doubts, windows, widenings, steps,
         sum(v[0] for v in scanned.values()), scanned,
         sum(v[1] for v in scanned.values()),
@@ -662,6 +705,29 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
                 # same depth -- a calibration that names a node instead of a
                 # rule.
                 m._attend(node, licence, target.weight)
+            continue
+        if isinstance(target, Push):
+            # ⭐⭐⭐ A CALL. The nodes are the host rule's own variables, bound by
+            # the move that spent this -- and the expert is computed from them,
+            # never named. ⚠ Ground only, like `attend`, and for the same reason.
+            nodes = []
+            for term in target.terms:
+                node = table._target(term, bindings)
+                if node is None:
+                    node = term
+                if node is not None and not m.g.has_var(node):
+                    nodes.append(node)
+            m._push_frame(nodes, licence)
+            continue
+        if isinstance(target, Pop):
+            # ...and a RETURN. The loop finds the restored frame at the top of
+            # the next tick and picks its table back up, which is what makes the
+            # caller's re-run a resume.
+            node = table._target(target.term, bindings)
+            if node is None:
+                node = target.term
+            m._pop_frame(node if node is not None and not m.g.has_var(node)
+                         else None, licence)
             continue
         if target is UNATTEND:
             m._unattend(licence)

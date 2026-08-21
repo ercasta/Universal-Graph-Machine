@@ -83,6 +83,24 @@ ROLES: Dict[str, List[str]] = {
         # Refraction (§14): what has already run, on what, and the
         # contradiction that stopping a loop would otherwise hide.
         "spent", "premises", "contested",
+        # ⭐⭐⭐ The attention STACK, and note where it lands: `push` and `pop`
+        # are the agent suspending one line of work for another, so a frame is
+        # deliberation in exactly the sense `attention` above is, one construct
+        # up. `pushed`/`popped` are the record of a focus change; `frame_depth`
+        # is its knob, beside `attention_span`.
+        "pushed", "popped", "frame_depth",
+        # ...and which expert a frame belongs to. ⚠ `knows` and `extends` are
+        # the SURFACE's words -- `expert geometry extends arithmetic` has
+        # written them since experts existed -- and they arrived in this census
+        # only when the engine started reading them, because `push` picks an
+        # expert. They were loader-scoped names before, which is to say a second
+        # `knows` waiting to happen.
+        "knows", "extends",
+        # ⭐ ...and how WELL each expert suits what a frame is about, in
+        # hundredths: the pick and the scores it beat, deposited, because an
+        # unarguable step cannot buy back vetoability and must not lose
+        # legibility.
+        "suits",
     ],
     # Where a world touches the agent: what arrived, what was said, what was
     # done, and what may not be. About the ACT, never about its content.
