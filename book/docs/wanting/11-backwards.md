@@ -123,8 +123,8 @@ unsatisfied, because the phase never let anything derive it.
 
 The rule-level reader interleaves, being ordinary rules, and finds it.
 
-> **A phase does not merely hold a convention. It asserts a precedence, and it
-> asserts it where nothing can argue.**
+> **A phase does not merely hold a convention. It asserts that it should go
+> first, and it asserts it where nothing can argue.**
 
 You can watch the whole thing happen. Here's the trail for the *acting* version
 of this corpus (Chapter 14), read bottom-up:

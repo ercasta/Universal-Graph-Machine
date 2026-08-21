@@ -1,6 +1,8 @@
 # Review Notes
 
-Attention.py contains several functions that might not be needed anymore: is_defeated, is_superseded, etc.
+Attention.py:
+- check if _forgo and rivals can be removed.
+- ⚠ Anchored at the SEAT rather than at every moment, which is the containment story as well as the cheap -> is this still true?
 
 Chain.py has lots of boring stuff related to provenance, support, licence, etc. Probably overengineered.
 

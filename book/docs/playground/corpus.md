@@ -65,12 +65,14 @@ fact +has(anna, hob)
 fact +goal(boiling(kettle))"
       data-asks="boiling(kettle)">a goal, and acting on it</button>
     <button class="ugm-preset" type="button"
-      data-corpus="fact &lt;no-harm&gt; = forbidden(doing(harm(?x)))
+      data-corpus="rule &lt;no-harm&gt; = implies( { +producing(?r, doing(harm(?x))) },
+                         { +drop(doing(harm(?x))) } )
+fact intercepts(&lt;no-harm&gt;, after)
 
 rule &lt;angry&gt; = implies( { +threatens(?x, me) }, { +doing(harm(?x)) } )
 
 fact +threatens(bo, me)"
-      data-asks="doing(harm(bo))">a refusal at the write</button>
+      data-asks="doing(harm(bo))">a norm that refuses</button>
   </div>
 
   <div class="ugm-steps"></div>
@@ -103,7 +105,7 @@ locus, where it came from, and what licensed it.
   quiet with nothing saying why.
 - Change an `implies` to a `causes` on a rule that keys on `+quiet(?m)` and watch
   it run to the tick limit.
-- Add `fact overrides(<A>, <B>)` between two rules and see which conclusions
+- Add `fact dormant(<A>)` about one of two rules and see which conclusions
   disappear — including ones you didn't mean to lose (Chapter 17).
 - Write a rule about your rules: `implies( { +conn(?r, causes) }, { +persists(?r) } )`
   and ask why one of your own rules persists.

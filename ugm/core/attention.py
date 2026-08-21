@@ -1,8 +1,6 @@
 """The loop: a table over rules, take the first that matches, then spend.
 
-⭐⭐⭐ **This is the loop, and it is the only one.** `Machine.run` is three lines
-that call it and `Machine.tick` is five; every probe, gate, corpus and check in
-the tree arrives here. Four things it knows, and none of them is semantic:
+The engine does not do any semantic work, it only does:
 
     a score per rule    ordered, tie broken by declaration order
     apply the first     highest-scoring rule whose antecedent matches
@@ -14,17 +12,6 @@ postconditions spend attention: *refocusing* is a rule (`unattend`), *done* is
 the output of a rule that checks against the goal (`stop`), and *suspend this
 line of work for another* is two more (`push`, `pop`). Nothing here knows what
 any of them is for.
-
-⚠ It arrived as a PROPOSAL beside a loop that weighed an option set -- recall
-proposes, everything matches, defeat and quiescence filter, arbitration ranks,
-one move is taken. That loop is deleted and the comparison that held the two
-side by side with it. The argument for this one, and the measurements that
-decided it, are in the design doc rather than in the present tense here.
-
-⚠⚠ ...and the file is still called `attention` after the feature that
-distinguished it from the incumbent. Most of attention proper -- the queue, the
-stack, the claims -- is in `machine.py`; what is here is the loop, plus the two
-places attention touches it (`_pull`, `_attended_first`).
 
 See docs/design/attention.md.
 """
@@ -70,9 +57,7 @@ PULL = 6
 
 # The default doubt-settling rule, and the author's correction to an earlier
 # sketch of mine: the loop does not need to HOLD a tick waiting for doubt to be
-# resolved, because a settling rule fires. ⚠ It used to carry frozen after
-# <settle-doubt> => boost(?a, 1) -- the settlement was a buff, so it was
-# calibratable.
+# resolved, because a settling rule fires. 
 # → docs/design/attention.md#the-default-doubt-settling-rule-and-the-author
 SETTLE = """
 rule <settle-doubt> = implies( { +close(?a, ?b) }, { +settled(?a, ?b) } )
@@ -85,11 +70,6 @@ class Post(NamedTuple):
     `query` is the name of a rule authored in the corpus whose ANTECEDENT is the
     query -- so the surface parses it, and this file adds no notation. Such
     rules never enter the table.
-
-    ⚠ `spends` used to be `buffs`, and the rename is the retirement in one word:
-    what a postcondition may now say is `attend`, `unattend` and `stop`. None of
-    them moves a score, so there is no table to keep an account of and no trace
-    to keep it in.
 
     `frozen` marks what a calibration process may not touch. It changes nothing
     about how the postcondition runs.
@@ -115,13 +95,7 @@ class Table:
             self.score[r.node] = (
                 STANDING if (r.node in standing or r.name in SETTLING) else FLOOR
             )
-            # Declaration order, first declared winning. This is §18's tiebreak
-            # already -- authored order -- and it is not decorative: two thirds
-            # of this agent's arbitrations are settled by the order of the
-            # bundle file. ⚠ It can only BE the tiebreak because buffs do the
-            # specificity work: a general rule declared before the specific
-            # one that qualifies it wins for ever unless something lifts the
-            # specific rule.
+            # Declaration order, first declared winning, in case of a tie break.
             self.rank[r.node] = i
             if r.name:
                 self.by_name[r.name] = r
@@ -134,9 +108,8 @@ class Table:
         # flag, because *why did you stop?* has to be answerable -- the same
         # reason the shipped loop's `_enough` returns what was named.
         self.stopped: Optional[str] = None
-        # ⚠ The score is now FIXED once built: `STANDING` or `FLOOR`, moved only
-        # by `absorb`. There is nothing to age, expire or rebuild, because the
-        # only thing that used to move it was a buff. What varies move to move is
+        # The score is FIXED once built: `STANDING` or `FLOOR`, moved only
+        # by `absorb`.  What varies move to move is
         # the attention lift, and `order` takes that as an argument and keeps it
         # nowhere -- which is the whole of this file's line between the two kinds
         # of attention.
@@ -150,7 +123,7 @@ class Table:
     def absorb(self, rules: Sequence[Rule], standing: set) -> int:
         """Take in rules the agent did not start with.
 
-        ⭐⭐⭐ **`adopt` means the rule set moves at run time**, and a table built
+        **`adopt` means the rule set moves at run time**, and a table built
         once cannot see it: the rule was live, it was the node the graph
         described, and it never applied because nothing had a score for it. The
         round trip was open at the last step.
@@ -174,7 +147,7 @@ class Table:
                 self.name_of[r.node] = r.name
             added += 1
         if added:
-            # ⚠ Rebuilt rather than appended to, because a rule adopted at run
+            # Rebuilt rather than appended to, because a rule adopted at run
             # time is the case `absorb` exists for and a stale lookup here fails
             # in the quietest way there is: the rule is in the table, at the
             # floor, and attention can never reach it. That is `adopt`'s own
@@ -209,8 +182,7 @@ class Report(NamedTuple):
     doubts: int = 0
     windows: List[int] = []
     widenings: int = 0
-    # One `Step` per move, in the shape the option-set loop returned, so this
-    # loop can BE `Machine.run` rather than sit beside it. `applied` above is
+    # One `Step` per move. `applied` above is
     # the same sequence as names; this carries the `Application` itself, which
     # is what a caller reading `s.applied.rule.name` needs.
     steps: List["Step"] = []
@@ -254,10 +226,9 @@ def _rivals(m: Machine, chosen: Application, state) -> List[Application]:
 def _dormant(m: Machine, r: Rule) -> bool:
     """Claimed `dormant` and not yet claimed `due`.
 
-    ⚠ Deliberately NOT a mark on the rule that the engine reads. A mark authored
-    once is relative to nothing -- not to the situation, not to the goal, not to
-    who is asking -- which is §12's *achievability is not a mark*, the earliest
-    instance of the error this design generalises. As a pair of ordinary claims
+    Deliberately NOT a mark on the rule that the engine reads. A mark authored
+    once is relative to nothing: not to the situation, not to the goal, not to
+    who is asking. As a pair of ordinary claims
     it is dated, attributable, deniable, and readable by rules, and `due` can be
     concluded by anything at all.
     """
@@ -283,7 +254,7 @@ def _by_relation(rules: Sequence[Rule], g) -> Dict[NodeId, List[NodeId]]:
     rather than per move because a rule's antecedent does not change. `absorb`
     is what keeps it current when the rule set does.
 
-    ⚠ A member whose pattern is a bare variable or whose relation is a variable
+    A member whose pattern is a bare variable or whose relation is a variable
     is filed under nothing. `+?p` is a rule about anything, and lifting it
     whenever anything is attended would lift it always -- which is the same
     thing as never, and costs a slot in every shortlist to say so.
@@ -306,20 +277,20 @@ def _pull(m: Machine, table: "Table", state: Situation,
           attended: Sequence[NodeId]) -> Dict[NodeId, int]:
     """Attention's rule-level lift: two dict reads and no matching.
 
-    ⭐⭐⭐ The join, and the reason attention is affordable where a query is not.
-    ⚠ Not summed over attended nodes.
+    The join, and the reason attention is affordable where a query is not.
+    Not summed over attended nodes.
 
     See docs/design/attention.md#pull.
     """
     lift: Dict[NodeId, int] = {}
-    # ⭐⭐⭐ POSITION is the strength. attended arrives newest-first, so what the
+    # POSITION is the strength. attended arrives newest-first, so what the
     # agent turned to last lifts hardest and what is about to fall off the
-    # bottom barely lifts at all. ⚠ A rule reachable from two attended nodes
+    # bottom barely lifts at all. A rule reachable from two attended nodes
     # takes the STRONGER, not the sum.
-    # → docs/design/attention.md#position-is-the-strength-attended-arr
+    # See docs/design/attention.md#position-is-the-strength-attended-arr
     weights = m._attention_weights()
     for i, node in enumerate(attended):
-        # ⭐⭐⭐ **Position times the learned multiplier.** Depth says how
+        # **Position times the learned multiplier.** Depth says how
         # recently the agent turned to a thing; the multiplier says how much a
         # lesson thinks it is worth. Neither alone is enough -- everything one
         # move wrote arrives at the same depth, so without a weight the queue
@@ -337,8 +308,8 @@ def _attended_first(found: List[Application], attended: Sequence[NodeId],
                     weights: Optional[dict] = None) -> List[Application]:
     """Order a rule's own applications by what the agent is thinking about.
 
-    ⭐⭐⭐ This is the half no rule-keyed buff can express, and it costs nothing.
-    ⚠ Stable, and that is what keeps the existing tie-break intact.
+    This is the half no rule-keyed buff can express, and it costs nothing.
+    Stable, and that is what keeps the existing tie-break intact.
 
     See docs/design/attention.md#attended-first.
     """
@@ -351,7 +322,7 @@ def _attended_first(found: List[Application], attended: Sequence[NodeId],
             for i, node in enumerate(attended)}
 
     def weight(a: Application) -> int:
-        # ⚠ Weighted by POSITION here too, so an application binding what the
+        # Weighted by POSITION here too, so an application binding what the
         # agent just turned to beats one binding what it is about to forget.
         # Summed, unlike the rule lift: binding two attended things really is
         # more about them than binding one, because a binding is the whole
@@ -373,37 +344,32 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         chooser=None, watch=None,
         pool: Optional[Sequence[Rule]] = None,
         table: Optional["Table"] = None) -> Report:
-    """The loop, in full. Everything else in this file is bookkeeping.
+    """The loop, in full. Everything else in this file is bookkeeping."""
 
-    ⚠ `reflex` used to be a parameter here -- damp a rule that was tried and
-    missed, boost the one that applied, the cheapest calibration imaginable. It
-    went with the buffs, and with it the only thing in this file that wrote a
-    score from the loop's own experience. What survives is attention, which is
-    written by a rule rather than by the loop.
-    """
+    
     queries = _queries(m, posts)
-    # ⭐ pool is what makes an EXPERT possible: one shared graph, one shared
-    # chain, and a table over a SUBSET of the rules. ⚠ Whether the pool was
+    # pool is what makes an EXPERT possible: one shared graph, one shared
+    # chain, and a table over a SUBSET of the rules. Whether the pool was
     # HANDED to us decides whether it may grow.
     # → docs/design/attention.md#pool-is-what-makes-an-expert-possible-one-s
     fixed = pool is not None
     if pool is None:
         pool = m.rules.rules
     pool = [r for r in pool if r.name not in queries]
-    # ⭐⭐⭐ A caller may bring its own table, and docs/interpretation-feedback.md
-    # §4 is right that the day it matters is the day something else changes. ⚠
+    # A caller may bring its own table, and docs/interpretation-feedback.md
+    # is right that the day it matters is the day something else changes.
     # The ticks continue from table.now rather than restarting at 0.
     # → docs/design/attention.md#a-caller-may-bring-its-own-table-and-doc
     if table is None:
         table = Table(m.g, pool, _standing(m))
-    # ⭐⭐⭐ **The frame this run serves, and the floor it may not pop past.** A
+    # The frame this run serves, and the floor it may not pop past. A
     # nested run -- a consultation, a supposition, a table of agents -- starts on
     # whatever frame its caller was in, and popping the caller's frame out from
     # under it would be this stack's version of the bug `probes/experts.py`
     # records: a structure that looks like a stack and is not one.
     root = len(m._frames) - 1
     served = m._frames[root]
-    # ⚠⚠⚠ Set unconditionally, and this was a `if served.table is None`. A frame
+    # Set unconditionally, and this was a `if served.table is None`. A frame
     # keeps its table so a SUSPENDED line of work can be resumed inside a run;
     # across runs the caller decides, by passing one or not. Guarding the
     # assignment meant a second `run()` over a different pool resumed the FIRST
@@ -432,7 +398,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     t0 = time.time()
     for tick in range(base, base + limit):
         # Not a phase: the world may have spoken since the last move, and the
-        # shipped loop asks the same question in the same place. ⭐⭐⭐ The anchor
+        # shipped loop asks the same question in the same place. The anchor
         # a corpus reads the raw chain from. ⚠ Anchored at the SEAT rather than
         # at every moment, which is the containment story as well as the cheap
         # one: what the agent may read the chain about is where...

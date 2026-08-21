@@ -143,9 +143,12 @@ trust ought to be a rule relating two moments rather than a rule per sign. The
 current shape puts a sign inside a proposition, which is a compromise with a
 visible cost. Chapter 21.
 
-**A rule cannot ask *would this be forbidden?*** Deciding whether a stored
-generic pattern covers a particular proposition is matching, and matching is
-floor. So the norm gate does it in the machinery. Chapter 18.
+**A rule *can* now ask *would this be forbidden?*** — this entry used to say it
+could not. Deciding whether a stored generic pattern covers a particular
+proposition is matching, and matching is floor, so while a norm was a stored
+pattern the machinery had to do it alone. A norm is a trigger now: an ordinary
+rule, matching `producing(<R>, p)`, asking exactly that question about a
+conclusion that has not landed yet. Chapter 18.
 
 **Silence about an unnamed channel.** *Nothing was said* over a **named** channel
 is sayable — it's *nothing arrived on this channel over this stretch*, and

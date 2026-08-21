@@ -105,6 +105,47 @@ The bill: backward search loses a static bound. *Make it Tuesday* is now a
 subgoal a planner may genuinely expand. Chapter 13 is the discipline that
 replaces the bound.
 
+## The gap between here and there
+
+A plan starts from a difference: what holds now, and what you want to hold. That
+sounds like something a rule should compute, and it is the one shape a rule
+cannot — a rule matches one entry at a time and can say nothing about a *set*.
+
+So it is a tool. `<difference>` answers a request naming two spans and a node to
+hang the answer on:
+
+```
+fact +delta(state(at(home), holds(p1, torch)),
+            wanted(at(work), holds(p1, key1), holds(p1, torch)),
+            gap1)
+```
+
+```
+missing(gap1, at(work))            extra(gap1, at(home))
+missing(gap1, holds(p1, key1))
+```
+
+One entry per difference, which is the half that matters: a set answered *as* a
+set would need something to walk it, and one entry per difference is read by an
+ordinary member. What the torch shows is that a difference is only what differs
+— both spans hold it, so it appears in neither column.
+
+Turning that into a plan needs no plan machinery:
+
+```
+rule <want-what-is-missing> = implies( { +missing(gap1, ?p) }, { +goal(?p) } )
+```
+
+The tool proposes the gap; a rule decides what is worth wanting. Which is the
+same division of labour every tool in this design has (Chapter 22): a tool
+computes, and it never concludes.
+
+A span here is either a compound you built — read one deep, so `at(work)` is a
+proposition *in* the span while `at` and `work` are what that proposition is made
+of — or a **moment**, which is already a node and holds whatever is asserted
+there. That is how *the world as it stands* becomes one of the two arguments
+without anybody assembling it.
+
 ## Plans carry their bindings
 
 A plan is not a list of steps to be re-derived later. It holds what it bound,
@@ -120,7 +161,7 @@ can be *surprised* by (Chapter 25) rather than merely something you execute.
 
     Losing an argument is not being wrong, either. A rule that loses to a more
     specific one is still right about every case the specific rule doesn't
-    cover, and retiring it on a single defeat throws all of those away
+    cover, and retiring it for losing once throws all of those away
     (Chapter 29).
 
 ---

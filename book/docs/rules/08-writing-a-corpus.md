@@ -19,8 +19,8 @@ A fact may carry a name, in the same angle brackets a rule's goes in, because
 `<...>` is the namespace of **statements** and a rule is a statement:
 
 ```
-fact <no-harm> = forbidden(doing(harm(?x)))
-fact overrides(<boil>, <cool>)
+fact <how-many> = count(goblin(?x))
+fact dormant(<cool>)
 ```
 
 What the language may **not** write is an entry, a moment, or a stamp. An author
@@ -130,10 +130,10 @@ proposition that nothing else mentions. The machine can't distinguish a term
 awaiting its meaning from a mistake, because both are well formed and both are
 inert. It *can* notice the mismatch, though, and it does — see below.
 
-**Precedence does not carve out cases.** *Poison stops regeneration* written as
-`fact overrides(<poison>, <regen>)` stops regeneration for **everybody** the
-moment anybody is poisoned. Chapter 17 has the measurement. Put the exception in
-the antecedent, as a negated member.
+**Taking a rule out does not carve out cases.** *Poison stops regeneration*
+written as `fact dormant(<regen>)` stops regeneration for **everybody**, not just
+for the poisoned. Chapter 17 has the measurement. Put the exception in the
+antecedent, as a negated member.
 
 ## The machine reads your corpus back
 

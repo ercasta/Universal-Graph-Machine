@@ -48,7 +48,7 @@ without introducing a new kind of thing.
 person(paul)                       a proposition about a person
 rule(<mortality>)                  a fact about a rule
 by(<mortality>, boss)              who authored that rule
-overrides(<mortality>, <undead>)   which of two rules wins
+dormant(<undead>)                  a rule that is out of the running
 ```
 
 Four lines, one shape, four completely different subjects.
@@ -93,7 +93,8 @@ consistency problem, running underneath the first.
 
 That rule gets invoked several times later in the book, always to delete
 something. It's the reason there is no stored "how sure am I" number
-(Chapter 15) and no stored table of which rule beats which (Chapter 17).
+(Chapter 15) and no stored table of which rule beats which — and in the end no
+relation for it either (Chapter 17).
 
 !!! note "Deep dive: filing the same thing twice is still storage"
     Filing an entry by relation alone makes some searches quadratic — a rule

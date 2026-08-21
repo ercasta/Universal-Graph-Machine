@@ -19,13 +19,13 @@ class Graph:
         self._members: Dict[NodeId, Tuple[NodeId, ...]] = {}
         self._name: Dict[NodeId, str] = {}
         self._is_var: Dict[NodeId, bool] = {}
-        # ⭐⭐⭐ Whether a node is generic, decided at MINT rather than on every
+        #  Whether a node is generic, decided at MINT rather than on every
         # ask.
         # → docs/design/graph.md#whether-a-node-is-generic-decided-at-mint-r
         self._has_var: Dict[NodeId, bool] = {}
         self._next = 0
 
-        # ⭐ Members that fell off the index, counted by the member as written
+        #  Members that fell off the index, counted by the member as written
         # -- docs/interpretation-feedback.md §3.
         # → docs/design/graph.md#members-that-fell-off-the-index-counted-b
         self.scans: Dict[str, List[int]] = {}
@@ -110,7 +110,7 @@ class Graph:
     def merge(self, keep: NodeId, drop: NodeId) -> int:
         """`drop` counts as `keep` from here on. Returns nodes repointed.
 
-        ⭐⭐⭐ Congruence, and it is why this cannot be two dict writes. ⚠ Without
+        Congruence, and it is why this cannot be two dict writes. Without
         the repoint, everything said before the merge is LOST.
 
         See docs/design/graph.md#merge.
@@ -173,12 +173,7 @@ class Graph:
     def delete(self, n: NodeId) -> None:
         """Take `n` out of the graph. The scratchpad's erase.
 
-        ⭐⭐⭐ **This is the un-claim.** Every other way of getting a proposition
-        back to *nothing has been said* was another claim -- `-p`, `+not(p)`, a
-        `withdraw` marker -- because an append-only chain can only be added to.
-        A scratchpad can be erased, and erasing is what `None` means.
-
-        ⚠⚠⚠ **No repoint and no cascade, and that is the author's call.**
+        Note: this does no repoint and no cascade.
         `merge` had to repoint -- *without it, everything said before the merge
         is LOST* -- because a merged node still means something. A deleted one
         does not. Anything still naming `n` is left dangling on the argument
@@ -186,7 +181,7 @@ class Graph:
         `n` fails to bind, so the dangling half is unreachable rather than
         wrong. `probes/erase.py` is that argument, measured.
 
-        ⚠ Structure only. What makes a proposition BELIEVED is an anchor node --
+        Structure only. What makes a proposition BELIEVED is an anchor node --
         `believed(p)` -- so retracting a belief is deleting the anchor and never
         the proposition, which rules mention and must keep.
         """

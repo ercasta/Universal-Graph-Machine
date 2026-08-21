@@ -196,7 +196,8 @@ and the difference that matters is the last column:
 |---|---|---|
 | declaration order | the tie-break at equal score | no — it orders equals |
 | `standing(<R>)` | permanent height, marked by the bundle or the corpus | **yes** — it raises the floor |
-| `overrides(A, B)` | not ranking at all; it is **defeat** | it removes the loser instead |
+| `dormant(<R>)` | not ranking at all; it takes a rule **out** | it removes a rule instead |
+| `intercepts(<T>, after)` | not ranking either; it changes what a rule wrote | it does not choose, it rewrites |
 | `attention(x)` / `after <R> => attend(?x)` | a lift keyed on a **thing** | **yes** — sized to clear the apparatus |
 
 The last row is the learnable one, and it is the whole learnable path working
@@ -244,14 +245,21 @@ flightless* — and the question is what actually makes the exception win:
 |---|---|---|---|
 | declaration order alone | **True** | True | True |
 | `standing(<flightless>)` | **True** | True | True |
-| `overrides(<flightless>, <flies>)` | **False** | True | False |
+| `dormant(<flies>)` | **False** | True | False |
 | ...and the KB states `-penguin(tweety)` | False | True | **True** |
 
 The first two rows are Chapter 26's point arriving in a table: **a loop that
 runs to quiescence applies both rules whatever the order** — ordering is not
-defeasibility, and neither is height. What makes *penguins don't fly* beat
-*birds fly* is `overrides` — defeat, an ordinary claim — and what saves Tweety
-is another ordinary claim. No `unless`, no built-in exception logic: two facts.
+defeasibility, and neither is height. Only the third row stops Pingu flying, and
+look at what it costs: taking `<flies>` out of the running grounds Tweety too,
+because removal is per rule and an ordinary bird is not an exception to
+anything. The fourth row is the one that works, and it is not a lever at all —
+it is a fact. Say `-penguin(tweety)` and let `<flies>` read it: the general rule
+keeps working for ordinary birds and declines for this one.
+
+Tweety is the control here, and the whole reason the table is worth printing.
+Without an ordinary bird in the fixture, rows three and four look identical and
+the lever that breaks flight passes.
 
 ## The match that settled it
 
@@ -276,8 +284,9 @@ conclusions second:
 
 Read the third column as a **work list**: everything the table loop dropped was
 a record the old tick kept *because* it materialised an option set. Most were
-recovered as rules; `defeated` was recovered by recording *every* overrider
-that matched rather than the first; and one is genuinely gone — `close` over
+recovered as rules; the defeat record was recovered at the time, and has since
+gone for good along with precedence itself (Chapter 17); and one is genuinely
+gone — `close` over
 the **whole** option set rather than over a window, a claim about a set the
 table deliberately never builds. That loss is named, measured, and accepted.
 

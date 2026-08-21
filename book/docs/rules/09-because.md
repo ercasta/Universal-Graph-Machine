@@ -81,7 +81,7 @@ Nothing here logs. There is no explanation subsystem, no trace buffer, no
 
 Those two records exist because the machinery needs them for other things
 entirely. The strength of a conclusion drawn under a supposition depends on
-them. Deciding whether one rule defeated another depends on them. Learning a new
+them. Deciding what a move consumed depends on them. Learning a new
 rule from examples depends on them.
 
 > **The trail a piece of reasoning leaves behind is not a debugging aid.**

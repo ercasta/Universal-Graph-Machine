@@ -12,74 +12,102 @@ Getting there is where most people's first attempt goes wrong.
 
 ## The attempt that looks right
 
+The machine has one way to take a rule out of the running: say it is dormant.
+So reach for it — poison is in the room, put regeneration to sleep.
+
 ```
-fact overrides(<poison>, <regen>)
+rule <quarantine> = implies( { +outbreak }, { +dormant(<regen>) } )
+fact standing(<quarantine>)
 ```
 
 Run it:
 
 ```
-why heals(a)?
-  -heals(a), licensed by applied(<poison>)
-    because +wounded(a), +poisoned(a)
-
-why heals(b)?
-  nothing concluded it
+heals(a):  −
+heals(b):  nothing concluded it
 ```
 
 `a` is correct. **`b` gets nothing at all.**
 
-`overrides` is **per tick and per rule**. If poison matched *anywhere* this
-step, regeneration does not apply — to anyone. `b` is collateral damage, and it
-is permanent, because `a` stays poisoned, so the poison rule matches every tick
-and regeneration is defeated every tick, for ever.
+`dormant` is **per rule**. A rule that is out is out for everybody, so `b` — whom
+nobody poisoned — stops healing too. And it stays that way, because nothing here
+ever claims `due(<regen>)`.
 
-The sibling relation doesn't help either. `supersedes(<poison>, <regen>)` needs
-a **shared consumed entry**, and these two applications consumed
-`poisoned(a)` and `wounded(a)` respectively, which have nothing in common — so
-nothing is defeated at all. Both rules therefore apply, and what decides
-`heals(a)` is the ordinary read: `<poison>` writes second, so *later supersedes
-earlier* and the denial stands. `b`, whom nobody poisoned, heals.
+> **Taking a rule out is per rule. It does not carve out cases.**
 
-| how it's written | `heals(a)` | `heals(b)` | |
-|---|---|---|---|
-| `fact overrides(<poison>, <regen>)` | `−` | **nothing** | b is collateral damage |
-| `fact supersedes(<poison>, <regen>)` | `−` | `+` | nothing is defeated; the later claim simply wins |
-| the exception as a **premise** | `−` | `+` | correct |
-
-> **Precedence orders rules. It does not carve out cases.**
-
-Put the case in the antecedent:
+Put the case where the case lives — in the antecedent:
 
 ```
 rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
 ```
 
+```
+why heals(b)?
+  +heals(b), licensed by applied(<regen>)
+    because +wounded(b)
+    because -poisoned(b)
+```
+
+| how it's written | `heals(a)` | `heals(b)` | |
+|---|---|---|---|
+| `dormant(<regen>)` | `−` | **nothing** | b is collateral damage |
+| the exception as a **premise** | `−` | `+` | correct |
+
 That's `unless`, written where the rule's variables live (Chapter 10) — and
 remember from Chapter 3 that you must then say `-poisoned(b)` outright, or
-derive it.
+derive it. Absence is not denial.
 
-## When precedence *is* the right answer
+## The machine used to have more than this, and it was worse
 
-Collateral damage is survivable or permanent depending on the **winner**, and
-that distinction is the refinement worth carrying:
+For most of this design's life there were two precedence relations, and the
+chapter you are reading was about choosing between them.
 
-> **`overrides` is survivable when the winning rule's situation is transient,
-> and permanent damage when it is not.**
+- **`overrides(A, B)`** — if A applied at all this tick, B does not. Per tick,
+  per rule.
+- **`supersedes(A, B)`** — A defeats B where the two consumed the same entry.
 
-One goblin fleeing defeats another's attack for a step; then the goblin is gone
-and normal service resumes. That's a one-tick deferral, and it's fine.
+Neither survived. Pointed at the case above, `overrides` did exactly what
+`dormant` does: `a` correct, `b` collateral damage, permanently, because `a`
+stays poisoned so poison matches every tick. `supersedes` did nothing at all
+here — these two applications consumed `poisoned(a)` and `wounded(a)`, which
+have nothing in common — so both rules applied and the ordinary read decided it:
+`<poison>` wrote second, later supersedes earlier, and `b` healed by accident
+rather than by anything anyone wrote.
 
-The two look identical when you write them, and only one of them is a bug.
+> **Precedence ordered rules. It never carved out cases, and the exception is
+> always a case.**
 
-Precedence is also the answer when **your negatives are not enumerable**. *The
-hero attacks by default when the player has declared nothing this round* — you
-can't write `-declares(hero, ?what)`, because absence is not denial and you
-don't know what might have been said.
+What finally retired them was going through every precedence in the repository
+and asking what it was really saying. There were seven, and not one of them
+needed a precedence relation:
 
-Though even that one turns out to be sayable, once you make it precise: *nothing
-arrived on this channel over this stretch* is bounded and checkable, and
-Chapter 19 shows how.
+| what it said | what it says now |
+|---|---|
+| `overrides(<gob-flees>, <gob-acts>)` | `no hp(?x, 1)` — a premise about the state |
+| `overrides(<hero-acts>, <hero-holds>)` | nothing: acting spends `may(hero)`, so the loser has no right left to act on |
+| `overrides(<halt>, …)` ×4 | nothing: each actor already requires its combatants present |
+| `supersedes(<outcome>, <assert-act>)` | `no substituted(?what)` in the bundled rule, per act |
+
+Four of the seven were doing no work at all. The rest were premises wearing a
+mechanism's clothes.
+
+## When taking a rule out *is* the right answer
+
+`dormant` stays, and it is the right tool for a different question. Not *this
+individual is an exception* — that is a premise — but *this rule should not be
+considered at all right now*.
+
+A rule can conclude it, which means the agent can settle a conflict between two
+of its own rules by deciding which one is out. And `due(<R>)` puts it back, so
+it is a claim like any other rather than a configuration:
+
+```
+rule <referee> = implies( { +p(?x) }, { +dormant(<hot>) } )
+```
+
+Two moves, and the run reaches quiescence. What makes that safe is the same
+thing that made precedence unnecessary: the loser here has genuinely stopped
+being considered, rather than being ranked low and applying later anyway.
 
 ## Arbitration is scheduling, not decision
 
@@ -92,6 +120,9 @@ there next tick, and if its situation still holds it will get its turn. The
 machine runs to quiescence, so **ordering alone is not defeasibility** — a low
 score delays a rule and never removes one.
 
+That is exactly why a score could not have replaced precedence, and why the
+thing that replaced it was premises rather than ranking.
+
 Which has a consequence that took a while to see, and it's a nice one:
 
 > **What turns an order into a default is stopping.**
@@ -100,61 +131,50 @@ Ask, take the first rule that matches, act. So *completion is the output of a
 rule* isn't a detail of the design; it's what makes a preference mean anything
 at all. Chapter 26.
 
-## Precedence is read, not kept
+## When your negatives are not enumerable
 
-This design used to maintain a table of which rule beats which. It doesn't any
-more, and the deletion is instructive.
+The one case that genuinely resisted a premise: *the hero attacks by default
+when the player has declared nothing this round.* You cannot write
+`-declares(hero, ?what)`, because absence is not denial and you don't know what
+might have been said.
 
-The table was a **cache of `overrides` facts**. Those facts are already in the
-graph. Reading them at the position the agent is standing is:
+There are two answers now, and it is worth knowing which applies.
 
-- correct in a way the cache wasn't — precedence can be *concluded by a rule*,
-  including about a rule that didn't exist when the claim was written;
-- deniable, dateable and attributable, like any other claim;
-- and free. Deleting the table cost the suite **6.42s against 6.38s**.
+`no p(?x)` asks about absence directly — *nothing currently asserts this* — and
+it is a check rather than a binder, so every variable in it has to arrive bound
+from an earlier premise. `no hp(?x, 1)` works because `?x` is bound. *The player
+said nothing about anything* does not: it would mean *for no `?what`*, which is
+a negative existential and a member cannot mean that.
 
-> **Precedence is read from the graph at the position the agent is standing. It
-> is not kept anywhere.**
+The second answer is the one the dungeon actually uses, and it is a corpus's own
+discipline rather than a feature: **an occasion is consumed.** The two acting
+rules spend `may(hero)`, so when a declaration is live one of them takes the
+tick and the standing policy has no right left to act on. Nothing has to defeat
+anything.
 
-The only thing that broke was a test fixture that had been calling Python
-directly.
+## What the machinery knows, it writes down
 
-!!! note "Deep dive: two relations, two intents"
-    `overrides` and `supersedes` are not two spellings of one idea, and the
-    difference was measured rather than argued:
-
-    - **`overrides(A, B)`** — if A applied at all this tick, B does not. Per
-      tick, per rule. Too broad: it takes out cases A says nothing about.
-    - **`supersedes(A, B)`** — A defeats B where they consumed the same entry.
-      Narrow, precise, and it runs away in a corpus where two rules rarely share
-      a premise.
-
-    Neither expresses *this individual is the exception*, and a negated member
-    does. That's why the guard belongs inside the rule and the precedence
-    relations belong outside it.
-
-## A defeat goes on the record
-
-When one rule defeats another, that fact is deposited:
-
-```
-defeated(<loser>, <winner>)
-```
-
-Not because someone wanted a log, but because the machinery knew something and
-no rule could ask about it — the recurring defect this project names explicitly:
+While precedence existed, every defeat was deposited: `defeated(<loser>,
+<winner>)`. Not because someone wanted a log, but because the machinery knew
+something and no rule could ask about it — the recurring defect this project
+names explicitly:
 
 > **Something the machinery knows and no rule can ask about is a defect, and the
 > repair is always to deposit the record.**
 
-Eleven separate instances of it are recorded in this design's history. Which rule
-was applied became `exercised`. A defeat became `defeated`. What an entry rested
-on became `rests_on`. The effort counters became `widened` / `reached` /
-`bounded`. And the two largest: the strength of a claim became a wrapping term
-(Chapter 15), and the precedence table became a claim read from the graph.
+That record went with the relation, and the reason is worth having: the claim
+that takes a rule out is now the corpus's own. A rule concluded `dormant(<R>)`,
+dated and attributable, and a rule can read it — so there is nothing left for
+the machinery to write down on its behalf.
 
-The pattern is stable enough to use as a search: **anything the loop computes
-per tick and does not write down is a candidate.**
+The pattern itself is stable enough to use as a search: **anything the loop
+computes per tick and does not write down is a candidate.** Which rule was
+applied became `exercised`. What an entry rested on became `rests_on`. The
+effort counters became `widened` / `reached` / `bounded`. The strength of a
+claim became a wrapping term (Chapter 15). And the newest one: when a trigger
+changes what a rule concluded, that is `rewrote(<T>, old, new)`, because a
+conclusion that is not what the rule said it concluded cannot be reported as
+the rule's.
 
 ---
 

@@ -99,7 +99,7 @@ doesn't:
 - **recall** for stratum 0 is *all of them, every time* — the set is small and
   fixed, so the policy is a different table, not a different mechanism;
 - **match** is floor;
-- **arbitrate** is the same total tiebreak, over a precedence nobody has claimed.
+- **arbitrate** is the same total tiebreak, over a table nobody has scored.
 
 One more row, not one more branch.
 

@@ -47,9 +47,10 @@ A composed rule violates nothing: it's data, askable, attributable, defeasible
 like any other rule, and it carries a licence naming the rules it collapses — so
 the trail is recoverable one hop deeper rather than lost.
 
-**Two things it must inherit, and both do.** Anything that overrides a
-constituent overrides the composition — without that, a shortcut escapes a
-defeat that bound its parts. And a **guard** is inherited by construction:
+**Two things it must inherit, and both do.** A constituent that is out of the
+running takes the composition with it — without that, composing would be a way
+past a `dormant` that bound its parts. And a **guard** is inherited by
+construction:
 composition takes the union of the antecedents, and a guard is an ordinary
 negated member, so it comes along without a mechanism.
 
@@ -276,7 +277,7 @@ A learned rule concludes **wrapped**: `likely(p)` rather than `p`.
 > **A learned rule that concludes wrapped cannot fight what the agent was told.**
 
 Which means acquisition's normal conflict — a rule the agent invented
-contradicting a rule it was given — needs **no new precedence at all**.
+contradicting a rule it was given — needs **nothing to arbitrate it at all**.
 `likely(p)` and `−p` are not rivals; they're different claims, and a corpus that
 wants to act on the first has to cross it deliberately (Chapter 16).
 
@@ -295,13 +296,16 @@ rather than a fixture.
 
 What broke:
 
-- **A concluded precedence was never read.** A rule said something and the
-  machinery ignored it — the recurring defect, seen from the far side.
+- **A claim the agent concluded about one of its own rules was never read.** A
+  rule said something and the machinery ignored it — the recurring defect, seen
+  from the far side.
 - **The adopted rule was a twin of the described one.** The eighth instance.
 
-And one thing worked that shouldn't have been obvious: **a precedence claim
-about a rule that did not exist when the claim was written**. That's what
-`reference is binding` and *precedence is read, not kept* buy together.
+And one thing worked that shouldn't have been obvious: **a standing policy about
+a rule that did not exist when the policy was written**. `<trust-what-i-was-told>`
+concludes `dormant(?r)` about whatever the agent adopts, and it was written long
+before there was anything to adopt. That's what `reference is binding` and
+*claims about rules are read from the graph* buy together.
 
 ## Retiring is not defeating
 
@@ -310,12 +314,13 @@ One last distinction, and it's the humane one:
 > **Losing an argument is not being wrong.**
 
 A rule that is right about a thousand cases and loses to a more specific one in
-five is not a bad rule. Retiring it on `defeated` throws away every case it was
-right about.
+five is not a bad rule. Retiring it because it lost throws away every case it
+was right about.
 
-What ships is the **occasion** — `defeated(<loser>, <winner>)` — and what to do
-about a rule that keeps losing is a corpus's decision: ask its author, raise a
-precedence, mark it dormant.
+So nothing retires a rule on the agent's behalf. What a rule keeps losing to is
+readable from the trail, and what to do about it is a corpus's decision: ask its
+author, add the premise that tells the two apart, or mark it `dormant` — which
+is a claim, and `due(<R>)` takes it back.
 
 And before adding any new relation for this sort of thing, there's a check worth
 running first:

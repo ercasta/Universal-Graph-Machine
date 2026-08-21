@@ -43,7 +43,7 @@ unreachable by a rule. This design's frames are the opposite in every respect �
 process nodes, readable, writable, and **selectable** — which is why they can be
 preempted and an interpreter's cannot.
 
-**3. Surprise is an ordinary rule that wins on precedence.**
+**3. Surprise is an ordinary rule, and it wins its turn like any other.**
 
 ```
 rule <S> = causes( { +deviates(?p) },
@@ -55,14 +55,14 @@ conclude; there is no `due`/`after` to consult, for the reason just given.
 
 > **There is no interrupt mechanism.**
 
-Preemption is `<S>` outranking the rule that would have continued what the agent
-was doing — which is possible only because *continue what you were doing* was
-itself a selectable rule. That is exactly what a stack frame is not.
+Preemption is `<S>` being selected over the rule that would have continued what
+the agent was doing — which is possible only because *continue what you were
+doing* was itself a selectable rule. That is exactly what a stack frame is not.
 
-## Why the precedence claim is load-bearing
+## What this used to need, and what actually fixed it
 
-Built without it, the loop doesn't merely respond slowly. It never responds at
-all, and the failure isn't the one you'd predict.
+Built early, the loop didn't merely respond slowly. It never responded at all,
+and the failure wasn't the one you'd predict.
 
 An agent heats water and expects it to boil. The gauge reports it is not
 boiling. Now **two rules apply forever**: the causal rule re-concludes `+boiling`
@@ -72,36 +72,48 @@ because the gauge still said so. They alternate.
 The surprise rule is **never selected**, because arbitration prefers the rule
 authored first, and the oscillation starves it.
 
-Nothing is wrong with any of the three rules. The deviation is even noticed and
-recorded. It simply never gets acted on.
-
-One authored fact fixes it:
+The fix at the time was one authored fact — a precedence saying the surprise
+rule beat the causal one. It worked, and it was the wrong diagnosis. Run the
+same corpus today, with nothing outranking anything:
 
 ```
-fact overrides(<why>, <boil>)
+after the gauge speaks:  6 moves, ended quiescent
+
+  intake → trustF → deviation-+-contradicted → why → ask-recall → give-up
 ```
 
-That's the claim of this chapter exactly: preemption is a **precedence relation
-over ordinary rules**, and it works because the rule that would have continued is
-selectable and therefore defeatable.
+`<why>` gets its turn, and the pair does not oscillate. What stopped the
+oscillation was **refraction**: an application is spent on the premises it
+matched, so *this instantiation has run* is a different claim from *this rule
+scored low*, and a rule that has already concluded from these exact premises does
+not do it again.
 
-Two riders, both learned the hard way:
-
-- Being overridden must mean **not applying at all**, never merely applying
-  second — or the loser re-asserts on the following tick and the winner is
-  quietly undone.
-- **Defeat is about whose antecedent holds, not about who still has work to
-  do.** Filtering out rules whose conclusions are already written has to happen
-  *after* defeat, not before, or the winner disappears the moment its conclusion
-  is present and the loser is left unopposed.
-
-And the general shape, since it recurs:
+That is the general shape, and it survives the mechanism that used to carry it:
 
 > **A contradicted expectation does not stop being re-derived.** Nothing retracts
-> the rule that produced it, so something must outrank it — and that something is
-> authored.
+> the rule that produced it. Either something outranks it, or the loop stops
+> re-deriving what it has already derived from the same premises — and it is the
+> second.
 
-A strategy defeated by a statement in the knowledge base rather than by an
+!!! note "Deep dive: two riders that outlived the mechanism"
+    While precedence existed, two things about it were learned the hard way, and
+    both are worth keeping as facts about *any* scheme for making one rule beat
+    another:
+
+    - Being outranked has to mean **not applying at all**, never merely applying
+      second — or the loser re-asserts on the following tick and quietly undoes
+      the winner. Ordering is not defeasibility.
+    - **Whether a rule is out is about whose antecedent holds, not about who
+      still has work to do.** Filtering rules whose conclusions are already
+      written has to happen *after* that question, not before, or the winner
+      disappears the moment its conclusion is present and the loser is left
+      unopposed.
+
+    Precedence is gone (Chapter 17) and both lessons are why: neither could be
+    bought with a score, and once the exception moved into the premise there was
+    nothing left for the relation to do.
+
+A strategy stopped by a statement in the knowledge base rather than by an
 interpreter. That's the whole point.
 
 !!! note "Deep dive: starvation is not only the surprise rule's problem"

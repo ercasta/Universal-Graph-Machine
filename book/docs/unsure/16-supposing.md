@@ -77,6 +77,65 @@ supposes about a narrow question that is a line; for one that wants to reason
 hypothetically about everything, it is the whole rule set twice, and that is the
 capability that was given up.
 
+## Saying it once instead of rule by rule
+
+The cost above — writing the hypothetical version of every rule you want to
+reason with — has one half that can be recovered, and it is worth knowing which.
+
+A **trigger** is an ordinary rule the engine consults on what another rule is
+about to conclude, in the moment between *the rule concluded this* and *this was
+written*. Mark it with `intercepts(<T>, after)` and it matches
+`producing(<R>, p)` — the conclusion `<R>` is about to write, a fact that exists
+only while that question is being asked and is never deposited.
+
+```
+rule <wrap> = implies( { +supposing(?h), +producing(?r, ?p) },
+                      { +instead(?p, likely(?p)) } )
+fact intercepts(<wrap>, after)
+
+rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )
+
+fact +supposing(h1)
+fact +heat(anna, kettle)
+fact +water(kettle)
+```
+
+```
+boiling(kettle)          -> None
+likely(boiling(kettle))  -> +
+```
+
+`<boil>` is the ordinary rule and its consequent says `+boiling(?w)`. Nothing
+in it mentions a wrapper. *Everything concluded while supposing is uncertain* is
+said once, by one rule, and it applies to rules written before it existed.
+
+A trigger's conclusion is read as an instruction: `instead(p, q)` replaces,
+`drop(p)` refuses, and anything else lands as well — so **marking** what a
+hypothesis produced (`+hypothetical(?p, ?h)`) is the same mechanism with a
+different verb. Two triggers on one conclusion run in table order, and the
+second sees what the first left.
+
+What this recovers is the **labelling**, and not the containment. A trigger runs
+after the match, so it cannot change which premises a rule saw: an ordinary rule
+about the world still reads the world. If you want a rule to reason *inside* a
+hypothesis, you still write the hypothetical version of it. What you no longer
+have to do is write the wrapper into every consequent by hand.
+
+And because a conclusion is now not always what the rule that licensed it said:
+
+```
+why likely(boiling(kettle))?
+  +likely(boiling(kettle)), licensed by applied(<boil>)
+    rewritten by <wrap> from boiling(kettle)
+    because +heat(anna, kettle)
+    because +water(kettle)
+```
+
+> **A conclusion that is not what the rule said it concluded cannot be reported
+> as the rule's.** The licence still names the application, because that is what
+> produced the entry; what changed is what it produced, and the record says
+> both.
+
 ## The lessons that outlived the mechanism
 
 These were learned while the fork existed and none of them depended on it.

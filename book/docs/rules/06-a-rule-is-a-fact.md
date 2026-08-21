@@ -30,7 +30,7 @@ there is no rule *node* distinct in kind from a fact node.
 
 ```
 by(<boil>, boss)              who authored it
-overrides(<boil>, <cool>)     which of two rules wins
+dormant(<cool>)               a rule that is out of the running
 about(<boil>, kitchen)        what it concerns
 ```
 
@@ -60,7 +60,7 @@ Score it against the four criteria:
 | readable | runnable, not askable | readable, doubled | every question is a query over members |
 | composable | two bodies cannot be joined | n directions means 2ⁿ statements | join on signed membership |
 
-And the program form fails one more test outright: `overrides(<R1>, <R2>)` has
+And the program form fails one more test outright: `dormant(<R1>)` has
 no subject when a rule is a program. Nothing can be said *about* it — and
 Chapter 29, where the agent writes itself a rule, becomes unreachable entirely,
 because a rule the agent authored has nothing to be authored *as*.
@@ -149,8 +149,9 @@ Both the **position** and the **sign** are members, and leaving either out makes
 a rule read back out of the graph a *different* rule. Position matters because
 an antecedent is a sequence, and because relation instances intern — a rule with
 two identical members would silently lose one. Sign matters because `{+p} ⟹ {+q}`
-and `{+p} ⟹ {−q}` would otherwise become the same node, and then a precedence
-claim would name a rule as overriding itself.
+and `{+p} ⟹ {−q}` would otherwise become the same node, and then a claim about
+one of them — `dormant`, `standing`, `intercepts` — would silently be a claim
+about the other.
 
 !!! note "Deep dive: how that could have stayed hidden"
     Reading a rule's members back in *minting* order reproduces authored order by

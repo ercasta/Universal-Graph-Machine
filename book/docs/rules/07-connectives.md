@@ -161,7 +161,7 @@ A third connective would be a third rule of the same shape.
     It is worth being exact about how much that costs, because the rest of the
     claim does hold: `conn(<R>, causes)` is a real deposited fact that rules can
     read and reason about (Chapter 10), and everything *else* the loop
-    consults — precedence, stopping, what to attend to — really is data. What is
+    consults — stopping, what to attend to, which rules are out — really is data. What is
     still a branch is the one line that turns a connective into a destination.
 
 That test is what this whole design is built to pass, and Chapter 32 shows what

@@ -53,12 +53,13 @@ in the order *birds fly*, *penguins are flightless*:
 | | pingu flies | grounded |
 |---|---|---|
 | declaration order alone | **True** | True |
-| `overrides(<flightless>, <flies>)` | **False** | True |
+| `dormant(<flies>)` | **False** | True |
 
 The first row is the demonstration: run to quiescence, *both* rules apply, and
-the order decided nothing. What makes the exception actually beat the default
-is `overrides` — defeat, stated as an ordinary claim — and what makes any
-order meaningful at all is a stop. Chapter 28 measures the whole ladder.
+the order decided nothing. Only taking a rule out of the running changes the
+answer — and that is not an ordering either, which is the point. What makes any
+order meaningful at all is a stop. Chapter 28 measures the whole ladder, and
+Chapter 17 shows why taking the rule out is the wrong tool for an exception.
 
 And the same fact from the other direction:
 

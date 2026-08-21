@@ -1,9 +1,5 @@
 """The gate (§13).
 
-⚠ It was *Frames and the gate*, and there are no frames. What is left of §13 is
-the split it was always about: two of the stamp's parts come from the rule and
-the rest do not.
-
 See docs/design/gate.md.
 """
 
@@ -21,11 +17,7 @@ class Gate:
         Where it lands comes from the chain's own end.
         A rule may not name any of the last three.
 
-    ⚠ It read *locus, deposit, licence and source come from the frame and the
-    channel*. Two of those four were a register saying where the agent stood,
-    and standing somewhere was only needed because the graph could fork.
-
-    One property still falls out rather than being enforced: forgery is not a
+    One property falls out rather than being enforced: forgery is not a
     category, because nothing is prohibited and everything is stamped. The other
     one -- hypothetical containment is structural, because the locus was never
     the rule's to give -- went with the locus, and `learning/practice.py` is
@@ -35,11 +27,6 @@ class Gate:
     def __init__(self, g: Graph, chain: Chain) -> None:
         self.g = g
         self.chain = chain
-        # ⚠ `FRAME`, `PROCESS` and `MOVED` were minted here and are gone.
-        # `MOVED` was §17's *every seat move is a write*, which §21 listed as
-        # owed and `reseat` paid; the debt dissolved with the register rather
-        # than being settled. `ugm.gates.vocabulary` is what catches a reserved
-        # name that nothing mints, and it caught these.
         self.writes = 0
         # Effects leave the agent HERE, not in a phase of the loop.
         # → docs/design/gate.md#effects-leave-the-agent-here-not-in-a-phase-of
@@ -68,13 +55,6 @@ class Gate:
     ) -> Entry:
         """Mint one entry.
 
-        ⭐⭐⭐ **No frame, and no locus.** The stamp used to be *proposition and
-        sign from the rule; locus, deposit, licence and source from the frame*.
-        Two of those four came from a register that existed to say WHERE the
-        agent was standing, and standing somewhere was only ever needed because
-        the graph could fork. It cannot. What is left comes from the chain's own
-        end, which nothing chooses.
-
         `mention` is the use/mention distinction, and it is needed the moment
         rules become data. `+ant(<R>, heat(?a, ?w))` is a **ground** claim about a
         rule, which happens to name a node that contains variables. It is not a
@@ -89,7 +69,7 @@ class Gate:
             raise ValueError(
                 f"cannot deposit a generic proposition: {self.g.show(proposition)}"
             )
-        # The veto runs before the deposit, so a forbidden entry never exists --
+        # The veto runs before the deposit, so a refused entry never exists --
         # not even briefly, and not for `on_write` to see. That matters because
         # `_dispatch` is an `on_write` hook: refusing here is what keeps the act
         # inside the agent, rather than emitting it and regretting it.

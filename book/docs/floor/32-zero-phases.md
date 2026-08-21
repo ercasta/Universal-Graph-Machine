@@ -33,7 +33,7 @@ the lessons are more transferable than the count.
 smallest unarguable record of a boundary event — *the channel said this* — and
 *what a report means* became a rule. The phase didn't move; it got smaller.
 
-**A phase can hide a precedence claim.** Every phase that ran first was asserting
+**A phase can hide a claim about what comes first.** Every phase that ran first was asserting
 that it *should*, where nothing could argue. As rules they're merely installed
 first, so the authored-order tiebreak prefers them — and a corpus can now say
 otherwise.
@@ -118,7 +118,8 @@ branch, it can only be *different*, and difference is invisible.
 
 The census found a small number, and two of them were repaired the same way: the
 strength of a claim became a wrapping term, and the precedence table became a
-claim read from the graph.
+claim read from the graph — which was the step before precedence went entirely
+(Chapter 17).
 
 One general finding came out of it that's worth keeping:
 

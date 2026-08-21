@@ -27,7 +27,7 @@ Two of them are worth dwelling on.
 
 **Defeasibility** is the load-bearing one for reasoning — *unless the front has
 already passed* — and it needs no numeric apparatus at all. It's the same
-precedence machinery that makes the boss's rule beat the vice's (Chapter 17).
+machinery that decides which rule is even in the running (Chapter 17).
 
 **Confidence is a property of the source, not of the rule.** *How sure am I of
 this rule*, *how sure am I of this sensor*, and *how far do I trust this

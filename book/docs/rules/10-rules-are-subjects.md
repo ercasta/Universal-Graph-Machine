@@ -95,7 +95,7 @@ with the rule's patterns:
 ```
 by(<regen>, boss)              who authored it
 about(<regen>, healing)        what it concerns
-overrides(<poison>, <regen>)   which of two wins  (Chapter 17)
+dormant(<regen>)               a rule taken out    (Chapter 17)
 ```
 
 The test is simple: if what you want to say needs to *point at one of the rule's

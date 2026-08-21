@@ -116,7 +116,8 @@ from quadratic to **linear**. Measured: 1,600 facts from 4.79s to **0.48s**, and
 
     A cache of a *claim* has no slow definition to be held to, because the claim
     is the definition. When it goes wrong, the failure is silence. That's why
-    the precedence table of Chapter 17 was deleted and the state index was not.
+    the precedence table Chapter 17 describes was deleted and the state index
+    was not.
 
 One column of that gate is the one no test suite can supply, and it's worth
 stating because it generalises:

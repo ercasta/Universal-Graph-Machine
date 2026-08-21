@@ -64,9 +64,9 @@ There is one carve-out, and it is stated as a safety property:
 > **Recall may be incomplete about what to do. It may not be incomplete about
 > what you must not do.**
 
-Prohibitions come off the selection path entirely and are checked at the
-write. However narrow the window gets, a forbidden conclusion is refused at
-the gate, on the record. Chapter 18.
+Prohibitions come off the selection path entirely: they are consulted on what a
+rule concluded, never recalled. However narrow the window gets, a forbidden
+conclusion is refused before it lands, on the record. Chapter 18.
 
 ## A selection trained on its own outputs narrows monotonically
 
@@ -123,14 +123,14 @@ smaller than it looks from outside.
 ## Callbacks are directed recall
 
 An **occasion** is a fact the machinery deposits when something notable
-happens: `quiet`, `blocked`, `bounded`, `unsupported`, `defeated`.
+happens: `quiet`, `blocked`, `bounded`, `unsupported`, `refused`.
 
 A corpus keys on one, and that is the first thing a corpus can say to this
 step: *when this happens, think of me* — the `due` mark that recall's budget
 may never starve.
 
 > **A callback is directed recall, not invocation.** The woken rule still has
-> to match, can still lose, and can still be defeated.
+> to match, can still lose, and can still be dormant.
 
 That distinction is the whole reason this is safe. A callback that *invoked*
 would be control flow that owns the loop, which Chapter 25 spent its length

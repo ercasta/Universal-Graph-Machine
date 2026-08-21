@@ -1,5 +1,4 @@
-"""Channels (§13).
-
+"""
 Every entry names where it arrived from, and that has two layers which must not
 be fused: channel the intake path -- this socket, this sensor, the knowledge
 base.

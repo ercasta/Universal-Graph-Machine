@@ -199,10 +199,6 @@ class Chain:
     def now(self) -> Moment:
         """The chain's end -- where the next entry lands.
 
-        ⭐ This replaces `Machine.focus.seat`. It is not a register: nothing
-        assigns it, so nothing can assign it wrongly. §4 allowed exactly one
-        privileged pointer and the engine no longer needs even that one, because
-        the only reason to hold a standpoint was that the graph could fork.
         """
         return self.moments[-1]
 
@@ -219,7 +215,7 @@ class Chain:
         `succeed` -- and a stamp applied in one of them would be a chain whose
         clock has a hole in it that nothing reports.
 
-        ⚠ Milliseconds as an ATOM whose name reads as a number, which is how
+        Milliseconds as an ATOM whose name reads as a number, which is how
         every other numeral works here: nothing in the graph learns about
         arithmetic, and the one reader that wants it does the conversion.
         """
@@ -239,17 +235,15 @@ class Chain:
     ) -> Entry:
         """Place an entry in the latest moment's delta.
 
-        Callers should not reach this directly -- it is what the gate of §13
-        wraps, and the gate is the only thing that knows where the stamps come
-        from.
+        Callers should not reach this directly.
 
-        ⭐⭐⭐ **Two members, and the rule side already had two.** An entry was
+        Note: An entry was
         `entry(locus, proposition, sign)` here and `entry(pattern, sign)` in a
         rule's moment -- the same word for two shapes, which is the twin trap
         with a different name. With the locus gone they are one shape, and a
         rule's moment and a chain's moment are finally the same construct.
 
-        ⚠ **Where an entry lands is the latest moment, and that is not a
+        **Where an entry lands is the latest moment, and that is not a
         register.** It is the chain's own end. Nothing chooses it, so nothing
         can choose it wrongly.
         """
@@ -287,18 +281,7 @@ class Chain:
     def resolve(self, proposition: NodeId) -> Optional[Entry]:
         """What the chain says about this proposition: the LAST claim made.
 
-        ⭐⭐⭐ This was the design's most consequential cost (§4) and it is now a
-        list index. It used to take the greatest `(locus depth, seat depth,
-        position)` over every claim, filtered by two ancestry walks -- one for
-        *is this locus at or before the one I asked about* and one for *is this
-        deposit on my branch*.
-
-        Both filters are gone because both questions are gone. Nothing forks, so
-        every deposit is on the one branch; and an entry has no locus, so there
-        is no second time to order by. **Later supersedes earlier, and that is
-        the whole read.**
-
-        ⚠⚠⚠ What this cannot answer, said plainly: *did this hold THEN*. That is
+        What this cannot answer, said plainly: *did this hold THEN*. That is
         no longer a Python service and it is not lost -- `in_delta`, `pred`,
         `anc` and `entry_of` are ordinary structural relations, so a corpus that
         wants history writes the rule and gets a dated, attributable, deniable

@@ -300,8 +300,8 @@ move + fork, ordered   ticks 7  max window 1  tried 152  walkers 5  found 1
 > no error and no diagnostic.
 
 Which is why the check asserts the **absence** of a find rather than the presence
-of one. The third row is the repair that is not one: `overrides(<fork>, <step>)`
-makes `<step>` undead — it never applies at all, and the extra six `tried` is
+of one. The third row is the repair that is not one: taking `<step>` out of the
+running makes it undead — it never applies at all, and the extra six `tried` is
 what it costs to carry a rule that cannot fire.
 
 There is also a quieter payoff. Every window in the spawn run has **size 1**: a
@@ -394,8 +394,8 @@ found from a fourth direction:
 With monotone rules the loop runs to quiescence and a merely-deferred rule
 applies on some later tick, so the state is the same either way — measured on two
 corridors, 21 ticks against 19 and both fully explored. *Ordering is not
-defeasibility.* And spawning consumes nothing, so the per-position precedence the
-moving design needed does not exist as a problem: **the missing mechanism was
+defeasibility.* And spawning consumes nothing, so the per-position arbitration
+the moving design needed does not exist as a problem: **the missing mechanism was
 missing because of the other design.**
 
 ### What this does not do

@@ -127,14 +127,15 @@ and the acquisition argument (Chapter 29) make the trail load-bearing for
 Something must always answer. Selection cannot be allowed to search forever or
 to return nothing, because the interpreter has no outside to fall back to.
 
-**Totality** is floor. **What it consults is convention** — an authored
-precedence relation over rules, read from the graph as it stands
-(Chapter 17).
+**Totality** is floor. **What it consults is convention** — a score, the order
+the rules were authored in, and whatever claims the corpus has made about its
+own rules (Chapter 17).
 
 The floor requires only that the final tiebreak **does not itself reason**. It
-does not require that the answer be kept anywhere. An earlier draft said *a
-lookup over an authored precedence table*, and the table is exactly what this
-turned out not to be.
+does not require that the answer be kept anywhere, or that there be much of it.
+An earlier draft said *a lookup over an authored precedence table*; the table
+went first, and then the precedence relations it cached went too, and totality
+was never what was at stake in either.
 
 ## Three grounds, not one
 
@@ -178,10 +179,12 @@ So:
 All three are checkable, and the checking has twice overturned the expectation
 it was run to confirm. A census retired the **grade** — 4 of 3,740 rules
 authored a non-certain one. A second census retired the **precedence table** —
-deleting it cost 6.42s against 6.38s.
+deleting it cost 6.42s against 6.38s — and a third went through every precedence
+claim in the repository, found that four of seven were doing nothing and the
+rest were premises in disguise, and retired the relations themselves.
 
-Neither was cut for being wrong. Both were cut for being *unused where it
-counted*, which is a measurement and not an argument.
+None was cut for being wrong. All were cut for being *unused where it counted*,
+which is a measurement and not an argument.
 
 > **Closed is a rate, not a kind.** A closed set defended well is
 > indistinguishable, from the inside, from a closed set nobody has checked.

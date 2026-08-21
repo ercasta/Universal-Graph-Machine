@@ -29,9 +29,9 @@ another. None of them moves a score. (Three that did — `boost`, `damp`,
 [Chapter 28](../watching/28-the-table.md)
 
 **arbitration** — choosing which of the applicable rules to apply. *Totality* —
-that something always answers — is a floor primitive. *Precedence* — which one
-wins — is an ordinary claim read from the graph. A loser is **deferred, not
-rejected**. [Chapter 17](../unsure/17-disagreement.md)
+that something always answers — is a floor primitive. What it consults is a
+score, authored order, and whatever the corpus has claimed about its own rules.
+A loser is **deferred, not rejected**. [Chapter 17](../unsure/17-disagreement.md)
 
 **blocked** — a claim the searcher makes about **itself**: I expanded this goal,
 nothing fit, and I have stopped. Not *there is no way* — *I found no way*. No
@@ -65,6 +65,16 @@ machine. [Chapter 8](../rules/08-writing-a-corpus.md)
 
 **delta** — the entries a moment holds. What changed. A moment stores only its
 delta, which is why reading is a walk. [Chapter 4](../basic/04-moments.md)
+
+**delta (between two spans)** — what stands between where you are and where you
+want to be, computed by the `<difference>` tool and materialised one `missing` /
+`extra` entry per difference. A tool because a rule matches one entry and cannot
+speak about a set. [Chapter 12](../wanting/12-plans.md)
+
+**dormant** — a claim that a rule is out of the running: not considered at all
+until something claims `due`. The only thing that removes a rule, and it is per
+rule, which is why an exception belongs in a premise instead.
+[Chapter 17](../unsure/17-disagreement.md)
 
 **deposit moment** — *when a claim was made*. Not a member of the entry — it's
 simply which moment's delta the entry sits in. The second of the read's two
@@ -106,12 +116,13 @@ is the thing history is made of. (It carried a **licence** too; that is
 recorded on the entry now.)
 [Chapter 4](../basic/04-moments.md)
 
-**norm** — a prohibition. Checked at the **write**, never proposed and never
-arbitrated, because what comes to mind is opaque and *the opaque component may
-not be load-bearing for safety*. [Chapter 18](../unsure/18-norms.md)
+**norm** — a prohibition, written as a **trigger** that concludes `drop`.
+Consulted on what a rule concluded, never proposed and never arbitrated, because
+what comes to mind is opaque and *the opaque component may not be load-bearing
+for safety*. [Chapter 18](../unsure/18-norms.md)
 
 **occasion** — a fact the machinery deposits when something notable happens:
-`quiet`, `blocked`, `defeated`, `bounded`, `unsupported`, `pushed`, `popped`.
+`quiet`, `blocked`, `refused`, `bounded`, `unsupported`, `pushed`, `popped`.
 A corpus keys on one to say *when this happens, think of me*.
 [Chapter 27](../watching/27-recall.md)
 
@@ -166,6 +177,13 @@ it, nothing is matched at all. A dry window widens.
 **table (of agents)** — several machines, each with its own scope, chain and
 corpus, wired channel-to-channel. Nothing is shared; what crosses is an
 **utterance**. Two minds are two scopes, not two frames.
+
+**trigger** — an ordinary rule marked `intercepts(<T>, after)`, consulted on
+what another rule is about to conclude. It matches `producing(<R>, p)` — a fact
+that exists only while that question is asked and is never deposited — and what
+it concludes is an instruction: `instead(p, q)` replaces, `drop(p)` refuses,
+anything else is added. Norms, hypothesis marking and wrapping are all this one
+mechanism. [Chapter 18](../unsure/18-norms.md)
 [Chapter 24](../world/24-several-agents.md)
 
 **stamp** — the floor-level record on every node the engine mints: what produced

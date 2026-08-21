@@ -27,9 +27,9 @@ So: count.
 | literals (numerals) | 10 |
 | the surface — connectives, signs, `absent` | 7 |
 | the chain — moments, entries, the walk | 13 |
-| rules as data | 14 |
-| **the agent's own deliberation** | **66** |
-| the seam where a world reaches it — `arrived`, `says`, `did`, `forbidden` | 13 |
+| rules as data | 11 |
+| **the agent's own deliberation** | **75** |
+| the seam where a world reaches it — `arrived`, `says`, `did`, `substituted` | 13 |
 | **about any world** | **0** |
 
 **Not one reserved name is a domain word.** There's no engine name for a thing,
