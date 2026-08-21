@@ -37,3 +37,5 @@ class Position
 
 
 Reasoning about it: We actually need few things. One thing we need is explicitly managing entities; having relationship among entities, not about denotations of the entities; and treating denotations as queries. So "Paul" becomes an entity with a name: "name(?x, Paul)". Entities just have an atom id; and we know that things related to same atom id are actually the same (i.e. we could "fuse" nodes having the same atom id)
+
+
