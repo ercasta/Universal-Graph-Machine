@@ -100,24 +100,18 @@ index and says the thing directly.
 not a node on purpose: a rule named `stop` must go on meaning that
 rule, and encoding the verb as a reserved atom is the twin trap in its
 cheapest form -- one name, two meanings.
-Authored precedence (§14): the bottom-most arbitrator is a lookup that
-always returns and never searches.
-⭐⭐⭐ **Precedence is READ, not kept.** These were two Python lists,
-seeded by the loader once and unreachable from the graph -- so a rule
-could conclude `overrides(A, B)`, the fact would hold, and the
-arbitrator would never look. Now `precedence()` reads what the graph
-claims, at the position the agent is standing, exactly as `_recall`
-reads `dormant`/`due`. That makes it **dated, deniable and about a
-rule that may not have existed yet** -- and it deleted a write hook,
-a re-scan on adoption, two seeders and a loader method.
+Precedence is gone. It was two Python lists, then a graph read
+(`precedence()`), and finally nothing: every corpus using it was saying
+something it could say better as a premise about the state or as
+`dormant(<R>)` -- a claim about one rule, read where the ordering is
+built, revoked by `due`. What removes a rule from the running is that
+claim, and nothing else does.
 
-Measured before deleting, because the previous version was kept for
-speed: the whole suite runs in **6.42s against 6.38s**. The table was
-buying nothing.
-
-Set by the Machine, which owns the nodes and the position. Unset, a
-bare RuleSet has no precedence, which is what a RuleSet with no world
-to read should say.
+Measured on the way out: `overrides` cost 11 checks across six fixtures
+and every one of them was rewritten smaller. The rules that read a
+precedence relation -- `defeat`, `_defeated`, `_defeaters`,
+`_superseded`, `precedence` -- are all deleted, and a RuleSet no longer
+has a precedence node to be unset.
 
 ## ...and relations that are READ OFF THE CHAIN rat
 
@@ -133,21 +127,20 @@ branch. **Containment stays structural rather than becoming enforced**:
 nothing is refused, a downward pattern simply finds nothing, exactly as
 a rule matching an entry nobody wrote finds nothing.
 
-## ...and defeat about a CASE. overrides is per t
+## ...and defeat about a CASE, which was the last argument for precedence
 
-...and defeat about a CASE. `overrides` is per tick: a rule overridden
-by another that matched anywhere this step does not apply at all, which
-is right when the two are rival answers to one situation (the boss's
-rule and the vice's) and wrong when they are rival answers to each of
-several. Pointing `overrides` at a real pair showed it: making the
-outcome of an action replace the assumption that the action happened
-also suppressed the assumption for every OTHER action in the step.
+`overrides` was per tick: a rule overridden by another that matched anywhere
+this step did not apply at all, which is right when the two are rival answers to
+one situation and wrong when they are rival answers to each of several. Pointing
+it at a real pair showed it: making the outcome of an action replace the
+assumption that the action happened also suppressed the assumption for every
+OTHER action in the step. `supersedes` was added for exactly that case, and
+compared consumed entries to find the applications about the same case.
 
-Two intents, two relations, rows rather than branches. `supersedes`
-defeats only the applications that share **evidence** -- a consumed
-entry -- with an application of the higher rule, which is what *about
-the same case* means when the two rules bind different variables and
-cannot be compared any other way.
+Both are gone. *About the same case* belongs in the antecedent -- the bundle's
+`<assert-act>` reads `no substituted(?what)`, so the corpus qualifies it per ACT
+-- and *this rule is out* belongs in `dormant`, which is per rule and says so.
+Neither is precedence, and neither needs a second thing in the loop.
 
 ## Rules by the relation they CONCLUDE. §3 gives th
 
@@ -169,7 +162,7 @@ already declines it.
 
 ⚠⚠⚠ **A caller may supply the node, and `adopt` must.** A rule the
 graph describes is already a node -- a corpus concluded `ant(<R>,
-...)` about it, and `<R>` is what any precedence, any `defeated`
+...)` about it, and `<R>` is what any `dormant`, any `exercised`
 record and any later claim will name. Minting a fresh node here made
 the live rule a TWIN of the described one: everything a corpus had
 said about it went to a node that was not a rule, and everything the
@@ -235,9 +228,9 @@ Collapse `first` then `second` into one rule (§4).
         **Unify pattern against pattern.** Not match: `boiling(?w)` against
         `boiling(?x)` binds a variable to a variable, which matching never does.
 
-        **Inherit the defeats.** Anything that overrides either constituent must
-        override the composition, or the shortcut fires where the reasoning it
-        replaces would have been defeated -- §21's *a shortcut that has outlived
+        **Inherit the dormancy.** Anything that takes either constituent out must
+        take the composition out too, or the shortcut fires where the reasoning
+        it replaces would not have run -- §21's *a shortcut that has outlived
         its guards*, arriving immediately rather than after a context change.
 
         ⭐⭐⭐ **And guard inheritance is COMPLETE, which this docstring spent
@@ -865,23 +858,21 @@ Among the rules that matched, choose one. Total: it always answers.
 
     Two steps, and they are not the same step.
 
-    **Defeat first.** `overrides` is defeasibility (§12), not a ranking: a rule
-    that is overridden by another rule *that also matched here* does not apply at
-    all. Merely ordering them would let the loser apply on the following tick and
-    overwrite the winner, so the boss's rule would be obeyed and then quietly
-    undone by the vice's.
+    **Out of the running first.** `dormant(<R>)` is not a ranking: a rule the
+    graph claims is dormant is not considered at all, and it comes back when
+    something claims `due`. Merely ranking it low would let it apply on a later
+    tick and overwrite what the agent decided instead -- ordering is not
+    removal, which is the whole reason the claim exists.
 
     **Then choose.** Three keys, in this order, and the order is the argument.
 
-        authority     `overrides` -- already applied, above, as defeat
         apparatus     a `standing` rule keeps its authored place
         helpfulness   what the situation recommends (`prefer`)
         authoring     the order they were written in
 
-    Authority first is not negotiable: the boss's rule beating the vice's is a
-    claim about who decides, and no amount of *this one usually works* may
-    outrank it. That is why defeat runs first and is not folded in here as
-    another score.
+    There is no authority key. It used to be `overrides`, applied above as
+    defeat; a corpus that wants one rule to beat another says which of them is
+    out, or writes the premise that tells them apart.
 
     The apparatus next, and this one was found by breaking it. Preference is
     derived from *what serves the current goal*, and let loose over everything it
@@ -901,39 +892,16 @@ Among the rules that matched, choose one. Total: it always answers.
     Still a lookup that never searches (§14), so it stays total: with no
     preferences it is exactly the authored order it always was.
 
-## `defeat`
+## What `defeat` was
 
-Drop the applications whose rule is overridden by another that matched.
+`defeat` dropped the applications whose rule was overridden by another that
+matched. It ran on everything that matched, before any quiescence filter, and
+that order was load-bearing: filter first and the winner disappears as soon as
+its conclusion is written, whereupon the loser is unopposed and overwrites it.
+It had a fallback for a cycle in `overrides`, asked of the RULES rather than of
+the applications handed in, so that arbitration stayed total.
 
-    This runs on everything that **matched**, before any quiescence filter --
-    and the order is load-bearing. Defeat is about whose antecedent holds, not
-    about who still has work to do. Filter first and the winner disappears as
-    soon as its conclusion is already written, whereupon the loser is
-    unopposed and quietly overwrites it: the boss's rule obeyed once, then
-    undone by the vice's on the following tick.
-
-    ⭐ Which is exactly why `matched` is a separate argument. The loop now passes
-    only the applications that still have work to do -- that is what stops the
-    tick being linear in everything ever matched -- and the rules that matched
-    are carried alongside, so nothing above changes. `_defeated` reads only the
-    rule set, so the two can come apart without the guarantee coming apart.
-
-    ⚠ `supersedes` is the one test that genuinely needs the applications
-    themselves, because it compares CONSUMED ENTRIES rather than rules. A caller
-    that is withholding applications cannot answer it, so a rule set that uses
-    `supersedes` gets the whole set and the old cost. That is stated rather than
-    hidden: the fast path is for corpora that do not order two rules *for the
-    same case*, which is all of them so far.
-
-## A cycle in overrides would defeat everything.
-
-A cycle in `overrides` would defeat everything. Arbitration must stay
-total (§14), so fall back rather than answer nothing.
-
-⚠⚠⚠ **Asked of the RULES, not of the applications handed in.** With a
-withheld set, *nothing here survived* and *nothing survived at all* are
-different claims: a quiet application whose rule is undefeated means the
-old code returned it and quiescence then dropped it, ending the tick with
-no move. Falling back on the short list instead would revive a defeated
-rule and make a move the agent had decided against. The fallback is for a
-cycle, and a cycle is a property of the rule set.
+All of it is deleted with the relation. A rule is out because the graph claims
+`dormant(<R>)`, which is read once where the ordering is built -- there is no
+set to compare, no cycle to break, and nothing that can make arbitration
+partial.

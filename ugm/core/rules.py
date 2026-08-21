@@ -235,8 +235,7 @@ class RuleSet:
         self.triggers: Dict[Optional[NodeId], List[Tuple]] = {}
         # STOP (below) may appear as a trigger's target.
         # → docs/design/rules.md#stop-below-may-appear-as-a-trigger-s-target
-        self.OVERRIDES: Optional[NodeId] = None
-        self.SUPERSEDES: Optional[NodeId] = None
+        self.DORMANT: Optional[NodeId] = None
         self.claims: Optional[Callable[[NodeId], object]] = None
         # Relations that are COMPUTED rather than matched (§12's skeleton).
         # Set by the Machine, which owns the registry; a bare RuleSet has none,
@@ -451,27 +450,6 @@ class RuleSet:
         ]
         return self.g.instance(self.MOMENT, *entries)
 
-    def precedence(self, relation: Optional[NodeId]) -> List[Tuple[Rule, Rule]]:
-        """Which rules the graph says outrank which, here and now.
-
-        ⚠ Empty when nothing claims one, which is the common case and the fast
-        path: `instances_of` on a relation nobody has written is empty, so this
-        costs a dict lookup before it costs anything else.
-        """
-        if relation is None or self.claims is None:
-            return []
-        out: List[Tuple[Rule, Rule]] = []
-        for p in self.g.instances_of(relation):
-            members = self.g.members(p)
-            if len(members) != 2:
-                continue
-            higher = self.by_node.get(members[0])
-            lower = self.by_node.get(members[1])
-            if higher is None or lower is None or not self.claims(p):
-                continue
-            out.append((higher, lower))
-        return out
-
     def compose(self, first: Rule, second: Rule, name: str = "") -> Optional[Rule]:
         """Collapse `first` then `second` into one rule (§4).
 
@@ -519,16 +497,17 @@ class RuleSet:
                     name or f"{first.name}+{second.name}",
                 )
                 self.composed_from[composed.node] = (first, second)
-                # ⚠ Inheriting the defeats is now a CLAIM, deposited by whoever
-                # asked for the composition, because precedence lives in the
-                # graph. `Machine.compose` writes them; a caller that composes
-                # without a world gets a rule with no inherited precedence,
-                # which is the honest answer rather than a silent one.
-                self.inherit = [
-                    (higher, composed)
-                    for higher, lower in self.precedence(self.OVERRIDES)
-                    if lower is first or lower is second
-                ]
+                # A composition of a rule that is out of the running is out
+                # too, or composing would be a way past it. It is a CLAIM,
+                # deposited by whoever asked for the composition, because
+                # dormancy lives in the graph: `Machine.compose` writes it, and
+                # a caller that composes without a world gets a rule with
+                # nothing inherited, which is the honest answer.
+                self.inherit = [composed] if any(
+                    self.DORMANT is not None and self.claims is not None
+                    and self.claims(self.g.rel(self.DORMANT, r.node))
+                    for r in (first, second)
+                ) else []
                 return composed
         return None
 
@@ -1494,84 +1473,6 @@ def arbitrate(
         if key < best_key:
             best, best_key = cand, key
     return best
-
-
-def defeat(
-    rs: RuleSet,
-    applications: Sequence[Application],
-    matched: Optional[Sequence["Rule"]] = None,
-) -> List[Application]:
-    """Drop the applications whose rule is overridden by another that matched.
-
-    This runs on everything that matched, before any quiescence filter -- and
-    the order is load-bearing. Defeat is about whose antecedent holds, not
-    about who still has work to do. ⚠ supersedes is the one test that genuinely
-    needs the applications themselves, because it compares CONSUMED ENTRIES
-    rather than rules.
-
-    See docs/design/rules.md#defeat.
-    """
-    matched = list(matched) if matched is not None else [a.rule for a in applications]
-    surviving = [
-        a
-        for a in applications
-        if not _defeated(rs, a.rule, matched) and not _superseded(rs, a, applications)
-    ]
-    if surviving:
-        return surviving
-    # A cycle in overrides would defeat everything. Arbitration must stay total
-    # (§14), so fall back rather than answer nothing. ⚠⚠⚠ Asked of the RULES,
-    # not of the applications handed in.
-    # → docs/design/rules.md#a-cycle-in-overrides-would-defeat-everything
-    if any(not _defeated(rs, r, matched) for r in matched):
-        return []
-    return list(applications)
-
-
-def _superseded(rs: RuleSet, app: Application, applications: Sequence[Application]) -> bool:
-    """Defeated **for this case** rather than for this step.
-
-    Two applications are about the same case when they were triggered by the
-    same evidence, and a shared consumed entry is the only comparison available:
-    the rules bind different variables, so their bindings cannot be lined up.
-    It is also the honest one -- the trail already records what each application
-    matched, because R5 needs it, so nothing is measured that was not already
-    kept.
-    """
-    pairs = rs.precedence(rs.SUPERSEDES)
-    if not pairs:
-        return False
-    mine = {e.node for e in app.consumed}
-    for higher, lower in pairs:
-        if lower is not app.rule:
-            continue
-        for other in applications:
-            if other.rule is higher and mine & {e.node for e in other.consumed}:
-                return True
-    return False
-
-
-def _defeated(rs: RuleSet, rule: "Rule", matched: Sequence["Rule"]) -> bool:
-    """Overridden by something that matched here. A rule overridden by a rule
-    whose antecedent does not hold is not defeated -- that is what makes
-    defeasibility about the situation rather than about the rule set."""
-    return any(higher in matched and lower is rule
-               for higher, lower in rs.precedence(rs.OVERRIDES))
-
-
-def _defeaters(rs: RuleSet, rule: "Rule", matched: Sequence["Rule"]) -> List["Rule"]:
-    """*Which* rules defeated it, and that is the whole difference between
-    knowing a rule lost and being able to say to whom.
-
-    `_defeated` answers the question arbitration asks -- may this apply -- and
-    throws the answer away. Nothing else could ever reconstruct it: the losing
-    rule leaves no trace, so *which of my rules actually fight* was a question
-    about a run that no run recorded.
-    """
-    return [
-        higher for higher, lower in rs.precedence(rs.OVERRIDES)
-        if lower is rule and higher in matched
-    ]
 
 
 # `effective_grade` was here: `min(authored, every consumed entry's grade)` --

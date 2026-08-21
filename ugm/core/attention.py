@@ -1,7 +1,5 @@
 """The loop: a table over rules, take the first that matches, then spend.
 
-    python -m ugm.core.attention
-
 ⭐⭐⭐ **This is the loop, and it is the only one.** `Machine.run` is three lines
 that call it and `Machine.tick` is five; every probe, gate, corpus and check in
 the tree arrives here. Four things it knows, and none of them is semantic:
@@ -38,8 +36,7 @@ from .graph import NodeId
 from .machine import Machine, Step
 from .rules import (STOP, UNATTEND, Application, Attend, Member, Pop, Push,
                     Rule,
-                    Situation, _superseded, match, substitute)
-from .text import load
+                    Situation, match, substitute)
 
 # A rule the bundle marks `standing` is in the table at the default; everything
 # else is in it at the floor. The author's own correction to an earlier sketch:
@@ -122,8 +119,8 @@ class Table:
             # already -- authored order -- and it is not decorative: two thirds
             # of this agent's arbitrations are settled by the order of the
             # bundle file. ⚠ It can only BE the tiebreak because buffs do the
-            # specificity work: `bird -> flies` declared before
-            # `penguin -> flightless` wins for ever unless something lifts the
+            # specificity work: a general rule declared before the specific
+            # one that qualifies it wins for ever unless something lifts the
             # specific rule.
             self.rank[r.node] = i
             if r.name:
@@ -228,44 +225,6 @@ class Report(NamedTuple):
     scanned_nodes: int = 0
 
 
-def _is_defeated(m: Machine, rule: Rule, state) -> bool:
-    """Does anything that overrides this rule match here?
-
-    ⭐ The option-set loop answered this by having matched everything already.
-    A prefix scan has not, so it asks the question the other way round: read the
-    rules that override this one -- precedence is read from the graph, and there
-    are usually one or two -- and match only those.
-
-    ⚠ `supersedes` is NOT here. It defeats per CASE rather than per rule: only
-    the applications sharing a consumed entry with the winner are out, so it
-    cannot be settled by asking whether a rule matched. It is applied where the
-    applications are, below.
-    """
-    higher = [h for h, lower in m.rules.precedence(m.rules.OVERRIDES)
-              if lower is rule]
-    # ⚠⚠⚠ EVERY overrider that matched, not the first.
-    # → docs/design/attention.md#every-overrider-that-matched-not-the-firs
-    beaten = False
-    for h in higher:
-        found = match(
-            m.g, m.chain, h, state,
-            computes=m.rules.computes, structural=m.rules.skeleton(),
-        )
-        # ⚠⚠⚠ **Matched, NOT survived**, and the difference is the whole of it.
-        # `_survives` asks whether the winner still has work to do -- and once it
-        # has applied, its conclusion holds, so it stops surviving and the loser
-        # is suddenly undefeated. Measured: A2 applied, then A1 applied straight
-        # after and overwrote it, which is exactly the failure the option-set
-        # loop records as *defeat is about whose antecedent holds, not about who
-        # still has work*.
-        if found:
-            # On the record, because *which of my rules actually fight* is a
-            # question about a run that no run recorded until it was deposited.
-            m._note(m.g.rel(m.DEFEATED, rule.node, h.node))
-            beaten = True
-    return beaten
-
-
 def _rivals(m: Machine, chosen: Application, state) -> List[Application]:
     """The other ways of getting what this move is getting.
 
@@ -304,27 +263,6 @@ def _dormant(m: Machine, r: Rule) -> bool:
     """
     return (m._claims(m.g.rel(m.DORMANT, r.node))
             and not m._claims(m.g.rel(m.DUE, r.node)))
-
-
-def _is_superseded(m: Machine, app: Application, state) -> bool:
-    """Defeated **for this case** rather than for this step.
-
-    ⭐ The property supersedes exists for is *substitute where an outcome is
-    declared, otherwise assume* -- and it is not expressible any other way.
-
-    See docs/design/attention.md#is-superseded.
-    """
-    higher = [h for h, lower in m.rules.precedence(m.rules.SUPERSEDES)
-              if lower is app.rule]
-    if not higher:
-        return False
-    others: List[Application] = []
-    for h in higher:
-        others.extend(match(
-            m.g, m.chain, h, state,
-            computes=m.rules.computes, structural=m.rules.skeleton(),
-        ))
-    return _superseded(m.rules, app, others)
 
 
 def _standing(m: Machine) -> set:
@@ -597,17 +535,10 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 if attended:
                     found = _attended_first(found, attended,
                                             m._attention_weights())
-                # _survives is the shipped per-candidate filter: passed up,
-                # quiescent, or already spent on these premises. ⚠ The gate
-                # agreeing was not wrong, it was WEAK: it compares final
-                # conclusions, and a loop that runs to quiescence applies the
-                # loser eventually anyway --...
-                # →
-                # docs/design/attention.md#survives-is-the-shipped-per-candidate-filter
-                if _is_defeated(m, r, state):
-                    continue
+                # `_survives` is the per-candidate filter: passed up,
+                # quiescent, or already spent on these premises.
                 for a in found:
-                    if m._survives(a) and not _is_superseded(m, a, state):
+                    if m._survives(a):
                         window.append(a)
                         if top is None:
                             top = table.score[r.node]
@@ -793,7 +724,7 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
 
     The query is matched with the application's own bindings already
     substituted in, which is what makes it a POSTcondition rather than a second
-    rule: `after { +penguin(?x) }` asks about the `?x` this rule just bound. A
+    rule: `after { +p(?x) }` asks about the `?x` this rule just bound. A
     bare `after` has no query and holds always.
     """
     name = chosen.rule.name or "?"
@@ -825,194 +756,3 @@ def _state(m: Machine) -> set:
     same beliefs by different routes agree about the world, and that is the
     question."""
     return {(m.g.show(e.proposition), e.sign) for e in m._state()}
-
-
-# -- the comparison ---------------------------------------------------------
-
-PENGUIN = """
-fact bird(tweety)
-fact bird(pingu)
-fact penguin(pingu)
-fact asked(pingu)
-fact asked(tweety)
-
-rule <flies>      = implies( {{ +bird(?x), +considered(?x) }},    {{ +can_fly(?x) }} )
-rule <flightless> = implies( {{ +penguin(?x), +considered(?x) }}, {{ +grounded(?x) }} )
-rule <classify>   = implies( {{ +asked(?x) }},                    {{ +considered(?x) }} )
-{post}
-"""
-
-
-def penguin() -> int:
-    """The author's example, and it found the mechanism's real boundary.
-
-    <flies> is declared first, so under declaration order it wins for every
-    bird, penguin included. The general rule IS the more foundational one,
-    which is what declaration order says. ⚠ THE BUFF NEVER FIXED THE PENGUIN,
-    AND RETIRING IT COSTS NOTHING HERE.
-
-    See docs/design/attention.md#penguin.
-    """
-    print()
-    print("  the penguin -- ordering is not defeasibility")
-    wrong = 0
-    DENIED = PENGUIN.replace(
-        "fact penguin(pingu)",
-        "fact penguin(pingu)" + chr(10) + "fact -penguin(tweety)").replace(
-        "+bird(?x), +considered(?x) }}",
-        "+bird(?x), +considered(?x), -penguin(?x) }}")
-    cases = (
-        ("declaration order alone", PENGUIN.format(post="")),
-        ("standing(<flightless>)",
-         PENGUIN.format(post="fact standing(<flightless>)")),
-        ("overrides(<flightless>, <flies>)",
-         PENGUIN.format(post="fact overrides(<flightless>, <flies>)")),
-        ("the KB states -penguin(tweety)", DENIED.format(post="")),
-    )
-    for label, src in cases:
-        m = Machine()
-        kb = load(m, src)
-        load(m, SETTLE)
-        run(m, limit=12)
-        held = lambda t: m.holds(kb.term(t)) == "+"
-        pingu_flies, tweety_flies = held("can_fly(pingu)"), held("can_fly(tweety)")
-        print(f"    {label:32} pingu flies: {str(pingu_flies):5}  "
-              f"grounded: {str(held('grounded(pingu)')):5}  "
-              f"tweety flies: {tweety_flies}")
-        if label.startswith(("overrides", "the KB")):
-            # The two that claim to answer it: the penguin must not fly, and an
-            # ordinary bird must still be able to.
-            if pingu_flies:
-                print(f"    FAIL  {label} left the penguin flying")
-                wrong += 1
-            if label.startswith("the KB") and not tweety_flies:
-                print(f"    FAIL  {label} grounded tweety as well, which is not "
-                      f"solving the penguin but breaking flight")
-                wrong += 1
-        elif not pingu_flies:
-            print(f"    FAIL  {label} is an ORDERING and must not remove a "
-                  f"conclusion -- if it does, ordering has become defeat")
-            wrong += 1
-    return wrong
-
-
-# -- stopping, which is what makes a score mean anything --------------------
-
-_IDLE = "\n".join(
-    "rule <f%d> = implies( { +wood(?x) }, { +step%d(?x) } )" % (i, i)
-    for i in range(1, 13))
-_DEEP = "\n".join(
-    "rule <g%d> = implies( { +step%d(?x) }, { +after%d(?x) } )" % (i, i, i)
-    for i in range(1, 13))
-
-# ⚠ `want`, not `goal`. `goal` is the apparatus's own relation and the backward
-# reader deposits its own, so a completion check written over `goal(?w)` fires
-# on the machinery's subgoals -- measured, and it reported the check firing
-# BEFORE the thing was built. A corpus's vocabulary is not the apparatus's.
-STOPPING = """
-fact +want(assembled(cart))
-fact +wood(cart)
-rule <wheel> = implies( { +wood(?x) },       { +have(wheel) } )
-rule <axle>  = implies( { +have(wheel) },    { +have(axle) } )
-rule <bed>   = implies( { +have(axle) },     { +have(bed) } )
-rule <build> = implies( { +have(bed) },      { +assembled(cart) } )
-rule <done>  = implies( { +want(?w), +?w },  { +finished(?w) } )
-""" + _IDLE + "\n" + _DEEP + "\n"
-
-# Two things wanted, one reachable: the stop fires on the one that was built
-# while the other is still wanted and still unmet.
-OPEN_WANT = """
-fact +want(assembled(cart))
-fact +want(painted(cart))
-fact +wood(cart)
-rule <wheel> = implies( { +wood(?x) },       { +have(wheel) } )
-rule <build> = implies( { +have(wheel) },    { +assembled(cart) } )
-rule <done>  = implies( { +want(?w), +?w },  { +finished(?w) } )
-after <done> => stop
-"""
-
-
-def _stopping_run(src, limit=400):
-    m = Machine()
-    load(m, src)
-    load(m, SETTLE)
-    return m, run(m, limit=limit)
-
-
-def stopping() -> int:
-    """`stop`, and the two things measuring it settled.
-
-    This file's own design says *done is the output of a rule that checks
-    against the goal* -- and the loop had no way to obey one: the check
-    concluded and the agent carried straight on to quiescence. ⚠ TWO OF THE
-    FIVE ROWS ARE GONE WITH THE BUFFS.
-
-    See docs/design/attention.md#stopping.
-    """
-    print()
-    print("  stopping -- a cart to build, and a check that says when it is done")
-    bad = 0
-    seen = {}
-    cases = (
-        ("", "no postcondition"),
-        ("after <done> => stop", "stop, <done> at the floor"),
-        ("after <done> => stop\nfact standing(<done>)",
-         "stop, and <done> standing"),
-    )
-    for post, label in cases:
-        _m, r = _stopping_run(STOPPING + "\n" + post)
-        done = any(p == "finished(assembled(cart))" and sg == "+"
-                   for p, sg in r.state)
-        seen[label] = r.ticks
-        print(f"    {label:32} {r.ticks:>4} moves   finished: {done}   "
-              f"stopped by {r.table.stopped}")
-        if not done:
-            bad += 1
-    # The claim, as a number: obeying the rule is what shortens the run.
-    if seen["stop, <done> at the floor"] >= seen["no postcondition"]:
-        print("    FAIL  `stop` did not shorten the run")
-        bad += 1
-    # ...and the null result, kept as a check so it cannot quietly come back.
-    # ⚠ A BOUND, not an equality -- see the docstring. It has to stay far
-    # tighter than what `stop` buys, or it would stop being able to fail.
-    drift = abs(seen["stop, and <done> standing"]
-                - seen["stop, <done> at the floor"])
-    worth = seen["no postcondition"] - seen["stop, <done> at the floor"]
-    if drift > 1 or drift * 10 >= worth:
-        print(f"    FAIL  raising the check's priority changed the run by "
-              f"{drift} moves against {worth} for `stop` -- the null result "
-              f"moved")
-        bad += 1
-
-    # ⚠⚠⚠ THE COST, measured rather than asserted. The shipped loop refuses to
-    # stop QUIETLY on something it was asked for: an open goal outranks an
-    # `enough`. This loop cannot, because that veto is an aggregate -- *nothing
-    # else is wanted and unmet* -- and a rule cannot speak about the set of its
-    # matches. So the guarantee becomes a corpus's, exactly as it did for norms,
-    # and this is the instrument that watches it rather than a claim that it is
-    # fine.
-    _m, r = _stopping_run(OPEN_WANT, limit=200)
-    held = {p for p, sg in r.state if sg == "+"}
-    quiet_on_open = ("want(painted(cart))" in held
-                     and "painted(cart)" not in held
-                     and r.table.stopped is not None)
-    print(f"    {'stopped with a want still open':32} {r.ticks:>4} moves   "
-          f"unmet want left behind: {quiet_on_open}")
-    if not quiet_on_open:
-        print("    FAIL  the open-want probe has nothing to measure")
-        bad += 1
-    return bad
-
-
-def main() -> int:
-    import sys
-
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    print(__doc__.split("## What is deliberately NOT here")[0].strip())
-    print()
-    return penguin() + stopping()
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

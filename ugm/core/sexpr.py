@@ -219,7 +219,7 @@ fact <no-harm> = forbidden(doing(harm(?x)))
 fact +heat(anna, kettle)
 fact +water(kettle)
 fact -liquid(ice)
-fact overrides(<boil>, <weather>)
+fact dormant(<weather>)
 say user: +raining(here)
 """
 
@@ -233,7 +233,7 @@ syntax: lisp
 (fact + (heat anna kettle))
 (fact + (water kettle))
 (fact - (liquid ice))
-(fact + (overrides <boil> <weather>))
+(fact + (dormant <weather>))
 (say user + (raining here))
 """
 

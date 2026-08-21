@@ -56,8 +56,14 @@ rule <taken> = implies(
 # which §12 calls vacuous BACKWARDS and exact forwards -- the same shape as a
 # trust rule, and for the same reason: it says *believe what this channel
 # reported*, where the channel is the agent's own hands.
+#
+# `no substituted(?what)` is how a corpus takes that back for one act rather
+# than for all of them: a rule supplying an act's outcome concludes
+# `substituted(?a)` as well, and this rule then assumes nothing about that act
+# while every other act keeps the fallback. That is per ACT, where precedence
+# is per rule and per tick.
 rule <assert-act> = implies(
-    { +did(?what) },
+    { +did(?what), no substituted(?what) },
     { +?what } )
 
 

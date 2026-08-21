@@ -7,8 +7,6 @@ prose that stood at the place the module now points from.
 
 The loop: a table over rules, take the first that matches, then spend.
 
-    python -m ugm.core.attention
-
 ⭐⭐⭐ **This is the loop this repo ships, and it is the only one.** `Machine.run`
 is three lines that call it; `Machine.tick` is five. What follows is the
 argument that put it there, and it is written against a loop that no longer
@@ -100,7 +98,7 @@ with an application binding it*, which is the option set this loop exists not to
 build. Asked from the other end it is two lookups: the relations `goblin1` is
 currently spoken of under (`Situation.relations_of`, the state's third index),
 and the rules whose antecedent uses one (`Table.by_relation`). The same
-join-not-scan that recovered `overrides`, `supersedes` and `forgone`, for the
+join-not-scan that recovered `forgone`, for the
 fourth time.
 
 ⚠ **Approximate on purpose.** A rule reading `wounded(?x)` is lifted because
@@ -271,19 +269,41 @@ are subjects here -- `close(<A>, <B>)` names them -- and because `_note`
 deposits it as a MENTION, so a rule concluding about `?a` is not dropped by
 quiescence as having nothing to deposit.
 
-## EVERY overrider that matched, not the firs
+## There is no defeat
 
-⚠⚠⚠ **EVERY overrider that matched, not the first.** This returned on the
-first one, so a rule beaten by two recorded only whichever `precedence()`
-happened to list first -- and the dungeon has both `<halt>` and
-`<hero-acts>` over `<hero-holds>`. `<halt>` won the race and
-`defeated(<hero-holds>, <hero-acts>)` was never written, which
-`ugm.attention`'s own gate caught as a conclusion the shipped loop reaches
-and this one does not.
+One thing decides what is in front of the agent, and it is the table: a score,
+authored order, and `dormant` -- a claim, read every tick, that a rule is not in
+the running until something claims `due`. Precedence is gone. There is no
+relation that removes a rule the table put in front of the agent, and no step in
+the loop that asks whether one applies.
 
-⭐ The DECISION is unaffected -- defeated is defeated, and the first match
-settles it. What was incomplete is the RECORD, and *which of my rules
-actually fight* is the question the deposit exists to answer.
+`overrides` and `supersedes` were both subtracted rather than replaced, and what
+each of them was actually saying turned out to be sayable already:
+
+    `overrides(<gob-flees>, <gob-acts>)`     `no hp(?x, 1)` -- a premise about
+                                             the state, not about a rule
+    `overrides(<hero-acts>, <hero-holds>)`   nothing: acting spends `may(hero)`,
+                                             so the loser has no right left to
+                                             act on and authored order settles it
+    `overrides(<halt>, ...)`                 nothing: each actor needs its
+                                             combatants present
+    `supersedes(<outcome>, <assert-act>)`    `no substituted(?what)` in the
+                                             bundled rule, per ACT
+    a rule settling a conflict between two   `dormant(<loser>)`, concluded by an
+    of the agent's own rules                 ordinary rule and withdrawn by `due`
+
+The last row is the one that carried the weight. Harmonization, acquisition and
+the learned-rule policy were all written as *conclude a precedence*, and all
+three say the same thing better as *take that rule out*: it is per rule either
+way, it is a claim rather than a pair, it is revocable, and the corpus that
+concluded it IS the record -- the engine used to deposit `defeated(<loser>,
+<winner>)` to answer *which of my rules actually fight*, and the corpus was
+already saying it.
+
+What is genuinely lost is the case where a rule should be out only WHILE
+another one applies. `overrides` never expressed that either -- it was per rule
+and per tick, and the dungeon's `<hero-holds>` shows what per tick bought: an
+accident that read like a mechanism. A corpus that wants it writes the premise.
 
 ## `_rivals`
 
@@ -298,33 +318,12 @@ The other ways of getting what this move is getting.
     usually a handful.
 
     So the prefix scan keeps its window for CHOOSING and asks a second, narrow
-    question for passing up: the same join-not-scan that recovered `overrides`
-    and `supersedes`, and the third time it has turned an apparent aggregate into
-    an index.
+    question for passing up: the same join-not-scan that recovered `forgone`,
+    and the second time it has turned an apparent aggregate into an index.
 
     ⚠ Only when the move serves a want at all, which is the common case being
     cheap rather than an optimisation: most moves consume no goal and pay
     nothing.
-
-## `_is_superseded`
-
-Defeated **for this case** rather than for this step.
-
-    ⭐ The property `supersedes` exists for is *substitute where an outcome is
-    declared, otherwise assume* -- and it is not expressible any other way. Three
-    routes were measured and all three fail:
-    **a buff** cannot, because ordering is not defeasibility -- boosting the
-    winner gets it applied first and the loser applies second and overwrites it,
-    which measured WORSE than doing nothing; **consumption** cannot, because the
-    trigger `did` is re-derived from `emitted`, the boundary record a corpus must
-    never consume; and **a negated member** cannot, because *this act has no
-    declared outcome* is negation over an open domain.
-
-    So it is ported rather than dropped, and the shape is `_is_defeated`'s one
-    construct along: the question is about a PAIR of applications, so match only
-    the rules that supersede this one and ask whether any of their applications
-    shares a consumed entry with this one. A join, not a scan -- where the old
-    loop answered it by materialising every application it had.
 
 ## `_pull`
 
@@ -498,31 +497,17 @@ quiesced 32 moves early and lost 48 conclusions.
 So the lift is driven by what a LESSON asked for -- a weighted
 `attend(?x, n)` -- and the whole queue orders bindings.
 
-## _survives is the shipped per-candidate filter:
+## `_survives` is the per-candidate filter
 
-`_survives` is the shipped per-candidate filter: passed up,
-quiescent, or already spent on these premises. Refraction
-stays, because *this instantiation has run* is not the same
-claim as *this rule's score is low*, and keying firing-once to
-the rule would stop it ever applying to new data.
-⭐⭐⭐ **Defeat, and it was MISSING -- which the corpus-level gate
-could not see.** `_survives` is the per-candidate filter and
-says so in its own docstring: defeat is per RULE, applied once
-per rule by the chooser this loop replaced. So a prefix scan
-dropped `overrides` entirely, and 65 checks said so the moment
-this loop became the loop.
+`_survives` is the per-candidate filter: passed up, quiescent, or already spent
+on these premises. Refraction stays, because *this instantiation has run* is not
+the same claim as *this rule's score is low*, and keying firing-once to the rule
+would stop it ever applying to new data.
 
-⚠⚠ The gate agreeing was not wrong, it was WEAK: it compares
-final conclusions, and a loop that runs to quiescence applies
-the loser eventually anyway -- *ordering is not defeasibility*,
-this design's own line, arriving as an instrument defect. Two
-loops can agree about every conclusion and disagree about
-whether a rule was defeated.
-
-The repair keeps the prefix scan: `overrides(A, B)` needs to
-know whether A matched, and A's defeaters are a SMALL set read
-off the graph -- so match those rather than the pool. A join,
-not a scan, which is this repository's standing answer.
+Nothing else filters here. Taking a rule out of the running is decided where the
+ordering is built, from `dormant`, and it is per rule -- so a filter that reads
+one application at a time is the wrong place to ask it, and there is no longer a
+question to ask.
 
 ## Nothing in the table matched. The engine says so
 
@@ -628,15 +613,16 @@ The author's example, and it found the mechanism's real boundary.
         lever              pingu flies   tweety flies
         declaration order      yes           yes        an ordering, so both apply
         standing               yes           yes        likewise -- and that is correct
-        overrides              no            NO         defeat, and TOO COARSE
+        dormant(<flies>)       no            NO         removal, and TOO COARSE
         representation         no            yes        the only one that works
 
-    ⚠⚠⚠ **`overrides` grounds tweety as well, and that was not expected.**
-    `overrides(<flightless>, <flies>)` is defeat per RULE: once `<flightless>`
-    matches anywhere, `<flies>` is out for everybody, so the ordinary bird stops
-    flying too. It solves the penguin by breaking flight, which is not solving
-    it. §12's defeat is the right KIND of answer and the wrong GRAIN -- the
-    claim needs to be about this binding, and `overrides` cannot say that.
+    ⚠⚠⚠ **Taking the general rule out grounds tweety as well, and that was not
+    expected.** `dormant(<flies>)` is removal per RULE: `<flies>` is out for
+    everybody, so the ordinary bird stops flying too. It solves the penguin by
+    breaking flight, which is not solving it. Removal is the right KIND of
+    answer and the wrong GRAIN -- the claim needs to be about this binding, and
+    a claim about a rule cannot say that. `overrides` was measured here first
+    and behaved identically, which is part of why it is gone.
 
     ⭐ What does work is representation: state `-penguin(tweety)` and let
     `<flies>` read it. The general rule keeps working for ordinary birds and
@@ -645,7 +631,7 @@ The author's example, and it found the mechanism's real boundary.
     than inferred from silence.
 
     ⭐ `tweety` is the control and is the whole reason this table is worth
-    printing. Without it `overrides` and representation look identical, and the
+    printing. Without it removal and representation look identical, and the
     lever that breaks flight passes.
 
 ## `stopping`

@@ -205,8 +205,9 @@ def latent_conflicts(m: Machine, rules) -> List[Tuple[str, str]]:
     """
     from ..core.rules import rename, unify_patterns
     g = m.g
-    ordered = {(h.node, l.node) for h, l in
-               m.rules.precedence(m.OVERRIDES) + m.rules.precedence(m.SUPERSEDES)}
+    # A rule already taken out of the running is not a live conflict.
+    asleep = {r.node for r in rules
+              if m._claims(g.rel(m.DORMANT, r.node))}
     out: List[Tuple[str, str]] = []
     for i, r1 in enumerate(rules):
         for r2 in rules[i + 1:]:
@@ -219,9 +220,8 @@ def latent_conflicts(m: Machine, rules) -> List[Tuple[str, str]]:
                     a, b = rename(g, c1.pattern, {}), rename(g, c2.pattern, {})
                     if unify_patterns(g, a, b) is None:
                         continue
-                    if ((r1.node, r2.node) in ordered
-                            or (r2.node, r1.node) in ordered):
-                        continue  # an author already said who wins
+                    if r1.node in asleep or r2.node in asleep:
+                        continue  # an author already took one of them out
                     pair = (r1.name or str(r1.node), r2.name or str(r2.node))
                     if pair not in out:
                         out.append(pair)

@@ -117,20 +117,15 @@ rule <hero-switch> = causes(
       +monster(?e), +present(?e) },
     { -may(hero), -intends(hero, attack(?d), ?r), +attack(hero, ?e) } )
 
-# ⭐ What the hero does when the player has declared nothing for this round.
-# There is no negation-as-failure in an antecedent -- a `-` member matches an
-# entry that was DENIED, not one that was never written -- so *the player said
-# nothing* is not a premise this corpus can state. Precedence says it instead:
-# both rules match, and `<hero-acts>` beating `<hero-holds>` means the standing
-# policy applies exactly when no declaration did. §18's per-step `overrides` is
-# the right one here, because these are rival answers to one situation.
+# What the hero does when the player has declared nothing for this round.
+# Nothing has to defeat this rule: the two acting rules are declared before it
+# and spend `may(hero)`, so when a declaration is live one of them takes the
+# tick and this one has no right left to act on. The standing policy applies
+# exactly when no declaration did, and authored order is the whole of it.
 rule <hero-holds> = causes(
     { +turn(hero), +may(hero), +present(hero),
       +monster(?e), +present(?e) },
     { -may(hero), +attack(hero, ?e) } )
-
-fact overrides(<hero-acts>, <hero-holds>)
-fact overrides(<hero-switch>, <hero-holds>)
 
 # -- the monsters ------------------------------------------------------------
 #
@@ -138,18 +133,16 @@ fact overrides(<hero-switch>, <hero-holds>)
 # it competes for the tick exactly as the mechanics do.
 
 rule <gob-acts> = causes(
-    { +turn(?x), +may(?x), +monster(?x), +present(?x), +present(hero) },
+    { +turn(?x), +may(?x), +monster(?x), +present(?x), +present(hero),
+      no hp(?x, 1) },
     { -may(?x), +attack(?x, hero) } )
 
-# ⭐ Preemption, and the whole of it is one authored fact below. A goblin down
-# to its last point runs rather than swings -- and `overrides` is what makes
-# that DEFEAT the attack rather than merely follow it, which matters because the
-# loser would otherwise re-assert on the next tick and quietly undo the winner.
+# Preemption: a goblin down to its last point runs rather than swings. The two
+# rules do not compete for the tick at all -- one point of hit points is the
+# premise that tells them apart, and `<gob-acts>` reads its absence.
 rule <gob-flees> = causes(
     { +turn(?x), +may(?x), +monster(?x), +present(?x), +hp(?x, 1) },
     { -may(?x), -present(?x), +fled(?x), +done(?x) } )
-
-fact overrides(<gob-flees>, <gob-acts>)
 
 # -- the mechanics -----------------------------------------------------------
 
@@ -266,10 +259,10 @@ rule <defeat> = implies(
     { -present(hero) },
     { +over(hero_falls) } )
 
-# Once it is over, nobody's turn comes round again. Written as a defeat rather
-# than as a condition on every acting rule: *the fight is finished* is a rival
-# answer to the whole situation, which is what `overrides` is for.
-# ⚠⚠⚠ **`<halt>` DENIES the right to act; it does not mark the actor done.**
+# Once it is over, nobody's turn comes round again. `<halt>` spends the right to
+# act and nothing has to defeat the acting rules for it: each of them needs its
+# combatants present, and by the time there is a winner one side is not.
+# `<halt>` DENIES the right to act; it does not mark the actor done.
 # Written the obvious way -- `{ +done(?x) }`, the same thing `<skip>` writes
 # for an absent combatant -- it fed `<pass>`, which moved the baton, and the two
 # of them turned an empty room over for ever: **round 417**, 8,072 entries, with
@@ -283,11 +276,6 @@ rule <defeat> = implies(
 rule <halt> = causes(
     { +turn(?x), +may(?x), +over(?w) },
     { -may(?x) } )
-
-fact overrides(<halt>, <gob-acts>)
-fact overrides(<halt>, <hero-acts>)
-fact overrides(<halt>, <hero-switch>)
-fact overrides(<halt>, <hero-holds>)
 
 # -- what the player declared ------------------------------------------------
 

@@ -77,36 +77,35 @@ def _guard_inherited(where: str) -> bool:
             and m.holds(kb.term("r(guarded)")) != PLUS)
 
 
-def _defeat_survives() -> bool:
-    """A rule that defeats a constituent must defeat the composition."""
+def _dormancy_survives() -> bool:
+    """A constituent that is out of the running takes the composition with it,
+    or composing would be a way past it."""
     m = Machine()
     kb = load(m, chr(10).join([
         "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
         "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
-        "rule <veto> = implies( { +p(?x) }, { -r(?x) } )",
         "fact +p(thing)",
         "",
     ]))
     A = next(r for r in m.rules.rules if r.name == "a")
     B = next(r for r in m.rules.rules if r.name == "b")
-    veto = next(r for r in m.rules.rules if r.name == "veto")
-    # ⚠ The precedence is a CLAIM, deposited like any other -- it used to be a
-    # Python call into a table. Nothing seeds a table any more: the arbitrator
-    # reads what the graph says.
-    order = lambda h, l: m.gate.write(
-        m.g.rel(m.OVERRIDES, h.node, l.node), "+",
-        licence=m.g.rel(m.REIFIED, h.node), source=m.KB, mention=True)
-    order(veto, B)
+    # Dormancy is a CLAIM, deposited like any other: nothing seeds a table,
+    # and the loop reads what the graph says.
+    out = lambda r: m.gate.write(
+        m.g.rel(m.DORMANT, r.node), "+",
+        licence=m.g.rel(m.REIFIED, r.node), source=m.KB, mention=True)
+    out(B)
+    m.rules.inherit = []
     composed = m.rules.compose(A, B)
     if composed is None:
         return False
-    # ...and the composition inherits them, which `RuleSet.compose` works out
-    # and the caller deposits, because only the caller has a world to write in.
-    for higher, lower in getattr(m.rules, "inherit", []):
-        order(higher, lower)
+    # ...and the composition inherits it, which `RuleSet.compose` works out and
+    # the caller deposits, because only the caller has a world to write in.
+    for r in getattr(m.rules, "inherit", []):
+        out(r)
     m.rules.rules = [r for r in m.rules.rules if r not in (A, B)]
     m.run(limit=40)
-    # `veto` overrode `b`; the composition must not slip past it.
+    # `<b>` was out; the composition must not slip past that.
     return m.holds(kb.term("r(thing)")) != PLUS
 
 
@@ -169,12 +168,12 @@ def run() -> int:
         failures.append("refused a sound composition across a `causes`")
 
     print()
-    survives = _defeat_survives()
-    print(f"  a rule that defeats a constituent still defeats the composition: "
+    survives = _dormancy_survives()
+    print(f"  a constituent that is out takes the composition with it: "
           f"{'yes' if survives else 'NO'}")
     checked += 1
     if not survives:
-        failures.append("a composed rule escaped a defeat that bound its parts")
+        failures.append("a composed rule escaped a dormancy that bound its parts")
 
     print()
     # ⭐⭐⭐ This used to PRINT that `unless` is not implemented, so only the

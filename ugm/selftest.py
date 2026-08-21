@@ -256,27 +256,37 @@ def arbitration_is_total() -> None:
 
     step = _move(m)
     check("§14", "with two rules matching, arbitration still answers", step.applied is not None)
-    check("§14", "and it answers by authored order when nothing overrides", step.applied.rule is r1)
+    check("§14", "and it answers by authored order when nothing is out of the running", step.applied.rule is r1)
 
+    # Deposited, not called: a rule is out because the graph says it is
+    # dormant, and the loop reads that where it reads a score. This is the
+    # whole of *take a rule out of the running*, and there is no second
+    # mechanism that removes a rule the table put in front of the agent.
     m2 = Machine()
     g2 = m2.g
     lit2, p2, q2 = g2.atom("lit"), g2.atom("p"), g2.atom("q")
     a1 = m2.rules.rule(IMPLIES, [Member(PLUS, g2.rel(lit2, p2))], [Member(PLUS, g2.rel(lit2, q2))], "A1")
     a2 = m2.rules.rule(IMPLIES, [Member(PLUS, g2.rel(lit2, p2))], [Member(MINUS, g2.rel(lit2, q2))], "A2")
-    # ⚠ Deposited, not called. Precedence is what the graph claims -- this used
-    # to reach into a Python table, and it was the only thing in the suite that
-    # broke when the table went, which is what said the table was the anomaly.
-    m2.gate.write(g2.rel(m2.OVERRIDES, a2.node, a1.node), PLUS,
-                  source=m2.KB, mention=True)
+    m2.gate.write(g2.rel(m2.DORMANT, a1.node), PLUS, source=m2.KB, mention=True)
     m2.gate.write(g2.rel(lit2, p2), PLUS)
     step2 = _move(m2)
-    check("§14", "authored precedence beats authored order", step2.applied.rule is a2)
+    check("§14", "a dormant rule is not in the running, so the other one answers",
+          step2.applied.rule is a2)
 
-    # Defeat, not ranking: ordering alone would let the loser apply next tick and
-    # overwrite the winner, so the boss's rule is obeyed and quietly undone.
+    # Removal, not ranking: a low score would let A1 apply on the next tick and
+    # overwrite A2, which is the difference between being ordered and being out.
     m2.run(limit=6)
-    check("§12", "an overridden rule does not apply at all", m2.holds(g2.rel(lit2, q2)) == MINUS)
-    check("§12", "and the defeated rule never wrote", all(e.sign == MINUS for m_ in m2.chain.moments for e in m_.delta if e.proposition == g2.rel(lit2, q2)))
+    check("§12", "a dormant rule does not apply at all",
+          m2.holds(g2.rel(lit2, q2)) == MINUS)
+    check("§12", "and it never wrote",
+          all(e.sign == MINUS for m_ in m2.chain.moments for e in m_.delta
+              if e.proposition == g2.rel(lit2, q2)))
+    # ...and it comes back, which is what makes it a claim rather than a
+    # configuration: `due` is the other half and any rule can conclude it.
+    m2.gate.write(g2.rel(m2.DUE, a1.node), PLUS, source=m2.KB, mention=True)
+    m2.run(limit=6)
+    check("§14", "...and `due` puts it back in the running",
+          m2.holds(g2.rel(lit2, q2)) == PLUS)
 
 
 def a_rule_is_a_node() -> None:
@@ -443,17 +453,19 @@ def surface() -> None:
     m2, kb2 = _loads(
         "rule <hot> = implies( { +p(a) }, { +q(a) } )\n"
         "rule <cold> = implies( { +p(a) }, { -q(a) } )\n"
-        "fact overrides(<cold>, <hot>)\n"
+        "fact dormant(<hot>)\n"
         "fact +p(a)\n"
     )
     # By name, not by position: the machine installs its bundled rules first
     # (§4), so any index into the rule list counts the bundle as well.
     cold = next(r for r in m2.rules.rules if r.name == "cold")
     check("R3", "a rule is a thing a fact can be about", kb2.term("<cold>") == cold.node)
-    check("§14", "and `overrides` in the surface is read as precedence",
-          len(m2.rules.precedence(m2.OVERRIDES)) == 1)
+    hot = next(r for r in m2.rules.rules if r.name == "hot")
+    check("R3", "and a fact that names a rule is about THAT rule",
+          kb2.term("<hot>") == hot.node)
     m2.run(limit=5)
-    check("§14", "so the overriding rule is the one that applied", m2.holds(kb2.term("q(a)")) == MINUS)
+    check("§14", "so the rule that was not taken out is the one that applied",
+          m2.holds(kb2.term("q(a)")) == MINUS)
 
 
 def the_bundle() -> None:
@@ -978,9 +990,8 @@ def a_guard_is_an_ordinary_member() -> None:
     m.run(limit=80)
     at = lambda p: m.chain.holds(kb.term(p))
     check("§12", "⭐⭐⭐ a negated member IS `unless`: the per-entity exception "
-          "that §14's precedence cannot express -- `overrides` is per rule and "
-          "per tick, `supersedes` needs a shared consumed entry, and this needs "
-          "neither",
+          "that taking a rule out cannot express -- `dormant` is per RULE, and "
+          "this needs the exception per ENTITY",
           at("heals(ally)") == PLUS and at("heals(hero)") is None)
 
     # R3, *rules are subjects*: the one thing writing it as a separate FACT
@@ -1287,15 +1298,15 @@ def the_loop_closes() -> None:
         "rule <trustT> = implies( { +says(gauge, ?p, plus) },      { +?p } )",
         "rule <trustF> = implies( { +says(gauge, ?p, minus) },     { -?p } )",
         "rule <why>    = implies( { +deviates(?p) },               { +goal(explain(?p)) } )",
-        "fact overrides(<why>, <boil>)",
         "fact +water(kettle)",
         "fact +goal(boiling(kettle))",
         "",
     ])
     m = Machine()
     kb = load(m, src)
+    boil = next(r for r in m.rules.rules if r.name == "boil")
     check("R3", "a fact may NAME a rule, though a rule node contains variables",
-          len(m.rules.precedence(m.OVERRIDES)) == 1)
+          kb.term("<boil>") == boil.node)
 
     gauge = kb.term("gauge")
     m.channels.use(gauge)
@@ -1517,65 +1528,54 @@ def an_action_is_substituted_by_its_outcome() -> None:
     )
 
     # A corpus can NAME a bundled rule. Every section that says *a corpus can
-    # override this* depended on it, and none of it was true: the loader knew
+    # argue with this* depended on it, and none of it was true: the loader knew
     # only the names a corpus declared itself, so the bundle shipped as data and
     # was reachable only from Python.
-    m2, kb2 = plan("fact overrides(<outcome>, <assert-act>)" + chr(10))
+    m2, kb2 = plan("fact dormant(<assert-act>)" + chr(10))
+    bundled = next(r for r in m2.rules.rules if r.name == "assert-act")
     check(
         "R3",
         "a corpus can name a bundled rule, so the bundle is finally arguable",
-        len(m2.rules.precedence(m2.OVERRIDES)) == 1,
+        kb2.term("<assert-act>") == bundled.node,
     )
     check(
         "§15",
-        "...and overriding `<assert-act>` substitutes the call: only the outcome is asserted",
+        "...and taking it out is per RULE, so no act is asserted at all -- which "
+        "is why *substitute where an outcome is declared* cannot be said this way",
         m2.holds(kb2.term("inside(work)")) == PLUS
         and m2.holds(kb2.term("travel(work)")) is None,
     )
 
-    # ⚠ And what that cannot express. §12's defeat is about the RULE and the
-    # TICK, not about the binding: `<outcome>` matching for one action defeats
-    # `<assert-act>` for every action in that step. So an act with no declared
-    # outcome loses the fallback too, and *substitute where an outcome is
-    # declared, otherwise assume* is not sayable with precedence.
-    m3, kb3 = plan(chr(10).join([
-        "fact overrides(<outcome>, <assert-act>)",
-        "rule <wave> = implies( { +at(work) }, { +doing(greet(bo)) } )",
-        "",
-    ]))
-    check(
-        "§12",
-        "defeat is rule-level and per-tick, so an undeclared act loses its fallback too",
-        m3.holds(kb3.term("greet(bo)")) is None,
-    )
-    m4, kb4 = plan("rule <wave> = implies( { +at(work) }, { +doing(greet(bo)) } )" + chr(10))
-    check(
-        "§15",
-        "...which it keeps when nothing overrides -- so the check is about defeat, not the act",
-        m4.holds(kb4.term("greet(bo)")) == PLUS,
-    )
-
-    # So there are two intents and one relation could not carry both.
-    # `overrides` is right when two rules are rival answers to ONE situation --
-    # `overrides(<why>, <boil>)` defeats a rule that shares no evidence with it
-    # at all, and must. `supersedes` is right when they are rival answers to each
-    # of SEVERAL, and defeats only the applications triggered by the same
-    # evidence. Rows, not branches.
+    # And what the corpus says instead, which needs no precedence at all.
+    # `<assert-act>` reads `no substituted(?what)`, so a corpus naming the acts
+    # whose effect is supplied elsewhere qualifies the bundled rule per ACT
+    # rather than per rule and per tick. `standing(<declared>)` is what settles
+    # the tick they both match on -- the table, and nothing else.
     m5, kb5 = plan(chr(10).join([
-        "fact supersedes(<outcome>, <assert-act>)",
+        "rule <declared> = implies( { +achieves(?a, ?y) }, { +substituted(?a) } )",
+        "fact standing(<declared>)",
         "rule <wave> = implies( { +at(work) }, { +doing(greet(bo)) } )",
         "",
     ]))
     check(
         "§12",
-        "`supersedes` defeats per CASE: the declared act is replaced by its outcome",
+        "an absence premise substitutes per CASE: the declared act is replaced by its outcome",
         m5.holds(kb5.term("inside(work)")) == PLUS
         and m5.holds(kb5.term("travel(work)")) is None,
     )
     check(
         "§12",
-        "...and the undeclared act in the same step keeps its fallback -- which `overrides` could not",
+        "...and the undeclared act in the same step keeps its fallback -- which taking the rule out could not",
         m5.holds(kb5.term("greet(bo)")) == PLUS,
+    )
+    # ...and the fixture can fail: take the corpus's rule away and the bundled
+    # fallback asserts the act again, which is the row above being a measurement
+    # rather than a restatement of what the bundle does anyway.
+    m6, kb6 = plan("rule <wave> = implies( { +at(work) }, { +doing(greet(bo)) } )" + chr(10))
+    check(
+        "§12",
+        "...and without it the act is asserted, so the check is about the premise",
+        m6.holds(kb6.term("travel(work)")) == PLUS,
     )
 
 
@@ -3777,46 +3777,41 @@ def a_rule_can_author_a_rule() -> None:
 def the_agent_harmonizes_itself() -> None:
     """Do the four pieces compose? (§2, §14, §19)
 
-    defeated, adopt, generalise and the wrapper story all landed the same day
-    and had never met. ⚠ And a conflict starves the rule that would settle it.
+    dormancy, adopt, generalise and the wrapper story all landed separately and
+    had never met. And a conflict starves the rule that would settle it.
 
     See docs/design/selftest.md#the-agent-harmonizes-itself.
     """
     from .core.text import load
 
-    # -- 1. a precedence a RULE concluded is obeyed -------------------------
+    # -- 1. a rule can take another rule out of the running -----------------
     m = Machine()
     kb = load(m, chr(10).join([
         "rule <hot> = implies( { +go(?x) }, { +q(?x) } )",
         "rule <cold> = implies( { +go(?x) }, { -q(?x) } )",
-        "rule <referee> = implies( { +p(?x) }, { +overrides(<cold>, <hot>) } )",
+        "rule <referee> = implies( { +p(?x) }, { +dormant(<hot>) } )",
         "fact standing(<referee>)",
         "fact +p(a)", "fact +go(a)", ""]))
     steps = m.run(limit=60)
-    check("§14", "⭐ a precedence a RULE concluded is obeyed -- the table is what "
-          "the graph claims, not what the loader read",
-          [(h.name, l.name) for h, l in m.rules.precedence(m.OVERRIDES)]
-          == [("cold", "hot")])
-    check("§14", "...so the agent settles its own conflict: it decides the "
-          "precedence, the loser is defeated, and the run reaches quiescence",
-          m.holds(kb.term("defeated(<hot>, <cold>)")) == PLUS
+    check("§14", "a rule can conclude that another rule is dormant -- the table "
+          "is what the graph claims, not what the loader read",
+          m.holds(kb.term("dormant(<hot>)")) == PLUS)
+    check("§14", "...so the agent settles its own conflict: it decides which "
+          "rule is out, and the run reaches quiescence",
+          m.holds(kb.term("q(a)")) == MINUS
           and steps[-1].state == "quiescent"
           and len([s for s in steps if s.applied]) < 5)
 
-    # ⚠ The control, and it is the finding: without the precedence the two
-    # rules undo each other forever, and the rule that would settle it is
-    # starved. Same corpus, one word (`standing`) removed.
+    # The control, and it is the finding: without the referee reaching the
+    # front of the table the two rules undo each other and the rule that would
+    # settle it is starved. Same corpus, one word (`standing`) removed.
     loud = Machine()
     kb_loud = load(loud, chr(10).join([
         "rule <hot> = implies( { +go(?x) }, { +q(?x) } )",
         "rule <cold> = implies( { +go(?x) }, { -q(?x) } )",
-        "rule <referee> = implies( { +p(?x) }, { +overrides(<cold>, <hot>) } )",
+        "rule <referee> = implies( { +p(?x) }, { +dormant(<hot>) } )",
         "fact +p(a)", "fact +go(a)", ""]))
     noisy = loud.run(limit=60)
-    # This check used to assert the OPPOSITE, and the finding it recorded was
-    # real: without standing, <hot> and <cold> undid each other for ever and
-    # <referee> -- the rule that would settle the conflict -- never got a turn.
-    # → docs/design/selftest.md#this-check-used-to-assert-the-opposite-and-the
     check("§19", "...and a conflict no longer starves the rule that would "
           "settle it: refraction stops the pair looping, so the referee gets "
           "its turn and the contradiction is deposited rather than run",
@@ -3825,25 +3820,43 @@ def the_agent_harmonizes_itself() -> None:
           and loud.holds(loud.g.rel(loud.CONTESTED, kb_loud.rule_ref("hot"),
                                     kb_loud.term("q(a)"))) == PLUS)
 
+    # A rule that merely LOSES a tick is not out. Losing is being deferred, not
+    # rejected -- it applies on the next tick -- and nothing records it as
+    # anything else, which is what keeps *ordered* and *out* distinct.
+    quiet = Machine()
+    kb_q = load(quiet, chr(10).join([
+        "rule <one> = implies( { +p(?x) }, { +a(?x) } )",
+        "rule <two> = implies( { +p(?x) }, { +b(?x) } )",
+        "fact +p(a)", ""]))
+    quiet.run(limit=60)
+    check("§14", "...while a rule that merely lost the tick is still in the "
+          "running: arbitration is scheduling, and both conclusions arrive",
+          quiet.holds(kb_q.term("a(a)")) == PLUS
+          and quiet.holds(kb_q.term("b(a)")) == PLUS
+          and not [pp for pp in quiet.g.instances_of(quiet.DORMANT)
+                   if quiet.holds(pp) == PLUS])
+
     # -- 2. and it can be withdrawn ----------------------------------------
     undone = Machine()
-    load(undone, chr(10).join([
+    kb_u = load(undone, chr(10).join([
         "rule <hot> = implies( { +go(?x) }, { +q(?x) } )",
         "rule <cold> = implies( { +go(?x) }, { -q(?x) } )",
-        "fact overrides(<cold>, <hot>)",
-        "rule <undo> = implies( { +oops }, { -overrides(<cold>, <hot>) } )",
+        "fact dormant(<hot>)",
+        "rule <undo> = implies( { +oops }, { +due(<hot>) } )",
         "fact standing(<undo>)",
-        "fact +oops", ""]))
-    undone.run(limit=40)
-    check("§14", "...and a precedence can be WITHDRAWN, which is what makes it a "
-          "claim rather than a configuration",
-          not undone.rules.precedence(undone.OVERRIDES))
+        "fact +oops", "fact +go(a)", ""]))
+    applied_u = {st.applied.rule.name for st in undone.run(limit=40) if st.applied}
+    check("§14", "...and it can be WITHDRAWN, which is what makes it a claim "
+          "rather than a configuration -- the rule is back in the running and "
+          "applies, and the other one is not silenced for it",
+          undone.holds(kb_u.term("due(<hot>)")) == PLUS
+          and {"hot", "cold"} <= applied_u)
 
     # -- 3. the whole arc, end to end --------------------------------------
     #
     # ⭐⭐⭐ Two examples become a rule (`generalise`), the rule becomes live
     # (`adopt`), the corpus decides an authored rule outranks anything it
-    # learned (`overrides`, concluded), and the loser is on the record
+    # learned (`dormant`, concluded), and the reason is on the record
     # (`defeated`). Four commits, one run.
     from .core.rules import generalise
     from .core.text import Loader
@@ -3889,7 +3902,7 @@ def the_agent_harmonizes_itself() -> None:
         # applying to a rule that does not exist yet -- which is only sayable
         # because the precedence is concluded rather than parsed.
         "rule <trust-what-i-was-told> = implies( { +rule(?r), +adopt(?r) },",
-        "                      { +overrides(<secret>, ?r) } )",
+        "                      { +dormant(?r) } )",
         "fact standing(<trust-what-i-was-told>)",
         "fact +example(hinged(a), open(a))",
         "fact +example(hinged(b), open(b))",
@@ -3898,11 +3911,10 @@ def the_agent_harmonizes_itself() -> None:
     mm.run(limit=200)
     learned_rules = [r for r in mm.rules.rules if r.name.startswith("learned")]
     check("§2", "⭐⭐⭐ the whole arc composes: two examples become a live rule, "
-          "and a standing policy orders it against what the agent was told -- "
-          "a precedence about a rule that did not exist when it was written",
+          "and a standing policy decides what to do with it -- a claim about a "
+          "rule that did not exist when the policy was written",
           len(learned_rules) == 1
-          and any(l is learned_rules[0]
-                  for _, l in mm.rules.precedence(mm.OVERRIDES)))
+          and mm.holds(mm.g.rel(mm.DORMANT, learned_rules[0].node)) == PLUS)
     # ⚠ Built with `g.rel`, not `kb.term`: a rule adopted at runtime is named
     # after its node and does not print as anything the surface can parse.
     # That is the wall `artefact` recorded from the other side -- a rule reaches
@@ -3923,33 +3935,29 @@ def the_agent_harmonizes_itself() -> None:
         "                        +sooner(?p1, ?p2) },",
         "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
         "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
-        "                      { +overrides(<secret>, ?r), +adopt(?r) } )",
+        "                      { +dormant(?r), +adopt(?r) } )",
         "fact +example(hinged(a), open(a))",
         "fact +example(hinged(b), open(b))",
         "fact +sooner(hinged(a), hinged(b))",
         "fact +hinged(vault)", "fact +sealed(vault)", ""]))
     early.run(limit=200)
     early_learned = [r for r in early.rules.rules if r.name.startswith("learned")]
-    check("§16", "⚠ a precedence written BEFORE the rule is live still counts: "
-          "the author may say it in either order and cannot tell which they "
-          "chose",
+    check("§16", "⚠ a claim written BEFORE the rule is live still counts: the "
+          "author may say it in either order and cannot tell which they chose",
           len(early_learned) == 1
-          and any(l is early_learned[0]
-                  for _, l in early.rules.precedence(early.OVERRIDES))
+          and early.holds(early.g.rel(early.DORMANT, early_learned[0].node)) == PLUS
           and early.holds(kbe.term("open(vault)")) == MINUS)
-    check("§14", "...and the learned rule LOSES to the authored one about the "
-          "sealed vault, with the defeat on the record",
+    check("§14", "...and the learned rule loses to the authored one about the "
+          "sealed vault, with the reason on the record as an ordinary claim",
           mm.holds(kbb.term("open(vault)")) == MINUS
-          and mm.holds(mm.g.rel(mm.DEFEATED, learned_rules[0].node,
-                                secret.node)) == PLUS)
+          and mm.holds(mm.g.rel(mm.DORMANT, learned_rules[0].node)) == PLUS)
 
 
 def what_a_learned_rule_may_conclude() -> None:
     """A learned rule that concludes WRAPPED cannot fight what it was told.
 
     Acquisition's normal case: the agent generalises {+hinged(?x)} ⟹ open(?x)
-    from two examples, and it already knows {+sealed(?x)} ⟹ -open(?x). ⚠ And
-    supersedes is too narrow.
+    from two examples, and it already knows {+sealed(?x)} ⟹ -open(?x).
 
     See docs/design/selftest.md#what-a-learned-rule-may-conclude.
     """
@@ -3997,21 +4005,12 @@ def what_a_learned_rule_may_conclude() -> None:
         steps = m.run(limit=300)
         return m, kb, steps
 
-    broad, kb_b, _ = episode(False, "+overrides(<secret>, ?r), ")
-    check("§14", "⚠ `overrides` is too broad for what an agent learns: one "
-          "sealed object suppresses the learned rule about every object, "
+    broad, kb_b, _ = episode(False, "+dormant(?r), ")
+    check("§14", "⚠ taking the rule out is too broad for what an agent learns: "
+          "one sealed object suppresses the learned rule about every object, "
           "including the one it is right about",
           broad.holds(kb_b.term("open(vault)")) == MINUS
           and broad.holds(kb_b.term("open(gate)")) is None)
-
-    narrow, kb_n, steps_n = episode(False, "+supersedes(<secret>, ?r), ")
-    check("§14", "⚠ ...and `supersedes` is too narrow: it defeats applications "
-          "sharing a consumed entry, and two rules reaching one conclusion from "
-          "different premises share none -- so they oscillate and never stop",
-          # ⚠ The DEFECT, not the symptom.
-          # →
-          # docs/design/selftest.md#the-defect-not-the-symptom-supersedes-bein
-          narrow.holds(kb_n.term("open(gate)")) == PLUS)
 
     kept, kb_k, steps_k = episode(True, "")
     check("§12", "⭐⭐⭐ ...and a learned rule that concludes WRAPPED needs no "
@@ -4026,12 +4025,13 @@ def what_a_learned_rule_may_conclude() -> None:
           and kept.holds(kb_k.term("likely(open(vault))")) == PLUS)
 
 
-def a_defeat_is_on_the_record() -> None:
-    """`defeated(<loser>, <winner>)` -- §21's defect for the **tenth** time.
+def taking_a_rule_out_is_on_the_record() -> None:
+    """What a corpus reacts to when its own rule base fights.
 
-    Measured before building it, because *knowledge acquisition and rule
-    harmonization are the pain* (Cyc) is a claim about scale and this repo's
-    corpora are one author and a few days old. ⚠ overrides only.
+    The engine deposits nothing here: the claim that took the rule out is the
+    corpus's own, dated and attributable like any other, and a rule can read
+    it. That is what the engine used to write `defeated(<loser>, <winner>)`
+    for, and the corpus was already saying it.
 
     See docs/design/selftest.md#a-defeat-is-on-the-record.
     """
@@ -4040,67 +4040,32 @@ def a_defeat_is_on_the_record() -> None:
     src = chr(10).join([
         "rule <hot> = implies( { +p(?x) }, { +q(?x) } )",
         "rule <cold> = implies( { +p(?x) }, { -q(?x) } )",
-        "fact overrides(<cold>, <hot>)",
+        "fact dormant(<hot>)",
         "fact +p(a)", ""])
     m = Machine()
     kb = load(m, src)
     m.run(limit=60)
-    check("§14", "when a precedence is exercised, WHICH rule beat which is on "
-          "the record -- the loop's own answer, which nothing else could "
-          "reconstruct",
-          m.holds(kb.term("defeated(<hot>, <cold>)")) == PLUS)
-    check("§14", "...and it is directional: the winner was not defeated",
-          m.holds(kb.term("defeated(<cold>, <hot>)")) is None)
-    # Deduped by reading the graph, like every other record of *this happened
-    # here*: the defeat is recomputed on every tick and restating is not
-    # revising (§8).
-    entries = [e for mo in m.chain.moments for e in mo.delta
-               if e.proposition == kb.term("defeated(<hot>, <cold>)")]
-    check("§8", "...and recorded once however many ticks it kept happening",
-          len(entries) == 1)
+    check("§14", "which rule the agent took out is a claim in the chain, so "
+          "*why is this rule not applying* has an answer",
+          m.holds(kb.term("dormant(<hot>)")) == PLUS)
+    check("§14", "...and it is directional: the other rule is untouched",
+          m.holds(kb.term("dormant(<cold>)")) is None
+          and m.holds(kb.term("q(a)")) == MINUS)
 
-    # ⚠ The control, and it is the distinction the whole record turns on: a rule
-    # that merely LOSES arbitration is not defeated. Losing is being deferred,
-    # not rejected -- it applies on the next tick -- and recording that as a
-    # defeat would report a rule base as fighting when it is merely ordered.
-    quiet = Machine()
-    kb_q = load(quiet, chr(10).join([
-        "rule <one> = implies( { +p(?x) }, { +a(?x) } )",
-        "rule <two> = implies( { +p(?x) }, { +b(?x) } )",
-        "fact +p(a)", ""]))
-    quiet.run(limit=60)
-    check("§14", "...while a rule that merely lost the tick is NOT defeated: "
-          "arbitration is scheduling, and both conclusions arrive",
-          quiet.holds(kb_q.term("a(a)")) == PLUS
-          and quiet.holds(kb_q.term("b(a)")) == PLUS
-          and not [p for p in quiet.g.instances_of(quiet.DEFEATED)
-                   if quiet.holds(p) == PLUS])
-
-    # ⚠⚠ And nothing is recorded when arbitration IGNORED the defeat. A cycle in
-    # `overrides` defeats everybody, so §14's fallback lets everybody through to
-    # keep arbitration total -- and then nobody was defeated.
-    cycle = Machine()
-    kb_c = load(cycle, chr(10).join([
-        "rule <up> = implies( { +p(?x) }, { +q(?x) } )",
-        "rule <down> = implies( { +p(?x) }, { -q(?x) } )",
-        "fact overrides(<up>, <down>)",
-        "fact overrides(<down>, <up>)",
-        "fact +p(a)", ""]))
-    cycle.run(limit=60)
-
-    # ⭐ What the occasion is FOR: a corpus reacting to its own rule base
+    # What the occasion is FOR: a corpus reacting to its own rule base
     # fighting. This is the acquisition loop's first half -- the agent noticing
     # that two things it was told disagree, and asking.
     asked = Machine()
     load(asked, src + chr(10).join([
-        "rule <harmonize> = implies( { +defeated(?l, ?w) }, { +doing(ask(?l)) } )",
+        "rule <harmonize> = implies( { +dormant(?l) }, { +doing(ask(?l)) } )",
         "fact standing(<harmonize>)", ""]))
     asked.run(limit=60)
     check("§19", "⭐ and a corpus can act on it -- it decides to ask about the "
-          "rule that lost, which is harmonization as a rule and not as machinery",
-          any(asked.g.show(p) == "doing(ask(<hot>))"
-              for p in asked.g.instances_of(asked.DOING)
-              if asked.holds(p) == PLUS))
+          "rule that was taken out, which is harmonization as a rule and not "
+          "as machinery",
+          any(asked.g.show(pp) == "doing(ask(<hot>))"
+              for pp in asked.g.instances_of(asked.DOING)
+              if asked.holds(pp) == PLUS))
     # ⚠⚠⚠ ...and it CANNOT leave the agent, which is the wall this fixture
     # found and the first thing acquisition runs into.
     # → docs/design/selftest.md#and-it-cannot-leave-the-agent-which-is-t
@@ -7115,7 +7080,7 @@ def main() -> int:
     an_example_becomes_a_rule()
     the_agent_harmonizes_itself()
     what_a_learned_rule_may_conclude()
-    a_defeat_is_on_the_record()
+    taking_a_rule_out_is_on_the_record()
     a_join_is_not_a_scan()
     the_apparatus_eats_its_own_cooking()
     a_rule_says_that_it_ran()

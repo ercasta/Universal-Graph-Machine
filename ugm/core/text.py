@@ -618,8 +618,6 @@ class Loader:
             # A claim about this document, in the graph like everything else, so
             # that saving a session is a RENDERING rather than a side-channel.
             self._scoped(self.source, scope)
-        self.OVERRIDES = self.atom("overrides")
-        self.SUPERSEDES = self.atom("supersedes")
         # The bundle, by name.
         # → docs/design/text.md#the-bundle-by-name-every-section-of-the-design
         for r in self.m.bundle:

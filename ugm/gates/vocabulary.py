@@ -45,8 +45,7 @@ ROLES: Dict[str, List[str]] = {
                   "arrived_on", "mentioned", "asking", "asked", "time"],
     # R3/R4: rules are subjects, and rules are askable.
     "rules as data": ["rule", "ant", "con", "conn", "adopt", "compose",
-                      "composed", "computes", "names", "binds", "exercised",
-                      "overrides", "supersedes", "defeated"],
+                      "composed", "computes", "names", "binds", "exercised"],
     # The agent reasoning about its own reasoning: goals, plans, backward
     # reading, recall, effort, stopping, credit.
     "the agent's deliberation": [
@@ -110,6 +109,10 @@ ROLES: Dict[str, List[str]] = {
     # done, and what may not be. About the ACT, never about its content.
     "the seam to a world": ["arrived", "says", "answered", "answers", "emitted",
                             "did", "doing", "taken", "deviates", "expects",
+                            # What `<assert-act>` reads: a corpus saying this
+                            # act's effect is supplied by something else, so
+                            # the act itself is not assumed.
+                            "substituted",
                             "forbidden", "refused",
                             # The world model's split (docs/world-model.md):
                             # declaring `relationship(<rel>)` is what makes the

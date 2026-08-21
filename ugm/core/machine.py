@@ -17,7 +17,6 @@ from .channels import Arrival, Channels
 from .gate import Gate
 from .graph import Graph, NodeId
 from .rules import (
-    _defeaters,
     already_there,
     ABSENT,
     GENERIC,
@@ -27,9 +26,7 @@ from .rules import (
     Member,
     Rule,
     RuleSet,
-    _defeated,
     arbitrate,
-    defeat,
     match,
     occurs,
     unify,
@@ -369,19 +366,18 @@ class Machine:
         # which made them the one kind of decision this design does not allow
         # -- one nobody can ask about or argue with.
         # → docs/design/machine.md#the-other-three-knobs-by-the-same-argument
-        self.DEFEATED = self.g.atom("defeated")
         # ⚠ Owned by the machine, not minted beside the loader's. Precedence is
         # read from the graph now, so the node a corpus writes and the node the
         # arbitrator looks for have to be one -- `atom` does not intern, and
         # that twin has cost this repo seven findings.
-        self.OVERRIDES = self.g.atom("overrides")
-        self.SUPERSEDES = self.g.atom("supersedes")
+        # What `<assert-act>` reads: a corpus says an act's effect is
+        # supplied by something else, so the act is not assumed.
+        self.SUBSTITUTED = self.g.atom("substituted")
         # ⭐ The rule set reads precedence off the graph, at wherever the agent
         # is standing. It owns neither the nodes nor the position, so both are
         # handed to it -- one place, so the node a corpus writes and the node
         # the arbitrator looks for cannot come apart.
-        self.rules.OVERRIDES = self.OVERRIDES
-        self.rules.SUPERSEDES = self.SUPERSEDES
+        self.rules.DORMANT = self.DORMANT
         self.rules.claims = self._claims
         self.ADOPT = self.g.atom("adopt")
         # §4's larger optimisation, as a request. ⭐ `composed` closes the same
@@ -486,7 +482,7 @@ class Machine:
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
             "close": self.CLOSE,
-            "defeated": self.DEFEATED, "adopt": self.ADOPT,
+            "adopt": self.ADOPT,
             "spent": self.SPENT, "premises": self.PREMISES,
             "contested": self.CONTESTED,
             "compose": self.COMPOSE, "composed": self.COMPOSED,
@@ -514,7 +510,7 @@ class Machine:
             # its fifth outing.
             "time": self.chain.TIME,
             "names": self.NAMES, "computes": self.COMPUTES,
-            "overrides": self.OVERRIDES, "supersedes": self.SUPERSEDES,
+            "substituted": self.SUBSTITUTED,
             "widened": self.WIDENED, "reached": self.REACHED,
             "bounded": self.BOUNDED, "ticks": self.TICKS,
             "budget": self.BUDGET,
@@ -573,8 +569,7 @@ class Machine:
         # `_would_change`. None until the first tick, so a verdict asked for
         # outside the loop is simply computed.
         self._verdicts: Optional[dict] = None
-        # Which rules matched here, carried beside the candidate list because
-        # `defeat` reads it and the candidate list no longer contains it.
+        # Which rules matched here, kept because the trail reads it.
         self._matched_rules: dict = {}
         # What matching actually produced, against what the loop then weighed.
         # Two numbers rather than one, because the whole claim is the gap: the
@@ -638,7 +633,7 @@ class Machine:
                              self.RECALL, self.RECALLED, self.CLOSE,
                              self.BUDGET,
                              self.WIDENED, self.REACHED,
-                             self.BOUNDED, self.DEFEATED, self.ADOPT,
+                             self.BOUNDED, self.ADOPT,
                              # ⚠ `self.gate.MOVED` was the last name here, and
                              # it was bookkeeping for a reason that is gone
                              # twice over: a seat move was the machinery's
@@ -1273,8 +1268,8 @@ class Machine:
 
         Read off the evidence, which is where the answer already is: an
         application that consumed `goal(w)` is a response to wanting `w`. That is
-        the same comparison `supersedes` makes, and for the same reason -- the
-        trail records what each application matched, so nothing new is measured.
+        The trail records what each application matched, so nothing new is
+        measured.
 
         Note what this does NOT use. `fits` says *this rule's consequent could BE
         the goal*, which is backward reading's question and the wrong one here:
@@ -2253,9 +2248,9 @@ class Machine:
             self.g.rel(self.COMPOSED, composed.node, first.node, second.node),
             PLUS, licence=e.node, source=self.KB, mention=True,
         )
-        for higher, lower in self.rules.inherit:
+        for out_of_play in self.rules.inherit:
             self.gate.write(
-                self.g.rel(self.OVERRIDES, higher.node, lower.node),
+                self.g.rel(self.DORMANT, out_of_play.node),
                 PLUS, licence=e.node, source=self.KB, mention=True,
             )
         self.rules.inherit = []
@@ -3025,13 +3020,9 @@ class Machine:
             return []
         order = {e.node: i for i, e in enumerate(state.entries)}
         last = len(order)
-        # ⭐⭐⭐ Only what could still have something to do. ⚠ ...except when the
-        # rule set uses supersedes, which compares CONSUMED ENTRIES between two
-        # applications and therefore cannot be answered from a list one of...
+        # Only what could still have something to do.
         # → docs/design/machine.md#only-what-could-still-have-something-to-do
-        keys = (cache["apps"] if self.rules.precedence(self.SUPERSEDES)
-                else cache["live"])
-        out = [cache["apps"][k] for k in keys if k[0] in live]
+        out = [cache["apps"][k] for k in cache["live"] if k[0] in live]
         out.sort(key=lambda a: (rank[a.rule.node],
                                 tuple(order.get(c.node, last) for c in a.consumed)))
         # ⚠⚠⚠ What defeat must NOT be given is this list, and that is the whole
@@ -3050,7 +3041,6 @@ class Machine:
         every fixture and compares the move.
         """
         out = self._applications(proposed, state, materialise=True)
-        out = defeat(self.rules, out, self._matched_rules.values())
         out = [a for a in out if not self._passed_up(a)]
         out = [a for a in out if self._would_change(a)]
         # ⚠⚠⚠ Sorted, because arbitrate picks the FIRST among applications of

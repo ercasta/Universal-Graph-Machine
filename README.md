@@ -197,7 +197,7 @@ The loop itself is a door too, and what it runs are worked examples rather than 
 comparison — there is no second loop left to compare it against:
 
 ```bash
-python -m ugm.core.attention        # the loop, the penguin, and `stop`
+python -m ugm.probes.attention      # the penguin, and `stop`
 ```
 
 And the comparisons, which run two runs over the same corpora and report

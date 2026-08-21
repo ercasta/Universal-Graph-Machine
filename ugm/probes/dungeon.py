@@ -273,9 +273,9 @@ def main() -> int:
         s, mm, kk = fled[0]
         who = next(w for w in ("goblin1", "goblin2") if holds(mm, kk, f"fled({w})"))
         gate(f"⭐⭐ preemption is one authored fact: at 1 hp {who} ran instead of "
-             f"swinging (seed {s}), and never swung again -- `overrides` DEFEATS "
-             f"<gob-acts> rather than merely beating it to the tick, which is "
-             f"what stops the attack undoing the flight on the next one",
+             f"swinging (seed {s}), and never swung again -- `no hp(?x, 1)` is "
+             f"the premise that tells the two apart, so the attack cannot undo "
+             f"the flight on the next tick",
              holds(mm, kk, f"hp({who}, 1)")
              and not any(a.startswith(f"attack({who},")
                          for a in _acted_after_falling(mm)))

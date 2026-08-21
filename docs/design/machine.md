@@ -137,7 +137,7 @@ Forgoing: the thing arbitration was assumed to do and never did.
 another one*, and it is a fourth way for a rule not to run, distinct
 from all three that existed:
 
-  defeated   (`overrides`, `supersedes`)  a rival answer is better
+  dormant    (`dormant`)                  the corpus took it out
   forbidden  (the gate's veto)            it may never happen
   not recalled                            it did not come to mind
   FORGONE                                 it was reasonable and I chose otherwise
@@ -1065,8 +1065,8 @@ Record that the machinery did something a rule may care about.
 
         The licence defaults to *the loop ran out of work here*, which is what
         the effort records are about. A caller with a better answer to **why
-        this is on the record** passes it -- `defeated` names the rule that won,
-        the way `forgone` and `close` name the rule that was chosen.
+        this is on the record** passes it, the way `forgone` and `close` name
+        the rule that was chosen.
 
 ## The palette is the AUTHOR's, and this is w
 
@@ -2246,11 +2246,10 @@ candidate, not the candidate.
 an application joins it when it is found, leaves when `_would_change`
 records that it is a no-op, and rejoins when the entry that made it one
 is superseded. So a tick costs O(new + revived), not O(everything).
-⚠ ...except when the rule set uses `supersedes`, which compares
-CONSUMED ENTRIES between two applications and therefore cannot be
-answered from a list one of them may be missing from. Then the whole
-set goes through, at the old cost. Stated rather than hidden, and
-measured by a check either way.
+There is no longer an exception: `supersedes` compared consumed entries
+between two applications and so could not be answered from a list one of
+them might be missing from, which put the whole set through at the old
+cost. With that relation gone, the fast path is the only path.
 
 ## What defeat must NOT be given is this li
 
@@ -2263,8 +2262,8 @@ the vice's quietly overwrites it on the next tick. Withholding the
 quiet applications from the candidate list is right; withholding them
 from defeat is that bug.
 
-So the rules that MATCHED are carried separately, which is all
-`_defeated` reads, and maintaining it costs a set per rule.
+So the rules that MATCHED are carried separately, which the trail
+reads, and maintaining it costs a set per rule.
 
 ## Sorted, because arbitrate picks the FIRS
 
@@ -2329,12 +2328,12 @@ ever cached and every spent candidate is re-walked for ever. A spent
 instantiation cannot fire again while its frame lives, so it does not
 belong in the candidate set at all.
 WITHHELD, not retired. Retiring it outright also removes it from
-`by_rule`, which is what `defeat` reads to know which rules matched
-here -- and `overrides` is per tick, so an overriding rule that had
-fired once stopped counting as having matched and the defeat silently
-lapsed. That cost 11 checks across `overrides`, `supersedes` and
-`defeated`. The application stays on the record; it only leaves the
-live set, which is the same treatment a no-op verdict gets.
+`by_rule`, and the record of which rules matched here is read from
+that. When precedence still existed this was sharper still: an
+overriding rule that had fired once stopped counting as having matched
+and the defeat silently lapsed, which cost 11 checks. The application
+stays on the record; it only leaves the live set, which is the same
+treatment a no-op verdict gets.
 
 ## `_contest`
 
@@ -2885,8 +2884,8 @@ Many trees over different episodes, combined by union.
     > leaves that decline cannot take it back, because there is no sentence for
     > *not this one, here* -- `unattend` clears the whole queue.
 
-    What a forest here would need is a combination rule that can DEFEAT rather
-    than only add -- §12's `overrides` is the obvious candidate and is untried.
+    What a forest here would need is a combination rule that can REMOVE rather
+    than only add -- `dormant` is the obvious candidate and is untried.
     Left as a measured negative result with a gate, not deleted: the day
     ensembling starts paying, the gate fails and sends someone here.
 
