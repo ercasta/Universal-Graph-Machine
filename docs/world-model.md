@@ -36,6 +36,49 @@ class Dimension:
 class Position
 
 
-Reasoning about it: We actually need few things. One thing we need is explicitly managing entities; having relationship among entities, not about denotations of the entities; and treating denotations as queries. So "Paul" becomes an entity with a name: "name(?x, Paul)". Entities just have an atom id; and we know that things related to same atom id are actually the same (i.e. we could "fuse" nodes having the same atom id)
+## The one change
+
+Everything above reduces to one change: **separate the things that have atom ids
+from the expressions that don't.**
+
+**An entity is a labelled node characterized only by its atom id.** No name, no
+structure — the id is the identity, and anything else said about it (`named(e17,
+paul)`) is an ordinary claim, deniable like any other. Things related to the
+same atom id are the same thing, so fusing nodes with the same id is a no-op by
+construction; merging two *different* ids (`Graph.merge`) stays reserved for the
+morning-star case. The code already has this node — `intake.py`'s labelless
+probe mints one — but only through the private `_mint`; it becomes the public
+way anything comes into the world.
+
+**Entities are explicitly created and mapped by rules.** Today writing `paul` in
+a corpus mints the node as a side effect of the loader's name table
+(`Loader.atom`): the label is the handle. Under the change nothing exists by
+being mentioned. A rule concludes that a fresh entity exists and deposits the
+mapping — `denotes(m4, e17)`, `named(e17, paul)` — as facts the record shows.
+"Paul" in later text is not a handle; it is `name(?x, paul)`, a query resolved
+against those facts.
+
+**A relationship is reified: it has an atom id of its own.** `attacked(e3, e7)`
+as a thing in the world is a minted node — the mint mode already exists,
+`Graph.instance`, which the chain uses for entries — with participants bound to
+roles. Because it has an id it can itself participate: be placed in time,
+denied, made a participant of another relationship.
+
+**A denotation is an expression with no atom id — which is what makes it a
+query.** The interned compound (`Graph.rel`, where `on(a, b)` is one node
+however often it is written) is not a thing in the world; it is a criterion for
+matching things in the world. *The goblin you attacked three turns ago* and
+`name(?x, paul)` are the same kind of object: a query over a span with a truthy
+value, cacheable and explicitly invalidated. List, Bag, Set, All, Some, count,
+greater, smaller live here.
+
+**Relationships hold only among things with atom ids — entities and other
+relationships. Never among denotations.** A denotation cannot fill a role. It
+can only be *resolved*, by rules, to the entity it denotes — and the entity
+fills the role. This is the critical asymmetry: `attacked(e3, e7)` is in the
+world; `attacked(the-goblin-you-attacked, you)` is a query that, when it
+matches, yields the entities the world-fact is about. Relating a denotation
+directly would put a query into the world as if it were a thing, and every
+count, retraction and merge downstream would be wrong about it.
 
 
