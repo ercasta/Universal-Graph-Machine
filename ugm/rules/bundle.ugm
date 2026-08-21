@@ -224,7 +224,7 @@ rule <give-up> = implies(
 # are here now and the third is the absence of a rule.
 #
 # The machinery consults these ON DEMAND, with both loci already bound, the way
-# `_forbid` consults `forbidden` and `precedence()` reads what the graph claims.
+# the trigger seam consults what a corpus marked `intercepts`.
 # It is not a fixpoint and nothing has to be selected: a rule that must win a
 # move before the read can answer would make a span claim invisible until it
 # did, which is the failure this design refuses.

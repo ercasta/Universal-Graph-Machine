@@ -138,7 +138,7 @@ another one*, and it is a fourth way for a rule not to run, distinct
 from all three that existed:
 
   dormant    (`dormant`)                  the corpus took it out
-  forbidden  (the gate's veto)            it may never happen
+  refused    (a trigger concluded `drop`) it may never happen
   not recalled                            it did not come to mind
   FORGONE                                 it was reasonable and I chose otherwise
 
@@ -296,8 +296,8 @@ able to is the entire reason to have a palette. The machinery notes
 the smallest unarguable fact and a rule decides what it means, which
 is this repository's standing answer.
 
-⚠⚠ Checked at the WRITE, for `_forbid`'s reason and by the same
-route: a rule cannot ask it. Subsumption runs
+⚠⚠ Checked at the WRITE, for the reason a norm used to be checked
+there and by the same route: a rule cannot ask it. Subsumption runs
 `unify(generic, ground)`, and a rule's premise is the pattern and the
 entry is the ground fact -- so `+afforded(?a)` against a ground
 attempt matches nothing. Measured: `unify(move(?x,?y), move(d1,z))`
@@ -316,12 +316,13 @@ claimed for the bundle.
 A fact, not a Python flag, so a corpus can make its own rules standing
 and can retire one of ours.
 
-## §19's carve-out. forbidden(<pattern>) is a nor
+## §19's carve-out is a trigger now
 
-§19's carve-out. `forbidden(<pattern>)` is a norm, and its argument is a
-DESCRIPTION rather than a proposition -- `forbidden(doing(harm(?x)))`
-names a class of acts, the way `ant(<R>, heat(?a, ?w))` names a class of
-premises. It is never matched by the loop; it is consulted at the gate.
+§19's carve-out. A norm is a rule marked `intercepts(<T>, after)` whose
+conclusion is `drop(p)`. It is never recalled and never ranked: the loop
+consults the triggers directly, which is what keeps *what you must not do*
+complete while *what to do* stays incomplete-able.
+
 Recall, as a request -- the fourth. `_recall` narrows which rules are
 PROPOSED, and that cannot reach a cross product written inside an
 antecedent: `<ask-fit>` used to say `+goal(?w), +rule(?r)` and matched
@@ -960,45 +961,51 @@ A goal, with whatever its own plan has since bound filled in.
         and because a second way of building plans would make it load-bearing
         immediately, but no check here can see it and none pretends to.
 
-## `_forbid`
+## What `_forbid` was, and where it went
 
-§19's carve-out, and the whole of it.
+§19's carve-out, and it is now a trigger.
 
         > **Recall may be incomplete about what to do. It may not be incomplete
         > about what you must not do.**
 
-        A norm expressed as a rule is a competitor in recall, and a prohibition
-        that fails to come to mind is a forbidden act that nothing notices. The
-        repair is not to make recall complete for norms -- that reintroduces the
-        exhaustive search §19 exists to avoid. It is to take them off the recall
-        path entirely, which is what this is: not proposed, not matched, not
-        arbitrated, not defeasible by precedence. Consulted on every write.
+        A norm expressed as an ordinary rule is a competitor in recall, and a
+        prohibition that fails to come to mind is a forbidden act that nothing
+        notices. `_forbid` answered that by taking norms off the recall path
+        entirely: a `forbidden(<pattern>)` claim, consulted at the gate on every
+        write, indexed by the relation about to be written.
 
-        **Cheap because it is indexed by what is about to be written.** §3's
-        second index is instances-by-relation, so only prohibitions whose pattern
-        has the same relation as this proposition are looked at, and only those
-        are resolved. A corpus with a hundred norms about acting costs nothing on
-        a write about the weather.
+        It is folded into the trigger seam. A prohibition is a rule marked
+        `intercepts(<T>, after)` that concludes `drop(p)`, and the carve-out
+        survives intact for the same reason it always held: triggers are
+        consulted directly, never recalled, never ranked, never arbitrated.
+        Measured -- narrow `recall_budget` to 1, so the agent cannot reliably
+        bring anything to mind, and the forbidden act is still refused while the
+        permitted one still happens.
 
-        **Asserting only.** `forbidden(p)` forbids bringing `p` about, and
-        bringing about is `+`. Denying you are doing harm is not the forbidden
-        act. Extending this to signs is rows rather than branches, and there is
-        no case for it yet.
+        ⭐ **What the fold buys is that a prohibition is a QUERY.** As a stored
+        pattern a norm could say only *never this shape*. As a trigger's
+        antecedent it can ask anything a rule can ask -- what else holds, who is
+        acting, whether an emergency was declared -- and it says the shape in a
+        rule's antecedent, which is where a pattern belongs. `forbidden`,
+        `_forbid` and the description-headed fact that carried it are all gone,
+        and `DESCRIBES` is down to `count`.
 
-        **A norm is still a belief.** It is resolved at the writer's own position
-        like anything else, so it can be denied, dated, or held only under a
-        supposition. What it cannot do is fail to be consulted.
+        ⚠ **What changed, and it is not nothing.** The veto ran on EVERY write;
+        a trigger runs on what a rule concludes. A prohibition now binds what
+        the agent concludes and does, not what a channel reports -- which is the
+        right line (recording that someone said something is not the agent doing
+        it), but it is a narrower reach than the gate had.
 
-        One gap, pinned by a check rather than left to be discovered: a norm
-        cannot be revised **from the surface**, because its argument is a
-        description, a description is an authored statement, and §8 scopes a
-        statement's variables to it -- so writing `-forbidden(doing(harm(?x)))` a
-        second time denies a *different node* that says a similar thing. Revising
-        one needs a way to name it, as `<...>` names a rule. §21.
+        ⚠ A drop is recorded as `refused(p, +, <T>)` -- the same relation the
+        gate wrote, so a corpus reading refusals reads both, and it names the
+        norm. It is not counted as work the application did, or a rule whose
+        conclusion is always dropped would never stop applying: measured, 299
+        moves to the run limit against 4.
 
-        The one thing not checked is a refusal itself: forbidding the *record* of
-        a refusal would make the veto silent, which is the failure mode the whole
-        carve-out is against.
+        ⚠ Retiring a norm binds what comes after it. Deny `intercepts(<T>,
+        after)` and the rule stops being a norm, but an application already
+        refused is spent -- what was refused stays refused, and the next thing
+        the rule reaches is not.
 
 ## `_forgo`
 
@@ -2904,3 +2911,59 @@ Many trees over different episodes, combined by union.
     ⚠ The subsets are contiguous slices, not random draws: §3 forbids reading a
     derived result out of an unseeded source, and a bagged forest whose bags are
     unseeded is that bug wearing a hat. Deterministic bags, reproducible trees.
+
+## `_delta` and `_contents`
+
+The gap between two spans, materialised.
+
+    A tool, and it has to be one: a rule cannot speak about the set of its
+    matches, so a delta cannot be a rule. `<difference>` answers the request
+    `delta(<have>, <want>, <gap>)` with the gap node and writes one
+    `missing(<gap>, p)` / `extra(<gap>, p)` per difference, which is what an
+    ordinary rule can read.
+
+    It PROPOSES, like every tool: the gap is a record of what was computed, and
+    a rule decides whether any of it is worth wanting. `{ +missing(<gap>, ?p) }
+    => { +goal(?p) }` is the whole of turning a gap into a plan, and no plan
+    machinery is involved.
+
+    `_contents` says what a span holds. A moment holds what is asserted there,
+    minus the apparatus's own records -- a corpus's vocabulary is not the
+    apparatus's, and a gap computed against the machinery reports the machinery
+    as work to be done. Anything else holds its direct members: one deep,
+    because `at(work)` is a proposition in the span and `at` and `work` are
+    what that proposition is made of.
+
+    A description is not a difference: a member with a variable in it says
+    which states would count, not that one of them is absent, so it is skipped
+    rather than reported.
+
+## `_intercept`, `_producing`, `_obey`
+
+The trigger seam: what a corpus may say about what a rule is about to write.
+
+    One place, and it is the moment between *the rule concluded this* and *this
+    was written*. Before it, there is nothing to speak about; after it, the
+    entry exists and taking it back is a denial, which is an ordinary rule's
+    job and not a trigger's.
+
+    ⚠⚠⚠ **`producing(<R>, p)` is synthesised and never deposited.** The
+    trigger is matched against the current state PLUS those entries, in a
+    Situation built for the question and thrown away. Depositing them would
+    make the chain say a rule had concluded something it had not, and every
+    later read would inherit it.
+
+    A trigger may replace, drop, or add, which was the decision taken when this
+    was built -- the alternative was veto-and-add only, which cannot express
+    the wrapper case at all. The price is exactly the two things the choice
+    named: the trail must say who rewrote what (`rewrote(<T>, old, new)`, and
+    `why` reads it), and two triggers on one conclusion need an order (the
+    table's, so a corpus can change it with `standing`).
+
+    ⚠ A trigger does not intercept itself, or a trigger that concluded about
+    its own conclusions would have no fixpoint to reach.
+
+    ⚠ The cost when no corpus has any: one dict lookup. `_claims_any` asks the
+    graph whether anything claims `intercepts` before anything is built, and a
+    tree with no triggers runs the suite in the same time it did before --
+    21.95s against 22.08s, measured.

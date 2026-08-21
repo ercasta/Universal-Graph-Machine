@@ -132,14 +132,16 @@ def _admissible(m: Machine, h: Harvest, app: Application) -> Optional[List[tuple
     if m.rules.is_stratum0(app.rule):
         h.skipped["stratum0"] += 1
         return None
-    out = []
-    for mem in app.rule.consequent:
-        grounded = substitute(m.g, mem.pattern, app.bindings)
-        if m._forbid(grounded, mem.sign) is not None:
-            h.skipped["forbidden"] += 1
-            return None
-        out.append((grounded, mem.sign))
-    return out
+    pending = [(substitute(m.g, mem.pattern, app.bindings), mem.sign)
+               for mem in app.rule.consequent]
+    # A trigger may drop a conclusion, and a conclusion that will not land is
+    # not something to be quiet or noisy ABOUT. Asked of the same seam the loop
+    # asks, so this cannot drift from it.
+    after = m._intercept(app, list(pending))
+    if len(after) != len(pending) or any(x != y for x, y in zip(after, pending)):
+        h.skipped["forbidden"] += 1
+        return None
+    return list(pending)
 
 
 def _describe(m: Machine, ldr, h: Harvest, admitted) -> Dict[int, int]:

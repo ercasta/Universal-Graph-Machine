@@ -60,7 +60,7 @@ bundle should be rules, and a hook is not one.
     Recall may be incomplete about what to do.
     It may not be incomplete about what you must not do.
 
-A prohibition that fails to come to mind is a forbidden act that
+A malformed write that fails to be caught is a claim that
 nothing notices, so a norm may not be a rule competing for attention.
 It is a veto here, consulted on **every** write, indexed by what is
 about to be written -- a set that is small and known, which is what

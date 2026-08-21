@@ -417,7 +417,27 @@ class Machine:
         self.BUDGET = self.g.atom("budget")
         self.RECALL = self.g.atom("recall")
         self.RECALLED = self.g.atom("recalled")
-        self.FORBIDDEN = self.g.atom("forbidden")
+        # The gap between two spans, materialised by `<difference>` so that
+        # ordinary rules can read one difference at a time. A rule cannot speak
+        # about the SET of anything, which is why this is a tool.
+        self.DELTA = self.g.atom("delta")
+        # A trigger: a rule the engine consults on what another rule is about
+        # to write, before it is written. `producing` is what it reads (bound
+        # to each pending conclusion), `instead` and `drop` are what it may
+        # say about one, and `rewrote` is the record that it did.
+        self.INTERCEPTS = self.g.atom("intercepts")
+        # The phase a trigger runs in. `after` is after the rule concluded and
+        # before the write lands, which is the only moment a conclusion can
+        # still be changed. `before` -- ahead of the choice, where a buff could
+        # still move it -- is not built, and the marker carries the phase so
+        # that it can arrive without renaming anything.
+        self.AFTER = self.g.atom("after")
+        self.PRODUCING = self.g.atom("producing")
+        self.INSTEAD = self.g.atom("instead")
+        self.DROP = self.g.atom("drop")
+        self.REWROTE = self.g.atom("rewrote")
+        self.MISSING = self.g.atom("missing")
+        self.EXTRA = self.g.atom("extra")
         # The world model's split (docs/world-model.md): a relation declared
         # `relationship(<rel>)` holds among things that have ids -- entities and
         # other relationships -- and never among denotations. A declaration,
@@ -477,7 +497,13 @@ class Machine:
             "call": self.CALL, "stage": self.STAGE, "spawn": self.SPAWN,
             "awaits": self.AWAITS, "returned": self.RETURNED,
             "advances": self.ADVANCES, "closes": self.CLOSES,
-            "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
+            "refused": self.REFUSED,
+            "delta": self.DELTA, "missing": self.MISSING,
+            "intercepts": self.INTERCEPTS, "producing": self.PRODUCING,
+            "after": self.AFTER,
+            "instead": self.INSTEAD, "drop": self.DROP,
+            "rewrote": self.REWROTE,
+            "extra": self.EXTRA,
             "relationship": self.RELATIONSHIP,
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
@@ -629,7 +655,7 @@ class Machine:
                              self.AWAITS, self.RETURNED,
                              self.ADVANCES, self.CLOSES,
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
-                             self.FORBIDDEN, self.RELATIONSHIP, self.STANDING,
+                             self.RELATIONSHIP, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
                              self.BUDGET,
                              self.WIDENED, self.REACHED,
@@ -687,6 +713,7 @@ class Machine:
             ("composer", "compose", self._compose, False),
             ("remember", "recall", self._remember, True),
             ("re-ask", "again", self._again, False),
+            ("difference", "delta", self._delta, False),
         ):
             # `fn` is `(entry)`; the answerer protocol is `(machine, entry)`,
             # and the answer is None because the apparatus
@@ -702,7 +729,6 @@ class Machine:
                     licence=self.g.rel(self.REIFIED, a.node), source=self.KB,
                     mention=True,
                 )
-        self.gate.veto.append(self._forbid)
         self.gate.veto.append(self._only_among_ids)
         self.gate.on_write.append(self._unafforded)
         # ⭐⭐⭐ Attention is a bounded QUEUE, newest first -- what replaces
@@ -1209,29 +1235,14 @@ class Machine:
 
     # -- norms ------------------------------------------------------------
 
-    def _forbid(self, proposition: NodeId, sign: str) -> Optional[NodeId]:
-        """§19's carve-out, and the whole of it.
-
-        > Recall may be incomplete about what to do. It may not be incomplete >
-        about what you must not do.
-
-        See docs/design/machine.md#forbid.
-        """
-        if sign != PLUS:
-            return None
-        rel = self.g.relation_of(proposition)
-        if rel is None or rel is self.REFUSED:
-            return None
-        for node in self.g.instances_of(self.FORBIDDEN):
-            (pattern,) = self.g.members(node)
-            if self.g.relation_of(pattern) != rel:
-                continue
-            if unify(self.g, pattern, proposition, {}) is None:
-                continue
-            e = self.chain.resolve(node)
-            if e is not None and e.sign == PLUS:
-                return node
-        return None
+    # `_forbid` was here: a veto at the gate that read `forbidden(<pattern>)`
+    # claims and refused any write unifying with one. It is folded into the
+    # trigger seam -- a prohibition is a trigger that concludes `drop`, so the
+    # pattern lives in a rule's antecedent where a pattern belongs, and a norm
+    # can be conditional on anything a rule can ask. §19's carve-out survives
+    # the move: triggers are consulted directly, never recalled and never
+    # ranked, so a recall budget that hides everything else still cannot hide
+    # a norm. Measured.
 
     def _only_among_ids(self, proposition: NodeId, sign: str) -> Optional[NodeId]:
         """The world model's split, enforced where facts enter.
@@ -2109,6 +2120,74 @@ class Machine:
                 mention=True,
             )
 
+    def _contents(self, root: NodeId) -> set:
+        """What a span holds, as propositions.
+
+        Two kinds of root, and they are one rule rather than two: a MOMENT
+        holds what is asserted there, and anything else holds its own members.
+        A corpus builds a wanted state the way it builds any other compound --
+        `state(at(work), holds(p1, key1))` -- and the world as it stands is a
+        moment, which is already a node. Members are read one deep on purpose:
+        `at(work)` is a proposition in the span, and `at` and `work` are what it
+        is made of, not things the span holds.
+        """
+        for mo in self.chain.moments:
+            if mo.node == root:
+                # The apparatus's own records are not part of the world: a
+                # moment holds `answers(...)` and `attention(...)` too, and a
+                # gap computed against them reports the machinery as something
+                # to be got rid of. A corpus's vocabulary is not the
+                # apparatus's, and this is the same line the dungeon's `want`
+                # was written for.
+                return {en.proposition for en in current_state(self.chain)
+                        if en.sign == PLUS
+                        and self.g.relation_of(en.proposition)
+                        not in self._bookkeeping
+                        and not self._is_mention_record(en.proposition)}
+        return set(self.g.members(root))
+
+    def _is_mention_record(self, proposition: NodeId) -> bool:
+        """A record the machinery keeps ABOUT something, rather than a claim
+        about the world: the reified rules, the answerers, the utterances."""
+        return self.g.relation_of(proposition) in (
+            self.ANSWERS, self.ANSWERED, self.RULE, self.ANT, self.CON,
+            self.CONN, self.REIFIED, self.NAMES, self.COMPOSED, self.DELTA,
+            self.MISSING, self.EXTRA, self.SAYS, self.DID, self.TAKEN,
+        )
+
+    def _delta(self, e: Entry) -> Optional[NodeId]:
+        """`delta(<have>, <want>, <gap>)` -- what stands between two spans.
+
+        The answer is the gap node, and what a corpus reads off it is one
+        difference at a time: `missing(<gap>, p)` for what the wanted span has
+        and the held one lacks, `extra(<gap>, p)` for the reverse. Materialised
+        rather than answered as a set, because a rule matches one entry and
+        there is nothing in the surface that walks a collection.
+
+        A tool, so it PROPOSES: the gap is a record of what was computed here,
+        and it is a rule that decides whether any of it is worth wanting.
+        """
+        if e.sign != PLUS or self.g.relation_of(e.proposition) is not self.DELTA:
+            return None
+        members = self.g.members(e.proposition)
+        if len(members) != 3:
+            return None
+        have, want, gap = members
+        held, wanted = self._contents(have), self._contents(want)
+        for prop, rel in ((wanted - held, self.MISSING),
+                          (held - wanted, self.EXTRA)):
+            for p in sorted(prop):
+                if self.g.has_var(p):
+                    # A description is not a difference: `at(?x)` says which
+                    # states would count, not that one of them is absent.
+                    continue
+                self.gate.write(
+                    self.g.rel(rel, gap, p), PLUS,
+                    licence=e.proposition, source=self.KB, consumed=(e,),
+                    mention=True,
+                )
+        return gap
+
     def _again(self, e: Entry) -> None:
         """Re-deliver a request, because a corpus said an occasion warrants it.
 
@@ -2590,14 +2669,18 @@ class Machine:
                 **app.bindings,
                 **{mk: self.g.entity() for mk in marks},
             })
-        for m in app.rule.consequent:
-            grounded = substitute(self.g, m.pattern, app.bindings)
+        # What the rule concluded, before anything is written -- which is the
+        # one moment a trigger can speak about it.
+        pending = [(substitute(self.g, m.pattern, app.bindings), m.sign)
+                   for m in app.rule.consequent]
+        pending = self._intercept(app, pending)
+        for grounded, sign in pending:
             if app.rule.connective == "causes":
-                self._expect(grounded, m.sign, licence)
+                self._expect(grounded, sign, licence)
             wrote.append(
                 self.gate.write(
                     grounded,
-                    m.sign,
+                    sign,
                     licence=licence,
                     source=self.KB,  # the rule is the licence; the KB is the channel
                     consumed=app.consumed,
@@ -2605,6 +2688,132 @@ class Machine:
                 )
             )
         return tuple(wrote)
+
+    def _triggers(self) -> List["Rule"]:
+        """The rules a corpus has marked as triggers, in the order the table
+        would consider them: a trigger is an ordinary rule, so which one runs
+        first is decided the way everything else is."""
+        if not self._claims_any(self.INTERCEPTS):
+            return []
+        marked = [r for r in self.rules.rules
+                  if self._claims(self.g.rel(self.INTERCEPTS, r.node, self.AFTER))]
+        standing = {r for r in marked
+                    if self._claims(self.g.rel(self.STANDING, r.node))}
+        return sorted(marked, key=lambda r: (r not in standing,
+                                             self.rules.rules.index(r)))
+
+    def _claims_any(self, relation: NodeId) -> bool:
+        """Is anything claimed with this relation? The fast path a reader takes
+        before building anything: a corpus with no triggers pays a dict lookup."""
+        return any(self._claims(p) for p in self.g.instances_of(relation))
+
+    def _intercept(self, app: Application,
+                   pending: List[Tuple[NodeId, str]]) -> List[Tuple[NodeId, str]]:
+        """Let the triggers rewrite what this application is about to write.
+
+        A trigger sees each pending conclusion as `producing(<rule>, p)` -- a
+        fact that exists only for this question, never deposited, because what
+        a rule is ABOUT to conclude is not something the world holds. What it
+        concludes about one is read as an instruction:
+
+            instead(p, q)   q lands where p would have
+            drop(p)         p does not land at all
+            anything else   lands as well, beside what the rule concluded
+
+        So marking is adding, refusing is dropping, and wrapping is replacing,
+        and a corpus writes all three as ordinary rules. Triggers run in table
+        order and each sees the delta the one before it left, which is what
+        makes two triggers on one conclusion answerable rather than a race.
+        """
+        triggers = self._triggers()
+        if not triggers:
+            return pending
+        for t in triggers:
+            if t is app.rule:
+                continue  # a trigger does not intercept itself
+            state = Situation(self.g, list(current_state(self.chain))
+                              + self._producing(app, pending))
+            found = match(self.g, self.chain, t, state,
+                          computes=self.rules.computes,
+                          structural=self.rules.skeleton())
+            if not found:
+                continue
+            pending = self._obey(t, app, pending, found)
+        return pending
+
+    def _producing(self, app: Application,
+                   pending: List[Tuple[NodeId, str]]) -> List[Entry]:
+        """The pending conclusions, as entries a trigger can match. Undeposited
+        on purpose: `producing(<R>, p)` is true of this question and of nothing
+        else, and a claim that outlived the question would be a claim that the
+        rule had concluded something it has not."""
+        out = []
+        for prop, _sign in pending:
+            said = self.g.rel(self.PRODUCING, app.rule.node, prop)
+            out.append(Entry(node=self.g.instance(self.PRODUCING, said),
+                             proposition=said, sign=PLUS, licence=None,
+                             source=self.KB, consumed=(), mention=True))
+        return out
+
+    def _obey(self, trigger: "Rule", app: Application,
+              pending: List[Tuple[NodeId, str]], found) -> List[Tuple[NodeId, str]]:
+        """Read a trigger's conclusions as instructions about the delta."""
+        replaced: Dict[NodeId, NodeId] = {}
+        dropped: set = set()
+        added: List[Tuple[NodeId, str]] = []
+        for a in found:
+            for m in trigger.consequent:
+                said = substitute(self.g, m.pattern, a.bindings)
+                if self.g.has_var(said):
+                    continue  # a description is not an instruction
+                rel = self.g.relation_of(said)
+                if rel is self.INSTEAD and len(self.g.members(said)) == 2:
+                    old, new = self.g.members(said)
+                    replaced[old] = new
+                elif rel is self.DROP and len(self.g.members(said)) == 1:
+                    (gone,) = self.g.members(said)
+                    dropped.add(gone)
+                else:
+                    added.append((said, m.sign))
+        if not (replaced or dropped or added):
+            return pending
+        out: List[Tuple[NodeId, str]] = []
+        for prop, sign in pending:
+            if prop in dropped:
+                # A drop is a REFUSAL, and it says so in the vocabulary that
+                # already means *this did not land, and here is what stopped
+                # it*. Same record the gate wrote when a norm was a veto, so a
+                # corpus reading `refused(...)` reads both, and the loop's own
+                # cache invalidation on that relation still revives the
+                # application if the trigger is later retired.
+                self.gate.write(
+                    self.g.rel(self.REFUSED, prop, self.rules.SIGN[sign],
+                               trigger.node),
+                    PLUS, licence=self.g.rel(self.INTERCEPTS, trigger.node),
+                    source=self.KB, mention=True,
+                )
+                continue
+            if prop in replaced:
+                self._rewrote(trigger, prop, replaced[prop])
+                out.append((replaced[prop], sign))
+                continue
+            out.append((prop, sign))
+        for prop, sign in added:
+            if (prop, sign) not in out:
+                out.append((prop, sign))
+        return out
+
+    def _rewrote(self, trigger: "Rule", old: NodeId,
+                 new: Optional[NodeId]) -> None:
+        """On the record, because a conclusion that is not what the rule said it
+        concluded has to name who changed it. `why()` reads the rule from the
+        licence and the trigger from here."""
+        self.gate.write(
+            self.g.rel(self.REWROTE, trigger.node, old,
+                       new if new is not None else self.DROP),
+            PLUS, licence=self.g.rel(self.INTERCEPTS, trigger.node),
+            source=self.KB, mention=True,
+        )
 
     def _mint_structure(self, app: Application) -> int:
         """A stratum-0 rule's conclusion: an ordinary interned relation
@@ -2913,12 +3122,11 @@ class Machine:
                     if cache["quiet"].pop(k, None) is not None and k in cache["apps"]:
                         self._revive(cache, k)  # back in the running, and on the heap
                 rel = self.g.relation_of(e.proposition)
-                if (rel is self.FORBIDDEN or rel is self.REFUSED
-                        or rel is self.RELATIONSHIP):
-                    # A norm is not indexed by what it forbids -- _forbid
-                    # consults every prohibition whose pattern shares a
-                    # relation with what is about to be written, so a new one
-                    # can change the answer for a proposition no cached verdict
+                if (rel is self.REFUSED or rel is self.RELATIONSHIP
+                        or rel is self.INTERCEPTS):
+                    # A trigger is not indexed by what it changes: it is
+                    # consulted on every application, so declaring one can
+                    # change the answer for a proposition no cached verdict
                     # mentions.
                     # →
                     # docs/design/machine.md#a-norm-is-not-indexed-by-what-it-forbids-fo
@@ -4097,6 +4305,15 @@ class Machine:
         if e is None:
             return []
         lines = [self._line(e)]
+        # A rewritten conclusion is not what the rule that licensed it said, so
+        # the trigger that changed it is named here. Without this the licence
+        # reads as though the rule had concluded this all along.
+        for record in self.g.instances_of(self.REWROTE):
+            members = self.g.members(record)
+            if len(members) == 3 and members[2] == proposition                     and self._claims(record):
+                lines.append(
+                    f"  rewritten by {self.g.show(members[0])} "
+                    f"from {self.g.show(members[1])}")
         for s in self.chain.trail(e):
             lines.append("  because " + self._line(s))
         return lines

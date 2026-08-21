@@ -4296,6 +4296,157 @@ def a_rule_says_that_it_ran() -> None:
           ran.holds(kb.term("achieved(exercised(<r>))")) is None)
 
 
+def a_trigger_reads_what_a_rule_is_about_to_conclude() -> None:
+    """The engine consults a corpus's rules on another rule's conclusions.
+
+    A trigger is an ordinary rule marked `intercepts(<T>)`. It matches against
+    `producing(<R>, p)` -- a fact that exists only while the question is being
+    asked, never deposited, because what a rule is ABOUT to conclude is not
+    something the world holds. What it concludes is read as an instruction:
+    `instead(p, q)` replaces, `drop(p)` refuses, anything else is added.
+
+    See docs/design/selftest.md#a-trigger-reads-what-a-rule-is-about-to-conclude.
+    """
+    from .core.text import load
+
+    boil = ["rule <boil> = implies( { +heat(?a, ?w), +water(?w) },",
+            "                      { +boiling(?w) } )",
+            "fact +supposing(h1)",
+            "fact +heat(anna, kettle)", "fact +water(kettle)", ""]
+
+    # 1. adding -- what a supposition marks as it is produced
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "rule <mark> = implies( { +supposing(?h), +producing(?r, ?p) },",
+        "                      { +hypothetical(?p, ?h) } )",
+        "fact intercepts(<mark>, after)"] + boil))
+    m.run(limit=40)
+    check("§16", "a trigger marks what a rule produces AS it is produced, so "
+          "*everything concluded under this hypothesis* is said once rather "
+          "than by every rule",
+          m.holds(kb.term("boiling(kettle)")) == PLUS
+          and m.holds(kb.term("hypothetical(boiling(kettle), h1)")) == PLUS)
+
+    # 2. replacing -- and no rule writes the wrapper
+    w = Machine()
+    kbw = load(w, chr(10).join([
+        "rule <wrap> = implies( { +supposing(?h), +producing(?r, ?p) },",
+        "                      { +instead(?p, likely(?p)) } )",
+        "fact intercepts(<wrap>, after)"] + boil))
+    w.run(limit=40)
+    check("§12", "...and a trigger can REPLACE a conclusion: what a rule "
+          "concludes under a supposition lands wrapped, with the wrapper in no "
+          "rule's consequent",
+          w.holds(kbw.term("likely(boiling(kettle))")) == PLUS
+          and w.holds(kbw.term("boiling(kettle)")) is None)
+    check("R5", "...and `why` names the trigger that changed it, because a "
+          "conclusion that is not what the rule said it concluded cannot be "
+          "reported as the rule's",
+          any("rewritten by <wrap> from boiling(kettle)" in line
+              for line in w.why(kbw.term("likely(boiling(kettle))"))))
+
+    # 3. dropping -- a safety trigger, and it is a QUERY rather than a pattern
+    d = Machine()
+    kbd = load(d, chr(10).join([
+        "rule <no-harm> = implies( { +producing(?r, doing(harm(?x))) },",
+        "                         { +drop(doing(harm(?x))) } )",
+        "fact intercepts(<no-harm>, after)",
+        "rule <act> = implies( { +angry(?x) }, { +doing(harm(?x)), +noted(?x) } )",
+        "fact +angry(bo)", ""]))
+    d.run(limit=40)
+    check("§19", "...and a trigger can DROP one: the act never lands, so it "
+          "never leaves the agent, and the rule's other conclusion is untouched",
+          d.holds(kbd.term("doing(harm(bo))")) is None
+          and d.holds(kbd.term("noted(bo)")) == PLUS
+          and not d.emitted)
+
+    # 4. two triggers on one conclusion, and the order is the table's
+    two = Machine()
+    kb2 = load(two, chr(10).join([
+        "rule <wrap> = implies( { +supposing(?h), +producing(?r, ?p) },",
+        "                      { +instead(?p, likely(?p)) } )",
+        "rule <mark> = implies( { +supposing(?h), +producing(?r, ?p) },",
+        "                      { +hypothetical(?p, ?h) } )",
+        "fact intercepts(<wrap>, after)", "fact intercepts(<mark>, after)",
+        "fact standing(<wrap>)"] + boil))
+    two.run(limit=40)
+    check("§14", "two triggers on one conclusion are ordered by the table, and "
+          "the second sees what the first left -- so this is answerable rather "
+          "than a race",
+          two.holds(kb2.term("hypothetical(likely(boiling(kettle)), h1)")) == PLUS
+          and two.holds(kb2.term("hypothetical(boiling(kettle), h1)")) is None)
+
+    # 5. the fixture can fail: without the mark, nothing intercepts
+    plain = Machine()
+    kbp = load(plain, chr(10).join([
+        "rule <wrap> = implies( { +supposing(?h), +producing(?r, ?p) },",
+        "                      { +instead(?p, likely(?p)) } )"] + boil))
+    plain.run(limit=40)
+    check("§14", "...and a rule is a trigger only because a corpus says so: "
+          "unmarked, it never runs and the conclusion is the rule's own",
+          plain.holds(kbp.term("boiling(kettle)")) == PLUS
+          and plain.holds(kbp.term("likely(boiling(kettle))")) is None)
+    check("§5", "...and `producing` is never deposited: what a rule is about to "
+          "conclude is true of the question and of nothing else",
+          not [pp for pp in plain.g.instances_of(plain.PRODUCING)
+               if plain.holds(pp) == PLUS])
+
+
+def the_gap_between_two_spans() -> None:
+    """`delta(<have>, <want>, <gap>)`, and why it has to be a tool.
+
+    A rule matches one entry at a time and cannot speak about the SET of its
+    matches, so *what stands between where I am and where I want to be* is not
+    a sentence the surface can say. `<difference>` computes it and materialises
+    one `missing`/`extra` entry per difference, which ordinary rules then read
+    one at a time -- the tool proposes the gap, a rule decides what to want.
+
+    See docs/design/selftest.md#the-gap-between-two-spans.
+    """
+    from .core.text import load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "fact +delta(state(at(home), holds(p1, torch)),",
+        "            wanted(at(work), holds(p1, key1), holds(p1, torch)),",
+        "            gap1)",
+        "rule <want-what-is-missing> = implies( { +missing(gap1, ?p) },",
+        "                                      { +goal(?p) } )",
+        "fact standing(<want-what-is-missing>)", ""]))
+    m.run(limit=60)
+    held = lambda rel: sorted(m.g.show(p) for p in m.g.instances_of(rel)
+                              if m.holds(p) == PLUS)
+    check("§17", "a tool computes the gap between two spans and materialises it "
+          "one difference at a time",
+          held(m.MISSING) == ["missing(gap1, at(work))",
+                              "missing(gap1, holds(p1, key1))"]
+          and held(m.EXTRA) == ["extra(gap1, at(home))"])
+    check("§17", "...and what the two spans SHARE is not a difference, so a gap "
+          "is what is left to do rather than a description of both",
+          not any("torch" in row for row in held(m.MISSING) + held(m.EXTRA)))
+    check("§15", "...and an ordinary rule turns the gap into what to want, "
+          "which is the whole reason it is materialised rather than answered "
+          "as a set",
+          m.holds(kb.term("goal(at(work))")) == PLUS
+          and m.holds(kb.term("goal(holds(p1, key1))")) == PLUS)
+    # The world as it stands is a span too, because a moment is a node -- and
+    # the apparatus's own records are not part of it.
+    live = Machine()
+    kb2 = load(live, "fact +at(home)" + chr(10) + "fact +holds(p1, torch)" + chr(10))
+    live.gate.write(
+        live.g.rel(live.DELTA, live.chain.now.node,
+                   kb2.term("wanted(at(work), holds(p1, torch))"),
+                   kb2.term("gap2")),
+        PLUS, source=live.KB)
+    live.run(limit=30)
+    gaps = sorted(live.g.show(p) for rel in (live.MISSING, live.EXTRA)
+                  for p in live.g.instances_of(rel) if live.holds(p) == PLUS)
+    check("§11", "a MOMENT is a span: the gap against the world as it stands "
+          "reads what is asserted there, and none of the machinery's own "
+          "records count as something to be got rid of",
+          gaps == ["extra(gap2, at(home))", "missing(gap2, at(work))"])
+
+
 def a_tool_is_data() -> None:
     """§21's honest debt, taken: what binds an answerer to a request (§5, §17).
 
@@ -4898,18 +5049,30 @@ def prohibitions_are_not_recalled() -> None:
     > Recall may be incomplete about what to do. It may not be incomplete about
     > what you must not do.
 
-    So a norm is not a rule. It is a veto at the gate, consulted on every write,
-    indexed by what is about to be written -- never proposed, never matched,
-    never arbitrated. The check that earns it is the last one here: narrow recall
-    until the agent cannot even bring its own norms to mind, and the forbidden
-    act still does not happen.
+    A norm used to be a veto at the gate, consulted on every write and indexed
+    by what was about to be written. It is a TRIGGER now -- an ordinary rule
+    that concludes `drop` about what another rule is about to conclude -- and
+    the carve-out survives the move for the reason that always earned it:
+    triggers are consulted directly, never recalled, never ranked, never
+    arbitrated. The check that earns it is still the last one here: narrow
+    recall until the agent cannot bring its own rules to mind, and the
+    forbidden act still does not happen.
+
+    ⭐ What the fold buys is that a prohibition is now a QUERY. As a stored
+    pattern a norm could say only *never this shape*; as a trigger's antecedent
+    it can ask anything a rule can ask, and it says the shape in the one place
+    a shape belongs.
+
+    See docs/design/selftest.md#prohibitions-are-not-recalled.
     """
     from .core.text import load
 
     src = chr(10).join([
         "rule <fix>  = implies( { +broken(?x) }, { +doing(repair(?x)) } )",
         "rule <burn> = implies( { +broken(?x) }, { +doing(harm(?x)) } )",
-        "fact forbidden(doing(harm(?x)))",
+        "rule <no-harm> = implies( { +producing(?r, doing(harm(?x))) },",
+        "                         { +drop(doing(harm(?x))) } )",
+        "fact intercepts(<no-harm>, after)",
         "fact +broken(pump)",
         "",
     ])
@@ -4926,10 +5089,10 @@ def prohibitions_are_not_recalled() -> None:
     )
     check(
         "§19",
-        "refusing is not being silent: the refusal is an entry, with the norm as its licence",
-        m.gate.refusals == 1
-        and any(m.g.relation_of(e.proposition) is m.REFUSED
-                for mm in m.chain.moments for e in mm.delta),
+        "refusing is not being silent: the refusal is an entry, and it names "
+        "the norm that stopped it",
+        any(m.g.show(p) == "refused(doing(harm(pump)), +, <no-harm>)"
+            for p in m.g.instances_of(m.REFUSED) if m.holds(p) == PLUS),
     )
     check(
         "§14",
@@ -4937,96 +5100,61 @@ def prohibitions_are_not_recalled() -> None:
         steps[-1].state == "quiescent",
     )
 
-    # A norm is a belief, and it is consulted as one -- resolved at the
-    # writer's own position, so a hypothesis can carry one.
-    # → docs/design/selftest.md#a-norm-is-a-belief-and-it-is-consulted-as-one
+    # A norm is a belief, and denying the claim that makes it a norm is what
+    # retires it. There is nothing else to deny: the rule stays a rule.
     m2 = Machine()
-    kb2 = load(m2, src + chr(10) + "fact -forbidden(doing(harm(?x)))" + chr(10))
+    kb2 = load(m2, src + "fact -intercepts(<no-harm>, after)" + chr(10))
     m2.run(limit=200)
     check(
-        "§8",
-        "restating a norm does not deny it -- two descriptions are two nodes",
-        m2.holds(kb2.term("doing(harm(pump))")) is None and m2.gate.refusals == 1,
-    )
-    # Which is what naming is for. `<...>` is the namespace of STATEMENTS, and a
-    # description is a statement, so the same marker that lets a fact be about a
-    # rule lets a fact be about a norm.
-    named = chr(10).join([
-        "rule <fix>  = implies( { +broken(?x) }, { +doing(repair(?x)) } )",
-        "rule <burn> = implies( { +broken(?x) }, { +doing(harm(?x)) } )",
-        "fact <no-harm> = forbidden(doing(harm(?x)))",
-        "fact +broken(pump)",
-        "",
-    ])
-    m3 = Machine()
-    kb3 = load(m3, named + "fact -<no-harm>" + chr(10))
-    m3.run(limit=200)
-    check(
         "§12",
-        "denied by name, a norm stops forbidding -- it was an ordinary belief all along",
-        m3.holds(kb3.term("doing(harm(pump))")) == PLUS and m3.gate.refusals == 0,
+        "denied, a norm stops forbidding -- it was an ordinary belief all along",
+        m2.holds(kb2.term("doing(harm(pump))")) == PLUS,
     )
 
-    # §19 keeps norms out of RECALL. It never said they were beyond argument, and
-    # a rule can retire one.
-    m4 = Machine()
-    kb4 = load(m4, named + chr(10).join([
-        "rule <emergency> = implies( { +says(fire, evacuate, plus) }, { -<no-harm> } )",
+    # §19 keeps norms out of RECALL. It never said they were beyond argument,
+    # and a rule can retire one.
+    m3 = Machine()
+    kb3 = load(m3, chr(10).join([
+        "rule <burn> = implies( { +broken(?x) }, { +doing(harm(?x)) } )",
+        "rule <no-harm> = implies( { +producing(?r, doing(harm(?x))) },",
+        "                         { +drop(doing(harm(?x))) } )",
+        "fact intercepts(<no-harm>, after)",
+        "rule <emergency> = implies( { +says(fire, evacuate, plus) },",
+        "                          { -intercepts(<no-harm>, after) } )",
+        "rule <spread>    = implies( { +says(fire, evacuate, plus) },",
+        "                          { +broken(valve) } )",
+        "fact +broken(pump)",
         "say fire: +evacuate",
         "",
     ]))
-    m4.run(limit=300)
-    check("R3", "a rule can retire a norm by naming it", m4.holds(kb4.term("doing(harm(pump))")) == PLUS)
+    m3.run(limit=300)
+    check("R3", "a rule can retire a norm by naming it",
+          m3.holds(kb3.term("intercepts(<no-harm>, after)")) == MINUS)
     check(
         "§19",
-        "and until it did, the norm held: the refusal is still on the record",
-        m4.gate.refusals >= 1,
+        "...and the retirement binds what comes AFTER it: the act refused while "
+        "the norm held stays refused, and the one reached once it was lifted "
+        "happens",
+        m3.holds(kb3.term("doing(harm(pump))")) is None
+        and m3.holds(kb3.term("doing(harm(valve))")) == PLUS,
     )
-
-    # ...and it never needed the name, which is worth pinning because the
-    # opposite is easy to assume.
-    # → docs/design/selftest.md#and-it-never-needed-the-name-which-is-worth
-    m5 = Machine()
-    kb5 = load(m5, chr(10).join([
-        "rule <fix>   = implies( { +broken(?x) }, { +doing(repair(?x)) } )",
-        "rule <burn>  = implies( { +broken(?x) }, { +doing(harm(?x)) } )",
-        "rule <lift>  = implies( { +says(fire, evacuate, plus), +forbidden(doing(harm(?y))) },",
-        "                       { -forbidden(doing(harm(?y))) } )",
-        "fact forbidden(doing(harm(?x)))",
-        "fact +broken(pump)",
-        "say fire: +evacuate",
-        "",
-    ]))
-    m5.run(limit=400)
-    check(
-        "R3",
-        "and it did not need the name -- a rule can describe a norm's shape and retire it",
-        m5.holds(kb5.term("doing(harm(pump))")) == PLUS and m5.gate.refusals == 1,
-    )
-
-    # One namespace, so the marker keeps doing its job.
-    clash = False
-    try:
-        load(Machine(), "rule <n> = implies( { +a }, { +b } )" + chr(10) + "fact <n> = forbidden(c(?x))")
-    except Exception:
-        clash = True
-    check("§3", "a rule and a norm cannot share a name -- one statement namespace", clash)
 
     # The carve-out, measured. Narrow recall to one rule and the agent cannot
     # reliably bring anything to mind -- but a norm was never in the running.
-    m6 = Machine()
-    kb6 = load(m6, src)
-    m6.recall_budget = 1
-    m6.run(limit=400)
+    m4 = Machine()
+    kb4 = load(m4, src)
+    m4.recall_budget = 1
+    m4.run(limit=400)
     check(
         "§19",
-        "under a recall budget the forbidden act is STILL refused -- a norm is not a competitor",
-        m6.holds(kb6.term("doing(harm(pump))")) is None and m6.gate.refusals >= 1,
+        "under a recall budget the forbidden act is STILL refused -- a norm is "
+        "not a competitor, because a trigger is consulted rather than recalled",
+        m4.holds(kb4.term("doing(harm(pump))")) is None,
     )
     check(
         "§19",
         "while what to DO stayed incomplete-able: the same budget still let the agent act",
-        m6.holds(kb6.term("doing(repair(pump))")) == PLUS,
+        m4.holds(kb4.term("doing(repair(pump))")) == PLUS,
     )
 
 
@@ -7084,6 +7212,8 @@ def main() -> int:
     a_join_is_not_a_scan()
     the_apparatus_eats_its_own_cooking()
     a_rule_says_that_it_ran()
+    a_trigger_reads_what_a_rule_is_about_to_conclude()
+    the_gap_between_two_spans()
     a_tool_is_data()
     an_episode_teaches_the_next_one()
     subgoals_make_blame_sayable()

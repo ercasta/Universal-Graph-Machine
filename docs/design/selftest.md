@@ -1944,3 +1944,97 @@ bug -- which is exactly how it was found.
     cannot re-fire on bindings it has used. Quiescence could never have caught
     this -- a fresh node always changes something, so a minting rule looks
     applicable for ever.
+
+## `the_gap_between_two_spans`
+
+`delta(<have>, <want>, <gap>)`, and why it has to be a tool.
+
+    A rule matches one entry at a time and cannot speak about the SET of its
+    matches -- the standing gap this design has recorded since aggregates were
+    first asked for. *What stands between where I am and where I want to be* is
+    exactly a claim about a set, so it is not a sentence the surface can say.
+
+    `<difference>` computes it and materialises one `missing(<gap>, p)` or
+    `extra(<gap>, p)` per difference. That is the half that matters: a set
+    answered as a set would need something to walk it, and one entry per
+    difference is read by an ordinary rule with an ordinary member. The tool
+    proposes the gap; a rule decides what to want.
+
+    A span is either a compound a corpus built -- `state(at(home), holds(p1,
+    torch))`, read one deep, because `at(work)` is a proposition IN the span
+    and `at` and `work` are what it is made of -- or a MOMENT, which is already
+    a node and holds what is asserted there. Two kinds, one rule.
+
+    The apparatus's own records are excluded from a moment's contents. Without
+    that, a gap against the world as it stands reports `answers(<composer>,
+    compose)` as something to be got rid of: 16 of them, measured, against one
+    real difference.
+
+## `a_trigger_reads_what_a_rule_is_about_to_conclude`
+
+The engine consults a corpus's rules on another rule's conclusions.
+
+    A trigger is an ordinary rule marked `intercepts(<T>)`. Nothing about it is
+    a new kind of thing: it is recalled, matched and read exactly as any rule
+    is, and what makes it a trigger is a claim a corpus can deny.
+
+    It matches against `producing(<R>, p)` -- a fact that exists only while the
+    question is being asked, and is never deposited. That is the load-bearing
+    part: what a rule is ABOUT to conclude is not something the world holds,
+    and a claim that outlived the question would say the rule had concluded
+    something it has not.
+
+    What a trigger concludes is read as an instruction about the delta:
+
+        instead(p, q)    q lands where p would have
+        drop(p)          p does not land at all
+        anything else    lands as well, beside what the rule concluded
+
+    So the three things asked for are one mechanism: marking is adding,
+    refusing is dropping, and wrapping is replacing.
+
+    ⭐ The wrapper case is the one that pays for it. A supposition used to be
+    written by every rule carrying its own wrapper -- `worked.ugm`'s `<weather>`
+    concludes `+likely(rain(?day, afternoon))` -- so *everything concluded under
+    this hypothesis is uncertain* had to be said once per rule and could not be
+    turned on. As a trigger it is said once, and no rule's consequent mentions
+    the wrapper at all.
+
+    Triggers run in table order and each sees the delta the one before it left,
+    so two triggers on one conclusion are answerable rather than a race: with
+    `<wrap>` standing, `<mark>` marks `likely(boiling(kettle))` and not
+    `boiling(kettle)`.
+
+    ⚠ A rewritten conclusion is not what the rule that licensed it said, so
+    `why` names the trigger: *rewritten by `<wrap>` from `boiling(kettle)`*.
+    The licence still names the application, because that is what produced the
+    entry -- what changed is what it produced, and the record has to say both.
+
+## `prohibitions_are_not_recalled`
+
+§19's carve-out, which is the one place the design refuses to be incomplete.
+
+    > **Recall may be incomplete about what to do. It may not be incomplete
+    > about what you must not do.**
+
+    A norm used to be a veto at the gate -- a `forbidden(<pattern>)` claim
+    consulted on every write. It is a TRIGGER now: an ordinary rule marked
+    `intercepts(<T>, after)` that concludes `drop` about what another rule is
+    about to conclude. The carve-out survives the fold for the reason that
+    always earned it -- triggers are consulted directly, never recalled, never
+    ranked, never arbitrated -- and the check that earns it is unchanged:
+    `recall_budget = 1`, so the agent cannot reliably bring anything to mind,
+    and the forbidden act is still refused while the permitted one happens.
+
+    ⭐ **A prohibition is a QUERY now.** A stored pattern could say only *never
+    this shape*; a trigger's antecedent can ask whatever a rule can ask, and it
+    says the shape where a shape belongs.
+
+    ⚠ Two properties changed with the fold, and the fixture states both rather
+    than dropping them. *Restating a norm does not deny it* is gone -- there is
+    no description to restate, only a rule to name. And retiring a norm binds
+    what comes AFTER: an application already refused is spent, so what was
+    refused stays refused and the next thing the rule reaches is not. The old
+    veto re-ran the spent application; measured, this does not, and the fixture
+    checks the pump stays unharmed while the valve -- reached after the norm was
+    lifted -- does not.

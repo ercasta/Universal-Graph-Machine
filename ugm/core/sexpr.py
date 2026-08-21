@@ -215,7 +215,7 @@ rule <boil> = causes(
     { +boiling(?w), -liquid(?w) } )
 rule <weather> = implies( { +cloudy(?day, morning) },
                           { +likely(rain(?day, afternoon)) } )
-fact <no-harm> = forbidden(doing(harm(?x)))
+fact <how-many> = count(harm(?x))
 fact +heat(anna, kettle)
 fact +water(kettle)
 fact -liquid(ice)
@@ -229,7 +229,7 @@ syntax: lisp
                     ((+ (boiling ?w)) (- (liquid ?w))))
 (rule <weather> implies ((+ (cloudy ?day morning)))
                         ((+ (likely (rain ?day afternoon)))))
-(fact <no-harm> (forbidden (doing (harm ?x))))
+(fact <how-many> (count (harm ?x)))
 (fact + (heat anna kettle))
 (fact + (water kettle))
 (fact - (liquid ice))

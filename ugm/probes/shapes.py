@@ -93,7 +93,7 @@ PROBES = (
     ("a fact may carry a variable",
      "fact +hinged(?x)", False),
     ("...but a NAMED one may",
-     "fact <nh> = forbidden(doing(harm(?x)))", True),
+     "fact <nh> = count(harm(?x))", True),
     ("a whole proposition as an argument",
      "fact achieves(travel(work), at(work))", True),
     ("a bare-variable consequent",

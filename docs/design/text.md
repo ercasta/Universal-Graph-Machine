@@ -28,12 +28,12 @@ Three statements, with the author saying which, so the loader branches on nothin
     fact  +on(a, b)                    standing knowledge, stamped source=kb
     say   user: +raining(here)         an arrival on the channel `user`
     fact  overrides(<boil>, <cool>)        an ordinary claim, and it seeds precedence
-    fact  <no-harm> = forbidden(doing(harm(?x)))   a named statement
+    fact  <how-many> = count(harm(?x))            a named statement
     fact  -<no-harm>                       ...which other statements can be about
 
 A fact may carry a name, in the same angle brackets a rule's goes in, because
 `<...>` is the namespace of **statements** and a rule is a statement. It earns its
-place on descriptions: `forbidden(doing(harm(?x)))` contains variables, and §8
+place on descriptions: `count(harm(?x))` contains variables, and §8
 scopes a statement's variables to it, so writing it twice writes two nodes that
 say a similar thing. A description has no identity but the one an author gives it,
 and without a name a norm could be stated and never retired.
@@ -55,7 +55,7 @@ A relation instance, an atom, a variable or a rule reference, still
     ⚠ Set only for a CHAINED application, so every term that parsed before this
     existed still parses to the identical shape. `a(b)` is `Term("a", (b,))` as
     it always was, not `Term("", (b,), fn=Term("a"))` -- which matters because
-    `_fact` reads `term.head == "forbidden"` to spot a norm, and rewriting the
+    `_fact` reads `term.head` against `DESCRIBES` to spot one, and rewriting the
     common case would have moved that head one level down and retired every norm
     in the suite silently.
 
@@ -126,7 +126,7 @@ A fact may be NAMED, and the name goes in the same angle brackets a
 rule's does, because it is the same namespace: names of
 *statements*, kept out of the relation namespace.
 
-It earns its place on descriptions. `forbidden(doing(harm(?x)))`
+It earns its place on descriptions. `count(harm(?x))`
 contains variables, and §8 scopes a statement's variables to it --
 so writing it twice writes two nodes that say a similar thing, and
 a denial of the second leaves the first forbidding. A description
@@ -322,10 +322,10 @@ claim about two rules, not a generic claim -- R3 depends on being able
 to write it. The `<...>` marker is what makes the distinction visible
 here, where structurally the two are identical (§13).
 A norm's argument is a DESCRIPTION, not a proposition:
-`forbidden(doing(harm(?x)))` names a class of acts, exactly as
+`count(harm(?x))` names a class of acts, exactly as
 `ant(<R>, heat(?a, ?w))` names a class of premises. Both are ground
 claims that happen to contain variables, and §13 says what tells them
-apart is who is writing -- here, an author who wrote `forbidden`.
+apart is who is writing -- here, an author who wrote a described head.
 
 This is one name in Appendix C's census, and it is the honest price of
 letting a corpus state a norm at all: a norm about one act would be
@@ -337,16 +337,17 @@ useless, and a norm expressed as a rule is a competitor in recall.
 : variable inside one is a class and not an unbound conclusion.
 :
 : ⚠⚠⚠ **A tuple rather than a third scattered string comparison.** `_fact` read
-: `term.head == "forbidden"` in one place and the consequent check knew nothing
+: `term.head` against `DESCRIBES` in one place and the consequent check knew nothing
 : about it, and `docs/quest-feedback.md` §6 reported how sharp that edge is: a
 : foreign corpus declined the tidier parser refactor precisely because moving
 : that head one level down would have *retired every norm in the suite
 : silently*. Adding `count` as a second literal in two more places is how that
 : happens again, so the set is named once and read everywhere.
 :
-: `forbidden(doing(harm(?x)))` names a class of acts; `count(goblin(?x))` names
-: a class of things to be counted. Same shape, same price, same reason §13
-: allows it: what tells a description from a generic claim is who is writing.
+: `count(goblin(?x))` names a class of things to be counted, and a norm's
+: shape is now said in a trigger's antecedent instead. Same price, same reason
+: §13 allows it: what tells a description from a generic claim is who is
+: writing.
 
 ## `_vars_in`
 

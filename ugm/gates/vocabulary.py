@@ -54,6 +54,12 @@ ROLES: Dict[str, List[str]] = {
         "recalled", "achieved", "enough", "stopped", "quiet", "open",
         "again", "budget",
         "close", "forgone", "helped", "harmed",
+        # The gap between two spans, which a rule cannot compute because it
+        # cannot speak about a set: `<difference>` materialises it.
+        "delta", "missing", "extra",
+        # Triggers: a rule the engine consults on what another rule is about
+        # to conclude, and what it may say about one.
+        "intercepts", "producing", "instead", "drop", "rewrote", "after",
         "reached", "bounded", "widened", "support", "unsupported", "root",
         "rooted", "scoped", "loaded", "kb", "dormant", "due", "standing",
         # The aggregate over bindings, which is what `blocked`, `rooted` and
@@ -113,12 +119,11 @@ ROLES: Dict[str, List[str]] = {
                             # act's effect is supplied by something else, so
                             # the act itself is not assumed.
                             "substituted",
-                            "forbidden", "refused",
+                            "refused",
                             # The world model's split (docs/world-model.md):
                             # declaring `relationship(<rel>)` is what makes the
                             # gate refuse a denotation in one of its argument
-                            # places. A declaration the gate enforces, in
-                            # `forbidden`'s family.
+                            # places. A declaration the gate enforces.
                             "relationship"],
 }
 

@@ -1326,7 +1326,7 @@ class Loader:
 # : Heads whose ARGUMENT is a description rather than a proposition, so a :
 # variable inside one is a class and not an unbound conclusion.
 # → docs/design/text.md#heads-whose-argument-is-a-description-rather-t
-DESCRIBES = ("forbidden", "count")
+DESCRIBES = ("count",)
 
 
 def _describes(t: Term) -> bool:
