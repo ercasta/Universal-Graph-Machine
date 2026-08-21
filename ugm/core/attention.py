@@ -444,8 +444,13 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     # records: a structure that looks like a stack and is not one.
     root = len(m._frames) - 1
     served = m._frames[root]
-    if served.table is None:
-        served.table = table
+    # ⚠⚠⚠ Set unconditionally, and this was a `if served.table is None`. A frame
+    # keeps its table so a SUSPENDED line of work can be resumed inside a run;
+    # across runs the caller decides, by passing one or not. Guarding the
+    # assignment meant a second `run()` over a different pool resumed the FIRST
+    # run's table -- the settling run's, holding one rule -- and the loop went
+    # quiescent the moment it popped back to the root, with nothing to say why.
+    served.table = table
     root_table = table
     prev_floor = m._floor
     m._floor = root
@@ -496,13 +501,23 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                     if current.expert is not None else table
                 )
             table = current.table
-        # ⚠ The pool is FIXED inside an expert's frame, whatever the caller said:
-        # absorbing every authored rule into a consulted expert's table is the
-        # `pool` argument's own point undone one construct along.
-        frame_fixed = fixed or current.expert is not None
-
         # A rule the agent authored since the last tick enters the table now.
-        if not frame_fixed:
+        if current.expert is not None:
+            # ⚠⚠⚠ **From the EXPERT's pool, re-read, and this was `do not absorb
+            # at all`.** Absorbing every authored rule into a consulted expert's
+            # table would undo the `pool` argument one construct along -- but
+            # absorbing NOTHING is the other error, and it is the one `absorb`
+            # was written about: *the rule was live, it was the node the graph
+            # described, and it never applied because nothing had a score for
+            # it.* Measured: an expert that concludes `knows(medic, <splint>)`
+            # mid-run has `<splint>` in its POOL and not in its TABLE, so a
+            # resumed consultation is STALER than the re-run it replaces --
+            # `set(bob)` never concluded. A frame holds its expert by name
+            # precisely so the pool can grow; this is the half of that which
+            # reaches the table.
+            table.absorb([r for r in m._expert_pool(current.expert)
+                          if r.name not in queries], _standing(m))
+        elif not fixed:
             table.absorb([r for r in m.rules.rules if r.name not in queries],
                          _standing(m))
 
@@ -677,6 +692,24 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     )
 
 
+def _ground(m: Machine, table: Table, term, bindings):
+    """What a spend NAMES, with the move's own bindings put in.
+
+    ⚠⚠⚠ `Table._target` answers for a bare variable and hands a COMPOUND back
+    unchanged, which reads as an answer and is not one: `push(area(?r))` came
+    back as the pattern, still generic, and was dropped as *ground only* one
+    layer from the mistake. A spend may name a whole proposition -- that is what
+    `push` is for -- so the bindings go in the way they go into a postcondition's
+    query, by substitution.
+    """
+    node = table._target(term, bindings)
+    if node is None:
+        node = term
+    if node is not None and m.g.has_var(node) and bindings:
+        node = substitute(m.g, node, bindings)
+    return node
+
+
 def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
                bindings, rule_node) -> None:
     """Spend one postcondition: attention to the machine, a stop to the table.
@@ -692,9 +725,7 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
     licence = m.g.rel(m.APPLIED, rule_node)
     for target, _delta in spends:
         if isinstance(target, Attend):
-            node = table._target(target.term, bindings)
-            if node is None:
-                node = target.term
+            node = _ground(m, table, target.term, bindings)
             # ⚠ Ground only, and silently so. A postcondition naming a variable
             # the move did not bind has nothing to attend TO, and depositing
             # `attention(?x)` would be a claim about no one -- which `_attended`
@@ -712,9 +743,7 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
             # never named. ⚠ Ground only, like `attend`, and for the same reason.
             nodes = []
             for term in target.terms:
-                node = table._target(term, bindings)
-                if node is None:
-                    node = term
+                node = _ground(m, table, term, bindings)
                 if node is not None and not m.g.has_var(node):
                     nodes.append(node)
             m._push_frame(nodes, licence)
@@ -723,9 +752,7 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
             # ...and a RETURN. The loop finds the restored frame at the top of
             # the next tick and picks its table back up, which is what makes the
             # caller's re-run a resume.
-            node = table._target(target.term, bindings)
-            if node is None:
-                node = target.term
+            node = _ground(m, table, target.term, bindings)
             m._pop_frame(node if node is not None and not m.g.has_var(node)
                          else None, licence)
             continue

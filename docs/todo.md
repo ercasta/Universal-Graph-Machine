@@ -1101,13 +1101,100 @@ on the argument that what an expert can be ASKED is its input side -- was tried
 and measured: same picks, all scores halved. Not taken, because it buys nothing
 and loses the consequent's evidence.
 
-### 3. How far does a re-run diverge from a resume? NOT MEASURED
+### 3. How far does a re-run diverge from a resume? ZERO — and that is a finding
 
-`probes/experts.py` still re-runs the caller with a fresh table on every
-consultation return; frames make a resume possible but nothing has been ported
-to them. The number remains unclaimed. ⚠ Do not read the frames probe's §4 as
-this measurement -- it shows the table SURVIVES a frame, which is the
-precondition, not the divergence.
+Measured 2026-08-21 in `probes/experts.py`, which now runs its consultation both
+ways over one corpus (`Consultation(resume=...)` is the only variable):
+
+    re-run  geometry:area  geometry:perimeter  arithmetic:double
+            geometry:perim-done  surveyor:record  surveyor:recorded
+    resume  geometry:area  geometry:perimeter  arithmetic:double
+            geometry:perim-done  surveyor:record  surveyor:recorded
+
+**Identical, and structurally so rather than luckily.** With the buffs retired a
+score is `STANDING` or `FLOOR` and only `absorb` moves it, so a rebuilt table
+and a run-through one agree in `score` and `rank` -- the only two fields that
+decide a move. Asserted directly: they differ in `ticked` and in nothing else.
+
+⚠⚠⚠ **So `tick`'s *measuring a different agent each time* is currently INERT.**
+It was written when a buff moved a score. Nothing moves one. The table in a
+frame is therefore not what the frame buys today -- the QUEUE is (13,986
+readmits on dungeon) and the ROUTING is. It belongs in the frame for the day
+something moves a score again, and that should be said plainly rather than
+implied by the frame carrying it.
+
+### ⭐⭐⭐ 3b. ...and the one way a resume CAN differ runs the OTHER way
+
+Found while measuring 3, and it was a defect in the frame code:
+
+    an expert concludes `knows(medic, <splint>)` while its own frame is open
+
+`pool_of` is *read, never kept*, so `<splint>` is in the expert's POOL on the
+next look. A kept table never absorbed it, because the first implementation
+treated an expert frame as `fixed` and skipped `absorb` entirely. Measured
+before the fix: the re-run applied `<splint>` and concluded `set(bob)`; the
+resumed table did not. **A resume that is staler than the re-run it replaces.**
+
+That is `absorb`'s own failure mode in its own words -- *the rule was live, it
+was the node the graph described, and it never applied because nothing had a
+score for it*. An expert frame now absorbs **from its expert's pool** every
+tick: not every authored rule (which would undo the `pool` argument one
+construct along) and not nothing (which is this). A frame holds its expert by
+NAME precisely so the pool can grow; this is the half of that which reaches the
+table.
+
+### THE PORT, and `consult` is gone
+
+`probes/experts.py` ships a second corpus, `PORTED`, in which **nothing names a
+callee**:
+
+    rule <ask-area>  = implies( { +survey(?r) }, { +question(area(?r)) } )
+    after <ask-area> => push(area(?r))
+
+...and one inherited rule returns, because *what pops is a rule saying so*:
+
+    expert responder
+    rule <replied> = implies( { +question(?q), +reply(?q, ?a) }, { +answered(?q) } )
+    after <replied> => pop(?a)
+
+Two hops, one `run()`, no outer loop, no Python stack, no `consult`, no
+`answered` lift:
+
+    surveyor: ask-area
+      geometry: area
+      geometry: replied
+    surveyor: record
+    surveyor: ask-perim
+      geometry: perimeter
+        geometry: double        <- picked geometry, not arithmetic
+        geometry: replied
+      geometry: perim-done
+      geometry: replied
+    surveyor: recorded
+
+⚠ **The `twice(3)` hop went to geometry rather than to arithmetic**, and the
+answer is right anyway because geometry inherits `<double>`. That is the `area`
+tie of measurement 2 showing up in the routing: a term shared by the asker and
+the answerer scores for both. Defensible, not what a human would have named, and
+recorded here rather than tuned away.
+
+⭐ Both paths are kept on purpose. *How far does a re-run diverge from a resume*
+is a comparison, and a file with only the new way has nothing to compare against.
+
+### Two more found in the engine while porting
+
+    `Table._target` answered for a bare variable and handed a COMPOUND back
+    unchanged -- so `push(area(?r))` came back generic and was dropped as
+    *ground only*, one layer from the mistake. Spends now substitute the move's
+    bindings the way a postcondition's query does, which also makes
+    `attend(p(?x))` mean something for the first time.
+
+    `run()` set the root frame's table only `if served.table is None`, so a
+    second run over a different pool RESUMED the first run's table -- the
+    settling run's, holding one rule -- and went quiescent the moment it popped
+    back to the root, with nothing to say why. Set unconditionally now: a frame
+    keeps its table so a suspended line can be resumed WITHIN a run; across runs
+    the caller decides, by passing one or not.
 
 ### What the stack costs, stated because the probe would otherwise report only
 the column it won on

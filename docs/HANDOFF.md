@@ -2,6 +2,10 @@
 
     python -m ugm.selftest      513 checks, 0 failing   <- was 503; 10 new
     python -m ugm.probes.frames  21 checks, 0 failing   <- new
+    python -m ugm.probes.experts 15 checks, 0 failing   <- was 7, and the 7 was
+                                                           a LITERAL: adding a
+                                                           check did not move
+                                                           the number it printed
     ./tools_sweep.sh            1 failing, 30 run       <- 30 is one more than
                                                            any sweep has run,
                                                            and the 1 is
@@ -42,9 +46,13 @@ takes back is the frame's own `attention` claims, and it DENIES them.
 2. **Experts discriminate after IDF, partly.** `survey` separates cleanly
    (110/0/0). `area` TIES the expert that answers with the expert that asks,
    and the tie falls to authored order. Signal, not separation.
-3. **Re-run vs resume: NOT MEASURED.** `probes/experts.py` still re-runs with a
-   fresh table on every return. Frames make the resume possible; nothing is
-   ported to them yet. ⚠ The frames probe's §4 is the precondition, not this.
+3. **Re-run vs resume: ZERO divergence, and that is the finding.** Same moves,
+   same order, both ways. Structural: with the buffs retired a score is
+   `STANDING` or `FLOOR` and only `absorb` moves it, so a rebuilt table and a
+   run one agree in `score` and `rank`. ⚠⚠⚠ **`tick`'s *measuring a different
+   agent each time* is currently INERT** -- it was written when a buff moved a
+   score. The table in a frame is not what the frame buys today; the QUEUE and
+   the ROUTING are.
 
 ...and the cost, which the probe reports because reporting only the winning
 column would be measuring its own conclusion: **+4% rules matched, same ticks.**
@@ -60,6 +68,42 @@ been green for weeks, and nothing raised. Read in graph order now, and the §19
 check it broke is sharper for it: attention that names everything produces
 **exactly the bare order**, more cheaply.
 
+## The port (second commit) — `consult` is gone
+
+`probes/experts.py` now carries **two** ways of doing one thing, on purpose:
+`Consultation` (the Python stack, `consult(<expert>, ?q)`, the CONTROL) and
+`PORTED` (nothing names a callee). In the ported corpus a rule deposits a
+question and spends `push(area(?r))`; the engine picks the callee by TF-IDF; one
+inherited `<replied>` rule spends `pop`. Two hops, **one `run()`**, no outer
+loop, no `answered` lift.
+
+⚠ The `twice(3)` hop routes to **geometry** rather than arithmetic and answers
+correctly anyway, because geometry inherits `<double>`. That is measurement 2's
+`area` tie showing up in the routing. Recorded, not tuned away.
+
+### ⭐⭐⭐ 3b. A resume that was STALER than the re-run it replaced
+
+Found while measuring 3, and it was a defect in the frame code I had just
+written. An expert that concludes `knows(medic, <splint>)` while its own frame
+is open has `<splint>` in its POOL (`pool_of` is read, never kept) and, with a
+kept table, **not in its TABLE** -- because the first implementation treated an
+expert frame as `fixed` and skipped `absorb` entirely. Measured before the fix:
+re-run applied `<splint>` and concluded `set(bob)`; resume did not.
+
+An expert frame now absorbs **from its expert's pool** every tick. Not every
+authored rule (that undoes the `pool` argument) and not nothing (that is this).
+
+### Two more engine defects, both silent
+
+    `Table._target` handed a COMPOUND back unchanged, so `push(area(?r))` came
+    back generic and was dropped as *ground only* one layer from the mistake.
+    Spends substitute the move's bindings now -- which also makes
+    `attend(p(?x))` mean something for the first time.
+
+    `run()` set the root frame's table only `if served.table is None`, so a
+    second run over a different pool resumed the FIRST run's table and went
+    quiescent the moment it popped back to the root. Set unconditionally now.
+
 ## Where to look
 
     core/machine.py    `Frame`, `_push_frame`, `_pop_frame`, `_pick_expert`,
@@ -68,13 +112,13 @@ check it broke is sharper for it: attention that names everything produces
     core/text.py       `spend()` -- two more rows
     core/attention.py  `_spend_one` dispatch, and `run()`'s per-tick frame switch
     probes/frames.py   the measurements
+    probes/experts.py  `PORTED`, `ported()`, `Consultation(resume=...)`
     gates/vocabulary.py  the six new reserved names, classified as deliberation
 
 ## What is NOT done
 
-- **Nothing is ported to frames.** `probes/experts.py` still uses its own
-  `(expert, question)` stack and its own re-run. Porting it is what would
-  produce measurement 3, and it is the obvious next step.
+- **`bundle.ugm` and the shipped corpora do not use frames.** The port is a
+  probe corpus; nothing that ships spends `push` or `pop`.
 - **`stop` is still not *pop the root*.** Elegant, still not required.
 - **An unpopped frame** is reclaimed when the machine is, and is not yet a thing
   the agent can be asked about. `docs/todo.md` OPEN 4 called the second answer
