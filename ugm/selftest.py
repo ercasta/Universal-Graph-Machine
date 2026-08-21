@@ -6732,6 +6732,106 @@ def a_rule_can_introduce_a_thing() -> None:
           "fresh node always changes something",
           len(people) == 3)
 
+
+def a_relationship_is_among_ids_a_denotation_is_a_query() -> None:
+    """docs/world-model.md's one change: separate the things that have atom ids
+    from the expressions that don't.
+
+    An entity is a labelless node -- nothing but an id -- created and mapped
+    explicitly by a rule. A relationship is reified: a fresh node of its own,
+    holding among id-bearing things. A denotation -- a compound expression like
+    `attack(goblin, you)` -- has no id of its own: it is a query, matched in an
+    antecedent, and a declared relationship REFUSES it in an argument place.
+    """
+    from .core.text import load
+
+    g0 = Graph()
+    e = g0.entity()
+    check("world model", "⭐ an entity is a labelless node: no name, no relation, "
+          "no members -- nothing but an id",
+          g0.relation_of(e) is None and g0.members(e) == ()
+          and not g0.is_var(e) and g0.show(e) == f"#{e}")
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        # the split, declared: these relations hold among things with ids
+        "fact +relationship(named)",
+        "fact +relationship(denotes)",
+        "fact +relationship(agent)",
+        "fact +relationship(target)",
+        # what arrived: a name, and a mention quoting a denotation
+        "fact +said(m1, paul)",
+        "fact +mention(m2, attack(goblin, you))",
+        "fact +is(gob, goblin)",
+        "fact +refers(you, hero)",
+        # the entity is created and mapped by a rule, not by the name table
+        "rule <intro> = implies( { +said(?m, ?x) },",
+        "                        { +named(+person, ?x), +denotes(?m, +person) } )",
+        # the denotation is MATCHED -- a query -- and what it resolves to fills",
+        # the roles of a reified relationship with an id of its own",
+        "rule <reify> = implies( { +mention(?m, attack(?d, you)),",
+        "                          +is(?a, ?d), +refers(you, ?t) },",
+        "                        { +agent(+attack, ?a), +target(+attack, ?t),",
+        "                          +denotes(?m, +attack) } )",
+        # the mistake the split exists to refuse: relating the denotation itself
+        "rule <smuggle> = implies( { +mention(?m, ?d) },",
+        "                          { +agent(+blob, ?d) } )", ""]))
+    m.run(limit=300)
+    g = m.g
+
+    named = [n for n in g.instances_of(kb.atoms["named"]) if m.holds(n) == PLUS]
+    person = g.member(named[0], 0) if named else None
+    check("world model", "⭐⭐⭐ a rule creates the entity and maps it: `paul` is "
+          "not a handle but a claim about a labelless node the rule minted",
+          len(named) == 1 and g.relation_of(person) is None
+          and person not in kb.atoms.values()
+          and m.holds(g.rel(kb.atoms["denotes"], kb.atom("m1"), person)) == PLUS)
+
+    agents = [n for n in g.instances_of(kb.atoms["agent"]) if m.holds(n) == PLUS]
+    attack = g.member(agents[0], 0) if agents else None
+    check("world model", "⭐⭐⭐ a relationship is reified: a labelless node of "
+          "its own, its roles filled by entities the denotation RESOLVED to",
+          len(agents) == 1 and g.relation_of(attack) is None
+          and g.member(agents[0], 1) == kb.atom("gob")
+          and m.holds(g.rel(kb.atoms["target"], attack, kb.atom("hero"))) == PLUS)
+    check("world model", "⭐⭐ ...and because it has an id it can itself "
+          "participate: the mention denotes the relationship",
+          attack is not None
+          and m.holds(g.rel(kb.atoms["denotes"], kb.atom("m2"), attack)) == PLUS)
+
+    denotation = g.rel(kb.atoms["attack"], kb.atom("goblin"), kb.atom("you"))
+    refusals = [n for n in g.instances_of(m.gate.REFUSED)
+                if g.member(g.member(n, 0), 1) == denotation]
+    check("world model", "⭐⭐⭐ a denotation cannot fill a role: relating the "
+          "expression itself is REFUSED, and the refusal is on the record "
+          "with the declaration that forbade it",
+          len(refusals) == 1
+          and g.relation_of(g.member(refusals[0], 2)) is m.RELATIONSHIP)
+    check("world model", "⚠⚠⚠ ...refused ONCE -- the veto runs before the mint, "
+          "so a rule whose every conclusion is turned away brings no orphan "
+          "into being and the loop goes quiet rather than retrying forever",
+          m.gate.refusals == 1)
+    check("world model", "⚠ ...so no relationship in the world holds of an "
+          "expression: every held role fact is among id-bearing things",
+          all(g.relation_of(mm) is None
+              for rel in ("named", "denotes", "agent", "target")
+              for n in g.instances_of(kb.atoms[rel]) if m.holds(n) == PLUS
+              for mm in g.members(n)))
+    check("world model", "⚠ ...and the denotation still WORKS, as a query: "
+          "<reify>'s antecedent matched it, which is how the roles got filled",
+          attack is not None and m.holds(denotation) is None)
+
+    # A loser is deferred, not rejected: the refused instantiation was never
+    # spent, so withdrawing the declaration is all it takes.
+    m.gate.write(g.rel(m.RELATIONSHIP, kb.atom("agent")), MINUS, source=m.KB)
+    m.run(limit=300)
+    smuggled = [n for n in g.instances_of(kb.atoms["agent"])
+                if m.holds(n) == PLUS and g.member(n, 1) == denotation]
+    check("world model", "⭐⭐ ...and the refusal is a deferral: deny the "
+          "`relationship` declaration and the once-refused rule applies on "
+          "its own, with nothing to retry or re-author",
+          len(smuggled) == 1)
+
     # ⚠ The honest limit, stated because it is the failure mode this invites.
     # Refraction bounds re-firing on ONE set of premises. It cannot bound a
     # generative CHAIN -- mint, conclude about the new node, mint again -- since
@@ -6837,6 +6937,7 @@ def main() -> int:
     a_computed_numeral_is_not_a_twin()
     two_things_can_turn_out_to_be_one()
     a_rule_can_introduce_a_thing()
+    a_relationship_is_among_ids_a_denotation_is_a_query()
     attention_is_about_a_node_not_a_rule()
     attention_is_learned_from_what_the_move_bound()
     a_lesson_about_attention_is_learned_from_play()

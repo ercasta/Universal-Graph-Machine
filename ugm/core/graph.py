@@ -221,6 +221,16 @@ class Graph:
         n = self._mint(None, (), name)
         return n
 
+    def entity(self) -> NodeId:
+        """A labelless node: nothing but an id.
+
+        An entity is characterized by its id alone -- any name it answers to
+        is a claim about it (`named(e, paul)`), never part of it, so there is
+        nothing to pass here. The same mint a consequent's `+kind` marker
+        performs, made public so anything coming into the world from Python
+        comes in the same way a rule brings it in."""
+        return self._mint(None, (), None)
+
     def var(self, name: str) -> NodeId:
         """A variable, for the generic moments of a rule (§4)."""
         n = self._mint(None, (), name)

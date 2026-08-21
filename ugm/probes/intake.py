@@ -116,7 +116,7 @@ def main() -> int:
     # this is where it would show.
     m2, kb2 = _read()
     g = m2.g
-    anon = g._mint(None, (), None)          # an entity with no label at all
+    anon = g.entity()                       # an entity with no label at all
     for prop in (g.rel(kb2.atoms["is"], anon, kb2.atoms["goblin"]),
                  g.rel(kb2.atoms["attacked"], anon, kb2.atoms["hero"],
                        kb2.atoms["4"]),

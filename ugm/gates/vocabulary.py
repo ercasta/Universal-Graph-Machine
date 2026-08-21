@@ -106,7 +106,13 @@ ROLES: Dict[str, List[str]] = {
     # done, and what may not be. About the ACT, never about its content.
     "the seam to a world": ["arrived", "says", "answered", "answers", "emitted",
                             "did", "doing", "taken", "deviates", "expects",
-                            "forbidden", "refused"],
+                            "forbidden", "refused",
+                            # The world model's split (docs/world-model.md):
+                            # declaring `relationship(<rel>)` is what makes the
+                            # gate refuse a denotation in one of its argument
+                            # places. A declaration the gate enforces, in
+                            # `forbidden`'s family.
+                            "relationship"],
 }
 
 # `about` says what a corpus is about, and it is what makes this a comparison

@@ -41,7 +41,7 @@ class Position
 Everything above reduces to one change: **separate the things that have atom ids
 from the expressions that don't.**
 
-**An entity is a labelled node characterized only by its atom id.** No name, no
+**An entity is a labelless node characterized only by its atom id.** No name, no
 structure — the id is the identity, and anything else said about it (`named(e17,
 paul)`) is an ordinary claim, deniable like any other. Things related to the
 same atom id are the same thing, so fusing nodes with the same id is a no-op by

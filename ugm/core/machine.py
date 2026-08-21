@@ -422,6 +422,11 @@ class Machine:
         self.RECALL = self.g.atom("recall")
         self.RECALLED = self.g.atom("recalled")
         self.FORBIDDEN = self.g.atom("forbidden")
+        # The world model's split (docs/world-model.md): a relation declared
+        # `relationship(<rel>)` holds among things that have ids -- entities and
+        # other relationships -- and never among denotations. A declaration,
+        # like `forbidden`, so adding a relation adds a row.
+        self.RELATIONSHIP = self.g.atom("relationship")
         self.REFUSED = self.gate.REFUSED
 
         # The knowledge base is a channel like any other (§13). Reading it
@@ -477,6 +482,7 @@ class Machine:
             "awaits": self.AWAITS, "returned": self.RETURNED,
             "advances": self.ADVANCES, "closes": self.CLOSES,
             "forbidden": self.FORBIDDEN, "refused": self.REFUSED,
+            "relationship": self.RELATIONSHIP,
             "standing": self.STANDING,
             "recall": self.RECALL, "recalled": self.RECALLED,
             "close": self.CLOSE,
@@ -623,7 +629,7 @@ class Machine:
                              self.AWAITS, self.RETURNED,
                              self.ADVANCES, self.CLOSES,
                              self.SUPPORT, self.UNSUPPORTED, self.EXCLUDED,
-                             self.FORBIDDEN, self.STANDING,
+                             self.FORBIDDEN, self.RELATIONSHIP, self.STANDING,
                              self.RECALL, self.RECALLED, self.CLOSE,
                              self.BUDGET,
                              self.WIDENED, self.REACHED,
@@ -697,6 +703,7 @@ class Machine:
                     mention=True,
                 )
         self.gate.veto.append(self._forbid)
+        self.gate.veto.append(self._only_among_ids)
         self.gate.on_write.append(self._unafforded)
         # ⭐⭐⭐ Attention is a bounded QUEUE, newest first -- what replaces
         # unattend, LIFE and the accumulation problem at once. ⚠ And it decays
@@ -1220,6 +1227,36 @@ class Machine:
             if self.g.relation_of(pattern) != rel:
                 continue
             if unify(self.g, pattern, proposition, {}) is None:
+                continue
+            e = self.chain.resolve(node)
+            if e is not None and e.sign == PLUS:
+                return node
+        return None
+
+    def _only_among_ids(self, proposition: NodeId, sign: str) -> Optional[NodeId]:
+        """The world model's split, enforced where facts enter.
+
+        A relation declared `relationship(<rel>)` holds among things that have
+        ids -- entities, atoms, other reified relationships -- and never among
+        denotations. A compound member is an expression: a criterion for
+        picking a thing out, not a thing, and depositing it would put a query
+        into the world as if it were one. Any sign, because denying the
+        malformed claim treats the query as a thing exactly as asserting it
+        does. The refusal goes on the record like any other (`refused(...)`).
+        """
+        rel = self.g.relation_of(proposition)
+        if rel is None or rel is self.REFUSED:
+            return None
+        # ⚠ A `+kind` marker is exempt: `new(kind)` is an id COMING TO BE, not
+        # an expression -- which is what lets `_decide_change` consult this
+        # veto on a minting rule's conclusion before anything is minted.
+        if all(self.g.relation_of(mm) is None
+               or self.g.relation_of(mm) is self.NEW
+               for mm in self.g.members(proposition)):
+            return None
+        for node in self.g.instances_of(self.RELATIONSHIP):
+            (declared,) = self.g.members(node)
+            if declared != rel:
                 continue
             e = self.chain.resolve(node)
             if e is not None and e.sign == PLUS:
@@ -2539,9 +2576,25 @@ class Machine:
         # → docs/design/machine.md#a-rule-may-introduce-a-thing-that-did-not
         marks = self._markers(app.rule)
         if marks:
+            # ⚠⚠⚠ The veto runs before the MINT, not only before the deposit.
+            # An application whose EVERY conclusion the gate would turn away
+            # brings nothing into being: the marker-form conclusions are
+            # written instead -- and refused, so the record is the one
+            # `_decide_change` can resolve and the rule is refused ONCE.
+            # Without this, each retry minted a fresh orphan only to have
+            # every claim about it refused, forever: 297 refusals to the run
+            # limit, measured, where one is the point.
+            pre = [(substitute(self.g, m.pattern, app.bindings), m.sign)
+                   for m in app.rule.consequent]
+            if all(any(v(p, s) is not None for v in self.gate.veto)
+                   for p, s in pre):
+                return tuple(
+                    self.gate.write(p, s, licence=licence, source=self.KB,
+                                    consumed=app.consumed, mention=mention)
+                    for p, s in pre)
             app = app._replace(bindings={
                 **app.bindings,
-                **{mk: self.g._mint(None, (), None) for mk in marks},
+                **{mk: self.g.entity() for mk in marks},
             })
         for m in app.rule.consequent:
             grounded = substitute(self.g, m.pattern, app.bindings)
@@ -2866,7 +2919,8 @@ class Machine:
                     if cache["quiet"].pop(k, None) is not None and k in cache["apps"]:
                         self._revive(cache, k)  # back in the running, and on the heap
                 rel = self.g.relation_of(e.proposition)
-                if rel is self.FORBIDDEN or rel is self.REFUSED:
+                if (rel is self.FORBIDDEN or rel is self.REFUSED
+                        or rel is self.RELATIONSHIP):
                     # A norm is not indexed by what it forbids -- _forbid
                     # consults every prohibition whose pattern shares a
                     # relation with what is about to be written, so a new one
@@ -3183,7 +3237,12 @@ class Machine:
                 # docs/design/machine.md#genuinely-generic-the-rule-s-consequent-names-s
                 return False
             touched.append(grounded)
-            forbidding = self._forbid(grounded, m.sign)
+            # The verdict predicts what the GATE will do, so it asks the gate's
+            # own vetoes -- `_forbid`, and the world model's
+            # `_only_among_ids` -- rather than one of them.
+            forbidding = next(
+                (f for v in self.gate.veto for f in (v(grounded, m.sign),)
+                 if f is not None), None)
             if forbidding is not None:
                 # A forbidden conclusion never lands, so the chain never says it
                 # and the rule would match again on every tick, forever. What
