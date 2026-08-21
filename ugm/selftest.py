@@ -2230,12 +2230,17 @@ def its_own_effort_is_reasonable_over() -> None:
     load(esc, chr(10).join(
         ["fact dormant(billing)", "fact +goal(chase(acme))", ""]),
         scope="eff", domain="ctl")
-    esc.run(limit=300)
+    esc_steps = esc.run(limit=300)
     check("§19", "reaching for a domain out of mind is on the record too, so "
           "*I had to go and get that* is askable",
           esc.recoveries == 1
           and [n for n in esc.g.instances_of(esc.REACHED) if esc.holds(n) == PLUS]
           and esc.holds(kb_e.term("chase(acme)")) == PLUS)
+    check("§15", "...and the move says which of the two it was: reaching for a "
+          "domain is not widening a shortlist, and both arms said `widened` "
+          "until something asked",
+          [st.state for st in esc_steps].count("recovered") == 1
+          and "widened" not in [st.state for st in esc_steps])
 
     # The point of all of it: a corpus can reason over the agent's own effort.
     act = Machine()
@@ -4429,6 +4434,31 @@ def the_gap_between_two_spans() -> None:
           "as a set",
           m.holds(kb.term("goal(at(work))")) == PLUS
           and m.holds(kb.term("goal(holds(p1, key1))")) == PLUS)
+    # ...and the empty gap is said outright, which is what lets satisfaction be
+    # a rule. `no missing(?g, ?p)` is a negative existential -- *for no ?p* --
+    # and the loader refuses it, so a rule reading differences one at a time
+    # can never conclude that there were none.
+    same = Machine()
+    kb_s = load(same, chr(10).join([
+        "fact +delta(state(at(work), holds(p1, key1)),",
+        "            wanted(at(work), holds(p1, key1)),",
+        "            gap1)",
+        "rule <done> = implies( { +matched(?g) }, { +enough(?g) } )",
+        "fact standing(<done>)", ""]))
+    ran = same.run(limit=60)
+    check("§17", "two spans that differ in nothing get the aggregate a rule "
+          "cannot state for itself: `matched(<gap>)`",
+          same.holds(kb_s.term("matched(gap1)")) == PLUS
+          and not [pp for pp in same.g.instances_of(same.MISSING)
+                   if same.holds(pp) == PLUS])
+    check("§15", "...so *am I there yet* is an ordinary rule over an ordinary "
+          "claim, and the run stops on it",
+          same.holds(kb_s.term("enough(gap1)")) == PLUS
+          and ran[-1].state == "stopped")
+    check("§9", "...and a gap that is NOT empty says nothing of the kind, so "
+          "the fixture can fail",
+          not [pp for pp in m.g.instances_of(m.MATCHED) if m.holds(pp) == PLUS])
+
     # The world as it stands is a span too, because a moment is a node -- and
     # the apparatus's own records are not part of it.
     live = Machine()

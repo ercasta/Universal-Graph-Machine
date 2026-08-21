@@ -437,6 +437,11 @@ class Machine:
         self.DROP = self.g.atom("drop")
         self.REWROTE = self.g.atom("rewrote")
         self.MISSING = self.g.atom("missing")
+        # ...and the aggregate a rule cannot state for itself. `no missing(?g,
+        # ?p)` is a negative existential -- *for no ?p* -- which a member may
+        # not mean, so the tool that knows the answer says it: `matched(<gap>)`
+        # when the two spans differ in nothing.
+        self.MATCHED = self.g.atom("matched")
         self.EXTRA = self.g.atom("extra")
         # The world model's split (docs/world-model.md): a relation declared
         # `relationship(<rel>)` holds among things that have ids -- entities and
@@ -499,6 +504,7 @@ class Machine:
             "advances": self.ADVANCES, "closes": self.CLOSES,
             "refused": self.REFUSED,
             "delta": self.DELTA, "missing": self.MISSING,
+            "matched": self.MATCHED,
             "intercepts": self.INTERCEPTS, "producing": self.PRODUCING,
             "after": self.AFTER,
             "instead": self.INSTEAD, "drop": self.DROP,
@@ -2174,6 +2180,7 @@ class Machine:
             return None
         have, want, gap = members
         held, wanted = self._contents(have), self._contents(want)
+        differed = False
         for prop, rel in ((wanted - held, self.MISSING),
                           (held - wanted, self.EXTRA)):
             for p in sorted(prop):
@@ -2181,11 +2188,22 @@ class Machine:
                     # A description is not a difference: `at(?x)` says which
                     # states would count, not that one of them is absent.
                     continue
+                differed = True
                 self.gate.write(
                     self.g.rel(rel, gap, p), PLUS,
                     licence=e.proposition, source=self.KB, consumed=(e,),
                     mention=True,
                 )
+        if not differed:
+            # The empty gap, said outright. A rule can read every difference
+            # one at a time and still not be able to say there were none: that
+            # is a claim about the whole set, and the tool is the only party
+            # here that has seen the whole set.
+            self.gate.write(
+                self.g.rel(self.MATCHED, gap), PLUS,
+                licence=e.proposition, source=self.KB, consumed=(e,),
+                mention=True,
+            )
         return gap
 
     def _again(self, e: Entry) -> None:
@@ -2673,7 +2691,7 @@ class Machine:
         # one moment a trigger can speak about it.
         pending = [(substitute(self.g, m.pattern, app.bindings), m.sign)
                    for m in app.rule.consequent]
-        pending = self._intercept(app, pending)
+        pending, _ = self._intercept(app, pending)
         for grounded, sign in pending:
             if app.rule.connective == "causes":
                 self._expect(grounded, sign, licence)
@@ -2707,8 +2725,8 @@ class Machine:
         before building anything: a corpus with no triggers pays a dict lookup."""
         return any(self._claims(p) for p in self.g.instances_of(relation))
 
-    def _intercept(self, app: Application,
-                   pending: List[Tuple[NodeId, str]]) -> List[Tuple[NodeId, str]]:
+    def _intercept(self, app: Application, pending: List[Tuple[NodeId, str]],
+                   record: bool = True) -> Tuple[List[Tuple[NodeId, str]], List[NodeId]]:
         """Let the triggers rewrite what this application is about to write.
 
         A trigger sees each pending conclusion as `producing(<rule>, p)` -- a
@@ -2727,7 +2745,8 @@ class Machine:
         """
         triggers = self._triggers()
         if not triggers:
-            return pending
+            return pending, []
+        kept: List[NodeId] = []
         for t in triggers:
             if t is app.rule:
                 continue  # a trigger does not intercept itself
@@ -2738,8 +2757,9 @@ class Machine:
                           structural=self.rules.skeleton())
             if not found:
                 continue
-            pending = self._obey(t, app, pending, found)
-        return pending
+            pending, said = self._obey(t, app, pending, found, record)
+            kept.extend(said)
+        return pending, kept
 
     def _producing(self, app: Application,
                    pending: List[Tuple[NodeId, str]]) -> List[Entry]:
@@ -2756,7 +2776,8 @@ class Machine:
         return out
 
     def _obey(self, trigger: "Rule", app: Application,
-              pending: List[Tuple[NodeId, str]], found) -> List[Tuple[NodeId, str]]:
+              pending: List[Tuple[NodeId, str]], found,
+              record: bool = True) -> Tuple[List[Tuple[NodeId, str]], List[NodeId]]:
         """Read a trigger's conclusions as instructions about the delta."""
         replaced: Dict[NodeId, NodeId] = {}
         dropped: set = set()
@@ -2776,7 +2797,8 @@ class Machine:
                 else:
                     added.append((said, m.sign))
         if not (replaced or dropped or added):
-            return pending
+            return pending, []
+        said: List[NodeId] = []
         out: List[Tuple[NodeId, str]] = []
         for prop, sign in pending:
             if prop in dropped:
@@ -2786,34 +2808,39 @@ class Machine:
                 # corpus reading `refused(...)` reads both, and the loop's own
                 # cache invalidation on that relation still revives the
                 # application if the trigger is later retired.
-                self.gate.write(
-                    self.g.rel(self.REFUSED, prop, self.rules.SIGN[sign],
-                               trigger.node),
-                    PLUS, licence=self.g.rel(self.INTERCEPTS, trigger.node),
-                    source=self.KB, mention=True,
-                )
+                refusal = self.g.rel(self.REFUSED, prop,
+                                     self.rules.SIGN[sign], trigger.node)
+                said.append(refusal)
+                if record:
+                    self.gate.write(
+                        refusal, PLUS,
+                        licence=self.g.rel(self.INTERCEPTS, trigger.node),
+                        source=self.KB, mention=True,
+                    )
                 continue
             if prop in replaced:
-                self._rewrote(trigger, prop, replaced[prop])
+                said.append(self._rewrote(trigger, prop, replaced[prop], record))
                 out.append((replaced[prop], sign))
                 continue
             out.append((prop, sign))
         for prop, sign in added:
             if (prop, sign) not in out:
                 out.append((prop, sign))
-        return out
+        return out, said
 
     def _rewrote(self, trigger: "Rule", old: NodeId,
-                 new: Optional[NodeId]) -> None:
+                 new: Optional[NodeId], record: bool = True) -> NodeId:
         """On the record, because a conclusion that is not what the rule said it
         concluded has to name who changed it. `why()` reads the rule from the
         licence and the trigger from here."""
-        self.gate.write(
-            self.g.rel(self.REWROTE, trigger.node, old,
-                       new if new is not None else self.DROP),
-            PLUS, licence=self.g.rel(self.INTERCEPTS, trigger.node),
-            source=self.KB, mention=True,
-        )
+        said = self.g.rel(self.REWROTE, trigger.node, old,
+                          new if new is not None else self.DROP)
+        if record:
+            self.gate.write(
+                said, PLUS, licence=self.g.rel(self.INTERCEPTS, trigger.node),
+                source=self.KB, mention=True,
+            )
+        return said
 
     def _mint_structure(self, app: Application) -> int:
         """A stratum-0 rule's conclusion: an ordinary interned relation
@@ -3451,6 +3478,30 @@ class Machine:
                 if got is None:
                     return True  # ground and not yet derived
             return False
+
+        # A trigger may change what this application actually writes, so the
+        # verdict has to ask it -- for the same reason it asks the gate's
+        # vetoes below. Answered WITHOUT depositing: this is a question about
+        # an application that may never be taken, and a verdict that wrote
+        # records would be an instrument changing what it measures.
+        if self._claims_any(self.INTERCEPTS):
+            declared = [(substitute(self.g, mm.pattern, app.bindings), mm.sign)
+                        for mm in app.rule.consequent]
+            lands, said = self._intercept(app, list(declared), record=False)
+            if lands != declared:
+                # What the rule declared is not what will land, so the verdict
+                # is about what lands -- plus the records the interception
+                # itself deposits, which are what let a rewritten application
+                # go quiet instead of asking for ever.
+                for grounded, sign in lands:
+                    touched.append(grounded)
+                    if self.chain.holds(grounded) != sign:
+                        return True
+                for record in said:
+                    touched.append(record)
+                    if self.chain.holds(record) != PLUS:
+                        return True
+                return False
 
         for m in app.rule.consequent:
             grounded = substitute(self.g, m.pattern, app.bindings)

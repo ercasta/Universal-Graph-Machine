@@ -2938,6 +2938,14 @@ The gap between two spans, materialised.
     which states would count, not that one of them is absent, so it is skipped
     rather than reported.
 
+    ⭐ **The empty gap is deposited too, and that is the half that matters.**
+    `matched(<gap>)` lands when nothing differed. A rule can read every
+    difference one at a time and still never conclude that there were none:
+    `no missing(?g, ?p)` is a negative existential -- *for no ?p* -- and the
+    loader refuses it, correctly. The tool has seen the whole set and is the
+    only party that can say so, which is what makes satisfaction expressible as
+    an ordinary rule: `{ +matched(?g) } => { +enough(?g) }`.
+
 ## `_intercept`, `_producing`, `_obey`
 
 The trigger seam: what a corpus may say about what a rule is about to write.

@@ -423,16 +423,26 @@ tick count rather than a saw-tooth.
 ## Not a phase: the world may have spoken since the
 
 Not a phase: the world may have spoken since the last move, and the
-shipped loop asks the same question in the same place.
-⭐⭐⭐ **The anchor a corpus reads the raw chain from.** Minting it is the
-whole of this line -- `asking(<seat>)` has to EXIST for a stratum-0
-rule to bind it, and a corpus has no hand to seed it with. Without it
-*it was on, then it was not* cannot be written at all: the rule is well
+loop asks the same question in the same place.
+
+**The anchor a corpus reads the raw chain from.** Minting it is the
+whole of this line -- `asking(<m>)` has to EXIST for a stratum-0 rule
+to bind it, and a corpus has no hand to seed it with. Without it *it
+was on, then it was not* cannot be written at all: the rule is well
 formed, every other member matches, and it silently never applies.
 
-⚠ Anchored at the SEAT rather than at every moment, which is the
-containment story as well as the cheap one: what the agent may read the
-chain about is where the agent is standing.
+One anchor rather than one per moment, and what that buys is cost.
+The rule-level read is a fixpoint, so an unanchored read gives every
+proposition its candidates and its winner -- `ask_read`'s own docstring
+calls that the honest default and a costly one.
+
+It used to buy a second thing, and no longer does. The line read
+*anchored at the seat*, and the seat was where the agent was standing:
+what it could read the chain about depended on where it stood, which
+was containment as well as economy. There is no seat and no register
+now, and one chain with one standpoint, so there is nothing to contain.
+A caller can still anchor a read at a moment it names -- `ask_read`
+takes them -- but that is a caller's choice, not a boundary.
 
 ## Satisfaction, ported from the tick this lo
 

@@ -121,6 +121,29 @@ about the world still reads the world. If you want a rule to reason *inside* a
 hypothesis, you still write the hypothetical version of it. What you no longer
 have to do is write the wrapper into every consequent by hand.
 
+Worth trying, because the result is not obvious. Add a second rule that reads
+what the first concluded:
+
+```
+rule <wet>  = implies( { +rain(?d) },     { +wet(streets) } )
+rule <slip> = implies( { +wet(streets) }, { +slippery(streets) } )
+
+fact +rain(monday)
+```
+
+```
+wet(streets)                -> None
+likely(wet(streets))        -> +
+slippery(streets)           -> None
+likely(slippery(streets))   -> None
+```
+
+`<wet>` fires — `rain(monday)` is asserted outright, and a trigger cannot stop a
+rule from seeing the world. But its conclusion lands wrapped, so `<slip>`, which
+asks for `+wet(streets)`, never matches. **The wrapper labels one step and stops
+the chain there.** Reasoning further inside the hypothesis is the `<carry>` shape
+above, written out: one wrapped rule per step you want to take.
+
 And because a conclusion is now not always what the rule that licensed it said:
 
 ```

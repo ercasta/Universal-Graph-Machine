@@ -140,6 +140,34 @@ The tool proposes the gap; a rule decides what is worth wanting. Which is the
 same division of labour every tool in this design has (Chapter 22): a tool
 computes, and it never concludes.
 
+And when the two spans differ in **nothing**, the tool says that outright:
+
+```
+matched(gap1)
+```
+
+which looks like a convenience and is not. A rule reads differences one at a
+time, so it can act on every `missing` there is — and it can never conclude that
+there were none. *No missing* is a claim about the whole set. Try to write it
+and the loader refuses:
+
+```
+no missing(gap1, ?p)
+  -> a variable no earlier member binds; an absence is a check on things
+     already picked out, never a way of picking them out
+```
+
+The tool is the only party that has seen the whole set, so the tool says it.
+Which makes *am I there yet* an ordinary rule:
+
+```
+rule <done> = implies( { +matched(?g) }, { +enough(?g) } )
+```
+
+Set a goal, compute the gap against where you are, and stop when it closes.
+That is satisfaction with nothing in the engine deciding it — Chapter 26 has
+what `enough` then does.
+
 A span here is either a compound you built — read one deep, so `at(work)` is a
 proposition *in* the span while `at` and `work` are what that proposition is made
 of — or a **moment**, which is already a node and holds whatever is asserted

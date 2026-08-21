@@ -398,15 +398,15 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     t0 = time.time()
     for tick in range(base, base + limit):
         # Not a phase: the world may have spoken since the last move, and the
-        # shipped loop asks the same question in the same place. The anchor
-        # a corpus reads the raw chain from. ⚠ Anchored at the SEAT rather than
-        # at every moment, which is the containment story as well as the cheap
-        # one: what the agent may read the chain about is where...
-        # →
-        # docs/design/attention.md#not-a-phase-the-world-may-have-spoken-since-the
+        # loop asks the same question in the same place. The anchor a corpus
+        # reads the raw chain from, minted once per tick at the chain's end.
+        # One anchor rather than one per moment, and the reason is cost: the
+        # rule-level read is a fixpoint, so an unanchored one gives every
+        # proposition its candidates and its winner. See `ask_read`.
+        # → docs/design/attention.md#not-a-phase-the-world-may-have-spoken-since-the
         m.g.rel(m.chain.ASKING, m.chain.now.node)
 
-        # ⭐⭐⭐ **Whose line of work is this?** A `push` spent last tick left a
+        # *Whose line of work is this?** A `push` spent last tick left a
         # new frame on the stack, and the loop picks up ITS table here. That is
         # the whole of what turns a consultation into a resume: `experts.py`
         # re-runs the caller with a FRESH table on every return, and `tick`'s own
@@ -414,7 +414,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # every buff between one tick and the next and be measuring a different
         # agent each time*.
         #
-        # ⚠ A frame with no expert keeps the rules of the frame below, table and
+        # A frame with no expert keeps the rules of the frame below, table and
         # all: a push that discriminated nothing suspends attention without
         # changing whose rules are in play, and that case is worth having alone.
         current = m._frames[-1]
@@ -428,7 +428,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             table = current.table
         # A rule the agent authored since the last tick enters the table now.
         if current.expert is not None:
-            # ⚠⚠⚠ **From the EXPERT's pool, re-read, and this was `do not absorb
+            # **From the EXPERT's pool, re-read, and this was `do not absorb
             # at all`.** Absorbing every authored rule into a consulted expert's
             # table would undo the `pool` argument one construct along -- but
             # absorbing NOTHING is the other error, and it is the one `absorb`
@@ -448,7 +448,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
 
         arrivals = m.channels.since_last_tick() or 0
 
-        # ⭐⭐⭐ Satisfaction, ported from the tick this loop replaces.
+        # Satisfaction, ported from the tick this loop replaces.
         # → docs/design/attention.md#satisfaction-ported-from-the-tick-this-lo
         reason = m._enough()
         if reason is not None:
@@ -462,14 +462,14 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
 
         window: List[Application] = []
         top = None
-        # ⭐⭐⭐ Dormancy, and it is the right form of *disable a rule*. A rule
+        # Dormancy, and it is the right form of *disable a rule*. A rule
         # claimed dormant is not considered until something claims it due --
-        # which is all a callback is. ⚠ Read every tick and at the register's
+        # which is all a callback is. Read every tick and at the register's
         # own position, never once when the pool is built: due can be concluded
         # mid-run, and a callback attached inside a...
         # → docs/design/attention.md#dormancy-and-it-is-the-right-form-of-dis
         attended = m._attended()
-        # ⚠⚠⚠ The queue has two uses and only one of them can starve. Ordering
+        # The queue has two uses and only one of them can starve. Ordering
         # a rule's own BINDINGS costs nothing -- the applications are already
         # in hand.
         # → docs/design/attention.md#the-queue-has-two-uses-and-only-one-of-the
@@ -512,14 +512,19 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 if len(window) >= WINDOW:
                     break
         if not window:
-            # Nothing in the table matched. ⚠ These are NOT ported logic.
+            # Nothing in the table matched. These are NOT ported logic.
             # →
             # docs/design/attention.md#nothing-in-the-table-matched-the-engine-says-so
             if m._widen():
                 steps.append(Step(arrivals, 0, tried, None, (), "widened"))
                 continue
             if m._recover():
-                steps.append(Step(arrivals, 0, tried, None, (), "widened"))
+                # Its own label: reaching for a domain that was out of mind is
+                # not widening a shortlist, and the two arms said the same word
+                # for long enough that nothing could tell them apart. `_recover`
+                # deposits `reached(<m>)` where `_widen` deposits `widened(<m>)`,
+                # so the record already distinguished them and the Step did not.
+                steps.append(Step(arrivals, 0, tried, None, (), "recovered"))
                 continue
             if m._wake():
                 steps.append(Step(arrivals, 0, tried, None, (), "quiet"))
@@ -587,7 +592,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # one. It knows a rule spent `stop`; it does not know what a goal is,
             # which is the line this file has held from the start.
             break
-    # ⚠ The loop ran out of ITERATIONS, not out of work.
+    # The loop ran out of ITERATIONS, not out of work.
     # → docs/design/attention.md#the-loop-ran-out-of-iterations-not-out-of-w
     m._floor = prev_floor
     if steps and steps[-1].state == "applied":
@@ -599,7 +604,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         if v[0] > was[0]:
             scanned[k] = [v[0] - was[0], v[1] - was[1]]
     return Report(
-        # ⚠ The ROOT table, not whichever frame the run ended in. A caller that
+        # The ROOT table, not whichever frame the run ended in. A caller that
         # handed its table in gets that table back, which is what `a table can
         # outlive a run` is about, and a consulted expert's table belongs to its
         # frame rather than to this report.
@@ -613,7 +618,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
 def _ground(m: Machine, table: Table, term, bindings):
     """What a spend NAMES, with the move's own bindings put in.
 
-    ⚠⚠⚠ `Table._target` answers for a bare variable and hands a COMPOUND back
+    `Table._target` answers for a bare variable and hands a COMPOUND back
     unchanged, which reads as an answer and is not one: `push(area(?r))` came
     back as the pattern, still generic, and was dropped as *ground only* one
     layer from the mistake. A spend may name a whole proposition -- that is what
@@ -632,33 +637,33 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
                bindings, rule_node) -> None:
     """Spend one postcondition: attention to the machine, a stop to the table.
 
-    ⭐⭐⭐ **The split is the design, not plumbing.** A deposit writes a claim the
+    **The split is the design, not plumbing.** A deposit writes a claim the
     corpus can read, deny and reason about, and a table that could write claims
     would be an interpreter with a memory. A stop writes nothing and only says
     the run is over, so it is the one thing recorded on the table.
 
-    ⚠ The licence is the rule that spent it, so *why am I thinking about this*
+    The licence is the rule that spent it, so *why am I thinking about this*
     answers with a rule and a moment.
     """
     licence = m.g.rel(m.APPLIED, rule_node)
     for target, _delta in spends:
         if isinstance(target, Attend):
             node = _ground(m, table, target.term, bindings)
-            # ⚠ Ground only, and silently so. A postcondition naming a variable
+            # Ground only, and silently so. A postcondition naming a variable
             # the move did not bind has nothing to attend TO, and depositing
             # `attention(?x)` would be a claim about no one -- which `_attended`
             # would then refuse to read, one layer further from the mistake.
             if node is not None and not m.g.has_var(node):
-                # ⭐ The learned WEIGHT rides along: `attend(?x, 3)` says this
+                # The learned WEIGHT rides along: `attend(?x, 3)` says this
                 # node matters more than whatever else is in the queue at the
                 # same depth -- a calibration that names a node instead of a
                 # rule.
                 m._attend(node, licence, target.weight)
             continue
         if isinstance(target, Push):
-            # ⭐⭐⭐ A CALL. The nodes are the host rule's own variables, bound by
+            # A CALL. The nodes are the host rule's own variables, bound by
             # the move that spent this -- and the expert is computed from them,
-            # never named. ⚠ Ground only, like `attend`, and for the same reason.
+            # never named. Ground only, like `attend`, and for the same reason.
             nodes = []
             for term in target.terms:
                 node = _ground(m, table, term, bindings)
