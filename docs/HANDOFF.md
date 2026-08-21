@@ -104,6 +104,40 @@ authored rule (that undoes the `pool` argument) and not nothing (that is this).
     second run over a different pool resumed the FIRST run's table and went
     quiescent the moment it popped back to the root. Set unconditionally now.
 
+## The framing fix (third commit) — `attention.py` is the loop
+
+Asked whether `core/attention.py` is the engine or a leftover. **It is the
+engine**: `Machine.run` is three lines that delegate to it, `Machine.tick` five,
+and 193 call sites in the tree arrive here. There is no second loop -- the one
+remaining `while True:` in `machine.py` is a hill-climb in the lesson compiler.
+
+But four places still described a world with two loops in it, and read as
+current. All four are fixed:
+
+    attention.py:1        *"a table-driven loop, BESIDE the one that exists"*,
+                          then described "the loop this repo ships" weighing an
+                          option set. That loop was deleted (20l).
+    machine.py `tick`     *"kept alive so that ugm.attention's comparison had
+                          something to compare against"* -- the design doc had
+                          the correction (*"that comparison is deleted"*) and
+                          the docstring had kept only the first half.
+    machine.py `run`      *"⚠⚠⚠ THE MIGRATION TO THE TABLE LOOP IS STAGED, AND
+                          THIS IS THE SWITCH."* It is finished.
+    README                listed `ugm.core.attention` under *"the comparisons,
+                          which run two loops"*. Its `main()` is two worked
+                          examples.
+
+`docs/design/attention.md` and `docs/design/machine.md` are updated to match --
+⚠ the superseded prose is KEPT and marked, not deleted, because the numbers in
+this design were taken against it and a doc that drops the loser of a comparison
+has thrown away the argument.
+
+⚠⚠ **And the name is left alone, knowingly.** `attention.py` is called after the
+feature that distinguished it from the incumbent; most of attention proper --
+the queue, the stack, the claims -- is in `machine.py`. Renaming it to `loop.py`
+is a ~25-import mechanical diff and was declined for now; the module docstring
+says so out loud instead.
+
 ## Where to look
 
     core/machine.py    `Frame`, `_push_frame`, `_pop_frame`, `_pick_expert`,

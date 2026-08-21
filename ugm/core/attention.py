@@ -1,11 +1,32 @@
-"""A table-driven loop, beside the one that exists. (the author's design)
+"""The loop: a table over rules, take the first that matches, then spend.
 
     python -m ugm.core.attention
 
-The loop this repo ships weighs an option set: recall proposes, everything
-matches, defeat and quiescence filter, arbitration ranks, one move is taken. ⚠
-And the obvious feature next door is worth nothing, which is why it is checked
-rather than argued.
+⭐⭐⭐ **This is the loop, and it is the only one.** `Machine.run` is three lines
+that call it and `Machine.tick` is five; every probe, gate, corpus and check in
+the tree arrives here. Four things it knows, and none of them is semantic:
+
+    a score per rule    ordered, tie broken by declaration order
+    apply the first     highest-scoring rule whose antecedent matches
+    then spend          run that rule's postconditions
+    ...and STOP         if one of them said so, the run is over
+
+No goal, no completeness, no widening. Those are corpus rules whose
+postconditions spend attention: *refocusing* is a rule (`unattend`), *done* is
+the output of a rule that checks against the goal (`stop`), and *suspend this
+line of work for another* is two more (`push`, `pop`). Nothing here knows what
+any of them is for.
+
+⚠ It arrived as a PROPOSAL beside a loop that weighed an option set -- recall
+proposes, everything matches, defeat and quiescence filter, arbitration ranks,
+one move is taken. That loop is deleted and the comparison that held the two
+side by side with it. The argument for this one, and the measurements that
+decided it, are in the design doc rather than in the present tense here.
+
+⚠⚠ ...and the file is still called `attention` after the feature that
+distinguished it from the incumbent. Most of attention proper -- the queue, the
+stack, the claims -- is in `machine.py`; what is here is the loop, plus the two
+places attention touches it (`_pull`, `_attended_first`).
 
 See docs/design/attention.md.
 """

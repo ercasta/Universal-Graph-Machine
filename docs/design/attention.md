@@ -5,12 +5,19 @@ prose that stood at the place the module now points from.
 
 ## Module overview
 
-A table-driven loop, beside the one that exists. (the author's design)
+The loop: a table over rules, take the first that matches, then spend.
 
     python -m ugm.core.attention
 
-The loop this repo ships weighs an option set: recall proposes, everything
-matches, defeat and quiescence filter, arbitration ranks, one move is taken.
+⭐⭐⭐ **This is the loop this repo ships, and it is the only one.** `Machine.run`
+is three lines that call it; `Machine.tick` is five. What follows is the
+argument that put it there, and it is written against a loop that no longer
+exists -- kept in that tense on purpose, because the case for this one is the
+comparison, and the comparison is what was deleted once it was settled.
+
+The loop this repo shipped THEN weighed an option set: recall proposes,
+everything matches, defeat and quiescence filter, arbitration ranks, one move is
+taken.
 Measured, 99.6% of those candidates genuinely applied -- the option set is not
 waste, it is the price of being able to say *nothing else applied*, which is
 what `blocked` and `<give-up>` are built on.

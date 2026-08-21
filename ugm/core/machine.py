@@ -2299,11 +2299,21 @@ class Machine:
         """One move of the loop, for a caller that wants to step and look.
 
         ⭐⭐⭐ This was 129 lines of the option-set loop -- materialise every live
-        application, defeat, filter, arbitrate, apply -- kept alive after
-        Machine.run became the table loop so that ugm.attention's comparison
-        had something to compare against. ⚠ The table PERSISTS across calls, or
-        a caller stepping by hand would lose every buff between one tick and
-        the next and be measuring a different agent each time.
+        application, defeat, filter, arbitrate, apply -- kept alive so that
+        `ugm.attention`'s comparison had something to compare against. Both are
+        deleted (20k, 20l). What a caller of `tick` wants is *step once and
+        look*, and this is that: the same loop `run` is, bounded to one move.
+
+        ⚠ The table PERSISTS across calls, or a caller stepping by hand would
+        lose every buff between one tick and the next and be measuring a
+        different agent each time.
+
+        ⚠⚠ **Measured 2026-08-21, and that warning is currently INERT.** With
+        the buffs retired a score is `STANDING` or `FLOOR` and only `absorb`
+        moves it, so a rebuilt table and a kept one agree in both fields that
+        decide a move -- `probes/experts.py` runs a consultation chain both ways
+        and gets the same moves in the same order. Kept because it costs nothing
+        and is load-bearing again the day anything moves a score.
 
         See docs/design/machine.md#tick.
         """
@@ -2324,9 +2334,12 @@ class Machine:
 
         See docs/design/machine.md#run.
         """
-        # ⚠⚠⚠ THE MIGRATION TO THE TABLE LOOP IS STAGED, AND THIS IS THE
-        # SWITCH.
-        # → docs/design/machine.md#the-migration-to-the-table-loop-is-staged
+        # ⭐⭐⭐ THE TABLE LOOP IS THE LOOP. This was the switch in a staged
+        # migration; the migration is finished and this is the entry point. It
+        # stays a delegation rather than moving the callers, because 193 call
+        # sites in this tree say `m.run(limit=...)` and none of them wants to
+        # know that a table exists.
+        # → docs/design/machine.md#the-table-loop-is-the-loop
         from .attention import run as _table_run
 
         return _table_run(self, limit=limit).steps

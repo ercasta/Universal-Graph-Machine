@@ -1661,9 +1661,14 @@ Bounded, and it returns a result *and* a state -- because a search that
         anything, and saying it had would make the record useless in the other
         direction.
 
-## THE MIGRATION TO THE TABLE LOOP IS STAGED,
+## THE TABLE LOOP IS THE LOOP
 
-⚠⚠⚠ **THE MIGRATION TO THE TABLE LOOP IS STAGED, AND THIS IS THE
+⚠ **What follows is the migration as it stood, kept because the numbers were
+taken against it.** The migration is finished: `Machine.run` is a delegation and
+`core/attention.py` is the only loop in the tree. Read the ⭐⭐⭐ paragraph below
+as the current position and this one as how it got there.
+
+> ⚠⚠⚠ **THE MIGRATION TO THE TABLE LOOP IS STAGED, AND THIS IS THE
 SWITCH.** Replacing the body with `attention.run(self, limit).steps`
 is one line and it works -- the table loop now returns `Step`s for
 exactly that reason. What it costs today is **58 of 549 checks**, and

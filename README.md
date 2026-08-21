@@ -163,11 +163,17 @@ python -m ugm.gates.vocabulary   # unwebbed names, with a planted typo as a cont
 python -m ugm.probes.atlas       # islands, bridges, dead rules, pairs that could disagree
 ```
 
-And the comparisons, which run two loops or two runs over the same corpora and report
+The loop itself is a door too, and what it runs are worked examples rather than a
+comparison — there is no second loop left to compare it against:
+
+```bash
+python -m ugm.core.attention        # the loop, the penguin, and `stop`
+```
+
+And the comparisons, which run two runs over the same corpora and report
 where they differ rather than passing or failing:
 
 ```bash
-python -m ugm.core.attention        # the table loop, the penguin, and `stop`
 python -m ugm.learning.teaching     # a table calibrated from one demonstration against an uncalibrated one
 python -m ugm.learning.learning     # the same world twice, with "no better" an allowed answer
 python -m ugm.learning.practice     # rehearsing a goal inside a supposition against enacting it
