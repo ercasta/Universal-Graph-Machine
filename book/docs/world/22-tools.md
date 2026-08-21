@@ -117,7 +117,7 @@ If you wanted to put a learned model in this machine — a classifier, a languag
 model, a scorer — where would it go?
 
 **Where there is no algorithm.** Not in the read, not in the match, not in the
-arbitration: those have definitions, and a model there can only approximate
+the read: those have definitions, and a model there can only approximate
 something already correct. Measured directly, an ideal lookup table replacing
 the read bought **zero**, and a wrong one costs more as knowledge grows.
 

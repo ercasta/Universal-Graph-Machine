@@ -82,7 +82,7 @@ Two separate things, easily conflated:
 
 The boss's instruction relayed by an assistant arrives on the assistant's
 channel and carries the boss's authority. One entry, two different facts about
-it, and arbitration between conflicting claims reads the second.
+it, and settling conflicting claims reads the second.
 
 ## What a channel reports is signed — and that's a compromise
 
@@ -155,17 +155,22 @@ they are two different things.
 
 ## Reported speech
 
-One more thing falls out with no new construct. Three different times, one
-authority:
+One more thing falls out with no new construct. Two claims, one authority:
 
 ```
-<e1> = entry( <M9>,        says(anna, <p>),  + )     Anna spoke, at the moment of speaking
-<e2> = entry( <afternoon>, possible(rain),   + )     licensed_by(<e2>, <e1>)
+<e1> = entry( says(anna, <p>),               + )     that Anna spoke
+<e2> = entry( possible(rain(afternoon)),     + )     licensed_by(<e2>, <e1>)
 ```
 
-`<e2>` is deposited *now*, is about *the afternoon*, and is believed *on Anna's
-word*. None of that needed anything that didn't already exist. And that the
-claim is hedged is *in the proposition*, so a rule can decline to act on it.
+`<e2>` is believed *on Anna's word* — that is the licence — and everything else
+it says rides in the **proposition**: that it is about the afternoon, and that
+it is hedged. Neither needed a new construct, and both are things a rule can
+read and decline to act on.
+
+(An entry once carried a third member, a **locus**, so `<e2>` could be
+*deposited now and about the afternoon* structurally. That went — Chapter 5 —
+and *about the afternoon* became part of what is claimed rather than part of
+where the claim sits.)
 
 ---
 

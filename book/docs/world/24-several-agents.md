@@ -250,13 +250,22 @@ find only because a fourth thing looked like it. Laid out together:
 |---|---|---|
 | **agents** | what they **believe** | separate graphs |
 | **experts** | what they **know how to do** | which rules they have |
-| **frames** | **when**, and under what supposition | a seat and a topic, both moments |
+| **frames** | what the agent is **attending to** | a queue, an expert, and that expert's table |
 | **walkers** | **where in the structure** they are | `at(<w>, <node>)` |
 
-A frame is not the missing one. `frame(seat, topic)` is a position in the
-**chain** — both members are moments — so it answers *as of when* and never
-*about what*. A walker needs no frame, no register and no engine change, because
-its whole state is a fact:
+A frame is not the missing one. A frame is a *line of work* — what was pushed,
+which expert is in play (Chapter 25) — so it answers *what am I doing* and
+never *where in the structure am I*. A walker needs no frame, no register and
+no engine change, because its whole state is a fact:
+
+!!! warning "This section's measurements are history"
+    The walker **pattern** below still works — it is ordinary corpus writing,
+    and nothing in the engine has to know about it. The probe that produced the
+    numbers in this section was **deleted**, because its central claim (that
+    contention shows up as a window of two) turned out to depend on where two
+    rules happened to fall relative to a shortlist boundary rather than on
+    anything about the design. Read the figures as a record of one run, not as
+    something you can reproduce.
 
 ```
 at(<walker>, <node>)        where it stands
@@ -368,7 +377,7 @@ No scheduler, no registry, no removal step — there is nothing holding a walker
 except the fact that it is somewhere.
 
 What it does not do is undo. The looted walker had already spread to the next
-room, and which of the two happened first was decided by arbitration with nothing
+room, and which of the two happened first was decided by the table with nothing
 saying so — visible as the **authored order of the rules** changing what is
 concluded:
 
@@ -397,9 +406,9 @@ again. The honest fix is the stratum-0 bridge that Chapter 26 uses to get a real
 universal — and it is left undone deliberately, because this is about position
 and that is about negation.
 
-**Nothing is scheduled.** Walkers run under the ordinary loop in whatever order
-arbitration picks. Only walkers at different **seats** would need more, because
-only those have separate materialised states.
+**Nothing is scheduled.** Walkers run under the ordinary loop, in whatever
+order the table takes them — and since there is one chain and one state, there
+is nothing for a scheduler to keep apart.
 
 ## Why this is the natural home for `blocked`
 
