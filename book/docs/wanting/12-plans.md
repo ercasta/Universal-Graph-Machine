@@ -92,9 +92,14 @@ price:
 
 ```
 +tuesday(?d)                                   an ordinary requirement
-<t> = timing(<WAIT>, start(<A>), end(<B>))     what discharging it costs
-      bound(<t>, 0, 7days)
+timing(<WAIT>, start(<A>), end(<B>))           what discharging it costs
+bound(<WAIT>, 0, 7days)
 ```
+
+⚠ `timing` and `bound` are **design notation, not shipped vocabulary** — no
+corpus can write them today and nothing reads them. Chapter 23 says what is
+actually available for talking about duration (`time(<moment>, <millis>)`, and
+ordering by ancestry); this block is the shape the design argues for.
 
 The bill: backward search loses a static bound. *Make it Tuesday* is now a
 subgoal a planner may genuinely expand. Chapter 13 is the discipline that

@@ -134,8 +134,9 @@ consequent's entries are deposited in.** Same moment for `implies`, a successor
 for `causes`.
 
 The write operation is told *where* to deposit. It is not told which connective
-was involved and has no way to ask. So the connective is consumed by the rule
-that applies rules — which is itself ordinary, shipped data:
+was involved and has no way to ask. So the connective is consumed by whatever
+applies rules — and the design's claim is that this should be **ordinary,
+shipped data**, two rules of one shape:
 
 ```
 <F-implies> = causes(
@@ -147,12 +148,24 @@ that applies rules — which is itself ordinary, shipped data:
     then   +deposit_into(?app, ?m') )
 ```
 
-A third connective is a third rule of the same shape.
+A third connective would be a third rule of the same shape.
 
 > **Adding a connective adds rows, not branches.**
 
-That's the test this whole design is built to pass, and Chapter 32 shows what
-happens when you run it against an implementation and count.
+!!! warning "Where the shipped engine actually stands on this"
+    Those two rules are **not in the bundle**. Applying a rule tests the
+    connective in Python — one branch, deciding whether to advance the chain —
+    so for this construct the design's own test is currently an *aspiration*
+    rather than a description.
+
+    It is worth being exact about how much that costs, because the rest of the
+    claim does hold: `conn(<R>, causes)` is a real deposited fact that rules can
+    read and reason about (Chapter 10), and everything *else* the loop
+    consults — precedence, stopping, what to attend to — really is data. What is
+    still a branch is the one line that turns a connective into a destination.
+
+That test is what this whole design is built to pass, and Chapter 32 shows what
+happens when you run it against the implementation and count.
 
 ---
 

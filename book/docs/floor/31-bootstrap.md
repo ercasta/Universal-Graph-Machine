@@ -33,7 +33,7 @@ Look at what a chain-walking rule actually asks for:
 ```
 given  ?m' = predecessor(?m)
        ?e ∈ delta(?m)
-       ?e = entry(?l, ?p, ?s)
+       ?e = entry(?p, ?s)
 then   candidate(?e, ?p)
 ```
 
