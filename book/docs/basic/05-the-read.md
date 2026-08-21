@@ -1,81 +1,71 @@
-# Reading is a walk
+# The read
 
 Because a moment stores only what changed, a moment does not contain its state.
 
 > **The state is what the chain answers.**
 
-So *does `on(a, b)` hold here?* means: walk back along the predecessor
-relation, collecting entries that name this proposition, and decide between them.
+So *does `on(a, b)` hold?* means: of everything ever claimed about that
+proposition, what stands now?
 
 This chapter is the single most important program in the machine. Everything in
-Part 1 exists so that this walk can answer well, and everything after Part 1 is
+Part 1 exists so that this can answer well, and everything after Part 1 is
 written against its answers.
 
-## Two indices, in this order
+## The whole of it
 
-An entry has both a **locus** (what it's about) and a **deposit moment** (when it
-was claimed) — Chapter 2. The walk uses both, in a fixed order:
+> **Later supersedes earlier.**
 
-> **Latest locus, then latest deposit.**
+Claims about a proposition are kept in the order they were deposited. The read
+takes the last one. If there is none, nothing has been said — which is
+*inherit*, not *false* (Chapter 3).
 
-An entry is a *candidate* if its locus is at or before the moment you're asking
-about. That's inheritance, and it's why the locus can't simply be matched for
-equality — `on(a, b)` asserted at `M3` is what makes it hold at `M7`, where no
-entry mentions it at all.
+That is the entire rule, and in the code it is one index lookup. It is worth
+dwelling on how much it is *not* doing:
 
-Among the candidates, the **latest locus** wins, because the most recent claim
-about the world is the one that governs.
+- It does not walk backwards through moments.
+- It does not compare depths, or test ancestry.
+- It does not ask *at which moment* — there is no second time to ask about.
 
-Only when two claims share a locus does the **latest deposit** decide. That is
-exactly the revision case: two things said about the same moment, and the later
-thought supersedes the earlier one.
+A claim is superseded only by a later claim **about the same proposition**.
+Nothing else can displace it, so nothing else has to be consulted.
 
-Neither key alone will do:
+!!! note "This used to be a walk, and the walk was the design's biggest cost"
+    An entry used to carry a **locus** — what it was *about* — beside its
+    deposit moment, so the read had to use both keys in a fixed order:
+    *latest locus, then latest deposit*. An entry was a candidate only if its
+    locus was at-or-before the moment being asked about, and *at-or-before* had
+    to be **ancestry** rather than a depth comparison, because supposing forked
+    the chain.
 
-- **Locus alone** cannot tell a revision from the claim it revises.
-- **Deposit alone** would let a newly formed belief about the distant past
-  overrule a settled belief about the recent past — the machine would forget
-  that the world had moved on.
+    Two keys and two ancestry walks bought a real capability: *what did I think
+    at M7* was the same walk from a different starting point, so revising a
+    view of the past was ordinary. It also made reading **86% of runtime**.
 
-## Two questions, one structure
+    Both the locus and the fork are gone. What remains answers one question —
+    *what do I think now* — and answers it in a lookup. Saying something about
+    a past moment is a corpus's job now, written into the proposition where a
+    rule can argue with it (Chapters 19 and 23), and the machinery keeps every
+    entry in deposit order so the raw history is still there to walk when a
+    rule wants it.
 
-Now the payoff.
+## Nothing is thrown away
 
-*What do I now think about M7?* — walk back from where you are standing.
+The claim that lost is still in the chain. Superseding is **appending**, not
+overwriting, so:
 
-*What did I think at M7?* — walk back from M7 instead. The entries deposited
-later are simply not on that walk.
+- `why` can name the entry that won *and* the ones it beat;
+- a rule can walk the raw chain and find what was true earlier (Chapter 23);
+- and *the world moved* stays distinguishable from *I was wrong*, which is what
+  the two levels of Chapter 2 were bought for.
 
-Same walk, different starting point, and no second mechanism. A design with a
-single index would have had to choose which of those two questions to keep.
-
-In the common case — an entry deposited at its own locus — the two questions
-coincide, which is why the distinction is easy to miss until it matters.
-
-## At-or-before is ancestry, never depth
-
-The candidacy test walks the predecessor relation. It cannot be a comparison of
-depth numbers, and the reason is worth knowing before you need it:
-
-**supposing forks the chain by construction.** Two moments at the same depth on
-different branches aren't comparable at all — neither is before the other.
-
-This is the cheapest place in the design to introduce a bug that only appears
-once you start using hypotheticals. It's also what makes containment (Chapter
-16) free rather than enforced: your imagined **claims** can't leak into the real
-world, not because something forbids it, but because the walk from the real
-world cannot reach them.
-
-The two stand or fall together — and the emphasis on *claims* is load-bearing.
-This walk is what an **entry** is resolved by. A structural fact is never
-resolved at all, so nothing here is protecting it, and Chapter 16 has the probe
-that shows what that costs.
+> **The superseded claim was never lost. It was never in the *state***, which
+> is a different thing.
 
 ## One order throughout
 
-The two indices settle *which* entry wins. They don't, by themselves, settle the
-order the walk enumerates in — and that order is what "the most recent one"
-means when several entries fit a description.
+The read settles *which* entry wins. It does not, by itself, settle the order
+things are enumerated in elsewhere — and that order is what "the most recent
+one" means when several entries fit a description.
 
 Measured, the walk once disagreed with itself: ancestry was newest-first and a
 moment's delta was oldest-first, so two candidates deposited by one connective
@@ -89,11 +79,15 @@ the walk one order throughout.
 That line comes up again for rankings (Chapter 27) and for random draws. It's
 one of this project's standing lessons.
 
-## What it costs, and what was done about it
+## What it cost, and what was done about it
 
-The walk is the largest recurring cost in the design. On one goal fixture,
-before anything was done, resolving reads was **86% of runtime**, and sixteen of
-every seventeen walks were the same walk repeated.
+While the read was a walk it was the largest recurring cost in the design. On
+one goal fixture, before anything was done, resolving reads was **86% of
+runtime**, and sixteen of every seventeen walks were the same walk repeated.
+Everything below was measured then, and every one of the optimisations still
+stands — the read got cheaper again when the locus went, but the state is still
+kept and still indexed, because *the state* and *one proposition's answer* are
+different questions.
 
 Three changes, each measured before the next, and none of them touching what the
 read *means*:
@@ -134,18 +128,23 @@ stating because it generalises:
 
 ## The scoring
 
-| | locus only | deposit only | **two keys, locus first** |
+| | overwrite in place | keep every claim, read the last | **and also keep a locus** |
 |---|---|---|---|
-| not leaking | a revision and the claim it revises are indistinguishable; one silently wins | a new belief about the distant past overrules a settled one about the recent past | each key answers the question it is for |
-| not lossy | yes | yes | both the original and the revision remain readable |
-| readable | one walk | one walk | one walk, two comparisons |
-| composable | two authors revising one locus collide | — | later deposit settles it, and both survive |
+| not leaking | a revision and the claim it revises are indistinguishable | each claim survives; the last one governs | each key answers the question it is for |
+| not lossy | history is gone | nothing is overwritten | nothing is overwritten |
+| readable | a lookup | **a lookup** | a walk with two comparisons and two ancestry tests |
+| composable | two writers contend | appending is the only write | two authors revising one locus collide |
+
+The third column is what this design ran for a long time, and the middle column
+is what it runs now. The trade is stated rather than hidden: a question was
+given up — *what did I think back then*, answered directly — and the read
+became a lookup.
 
 ---
 
 That's Part 1. You now know what memory looks like: nodes with ordered members;
-propositions that claim nothing; entries that claim them, with a sign and a
-locus; moments that hold what changed; and a walk that answers.
+propositions that claim nothing; entries that claim them, with a sign;
+moments that hold what changed; and one rule that answers.
 
 Everything from here is **taught**, not built in.
 

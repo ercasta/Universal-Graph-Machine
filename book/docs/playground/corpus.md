@@ -47,11 +47,12 @@ fact +wounded(b)"
 heals(b)">silence is not denial</button>
     <button class="ugm-preset" type="button"
       data-corpus="rule &lt;weather&gt; = implies( { +cloudy(?d, morning) }, { +likely(rain(?d, afternoon)) } )
-rule &lt;cross&gt;   = implies( { +likely(?p) },          { +suppose(?p, likely) } )
-rule &lt;wet&gt;     = implies( { +rain(?d, ?t) },        { +wet(streets) } )
+rule &lt;cross&gt;   = implies( { +likely(?p) },              { +given(h1, ?p) } )
+rule &lt;wet&gt;     = implies( { +given(?h, rain(?d, ?t)) }, { +given(?h, wet(streets)) } )
 
 fact +cloudy(monday, morning)"
-      data-asks="likely(wet(streets))
+      data-asks="likely(rain(monday, afternoon))
+given(h1, wet(streets))
 wet(streets)">supposing</button>
     <button class="ugm-preset" type="button"
       data-corpus="rule &lt;boil&gt; = causes( { +heat(anna, kettle), +water(kettle) },

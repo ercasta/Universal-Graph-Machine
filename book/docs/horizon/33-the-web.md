@@ -25,11 +25,11 @@ So: count.
 | what the reserved names serve | how many |
 |---|---|
 | literals (numerals) | 10 |
-| the surface — connectives, signs, `at` | 7 |
-| the chain — moments, entries, signs, spans | 10 |
+| the surface — connectives, signs, `absent` | 7 |
+| the chain — moments, entries, the walk | 13 |
 | rules as data | 14 |
-| **the agent's own deliberation** | **48** |
-| the seam where a world reaches it — `arrived`, `says`, `did`, `forbidden` | 12 |
+| **the agent's own deliberation** | **66** |
+| the seam where a world reaches it — `arrived`, `says`, `did`, `forbidden` | 13 |
 | **about any world** | **0** |
 
 **Not one reserved name is a domain word.** There's no engine name for a thing,
@@ -41,10 +41,10 @@ falsifiable:
 
 | corpus | about | its own | borrowed |
 |---|---|---|---|
-| a D&D fight | a world | 23 | 5 |
+| a D&D fight | a world | 22 | 5 |
 | passenger rights when a flight is disrupted | a world | 13 | **1** |
-| the design's worked examples | a world | 8 | 4 |
-| **the shipped rulebase** | **the agent** | **0** | **25** |
+| the design's worked examples | a world | 8 | 3 |
+| **the shipped rulebase** | **the agent** | **0** | **28** |
 
 The last row borrows everything because it's the one corpus that's *about the
 agent's own reasoning*. That's the result, not an exception — and it's why the
@@ -102,8 +102,8 @@ Predicted before it was measured, and then measured:
 | | relations | links | density | islands |
 |---|---|---|---|---|
 | passenger rights | 13 | 13 | 0.167 | [13] |
-| the design's worked examples | 8 | 7 | 0.250 | **[4, 4]** |
-| two domains + the shipped rulebase | 43 | 37 | **0.041** | [1,2,2,3,3,4,5,10,13] |
+| the design's worked examples | 7 | 6 | 0.286 | **[3, 4]** |
+| two domains + the shipped rulebase | 45 | 43 | **0.043** | [1,2,2,3,4,4,7,9,13] |
 
 The worked-examples file reporting **two** islands is the measure being right
 about something known independently: that file is a kettle and some rain, two
@@ -131,7 +131,7 @@ all** — it's the shape of *"I ate, so tomorrow will rain."*
 
 Both terms are meaningful. The sentence is well formed. What's absent is any
 path between the eating island and the weather island. Measured: with the
-sentence asserted as a rule the web is one island of 8; without it, [4, 4].
+sentence asserted as a rule the web is one island; without it, [3, 4].
 
 > **The honest response is not *I did not understand*, but *I have nothing that
 > connects eating and rain*** — a report about the agent, never about the world.

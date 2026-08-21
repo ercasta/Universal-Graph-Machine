@@ -170,22 +170,29 @@ this channel over this stretch** — it is bounded, checkable, and sayable today
 
 ```
 rule <round>  = implies( { asking(?q), anc(?q, ?m), in_delta(?m, ?e),
-                           entry_of(?e, ?l, turn(hero, ?r), plus), span_of(?s, ?m, ?q) },
-                         { round_span(?r, ?s) } )
-rule <heard>  = implies( { round_span(?r, ?s), span_of(?s, ?a, ?b), anc(?b, ?m), anc(?m, ?a),
-                           in_delta(?m, ?e), entry_of(?e, ?l, arrived(?c, ?w, ?g), plus) },
-                         { heard(?s, ?c) } )
-rule <silent> = implies( { round_span(?r, ?s), -heard(?s, player) }, { silent(?s, player) } )
+                           entry_of(?e, turn(hero, ?r), plus) },
+                         { round_span(?r, ?m, ?q) } )
+rule <heard>  = implies( { round_span(?r, ?a, ?b), anc(?b, ?m), anc(?m, ?a),
+                           in_delta(?m, ?e), entry_of(?e, arrived(?c, ?w, ?g), plus) },
+                         { heard(?r, ?c) } )
+rule <silent> = implies( { round_span(?r, ?a, ?b), -heard(?r, player) }, { silent(?r, player) } )
 
-rule <hero-acts> = implies( { silent(?s, player), +turn(hero, ?r) }, { +attacks(hero, ?r) } )
+rule <hero-acts> = implies( { silent(?r, player), +turn(hero, ?r) }, { +attacks(hero, ?r) } )
 ```
 
-The trick is that **a moment is named by what was deposited there** — `in_delta` and `entry_of` bind
-it, `asking` names now, and two bound endpoints is what `span_of` mints from. Your default is now a
-**condition the rule states**, which is the thing precedence cost you.
+⚠ **`span_of` is gone with the locus, and so is `entry_of`'s locus argument.** A stretch is now two
+moments the corpus carries itself — `round_span(?r, ?a, ?b)` above — because nothing is dated to
+anything any more. The shape of the reading is unchanged; the stretch just lives in the
+proposition.
 
-Two warnings, both of which cost me time. **A round is a stretch, so it must have duration** — mint
-the span even when nothing happened, or there is no stretch for nothing to have happened in. And
+The trick is that **a moment is named by what was deposited there** — `in_delta` and `entry_of` bind
+it, and `asking` names now. Your default is now a **condition the rule states**, which is the thing
+precedence cost you.
+
+Two warnings, both of which cost me time. **A round is a stretch, so it must have duration** —
+conclude the stretch even when nothing happened, or there is no stretch for nothing to have happened
+in. (Carrying it as an ordinary relation makes this easier than it was: there is no minting site to
+miss.) And
 **anchoring order is everything**: `in_delta(?m, ?e)` before anything binds `?m` finds nothing,
 silently.
 
@@ -511,10 +518,10 @@ session. You will reach for all of them in an RPG.
 
 | you want to write | status |
 |---|---|
-| *the goblin acts after the hero* — relating two moments | ✅ **BUILT.** `at ?m` binds a locus; `sanc`/`anc` relate them |
+| *the goblin acts after the hero* — relating two moments | ✅ **BUILT**, by walking the chain: `in_delta`/`entry_of` bind the moments, `sanc`/`anc` relate them |
 | *the door was open and now is closed* — one fact's own history | ✅ **BUILT.** Two rules over the raw chain; see below |
-| *while poisoned*, *throughout the battle* — a span as a locus | ✅ **BUILT.** `span_of` mints a stretch; a consequent's `at ?s` deposits at one |
-| §13's shapes — *taking turns*, recursive definitions over spans | ✅ **BUILT.** They run; see below |
+| *while poisoned*, *throughout the battle* — a claim about a stretch | ⚠ **CHANGED.** A stretch is no longer a *locus*; carry it as two moments in your own relation and put it in the proposition |
+| §13's shapes — *taking turns*, recursive definitions over stretches | ✅ **BUILT.** They run; see below |
 | ~~`unless(<R>, +condition)`~~ | ✅ **BUILT** — it is a negated antecedent member, written inside the rule (§2) |
 
 **Almost no unbuilt rows left.** Relating two moments, a fact's own history, spans as loci and
@@ -534,7 +541,7 @@ you can date, attribute and argue with.
 
 | | |
 |---|---|
-| **sequencing** — two *different* facts at different moments, *the goblin acts after the hero* | ✅ **BUILT.** Write `+acts(goblin) at ?m` and the locus binds. Your clock scaffold should collapse |
+| **sequencing** — two *different* facts at different moments, *the goblin acts after the hero* | ✅ **BUILT.** Walk the chain from `asking`; your clock scaffold should collapse |
 | **a fact's own history** — the *same* proposition at two moments, *the door was open and now is closed* | ✅ **BUILT.** It did not reopen the bootstrap. See below |
 
 So turn order, initiative, *who acted before whom* — all now writable, on your evidence that it was
@@ -571,10 +578,9 @@ is an ordinary rule and concludes an ordinary claim. That is the whole bridge.
 | `anc(?s, ?a)` / `sanc(?s, ?a)` | ancestry, reflexive and strict |
 | `pred(?s, ?p)` | the immediate predecessor. This used to silently mean `anc` |
 | `in_delta(?m, ?e)` | the entries deposited at a moment |
-| `entry_of(?e, ?locus, ?prop, ?sign)` | an entry's three members |
+| `entry_of(?e, ?prop, ?sign)` | an entry's two members. ⚠ It had a `?locus` argument and does not now |
 | `delta_next(?e, ?f)` | deposit order within one moment |
 | `rests_on(?e, ?c)` | what an entry was derived from — **the agent's own trail** |
-| `span_of(?s, ?start, ?end)` | a **stretch** of the chain. Endpoints bound ⟹ it mints one; the span bound ⟹ it decomposes |
 
 **Every one of them must be anchored, and the authored order is what anchors it.** Start from
 `asking(?s)` and walk outward; a member whose turn comes before anything binds it finds **nothing**,
@@ -587,9 +593,15 @@ There are no entries here for a sign to be about.
 **And ordering landed too — as an ordinary member, not a request:**
 
 ```
-rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp) },
+rule <after> = implies( { asking(?now), anc(?now, ?mp), in_delta(?mp, ?ep),
+                         entry_of(?ep, acts(?p), plus),
+                         anc(?now, ?mq), in_delta(?mq, ?eq),
+                         entry_of(?eq, acts(?q), plus), sanc(?mq, ?mp) },
                        { +acted_after(?q, ?p) } )
 ```
+
+⚠ It used to read `+acts(?p) at ?mp` — binding the locus of the matched entry. `at ?m` is **refused**
+now: an entry has no locus, so the moments come from the chain walk instead.
 
 `sanc(?later, ?earlier)` holds when the second moment is a strict ancestor of the first. It is
 **ancestry, not a depth comparison**, so it stays correct once anything forks.

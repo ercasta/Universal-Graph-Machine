@@ -116,7 +116,7 @@ There's an honest limit, and it is structural rather than an oversight:
 > **You cannot ask *why did you read it that way* through the same mechanism you
 > ask *why do you believe that*.**
 
-The walk that resolves the state (Chapter 5) is itself made of rules — but of a
+The read that resolves the state (Chapter 5) is itself made of rules — but of a
 special stratum that produces *structure*, not claims. If it deposited its
 intermediate results as claims, it would be reading claims to do so, and the
 whole thing would never start. Chapter 31 is that argument.

@@ -21,8 +21,11 @@ of. The whole difficulty is using **one** dictionary across premise and
 conclusion. [Chapter 29](../watching/29-learning.md)
 
 **attention** — what an applied rule **spends**. A rule's postconditions are
-queries paired with **buffs**, and applying the rule runs them, moving other
-rules' scores in the table. Buffs fade; the postcondition is what survives.
+queries paired with something to spend, and applying the rule runs them. There
+are five: `attend(?x, n)` and `unattend`, which are claims about a **node**;
+`stop`, which ends the run; and `push`/`pop`, which suspend a line of work for
+another. None of them moves a score. (Three that did — `boost`, `damp`,
+`reset` — are retired, because they named a *rule*, and a rule id goes stale.)
 [Chapter 28](../watching/28-the-table.md)
 
 **arbitration** — choosing which of the applicable rules to apply. *Totality* —
@@ -67,9 +70,10 @@ delta, which is why reading is a walk. [Chapter 4](../basic/04-moments.md)
 simply which moment's delta the entry sits in. The second of the read's two
 indices. [Chapter 2](../basic/02-propositions-and-entries.md)
 
-**entry** — a claim. Exactly three members: a **locus**, a **proposition**, and
-a **sign**. Two claims about the same proposition at the same locus are two
-different entries, because an entry is an *act of claiming*.
+**entry** — a claim. Exactly two members: a **proposition** and a **sign**. Two
+claims about the same proposition are two different entries, because an entry
+is an *act of claiming*. (It had a third, the **locus**, and Chapter 2 says
+what removing it bought.)
 [Chapter 2](../basic/02-propositions-and-entries.md)
 
 **frame** — a process node: what reasoning is running, where it's standing, and
@@ -90,13 +94,16 @@ predecessor. On an entry, which rule application, load or arrival produced it.
 Reading the licences is reading the machine's reasoning.
 [Chapter 9](../rules/09-because.md)
 
-**locus** — what a claim is *about*: a moment, or a **span**. The first of the
-read's two indices, and the reason a claim about the past can be made now.
-[Chapter 2](../basic/02-propositions-and-entries.md)
+**locus** — *removed.* It said what a claim was **about**, as against when it
+was deposited, and it was the first of the read's two indices. With it gone the
+read is one rule — later supersedes earlier — and saying something about
+another time is a corpus's job, written in the proposition.
+[Chapter 5](../basic/05-the-read.md)
 
-**moment** — a state of affairs. A signed delta, a predecessor, and a licence.
-A state in time, a hypothetical, a supposition and a rule's antecedent are all
-moments; there is no separate frame, world or context object.
+**moment** — a state of affairs. A signed delta and a predecessor. A state in
+time and a rule's antecedent are both moments, so the thing a rule is made of
+is the thing history is made of. (It carried a **licence** too; that is
+recorded on the entry now.)
 [Chapter 4](../basic/04-moments.md)
 
 **norm** — a prohibition. Checked at the **write**, never proposed and never
@@ -104,8 +111,8 @@ arbitrated, because what comes to mind is opaque and *the opaque component may
 not be load-bearing for safety*. [Chapter 18](../unsure/18-norms.md)
 
 **occasion** — a fact the machinery deposits when something notable happens:
-`quiet`, `blocked`, `left`, `defeated`, `bounded`, `unsupported`. A corpus keys
-on one to say *when this happens, think of me*.
+`quiet`, `blocked`, `defeated`, `bounded`, `unsupported`, `pushed`, `popped`.
+A corpus keys on one to say *when this happens, think of me*.
 [Chapter 27](../watching/27-recall.md)
 
 **proposition** — a relation instance. The *idea* of something. Claims nothing
@@ -143,9 +150,11 @@ each other rather than claim anything: `anc`, `sanc`, `pred`, `in_delta`,
 and each must be **anchored** by an argument already bound.
 [Chapter 6](../rules/06-a-rule-is-a-fact.md)
 
-**span** — a stretch of the chain: a node with a start moment and an end moment.
-Spans are **loci**, so a claim can be about a stretch rather than an instant.
-Contents are not stored, because the predecessor relation is single-valued.
+**stretch** — two moments, a start and an end, in a relation a **corpus**
+names. A claim about a stretch carries it in the proposition. Contents are not
+stored, because the predecessor relation is single-valued, so the walk between
+the endpoints is unique. (It used to be an engine node, `span`, and a kind of
+**locus**; both went together.)
 [Chapter 19](../world/19-spans.md)
 
 **table** — a score per rule, ordered, ties broken by declaration order. The loop
@@ -169,12 +178,33 @@ without a read, and therefore concluding structure rather than claims. One
 predicate, read off the antecedent, decides both halves — which is what closes
 the bootstrap circle. [Chapter 31](../floor/31-bootstrap.md)
 
-**supposing** — entering a hypothesis. **Unwrap on the way in, re-wrap on the way
-out**: inside the frame the assumption is an ordinary fact, and no rule needs a
-hedged twin. Containment is free *for entries* — the frame's seat is a
-*successor*, so the caller's walk can't reach it. It does not hold for
-**structure**, which no walk resolves.
+**supposing** — *the mechanism is removed.* It entered a hypothesis by forking
+the chain into a frame, unwrapping the assumption on the way in and re-wrapping
+conclusions on the way out; containment was free, because the caller's walk
+could not reach down the branch. Nothing forks now, so a corpus holds a
+hypothesis in the **proposition** instead — `given(h1, p)` — and the wrapper is
+the containment.
 [Chapter 16](../unsure/16-supposing.md)
+
+**absence** — `no p(?x)`, a fourth way an antecedent member relates to the
+state: it holds when nothing **asserts** `p(?x)`. Distinct from `-p(?x)`
+(*something denies it*) on purpose, because the rule that materialises a denial
+must ask about absence first. It checks, never binds, and can never be
+concluded.
+
+**alias** — corpus-defined shorthand for a structure: `alias sale(?s, ?b) = {
+... }`. Expanded by the loader, so nothing downstream sees one. A nested
+occurrence is **not** expanded, because nested is a denotation.
+
+**entity** — a labelless node: nothing but an id. Created by a rule, with the
+`+marker` mint in a consequent, and everything it answers to — including its
+name — is an ordinary claim about it.
+
+**denotation** — an expression with no id of its own, like
+`attack(goblin, you)`. Not a thing in the world but a **criterion for matching
+one**, which is what makes it a query. A relation declared
+`relationship(<rel>)` may only relate things that *have* ids, so a denotation
+in one of its argument places is refused at the write.
 
 **tool** — a request answered by a function rather than by a search. Its answer
 lands a tick later, and it **proposes; it never concludes**.
@@ -196,9 +226,10 @@ structure carried alongside a declared act, **read** by rules and never
 **followed** by machinery. What makes the agent's context sayable, and therefore
 what a learned policy would key on. [Chapter 14](../wanting/14-acting.md)
 
-**walker** — a position in the **structure**, held as the ordinary fact
-`at(<w>, <node>)`. It spawns rather than moves, its identity term *is* its
-deduplication policy, and it ends when that one fact is denied.
+**walker** — a **corpus pattern**, not engine machinery: a position in the
+structure held as the ordinary fact `at(<w>, <node>)`, spawning rather than
+moving, ending when that one fact is denied. Still writable; the probe that
+measured it was deleted, so the numbers once quoted for it are history.
 [Chapter 24](../world/24-several-agents.md)
 
 **discriminator** — what a failed prediction teaches: the feature true of the

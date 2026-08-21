@@ -1,6 +1,6 @@
 # Three signs, and silence
 
-An entry's third member says *how* the proposition is claimed at its locus.
+An entry's second member says *how* the proposition is claimed.
 There are three signs, plus a fourth possibility that is not a sign at all —
 having no entry.
 
@@ -16,9 +16,10 @@ do it first.
 
 ## Silence means *unchanged*, not *unknown*
 
-A moment stores only what changed (Chapter 4). So when the machine looks for a
-claim and finds no entry at this moment, it keeps walking backwards and finds an
-older one.
+A moment stores only what changed (Chapter 4). So when nothing in this moment
+speaks about a proposition, what stands is the last thing anything said about
+it — the machine does not need to look anywhere else, because a claim is only
+superseded by a later claim about the same proposition.
 
 Which means that in a real moment, **silence is a positive claim**: *this is as
 it was*.
@@ -102,7 +103,13 @@ precisely the thing that cannot be said.
 `?` **invalidates without replacing**. It stops the walk and reports ignorance.
 
 ```
-rule <hit> = causes( { +strike(?a, ?t) }, { ? hp(?t), +falls(hp(?t)) } )
+rule <hit> = causes( { +strike(?a, ?t), +hp(?t, ?n) },
+                     { ? hp(?t, ?n), +falls(hp(?t)) } )
+```
+
+```
+hp(goblin, 10)      -> ?        (it was + before the hit)
+falls(hp(goblin))   -> +
 ```
 
 Take that `?` away and `hp(goblin, 10)` still reads `10` after the hit, because

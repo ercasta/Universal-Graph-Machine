@@ -1,227 +1,121 @@
 # Supposing
 
-`likely(rain)` is a claim. It is not `rain`.
+*Suppose it rains on Monday.* Then the streets are wet, the match is off, and
+none of that is something you believe — it is something that **follows from an
+assumption you are holding at arm's length**.
 
-So an ordinary rule about rain — *if it rains, the streets get wet* — does not
-apply to it. That's correct, and it's also a problem: nothing would ever follow
-from anything hedged.
+Any reasoner that plans has to do this. The question is what it costs, and this
+chapter is the one place in the book where the answer changed after the fact:
+the machine had a supposition mechanism, it worked, and it was **removed**. What
+is here now is what the removal left, why it happened, and what a corpus does
+instead — which turns out to be less machinery and one more ordinary claim.
 
-The answer is to **enter it**.
+## What was built
+
+Supposing forked the chain. Entering a hypothesis opened a **frame** whose seat
+was a successor moment; conclusions drawn inside it were deposited there, and
+the design's rule for modality was:
 
 > **Unwrap on the way in. Re-wrap on the way out.**
->
-> Inside the frame the assumption is an ordinary fact, and the ordinary rules
-> apply to it by ordinary matching. What crosses back out is `likely(q)` — a
-> claim about what was concluded under the supposition — never `q`.
 
-## Watch it happen
+Assume `likely(rain(monday))` and you enter with `rain(monday)` plain — inside
+the hypothesis it simply holds — and whatever you conclude comes back out
+wrapped: `likely(wet(streets))`.
 
-```
-rule <weather> = implies( { +cloudy(?d, morning) }, { +likely(rain(?d, afternoon)) } )
-rule <cross>   = implies( { +likely(?p) },          { +suppose(?p, likely) } )
-rule <wet>     = implies( { +rain(?d, ?t) },        { +wet(streets) } )
+Containment was **free rather than enforced**. Nothing forbade a hypothetical
+claim from reaching the real world; the read simply could not see it, because
+resolving a proposition meant walking back from where you stood, and the
+hypothesis was down a branch that walk never took. Chapter 5 tells that story
+from the other side.
 
-fact +cloudy(monday, morning)
-```
+## Why it is gone
 
-```
-why likely(wet(streets))?
-  +likely(wet(streets)), licensed by concluded(frame(moment(), moment()))
-    because +wet(streets), licensed by applied(<wet>)
-    because +rain(monday, afternoon), licensed by supposing(rain(monday, afternoon))
-```
+The fork went with the locus, and for the same reason: it made every read ask
+questions it now has no need to ask. *Is this entry on my branch?* was one of
+two ancestry tests inside a read that measured at 86% of runtime. With the locus
+removed there is one chain, one order, and one rule — **later supersedes
+earlier** — and there is no branch for a hypothesis to live down.
 
-Read the licences bottom-up. `supposing(rain(...))` — inside the frame, rain is
-just true. `applied(<wet>)` — an ordinary rule, unchanged, with no idea it's
-inside a hypothesis. `concluded(frame(...))` — and what comes back out is
-`likely(wet(streets))`.
+So `suppose(...)` is now an ordinary atom that nothing in the engine consumes.
+Write it and it deposits, like any other fact, and no frame opens.
 
-The corpus wrote three rules. None of them mentions frames, entering, leaving,
-or lifting. `<wet>` didn't need a "hedged" twin.
+The honest scorecard:
 
-**No rule needs a lifted twin.** That's the whole payoff of unwrapping: the
-alternative — a version of every rule that handles `likely(p)` as well as `p` —
-doubles a corpus and can't nest.
+| | with the fork | now |
+|---|---|---|
+| entering a hypothesis | machinery: a frame, a seat, a re-wrap on the way out | a corpus's own claim |
+| containment of **conclusions** | free — the walk could not reach them | the corpus's, by keeping them wrapped |
+| the read | two ancestry tests | one lookup |
+| **what a rule concluded under an assumption** | discoverable by leaving the frame | whatever relation the corpus wrote it in |
 
-## Crossing is a decision, not a mechanism
+## What a corpus does instead
 
-`<cross>` above is an ordinary rule. That matters more than it looks.
-
-The standing objection to supposition is combinatorial explosion: twenty
-independently uncertain facts would be a million moments.
-
-That objection doesn't survive the distinction between a frame per **subset**
-and a frame per **derivation**.
-
-> **Crossing `likely(p)` is one hypothesis, and more when something says so.**
-
-Considering the *other* case is another ordinary rule. So there is **no
-branching factor in the machinery to set** — the number of branches is however
-many `suppose` facts get concluded, gated on whatever a corpus gates them on.
-
-Why the default has to be one, stated as a cost rather than a preference: at one
-branch per uncertain fact, what's spent is a frame per derivation, which is
-linear. At two branches, *n* independent uncertainties give 2ⁿ combinations and
-the objection returns intact.
-
-> **The first branch is free and every branch after it is exponential.** Which is
-> exactly why the second must be earned.
-
-## Containment is free rather than enforced — for entries
-
-Nothing prevents your imaginings from being mistaken for the world. Nothing
-needs to, as long as what you imagined is an **entry**.
-
-The frame's seat is a **successor** of the caller's moment. So the caller's walk
-— which goes backwards, towards the root — cannot reach it. Chapter 5's
-at-or-before test is doing the work, and this is exactly why it has to be a real
-ancestry test rather than a depth comparison: supposing forks by construction.
-
-Measured on a chain forking 31 times: a structural member walking the chain from
-an anchored moment made 129 conclusions, none of them off its own walk. Nothing
-is refused to achieve it. A pattern that reaches downward loads fine and finds
-nothing, exactly as a rule matching an entry nobody wrote matches nothing.
-
-> Nothing is prohibited; everything is stamped.
-
-Two things fall outside that, and they are outside it for the same reason —
-neither is in the chain.
-
-The first was designed for: **acting**, which needs an explicit rule, Chapter 14.
-Supposing something must not bring it about.
-
-The second was not, and the next section is the correction to what this chapter
-used to claim.
-
-## Structure is not contained at all
-
-Containment holds for entries and fails for **structure** — the layer Chapter 31
-calls stratum 0, where a conclusion is an interned relation instance rather than
-an assertion: undated, unattributed, deniable by nothing, and belonging to no
-moment.
-
-Probed. `<said>` is stratum 0 — it lifts every claim anyone ever made into
-structure, which is what buys a `−` member the meaning *for no `?x`* instead of
-*somebody denied it* (Chapter 26). `<alarm>` reads that structure from
-**outside** the hypothesis:
+Hold the hypothesis in the **proposition**. The wrapper is the containment:
 
 ```
-rule <said>  = implies( { asking(?s), anc(?s, ?d), in_delta(?d, ?e),
-                          entry_of(?e, ?l, ?p, ?sg) },
-                        { said(?p, ?sg) } )
-rule <cross> = implies( { +likely(?p) }, { +suppose(?p, likely) } )
-rule <leak>  = implies( { +rumour(?x) }, { +secret(?x) } )
-rule <alarm> = implies( { said(secret(?x), plus), +awake(guard) },
-                        { +alarm(?x) } )
+rule <wet>   = implies( { +rain(?d) }, { +wet(streets) } )
+rule <carry> = implies( { +given(?h, rain(?d)) }, { +given(?h, wet(streets)) } )
 
-fact +awake(guard)
-fact +likely(rumour(a))
+fact +given(h1, rain(monday))
 ```
 
-Run twice, identical but for whether `<cross>` is present — that is, whether the
-agent ever supposes anything:
-
-| | `secret(a)` at the root | `said(secret(a))` | `alarm(a)` at the root |
-|---|---|---|---|
-| no supposition | `None` | absent | `None` |
-| supposing | `None` | **present** | **`+`** |
-
-The first column is containment working: the hypothesis stayed a hypothesis, and
-what came back out was `likely(secret(a))`. The third is the defect. Nobody
-believed `secret(a)` and the guard was raised anyway.
-
-> **A frame contains what it says. It does not contain what it derives about
-> what it says.**
-
-Ancestry cannot fix this, and that is the part worth understanding: the leak is
-not in the read. The at-or-before test — `at_or_after` in the code — is consulted
-when an **entry** is resolved. A structural fact is never resolved: it is
-enumerated straight out of the argument index, which no more knows about moments
-than a dictionary knows what time it is.
-
-And it is worse than a wrong answer, because the wrong answer cannot be traced:
-
 ```
-why alarm(a)?
-  +alarm(a), licensed by applied(<alarm>)
-    because +awake(guard), licensed by loaded(awake(guard))
+given(h1, rain(monday))   -> +
+given(h1, wet(streets))   -> +     the consequence, under h1
+rain(monday)              -> None  nothing is believed outright
+wet(streets)              -> None  and <wet> never fired
 ```
 
-`said(secret(a))` is the premise that made the difference and it is not in the
-trail, because structure carries no licence — Chapter 9's whole apparatus is
-about entries.
+`<wet>` is the ordinary rule about the world and it does not fire, because
+nothing asserts `rain(monday)` — only `given(h1, ...)` does. That is the whole
+of the containment, and it is visible in the corpus rather than in the engine.
 
-> **A leak with no licence cannot be found by asking why.** The trail names the
-> one premise that was true anyway.
+What it costs is honest and stated: **you write the hypothetical version of the
+rules you want to reason with**, where the frame used to give you every rule for
+free. `<carry>` above is `<wet>` again, one level in. For a corpus that
+supposes about a narrow question that is a line; for one that wants to reason
+hypothetically about everything, it is the whole rule set twice, and that is the
+capability that was given up.
 
-This is not a corner of the design. Negation as failure, counting, and reading
-rules as facts all run on that layer, so the defect is under exactly the
-constructions the rest of the book recommends.
+## The lessons that outlived the mechanism
 
-**The same shape, refused elsewhere.** Adopting a rule inside a supposition is
-refused (Chapter 29) because the rule set is one list shared by every frame, and
-a rule adopted while supposing would apply after it. That is this defect with a
-guard in front of it. The stratum-0 index is the same global table with no guard,
-and the difference between the two is that somebody noticed the first one.
+These were learned while the fork existed and none of them depended on it.
 
-**The proposed answer is *situations*** — a design, not a build, and Chapter 34
-files it where it belongs. Its move is to stop asking a read to keep hypotheses
-apart and make them apart: a situation is a branch and a moment is a commit,
-interning is per-situation, and a situation is materialised from its deltas when
-a rule asks about it. A structural conclusion is not an entry, so it is not in a
-delta, so it is never replayed — containment falls out rather than being enforced
-on every read, and it covers structure because it never treated structure
-specially in the first place.
+**Supposing must not change what the agent believes.** That was the whole point
+of containment, and it is now a property of how you write the rules rather than
+one the engine can guarantee. If a hypothetical rule concludes something
+unwrapped, it *is* believed — nothing will stop it.
 
-## Two things this costs, both found by building
+> **The engine's guarantee became a corpus's property.** That is the same trade
+> the norms decision made in Chapter 18, and the same one Chapter 28 makes for
+> stopping. It is only acceptable when the property is stated out loud, which
+> is what this paragraph is for.
 
-**The alternative must be opened on resume.** If you propose the second case
-alongside the first, it gets enacted while you're already *inside* the first —
-so it becomes a sub-hypothesis rather than a sibling, and comes back wrapped in
-the first.
+**Containing what is *said* is not containing what is *derived*.** The old
+mechanism contained entries and never contained **structure** — a stratum-0
+rule concludes into the graph itself, where there is no branch and no sign, so
+structure derived inside a hypothesis stayed derived after it. The modern form
+of the same trap: a rule that concludes structure from `given(?h, ...)` is
+concluding it *outright*, because structure has no wrapper to carry the
+hypothesis.
 
-`left(<frame>, <assumption>)` is the occasion for *this hypothesis is over*, and
-opening the alternative there is what makes them siblings. That's what the frame
-forest is for.
+**A leak with no licence cannot be found by asking why.** Anything that arrives
+in the world without a trail is invisible to `why`, so the fix has to be at the
+place the thing is written, never a check afterwards.
 
-**A crossing rule that can match its own output runs away.** A discharged
-conclusion is itself `likely(...)`, and a rule keyed on `left` fires again when
-the alternative is left in turn. Measured: **32 sibling frames** before the
-budget stopped it.
+**Crossing a modality is a decision, not a mechanism.** *It is likely to rain*
+does not license reasoning as though it rains — some rule has to say so, and
+which one is a corpus's business (Chapter 15). The old mechanism made crossing
+cheap enough to be tempting; the current one makes the decision explicit,
+because you must write the rule that carries the wrapper.
 
-Chapter 3 records the same trap for negation translation. The corpus stops it,
-and that it must is a property of self-applying rules rather than of any one
-rule.
+> **The first branch is free and every branch after it is exponential.**
 
-## The same construction, used for change
-
-Supposition isn't only for uncertainty. Once you have *enter a moment, conclude,
-come back out with a wrapper*, you have the machinery for counterfactuals,
-for planning ahead, and for asking *what would happen if*.
-
-They're all one thing: a moment whose licence says *I decided to suppose this*.
-
-!!! note "Deep dive: superseded, not invalidated"
-    A related question: when the world moves, what happens to what you derived
-    from the old state?
-
-    Nothing. And that's correct.
-
-    > **A dated derived fact needs no invalidation.**
-
-    At M7 the agent recognised something. At M12 the situation changed. The M7
-    recognition is still true *of M7* — it was a correct reading of that moment
-    — and the read (Chapter 5) simply prefers the later claim when asked about
-    M12.
-
-    Losing your reason is also not the same as acquiring a counter-reason. If
-    the source that told you something is discredited, that does not make what
-    it told you false; it leaves you **without a reason**, which is a different
-    situation and calls for a different response. This design deposits
-    `unsupported(p)` as an occasion and lets a corpus decide what to do about
-    it, rather than deciding on the corpus's behalf.
+That was the argument for making crossing deliberate rather than automatic, and
+it is unchanged: reasoning under two independent assumptions at once is four
+worlds, and nothing about the representation makes that cheaper.
 
 ---
 
-**Next:** two rules, one situation, opposite conclusions.
+**Next:** two rules that disagree, and what settles it.
 [When two rules disagree →](17-disagreement.md)

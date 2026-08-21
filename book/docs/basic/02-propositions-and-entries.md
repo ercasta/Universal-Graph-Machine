@@ -15,20 +15,28 @@ proposition in order to deny it would assert it first.
 So the claim is a separate node, called an **entry**:
 
 ```
-<e> = entry( <M7>, on(a, b), + )
+<e> = entry( on(a, b), + )
 ```
 
-Three members, and never a fourth:
+Two members, and never a third:
 
 | member | what it is |
 |---|---|
-| **locus** | the moment (or stretch of time) the claim is *about* |
 | **proposition** | what is claimed |
 | **sign** | how it is claimed — `+`, `−`, or `?` (Chapter 3) |
 
 In exchange for the extra hop, nothing in the system ever has to *remember* that
 a bare proposition means nothing. It structurally cannot be mistaken for a
-claim, because it has no locus and no sign.
+claim, because it has no sign.
+
+!!! note "There used to be a third member, and removing it paid for a lot"
+    An entry was `entry(locus, proposition, sign)` — the **locus** said which
+    moment, or which stretch, the claim was *about*, as distinct from when it
+    was deposited. It is gone, and Chapters 5 and 19 are the story of what that
+    bought: the read went from a walk with two orderings and two ancestry tests
+    to a single index lookup, and *later supersedes earlier* became the whole
+    of it. Everything a claim needs to say about time it now says in the
+    **proposition**, where a corpus can argue with it.
 
 ## What the two levels buy
 
@@ -39,7 +47,7 @@ cannot tell them apart:
 
 | | what happened | how it's written |
 |---|---|---|
-| they stopped being on each other | **the world moved** | a **new entry**: opposite sign, later locus |
+| they stopped being on each other | **the world moved** | a **new entry**: opposite sign, deposited later |
 | I was mistaken that they ever were | **my record was wrong** | a **fact about the old entry**; the entry is untouched |
 
 If truth were a value stored on the proposition node, both of those would be
@@ -63,46 +71,48 @@ another?
 No, and the reason is structural rather than a convention someone has to
 remember:
 
-> **An entry names its locus, so it is located by being one.**
+> **An entry is deposited, so it is placed by being made.**
 
-A proposition needs an entry in order to be placed somewhere. An entry places
-itself. The recursion terminates at depth one, by construction.
+A proposition needs an entry in order to be claimed at all. An entry needs
+nothing further: it sits in the list of changes belonging to the moment it was
+deposited in, and that membership is already structure. The recursion
+terminates at depth one, by construction.
 
-The claim is narrow, and the narrowness is what makes it hold. An entry needs no
-entry **to be located**. It may freely be the *subject* of another entry's
-proposition — that's the three lines above. Locus and member are different
-relations to an entry, and only the first one would regress.
+The claim is narrow, and the narrowness is what makes it hold. An entry needs
+no entry **to be placed**. It may freely be the *subject* of another entry's
+proposition — that's the three lines above. Being deposited and being spoken
+about are different relations to an entry, and only the first would regress.
 
-## Two coordinates in time, and only one is a member
+## When it was deposited is where it sits
 
-This is the subtle one, and the whole of Chapter 5 depends on it.
-
-An entry has a **locus** — what the claim is about — and it also sits in some
-particular moment's list of changes. That second thing is its **deposit
-moment**: *believed since here*.
+An entry has one time, and it is not a member: the moment whose list of changes
+it belongs to. *Believed since here.*
 
 ```
 <M12> = moment( delta:       <e1>, <e2>, <e3>
-                predecessor: <M11>
-                licence:     <application-of-R1> )
+                predecessor: <M11> )
 ```
 
-The delta membership is already structure. It costs nothing and cannot be
-omitted. So an entry has two temporal coordinates and stores exactly one of them
-as a member; the other is simply *where it sits*.
+The delta membership costs nothing and cannot be omitted, so nothing about time
+has to be stored on the entry at all.
 
-Keeping them apart is what lets the machine revise its view of the past without
-rewriting it. An entry deposited in `M12` may have `M7` as its locus — *I now
-think it was raining then* — and that is the ordinary form of learning something
-about the past, not a special mechanism.
+!!! note "An entry used to have a second time, and it was the design's biggest cost"
+    The **locus** said what the claim was *about*, as against when it was
+    deposited — so an entry deposited in `M12` could be about `M7` (*I now
+    think it was raining then*), and revising a view of the past was ordinary
+    rather than a special mechanism.
 
-Conflate them and every claim would be forced to be about the moment it occurred
-to somebody.
+    That capability was real, and it was removed, because keeping the two
+    apart meant every read had to ask both questions — two orderings, two
+    ancestry walks — and that read was measured at 86% of runtime. What is
+    left is one time and one rule: **later supersedes earlier**. Saying
+    something *about* a past moment is now a corpus's job, written in the
+    proposition where a rule can argue with it (Chapters 19 and 23).
 
 ## Everything else is an ordinary fact about the entry
 
 ```
-licensed_by(<e>, <application>)     said_by(<e>, anna)     at(<e>, 09:14)
+licensed_by(<e>, <application>)     said_by(<e>, anna)     doubted(<e>)
 ```
 
 Not members. Facts. This matters for a reason that is easy to state and easy to
@@ -121,7 +131,7 @@ Propositions have one identity however many times you build them: write
 cheap here.
 
 **Entries do not work that way.** An entry is an *act of claiming*, so two
-claims about the same proposition at the same locus are two different nodes.
+claims about the same proposition are two different nodes.
 Otherwise `mistaken(<e>)` would land on both the mistake and its correction at
 once.
 
@@ -129,7 +139,7 @@ The same holds one level up: two rules that happen to say the same thing are
 still two rules, with different authors, provenance and standing.
 
 !!! note "Deep dive: contradiction is allowed, and nobody checks"
-    Two entries in one locus with opposite signs is a shape the substrate
+    Two entries about one proposition with opposite signs is a shape the substrate
     permits. This is deliberate. Consistency is **a question you ask**, not an
     invariant the substrate maintains — the alternative is checking every write
     against every other claim in memory.
