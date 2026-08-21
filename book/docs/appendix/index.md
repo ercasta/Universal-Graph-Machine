@@ -137,9 +137,10 @@ elsewhere be a labelled edge. Everything here is one.
 absent. `?` means *held before, does not now, and I cannot say what does*. No
 entry at all means **inherit**. [Chapter 3](../basic/03-signs.md)
 
-**skeleton** — the antecedent members that relate loci rather than claim
-anything: `anc`, `sanc`, `in_delta`, `entry_of`, `span_of`, `rests_on`. No sign,
-no locus, no licence, because nobody asserted them.
+**skeleton** — the antecedent members that relate moments and entries to
+each other rather than claim anything: `anc`, `sanc`, `pred`, `in_delta`,
+`entry_of`, `rests_on`. No sign and no licence, because nobody asserted them,
+and each must be **anchored** by an argument already bound.
 [Chapter 6](../rules/06-a-rule-is-a-fact.md)
 
 **span** — a stretch of the chain: a node with a start moment and an end moment.

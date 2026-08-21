@@ -50,12 +50,15 @@ makes a score mean anything at all.
 Run the classic case — penguins, and whether they fly — with two rules declared
 in the order *birds fly*, *penguins are flightless*:
 
-| | applied | concluded |
+| | pingu flies | grounded |
 |---|---|---|
-| declaration order alone | `classify`, `flies` | `can_fly(pingu)` |
-| one preference nudge on the flightless rule | `classify`, `flightless` | `grounded(pingu)` |
+| declaration order alone | **True** | True |
+| `overrides(<flightless>, <flies>)` | **False** | True |
 
-No defeat relation, no `unless`, no precedence claim — just a score and a stop.
+The first row is the demonstration: run to quiescence, *both* rules apply, and
+the order decided nothing. What makes the exception actually beat the default
+is `overrides` — defeat, stated as an ordinary claim — and what makes any
+order meaningful at all is a stop. Chapter 28 measures the whole ladder.
 
 And the same fact from the other direction:
 
@@ -126,10 +129,9 @@ When two candidate moves score within a tolerance of each other, that's a
 **doubt** — and the interesting design question is what to do about it.
 
 The answer here is: nothing special. Depositing the doubt **is** the move. A
-settling rule gets the next turn, and what it does is spend attention — the
-settlement is an ordinary adjustment, calibratable rather than a branch. A
-corpus replaces it by writing a rule that outscores it: ask the user, apply a
-domain criterion, whatever fits.
+settling rule gets the next turn — an ordinary rule, replaceable rather than a
+branch. A corpus replaces it by writing a rule that outscores it: ask the
+user, apply a domain criterion, whatever fits.
 
 And the backstop needs no semantics at all: if nothing settles, restating the
 doubt changes nothing, so quiescence lets the winner apply. A corpus without a

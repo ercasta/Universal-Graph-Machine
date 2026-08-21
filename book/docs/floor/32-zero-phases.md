@@ -11,11 +11,18 @@ implementation can print.
 
 It prints **zero**.
 
-The step is: read `enough` → recall → match → defeat → forgo → quiescence →
-arbitrate → note doubt → apply. Plus leaving a frame, waking on quiescence, and
-the escalations.
+The step is: score → take the first rule in the window whose antecedent
+matches → apply it → spend its postconditions. Plus widening when the window
+runs dry, and ending when a rule spent `stop`.
 
-Nothing in it decides anything a rule could have decided.
+Nothing in it decides anything a rule could have decided. *Done* is the output
+of a rule that spends `stop`; *refocusing* is a rule that spends `unattend`;
+*suspend this line of work for another* is two more (`push`, `pop`). The loop
+knows a score, a match, and that a rule said stop — never what any of them is
+for. (An earlier version of this design ran a longer step — recall, match,
+defeat, quiescence, arbitrate, apply — and the phase count was zero there too;
+Chapter 28 is the story of how the longer step lost to this one on
+measurement.)
 
 ## What moving them taught
 

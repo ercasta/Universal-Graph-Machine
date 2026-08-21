@@ -1,53 +1,44 @@
 # The table
 
-Chapter 27 said the machine needs something to hand it a set of rules to choose
-from. This chapter is about what that something should be, and it is the biggest
-open argument in the design.
+Chapter 27 ended at the table: everything live gets a score, and the loop works
+the table from the top. This chapter is what that loop is — and it is the loop
+this design ships. It arrived as a challenger to a very different one, won on
+measurement, and the story of the match is kept at the end of the chapter,
+because the case for the winner *is* the comparison.
 
-## What the shipped loop does
-
-Recall proposes. Everything proposed is matched. Defeat and quiescence filter.
-Arbitration ranks what survives. One move is taken.
-
-That materialises an **option set** on every tick, and the obvious objection is
-that most of it must be waste. Measured, it isn't: **99.6% of those candidates
-genuinely applied**.
-
-So the option set is not waste. It is the *price of being able to say nothing
-else applied* — which is exactly what `blocked` and `<give-up>` are built on
-(Chapter 13).
-
-The question is whether that price is worth paying on every tick.
-
-## The other loop
+## The loop
 
 > The system need not explain why it preferred a rule. That is not reasoning, it
 > is System-1. You never proceed to match all possible rules: you work the
-> current table from top to bottom and stop at the first rule that matches. Each
-> applied rule then spends attention — a list of query → buff — which moves the
-> scores of other rules. **The rules stay fixed; the postconditions are what a
-> learning process calibrates.**
+> current table from top to bottom and stop at the first rule that matches.
+> Each applied rule then spends attention. **The rules stay fixed; the
+> postconditions are what a learning process calibrates.**
 
 Four things the engine knows here, and **none of them is semantic**:
 
 ```
 a score per rule    ordered, tie broken by declaration order
 apply the first     highest-scoring rule whose antecedent matches
-then spend          run that rule's postconditions to move the table
+then spend          run that rule's postconditions
 ...and stop         if one of them said so, the run is over
 ```
 
 That's the whole loop. No goal, no completeness, no widening. Those are *corpus
-rules* whose postconditions reset buffs — **refocusing is a rule**, and **done is
-the output of a rule** that checks against the goal. Nothing in the loop knows
-what either is.
+rules* whose postconditions spend attention — **refocusing is a rule**
+(`unattend`), **done is the output of a rule** that checks against the goal
+(`stop`), and **suspend this line of work for another** is two more (`push`,
+`pop` — Chapter 25's stack). Nothing in the loop knows what any of them is for.
+
+A score is one of two numbers: rules the bundle marks `standing` sit at the
+apparatus's height, and everything else sits at the floor. There is no third
+place to be — and how that came to be the whole of it is the buff story, below.
 
 ## Stopping, and what it is worth
 
-The fourth row is the one that makes the third mean anything, and it was missing
-for a while. *Done is the output of a rule* was the design from the start — and
-the loop had no way to **obey** one. A completion check concluded, and the agent
-carried straight on to quiescence anyway.
+The fourth row is the one that makes the third mean anything, and it was
+missing for a while. *Done is the output of a rule* was the design from the
+start — and the loop had no way to **obey** one. A completion check concluded,
+and the agent carried straight on to quiescence anyway.
 
 ```
 rule <done> = implies( { +want(?w), +?w }, { +finished(?w) } )
@@ -56,18 +47,16 @@ after <done> => stop
 
 | | moves |
 |---|---|
-| no postcondition — the agent notices and carries on | **62** |
-| `after <done> => stop` | **5** |
+| no postcondition — the agent notices and carries on | **64** |
+| `after <done> => stop` | **9** |
 
-`stop` is spent the way `boost`, `damp` and `reset` are spent, so it's a row in
-one vocabulary rather than a branch. And the loop still knows nothing about
-goals: it knows a rule said stop, exactly as it knows one said reset.
+`stop` is spent the way `attend` and `unattend` are spent, so it's a row in one
+vocabulary rather than a branch. And the loop still knows nothing about goals:
+it knows a rule said stop, exactly as it knows one said attend.
 
 !!! note "Deep dive: the feature next door, which is worth nothing"
     The obvious next thought is: *let a goal raise the priority of the rule that
-    checks it.* It was built and measured, and it moves **nothing** — with the
-    check at the floor, reranked, buffed persistently in two places, and
-    standing. Identical every time, before `stop` existed and after.
+    checks it.* It was built and measured, and it moves **nothing**.
 
     A completion check is **self-gating**. It cannot match until the thing is
     already done, so while the goal is unfinished it isn't losing to anything —
@@ -83,13 +72,14 @@ goals: it knows a rule said stop, exactly as it knows one said reset.
     feature will find it.
 
 !!! note "Deep dive: what stopping costs"
-    The shipped loop refuses to stop **quietly** on something it was asked for —
-    an open goal *outranks* a satisfaction signal (Chapter 26).
+    The loop this one replaced refused to stop **quietly** on something it was
+    asked for — an open goal *outranked* a satisfaction signal (Chapter 26).
 
-    The table loop cannot make that refusal, and the reason is exact: the veto is
-    an **aggregate** — *nothing else is wanted and unmet* — and a rule cannot
-    speak about the set of its own matches. Measured: give it two wants, make one
-    reachable, and it stops with the other still wanted and still unmet.
+    This loop cannot make that refusal, and the reason is exact: the veto is an
+    **aggregate** — *nothing else is wanted and unmet* — and a rule cannot
+    speak about the set of its own matches. Measured: give it two wants, make
+    one reachable, and it stops with the other still wanted and still unmet —
+    three moves, and an unmet want left behind.
 
     So the guarantee becomes a corpus's, which is the same trade the norms
     decision made — an engine guarantee becoming a corpus property **with an
@@ -102,15 +92,77 @@ This is the line that has to be held, and this project has reason to be careful
 about it: it deleted an instruction set once already.
 
 A postcondition is a **query** — an ordinary antecedent, parsed by the ordinary
-surface — and a **buff** naming a rule.
+surface — and something to spend. There are exactly five, and every one of them
+is a *deposit or a signal*, never a score:
 
 ```
-rule <flightless> = ...
-after { +penguin(?x) } => boost(<flightless>, 20)
+attend(?x, n)   think about what this move just bound, and how much
+unattend        stop thinking about whatever it was
+stop            end the run
+push(...)       suspend this line of work and open a frame
+pop             return, carrying one node back
+```
+
+```
+rule <spot> = implies( { +enemy(?x), +wounded(?x) }, { +opening(?x) } )
+after <spot> => attend(?x, 3)
 ```
 
 Rows, not branches. Adding a new kind of attention-spending is a new
-postcondition, not a new engine case.
+postcondition, not a new engine case. And note what `attend` names: a **node**
+the move itself bound — a thing in the world — never a rule.
+
+## There used to be three more, and they moved a score
+
+`boost(<R>, n)`, `damp(<R>, n)` and `reset` were postconditions too, and they
+are retired — not because they didn't work, but because of what they *named*:
+
+> **A rule id goes stale the moment a rule is adopted, composed or renamed. A
+> corpus of experience written against rule names stops loading — rather than
+> going quietly wrong.**
+
+A lesson has to survive the agent changing its own rules, and a lesson about a
+*thing* (`attend(?x)`) does, where a lesson about a *rule* (`boost(<R>)`)
+cannot. Everything that existed to keep buffs healthy went with them: the decay
+that stopped a self-lifting pair running away, the saturation that kept the
+scale stable, the trace that rebuilt the table, the reranker. What is left
+cannot decay, so there is nothing to tune.
+
+The replacement is leaner than what it replaced. An `attention(x)` claim is
+**recomputed at every move and kept nowhere** — *what is in front of me is
+recomputed; what I was doing persists and fades* — so there is no lifetime knob
+and no runaway to guard against. When the claim is denied, it is over.
+
+And one thing became an error rather than a silence: a ranking-time `when`
+trigger used to nudge scores inside a shortlist, and now the surface **refuses
+it** with a message. Such a trigger ran on rules that had not applied and might
+never apply — a deposit from there would be the agent claiming to think about
+something because it considered thinking about it.
+
+## Attention reaches both halves
+
+`attention(x)` is an ordinary claim about a node, and it does two jobs at two
+different prices:
+
+| | what it decides | how exact | what it costs |
+|---|---|---|---|
+| the lift | which rules are matched at all | approximate | two dict reads |
+| the pick | which of a rule's applications is taken | **exact** | nothing |
+
+The lift is a **join**: the relations `goblin1` is currently spoken of under,
+against the rules whose antecedents use one. It is approximate on purpose — a
+rule reading `wounded(?x)` is lifted because *something* attended is wounded,
+whether or not it would bind `?x` to it — and that is the right amount of
+wrong, because the lift only decides who is *matched*. Exactness arrives one
+layer up, for free: among a rule's found applications, the one about the
+attended thing is taken, stably, so attention overrides the tie-break where it
+has an opinion and defers to it everywhere else.
+
+Measured, on a twelve-rule table of which three can match: a rule twelfth in
+the table applies **first** when the thing it is about is attended, and the run
+costs 195 matches against 238, because the window stopped widening past it.
+Attending to *everything* discriminates nothing — it moves no rule ahead of any
+other, and the first move is the untaught one.
 
 ## Why it can be fast: the window is a prefix
 
@@ -118,8 +170,8 @@ Scores only fall as you go down the table. So once a match is found at score
 `s`, everything below `s − tolerance` is irrelevant **without being matched at
 all**.
 
-That's the whole performance claim, and it's testable: score *first*, then match
-only the top of the table.
+That's the whole performance claim, and it's testable: score *first*, then
+match only the top of the table.
 
 The cap on how many rules sit in one window is a guard against a pathological
 table where forty rules share a score — not the mechanism.
@@ -128,180 +180,123 @@ And what keeps it honest is a rule you've already met:
 
 > **A dry shortlist is not a finished search.**
 
-If nothing in the window applies, the shortlist **widens**. Without that, a miss
-in the top N would deposit `quiet` while work remained, the agent would give up
-on goals it could have reached, and the trail would show a completed search that
-never ran.
+If nothing in the window applies, the shortlist **widens**. Without that, a
+miss in the top N would deposit `quiet` while work remained, the agent would
+give up on goals it could have reached, and the trail would show a completed
+search that never ran.
 
-With it, the worst case is exactly today's cost and the best case is N.
+With it, the worst case is exactly the old cost and the best case is N.
 
-## Buffs fade, and that had to be learned the hard way
+## Four levers, and what each can actually do
 
-A buff that never expires is what made the first taught table run away: `A` lifts
-`R`, `R` lifts `A`, every lift permanent, and the loop finds work for ever.
-
-A lift is about **what is going on now** — *what I was doing is part of my
-representation of the world* — so it fades. What survives is the
-**postcondition**, which re-applies whenever its query holds again.
-
-There's a second bound, and the reasoning behind where it's applied is worth
-following:
-
-**A boost shrinks as the rule is already lifted** — the useful half of a
-sigmoid. Applied when the table is *read*, a monotone transform cannot change
-any ordering, and ordering is all the table is for. Applied at the **update**, it
-bounds the scale — and the scale has to be stable or `tolerance` stops meaning
-anything.
-
-Measured: the runaway table fired **0 doubts against 13** for the untaught one,
-because nothing was ever *close* to anything again. A table with no ties has
-stopped being able to notice it is unsure.
-
-## Five levers, and what each can actually do
-
-There are five ways to make one rule win, they are not variants of each other,
+There are four ways to make one rule win, they are not variants of each other,
 and the difference that matters is the last column:
 
-| lever | lifetime | can it bring a rule *into consideration*? |
+| lever | what it is | can it bring a rule *into consideration*? |
 |---|---|---|
-| `standing(<R>)` | permanent | **yes** — it raises the floor |
-| `overrides(A, B)` | per tick | not ranking at all; it is **defeat** |
-| `after <R> { q } => boost` | fades, and saturates | **yes** |
-| `when { q } => boost` | ephemeral, one shortlist | **no** |
-| `prefer(<R>, key, score)` | permanent, summed | yes — but a key is not a query |
+| declaration order | the tie-break at equal score | no — it orders equals |
+| `standing(<R>)` | permanent height, marked by the bundle or the corpus | **yes** — it raises the floor |
+| `overrides(A, B)` | not ranking at all; it is **defeat** | it removes the loser instead |
+| `attention(x)` / `after <R> => attend(?x)` | a lift keyed on a **thing** | **yes** — sized to clear the apparatus |
 
-Run against one another on the same fight, all five trying to make the agent take
-the target named by the action's marker (Chapter 14):
-
-```
-overrides          -> goblin2   spends 0   final score 1
-standing           -> goblin2   spends 0   final score 10
-after-buff         -> goblin2   spends 1   final score 1
-after-buff, blind  -> goblin1   spends 0   final score 1
-when-reranker      -> goblin1   spends 0   final score 1
-```
-
-The third row is the one that matters, because a **buff is what a calibration
-process writes**. It fires once, saturates — a boost of 20 spends 12 — steers the
-choice, and is back at the floor by the end of the fight. That is the whole
-learnable path working end to end: a marker carried by the action, a postcondition
-keyed on it, a lift that decides which rule applies, and a trail that rebuilds the
-table afterwards.
-
-The last two rows are the ones to remember, because neither of them raises
-anything.
-
-> **A postcondition cannot see what its own rule just concluded.**
-
-Its query is matched against the state as of the **start** of the tick. A buff
-keyed on the very fact its rule writes asks a question whose answer is always no:
-the buff never fires, the table never moves, nothing is logged and nothing raises.
-It cost four probes, and the near-miss was reporting *buffs do not steer* — which
-would have been wrong. Key a postcondition on what held **before** the decision.
-
-> **A reranker cannot lift a rule off the floor.**
-
-A `when` trigger is ephemeral and shortlist-only, so a rule sitting at the floor is
-never in a shortlist for it to reorder. That is the documented limit arriving in
-practice, and it has a consequence for learning: a preference written that way can
-only reorder what attention had **already** selected.
+The last row is the learnable one, and it is the whole learnable path working
+end to end: a move binds a node, a postcondition attends it, the lift decides
+which rules are matched next and which application is taken, and the claim is
+on the record for a rule to read, deny or reason about.
 
 ## Doubt is a move, not a pause
 
-When two rules in the window score within the tolerance, that's a **doubt**. The
-loop does not hold a tick waiting for it to resolve.
+When two rules in the window score within the tolerance, that's a **doubt**.
+The loop does not hold a tick waiting for it to resolve.
 
-**Depositing the doubt is the move.** A settling rule gets the next turn, and
-what it does is spend attention — so the settlement is a buff like every other,
-calibratable rather than a branch:
+**Depositing the doubt is the move.** `close(<A>, <B>)` lands as a claim, and a
+settling rule gets the next turn:
 
 ```
 rule <settle-doubt> = implies( { +close(?a, ?b) }, { +settled(?a, ?b) } )
-frozen after <settle-doubt> => boost(?a, 1)
 ```
 
 A corpus replaces it with something better — ask the user, apply a domain
 criterion — by writing a rule that outscores it.
 
-And the backstop needs no semantics: if nothing settles, restating the doubt
-changes nothing, so quiescence lets the winner apply. A corpus without a settling
-rule loses one tick rather than the loop.
+And the backstop needs no semantics: the doubt already stands on the next tick,
+so restating it changes nothing, and quiescence lets the winner apply. A corpus
+without a settling rule loses one tick rather than the loop.
 
-!!! note "Deep dive: why `boost(?a, 1)` is writable at all"
+!!! note "Deep dive: why concluding about `?a` is writable at all"
     `?a` is *the winner as the doubt named it* — two rules nobody knew when the
-    postcondition was authored.
+    settling rule was authored.
 
-    That works only because **rules are subjects** here: `close(<A>, <B>)` names
-    them, and a conclusion about `?a` is a **mention** (Chapter 10), so
+    That works only because **rules are subjects** here: `close(<A>, <B>)`
+    names them, and a conclusion about `?a` is a **mention** (Chapter 10), so
     quiescence does not drop it as having nothing to deposit.
 
-    Three separate features of the design have to be true at once for one line of
-    a default postcondition to be writable. That's usually the sign a design is
-    coherent rather than merely large.
+    Three separate features of the design have to be true at once for one
+    default rule to be writable. That's usually the sign a design is coherent
+    rather than merely large.
 
 ## The penguin, measured
 
 Same corpus, same declaration order — *birds fly* written before *penguins are
-flightless*:
+flightless* — and the question is what actually makes the exception win:
 
-| | doubts | applied | first answer |
+| | pingu flies | grounded | tweety flies |
 |---|---|---|---|
-| declaration order alone | 1 | `classify`, `settle-doubt`, `flies`, `flightless` | `can_fly(pingu)` |
-| with one postcondition | 0 | `classify`, `flightless`, `flies` | `grounded(pingu)` |
+| declaration order alone | **True** | True | True |
+| `standing(<flightless>)` | **True** | True | True |
+| `overrides(<flightless>, <flies>)` | **False** | True | False |
+| ...and the KB states `-penguin(tweety)` | False | True | **True** |
 
-No defeat relation, no `unless`, no precedence claim. Just a score and a stop.
+The first two rows are Chapter 26's point arriving in a table: **a loop that
+runs to quiescence applies both rules whatever the order** — ordering is not
+defeasibility, and neither is height. What makes *penguins don't fly* beat
+*birds fly* is `overrides` — defeat, an ordinary claim — and what saves Tweety
+is another ordinary claim. No `unless`, no built-in exception logic: two facts.
 
-And Chapter 26's point arriving from the other side: **a loop that runs to
-quiescence applies both rules whatever the order.** What turns an order into a
-default is *asking, taking the first rule that matches, and acting*.
+## The match that settled it
 
-## The two loops, side by side
+This loop arrived as a proposal beside a very different incumbent: recall
+proposes, **everything** proposed is matched, defeat and quiescence filter,
+arbitration ranks, one move is taken. That loop materialised an *option set* on
+every tick — and the obvious objection, that most of it must be waste, was
+measured and found wrong: **99.6% of those candidates genuinely applied**. The
+option set was the price of being able to say *nothing else applied*, which is
+what `blocked` and `<give-up>` are built on (Chapter 13).
 
-Run against the shipped loop on four corpora — ticks, then conclusions:
+So the two ran side by side, on the same corpora, with an instrument reporting
+every conclusion either reached that the other did not — ticks first,
+conclusions second:
 
-| corpus | ticks (shipped / table) | conclusions | only shipped | only table |
+| corpus | ticks (old / table) | conclusions | only the old loop | only the table |
 |---|---|---|---|---|
 | `delay.ugm` | 11 / 16 | 221 / 232 | `close` ×8 | `spent` ×7, `settled` ×7 |
 | `worked.ugm` | 12 / 11 | 163 / 176 | — | `settled` ×4, `spent` ×4 |
 | `quest-p1.ugm` | 18 / 21 | 186 / 206 | — | `settled` ×5, `spent` ×5, `close` ×5 |
 | `dungeon` | 148 / 155 | 737 / 746 | `close` ×10, `defeated` ×1 | `spent` ×7, `settled` ×7 |
 
-Read it as a **work list, not a failure**. Everything the table loop drops is a
-record the shipped tick keeps *because* it materialises an option set:
+Read the third column as a **work list**: everything the table loop dropped was
+a record the old tick kept *because* it materialised an option set. Most were
+recovered as rules; `defeated` was recovered by recording *every* overrider
+that matched rather than the first; and one is genuinely gone — `close` over
+the **whole** option set rather than over a window, a claim about a set the
+table deliberately never builds. That loss is named, measured, and accepted.
 
-- `close` is doubt over the **whole** option set rather than over a window;
-- `defeated` is one rule beating another, which needs both to have been matched;
-- `quiet` is the loop saying it stopped; `left` is a supposition being exited.
+The decision, taken after all of the above ran:
 
-Each of those is a rule to write. And two of them the table loop **cannot**
-recover, because they are claims about a set it deliberately never built.
-
-## The decision
-
-The author's, taken after all of the above ran:
-
-> **The table loop is the kernel** — not an optimisation beside the shipped one.
-
-With the losses accepted and named: `close` over the whole option set, and
-`defeated`. The shipped loop stays on as **the slow definition a gate holds the
-kernel to** — which is Chapter 32's rule about optimisations, applied to the
-loop itself.
+> **The table loop is the kernel** — not an optimisation beside the old one.
 
 And the method is worth as much as the decision:
 
 > **Subtract, do not rewrite.** Each definition that moves out of the host
 > language gets a gate; when the gate is green, its Python goes.
 
-The kernel *emerges* rather than being written, and the repository never stops
-running. That's the alternative to a rewrite, and it's available here only
-because every fast path already has a slow definition sitting beside it.
-
-!!! note "Deep dive: the honest size of the thing"
-    `machine.py` is **55% prose** — 5,507 lines, of which 1,979 are code. So the
-    "1,000-line kernel" is roughly what is *left* after the logic moves out, not
-    a target somebody has to hit by rewriting.
-
-    Measuring that before starting is what turned a rewrite into a subtraction.
+For a while the old loop stayed on as the slow definition a gate held the
+kernel to — Chapter 32's rule about optimisations, applied to the loop itself.
+Then the comparison settled, and the old loop and the gate that compared them
+were deleted together. What remains of them is this section, the checks that
+keep the named losses honest, and `python -m ugm.core.attention` — which now
+runs the worked examples above rather than a comparison, because there is no
+second loop left to compare against.
 
 ---
 

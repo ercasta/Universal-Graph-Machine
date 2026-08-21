@@ -344,11 +344,11 @@ Two signals come out of that use, and only one of them is calibration:
 
 | | |
 |---|---|
-| **the wrong order** | a buff — *this rule should have come first here* |
+| **the wrong order** | a lesson — *what mattered here was this* |
 | **none of these fits** | a **missing rule**, which no calibration can supply |
 
 The second is the more valuable one early, and **only manual use surfaces it**.
-No amount of tuning scores finds a rule nobody wrote.
+No amount of tuning finds a rule nobody wrote.
 
 And a demonstration cannot produce a flat opinion about a rule. The reflex
 experiment settled it: damping every rule that was *tried and missed* cost **125
@@ -357,9 +357,18 @@ conclusions**, because
 > **tried and missed is not evidence a rule is unimportant — it is evidence it
 > did not apply in that state.**
 
-So a lesson has to be **conditional**, and the smallest conditional thing that
-carries a sequence is a bigram on the rule that just applied: *after A, prefer
-R*.
+So a lesson has to be **conditional**. And it has to name something that
+outlives the episode, which is what settled the *form* a lesson takes: it
+attends a **thing**, under a condition, hung off the rule that just ran —
+
+```
+learned after <move> { +covered(?d) } => attend(?d, 3)
+```
+
+— rather than nudging a rule's score. A lesson written against a rule id goes
+stale the moment a rule is adopted, composed or renamed, and a corpus of
+experience that has gone stale stops *loading* rather than going quietly wrong.
+Chapter 28 has the retirement in full.
 
 ### 2. Reviewing — offline, and it is a corpus
 

@@ -58,7 +58,7 @@ straight back to Chapter 31:
 > **A rule whose antecedent is entirely structural concludes structure rather
 > than a claim.**
 
-The recognisers mention only `anc`, `in_delta`, `entry_of`, `span_of` — no
+The recognisers mention only `anc`, `in_delta`, `entry_of` — no
 entries. So what they conclude is *structure*: a `turns(?s, ?a, ?b)` that is
 undated, unattributed, and deniable by nothing. Exactly what a walk's
 intermediate result has to be, or the bootstrap circle returns.

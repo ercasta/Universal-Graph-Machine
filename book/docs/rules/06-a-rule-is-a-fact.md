@@ -73,17 +73,27 @@ Each member is an entry pattern: a sign and a proposition.
 { +heat(?a, ?w), +water(?w), -altitude(?w, high) }
 ```
 
-The short form `+on(?x, ?y)` means *an entry with this proposition and this
-sign, at whatever locus the current frame supplies*. It's an abbreviation, and
-it stops being available the moment the rule needs to name the locus itself —
-which it can:
+`+on(?x, ?y)` means *an entry with this proposition and this sign*. A member can
+also name **what it matched**, as a whole:
 
 ```
-rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp) },
-                        { +acted_after(?q, ?p) } )
+rule <blame> = implies( { +broke(?p, ?thing) as ?what },
+                        { +regrets(?p, ?what) } )
 ```
 
-`at ?m` binds the locus. `as ?t` names *what* was matched. Chapter 23 uses both.
+```
+regrets(bo, broke(bo, jug))
+```
+
+`as ?t` binds the proposition itself, so a rule can refer to the very thing it
+matched rather than describing it again.
+
+!!! note "There used to be a second modifier, and it is gone"
+    `at ?m` bound the **locus** — where the matched entry sat. An entry has no
+    locus any more (Chapter 19 tells that story), so the surface **refuses**
+    `at ?m` rather than ignoring it: a notation that parses and is dropped is a
+    rule that means something other than what it says. Reading history is now
+    done with the chain's own relations — Chapter 23.
 
 **Order matters.** Not for correctness of matching — the machine is free to walk
 the members in whatever order narrows fastest — but because the trail records
@@ -107,14 +117,18 @@ is what the explanation and the tie-breaking see.
 There is a second kind of member, and it isn't a claim at all:
 
 ```
-where    ?n = succ(?m),  ?s = span(?m, ?e)       skeleton — how the loci connect
-given    +on(?x, ?y),  +acts(?a)                 what is claimed, and where
+skeleton   anc(?a, ?b),  in_delta(?m, ?e),  entry_of(?e, p, plus)
+claims     +on(?x, ?y),  +acts(?a)
 ```
 
-The **skeleton** relates the loci. `sanc(?mq, ?mp)`, `anc`, `in_delta`,
-`entry_of`, `span_of` — these match *structure*, not entries. They have no sign,
-no locus and no licence, because nobody asserted them: they're facts about how a
-node is built, not relations in the world.
+The **skeleton** relates moments and entries to each other. `anc`, `sanc`,
+`pred`, `in_delta`, `entry_of`, `rests_on` — these match *structure*, not
+entries. They have no sign and no licence, because nobody asserted them:
+they're facts about how a node is built, not relations in the world.
+
+A skeleton member must be **anchored** — at least one of its arguments already
+bound — because an unanchored one would enumerate the whole history. That is a
+rule you will meet again in Chapter 23.
 
 The two kinds don't merge, and Chapter 31 explains why that separation is what
 lets the machine boot at all.

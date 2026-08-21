@@ -11,13 +11,39 @@ built into the engine.**
 UGM is a self-contained Python library with no dependencies.
 
 ```bash
-python -m ugm.selftest              # 533 checks, 0 failing
+python -m ugm.selftest              # 537 checks, 0 failing
 python -m ugm ugm/rules/delay.ugm --why "owed(ana,money)"
 ```
 
+## How it works
+
+The system works in a very simple way. It is a loop: look at the current state, decide what to do
+next, do it. The simplicity hides where the real complexity is — *decide what to do next* is the
+hard part — and the design's answer is to keep that complexity **out of the engine**.
+
+The engine is almost empty. It has no decision rules built in; it knows the conventional
+representation of a few concepts (and that only for performance, and to provide mechanisms like
+short-term memory independently of any decision rule). Everything it runs is supplied as data, in
+two layers:
+
+- **A world model** — the knowledge base. How things relate, inference rules, cause–effect, and
+  which actions exist over that world. This says what *is* and what *would happen*.
+- **Competence** — what to do. In any non-trivial world model the possible actions are legion (they
+  are parametric), and knowing how the world works does not tell you what to reach for: you can
+  know exactly what every move of a Rubik's cube does and still be clueless about solving one.
+  Competence fills that gap: scores, attention, when to stop, what to try after what.
+
+Competence is authored as a starting point, and the system can improve it by **learning** — an
+episode ends, the trail is reviewed, and what was learned is written back as ordinary corpus text
+the next episode loads.
+
+What that buys, and what this project is for: **transparent, ownable, explainable, private
+reasoning over knowledge bases you control.** Every conclusion has a trail (`--why` below), every
+mechanism above the floor is data you can read and replace, and nothing needs a server.
+
 ## The one claim
 
-**Almost nothing in this system is the engine.** Moments, entries, signs, spans, rules, modalities,
+**Almost nothing in this system is the engine.** Moments, entries, signs, rules, modalities,
 channels, frames, goals and plans are a *representation of reality that the agent uses* — open class,
 shipped as ordinary data, replaceable at run time. They are not machinery the engine is built out of.
 
@@ -42,9 +68,11 @@ The test that draws that line:
 > convention, and the machinery that uses it must be expressible as rules.**
 
 It has a falsifiable consequence, which is the point of stating it: **the interpreter's step should
-have no phases.** It has zero. The step is `read enough -> recall -> match -> defeat -> forgo ->
-quiescence -> arbitrate -> note doubt -> apply`, and nothing in it decides anything a rule could have
-decided.
+have no phases.** It has zero. The step is `score -> take the first rule in the window whose
+antecedent matches -> apply it -> spend its postconditions`, and nothing in it decides anything a
+rule could have decided: *done* is the output of a rule that spends `stop`, *refocusing* is a rule
+that spends `unattend`, and *suspend this line of work for another* is two more (`push`, `pop`).
+The loop knows a score, a match, and that a rule said stop — never what any of them is for.
 
 > **Adding a connective adds rows, not branches.**
 
@@ -63,16 +91,16 @@ fact +booked(ana, bl204)
 ```
 
 ```
-$ python -m ugm delay.ugm --why "owed(ana,money)"
-delay.ugm: 15 ticks, ended quiescent
+$ python -m ugm ugm/rules/delay.ugm --why "owed(ana,money)"
+ugm/rules/delay.ugm: 14 ticks, ended quiescent
 
 why owed(ana,money)?
-  +owed(ana, money) @M0, via kb, licensed by applied(<compensate>)
-    because +disrupted(bl204) @M0, via kb, licensed by applied(<cancel>)
-    because +booked(ana, bl204) @M0, via kb, licensed by loaded(booked(ana, bl204))
-    because -extraordinary(bl204) @M0, via kb, licensed by applied(<crewing>)
-    because +cause(bl204, crew) @M0, via kb, licensed by loaded(cause(bl204, crew))
-    because +cancelled(bl204) @M0, via kb, licensed by loaded(cancelled(bl204))
+  +owed(ana, money), via kb, licensed by applied(<compensate>)
+    because +disrupted(bl204), via kb, licensed by applied(<cancel>)
+    because +booked(ana, bl204), via kb, licensed by loaded(booked(ana, bl204))
+    because -extraordinary(bl204), via kb, licensed by applied(<crewing>)
+    because +cause(bl204, crew), via kb, licensed by loaded(cause(bl204, crew))
+    because +cancelled(bl204), via kb, licensed by loaded(cancelled(bl204))
 ```
 
 Nothing logs. Every entry records what licensed it and every application records what it consumed,
@@ -86,7 +114,7 @@ values, so anything you want to say about a connection has to be a node.
 
 ```
 on(a, b)                     a relation instance -- a node with a relation and two members
-entry(<M7>, on(a, b), +)     a CLAIM about it -- locus, proposition, sign
+entry(on(a, b), +)           a CLAIM about it -- proposition and sign, and never a third
 moment(delta, predecessor, licence)
 ```
 
@@ -94,19 +122,21 @@ A **proposition claims nothing**; only an entry does. Two levels are what negati
 buy the distinction between *the world moved* (a new entry) and *my record was wrong* (a fact about
 the old entry). A system that cannot tell those apart quietly rewrites its own history.
 
-Reading is a **walk**, ordered by two indices: **latest locus, then latest deposit**. So *what do I
-now think about M7* and *what did I think at M7* are the same walk from two starting points.
+Reading is a **walk**, and the whole of it is **later supersedes earlier** — an entry has no second
+time to be indexed by, so there is one order and no ancestry test. What the agent used to think is
+still findable, because a revision *adds* rather than overwriting.
 
 Signs are `+`, `−`, `?` — and **no entry at all**, which means *inherit*, not *unknown*. So `−` means
-denied, never absent, and open-world reasoning stays honest.
+denied, never absent. Asking the other question — *does anything assert this?* — is `no p(?x)`, a
+distinct member mode, because a rule that materialises a denial has to ask about absence first.
 
 ## What is taught
 
 | | |
 |---|---|
 | **rules** | `causes(A, B)` / `implies(A, B)` — a fact relating two generic moments, so a rule is a subject and askable |
-| **spans** | an entry's locus may be a stretch, so *they took turns* is sayable without inventing a number of turns |
-| **shapes** | recursive definitions over spans, in ordinary vocabulary |
+| **the world model** | entities are labelless nodes created by rules; a reified relationship has an id and can itself take part in one; a **denotation** is an expression with no id, which is what makes it a query |
+| **shapes** | recursive definitions over the chain, in ordinary vocabulary |
 | **modality** | a wrapping term, `likely(p)`, crossed by **supposing** — unwrap in, re-wrap out |
 | **provenance** | channels, frames and a gate; trust is a rule, never a hard-wired intake |
 | **norms** | checked at the write, never in the competition, because the opaque component may not be load-bearing for safety |
@@ -152,7 +182,7 @@ failure, plus a set of gates that each hold a fast path to a slow definition on 
 every fixture**:
 
 ```bash
-python -m ugm.selftest           # 533 checks, 0 failing
+python -m ugm.selftest           # 537 checks, 0 failing
 ./tools_sweep.sh                 # every module with a main(), found on disk
 
 python -m ugm.gates.agreement    # the kept resolution against the raw walk
@@ -189,14 +219,16 @@ python -m ugm.probes.frames         # the attention stack: what a flat queue evi
 
 - **[The book](https://ercasta.github.io/Universal-Graph-Machine/)** — the tutorial. Source in
   [`book/`](book/).
+- **[`docs/guide.md`](docs/guide.md)** — the author's and user's guide: install, run a corpus, read
+  a trail, and the whole surface — facts, rules, signs, absence, aliases, experts, actions,
+  lessons — with a worked example for each.
 - **[`docs/rules-design.md`](docs/rules-design.md)** — the design, and the only design doc.
   Self-contained, argued from seven requirements, with every representation decision scored in a
   table before it is taken.
-- **[`docs/code-walkthrough.md`](docs/code-walkthrough.md)** — a map of the code for a developer
-  about to change it: what each file owns, one tick end to end, where the caches are and what holds
-  them honest, and the traps that have cost time here.
 - **[`docs/authoring.md`](docs/authoring.md)** — the shorter, meaner document: what actually bites
   when you sit down and write a corpus, ordered by how much time it costs before you find it.
+- **[`docs/code-walkthrough.md`](docs/code-walkthrough.md)** — a map of the code, kept with a
+  stale-snapshot warning: the shape is right, the numbers are one landing old.
 - **[`docs/HANDOFF.md`](docs/HANDOFF.md)** and **[`docs/observations.md`](docs/observations.md)** —
   the working record.
 

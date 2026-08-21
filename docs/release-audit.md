@@ -349,10 +349,11 @@ the loop. `vocabulary` runs 18/0 (was 18/2).
 ## Deliberate keeps, verified as deliberate
 
 `docs/design/hindsight.md` and `docs/design/walkers.md` are tombstones for
-deleted modules and say so in their first line; `Machine.tick` and its
-machinery are the comparison arm of `python -m ugm.core.attention`;
-`ugm.workload` mentions in `hanoi`/`artefact` are explicit "the retired..."
-records. None of these is unused code; all of them are the record.
+deleted modules and say so in their first line; `Machine.tick` is one bounded
+step of the table loop (the option-set loop AND the comparison that held the
+two side by side are deleted -- `python -m ugm.core.attention` now runs worked
+examples, not a comparison); `ugm.workload` mentions in `hanoi`/`artefact` are
+explicit "the retired..." records. None of these is unused code; all of them are the record.
 
 ## Still stale, and not a sweep's to fix
 

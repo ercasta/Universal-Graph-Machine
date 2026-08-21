@@ -6,8 +6,9 @@
 > `ugm.arbitration`, `ugm.modality` and `ugm.workload` were deleted. Every
 > `python -m ugm.<name>` below needs the subpackage path now (`ugm.probes.dungeon`),
 > two of the four commands name modules that no longer exist, every count and
-> line number has moved, and §4 walks `Machine.tick` — the retired option-set
-> loop kept only as the comparison arm of `python -m ugm.core.attention`. The
+> line number has moved, and §4 walks the retired option-set loop,
+> which has since been deleted outright — `Machine.tick` is now one bounded
+> step of the table loop. The
 > *shape* of the map is still roughly right; trust nothing quantitative. The
 > current entry points: `python -m ugm.selftest`, `./tools_sweep.sh`, and
 > `docs/design/*.md` per module.

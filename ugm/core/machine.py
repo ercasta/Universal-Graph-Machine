@@ -502,8 +502,10 @@ class Machine:
             "arrived_on": self.chain.ARRIVED_ON,
             "mentioned": self.chain.MENTIONED,
             "entry_of": self.chain.ENTRY_OF,
-            # ...and a stretch of it. `span_of(?s, ?start, ?end)` mints when the
-            # endpoints are bound and decomposes when the span is (§11).
+            # ⚠ `span_of(?s, ?start, ?end)` was described here and is GONE with
+            # the locus -- a stretch was a kind of locus, and an entry has none.
+            # The comment outlived the row it documented; `ugm.gates.vocabulary`
+            # is what proved the name was gone rather than merely unused.
             "asking": self.chain.ASKING, "asked": self.chain.ASKED,
             # ⚠ Without this line `time(?m, ?t)` in a corpus is a FRESH
             # atom -- `g.atom` does not intern -- so the rule is well
@@ -3537,6 +3539,18 @@ class Machine:
             if node in seen:
                 continue
             seen.add(node)
+            # ⚠⚠⚠ A lesson may only name something that OUTLIVES the episode.
+            # A labelless entity is minted while the run goes and is a
+            # different node next time, so `attention(#1501, 3)` would name
+            # nothing in the episode that loads it -- and `#` opens a comment,
+            # so the row would take the rest of the document with it. What is
+            # dropped is said, in a line the surface can carry, because a
+            # lesson that quietly lost half its rows is the failure this whole
+            # file is written against.
+            if node not in self.g._name:
+                rows.append(f"# an unnameable node was attended and could not "
+                            f"be carried: {self.g.show(node)}")
+                continue
             rows.append(f"fact +attention({self.g.show(node)}, {score})")
         return rows
 
@@ -3836,6 +3850,31 @@ class Machine:
         signs = {v: k for k, v in self.reserved.items()
                  if k in ("plus", "minus", "unsure")}
 
+        # ⚠⚠⚠ A LABELLESS ENTITY HAS NO NAME TO RENDER, and `show` prints one
+        # as `#1501` -- which the tokeniser reads as a COMMENT, so a session
+        # containing one saved a file that could not be loaded back at all.
+        # Found by writing the guide, which is the second time the save file
+        # has been read by a person and the second defect it turned up.
+        #
+        # A surrogate name is the honest repair rather than a workaround: an
+        # entity IS its id (docs/world-model.md), the surface has only names
+        # for identity, and what has to survive the round trip is that every
+        # fact about one entity lands back on ONE node. The name is a handle
+        # this document mints, not a claim -- anything the corpus wanted to
+        # SAY about the entity is in the facts beside it.
+        taken = set(self.g._name.values())
+        surrogate: Dict[NodeId, str] = {}
+
+        def handle(n: NodeId) -> str:
+            got = surrogate.get(n)
+            if got is None:
+                got = f"entity-{n}"
+                while got in taken:  # never shadow a name the corpus wrote
+                    got += "_"
+                taken.add(got)
+                surrogate[n] = got
+            return got
+
         def surface(n: NodeId) -> str:
             if n in signs:
                 return signs[n]
@@ -3843,13 +3882,21 @@ class Machine:
                 return self.g._name[n]
             rel = self.g.relation_of(n)
             if rel is None:
-                return self.g.show(n)
+                # ...and an ERASED node reaches here too, printed `#7(erased)`.
+                # A dangling reference is already a defect; rendering it as
+                # something that reloads keeps it a defect the file can carry.
+                return handle(n)
             return f"{surface(rel)}({', '.join(surface(x) for x in self.g.members(n))})"
 
+        def member_text(m) -> str:
+            # ⚠ `no p(?x)` is a WORD in sign position, so it needs the space
+            # that `+p(?x)` must not have. Without it the file said
+            # `noserved(?p)` -- one atom, a different rule, and no error.
+            sep = " " if m.sign == ABSENT else ""
+            return f"{m.sign}{sep}{surface(m.pattern)}"
+
         def as_text(r) -> str:
-            side = lambda ms: ", ".join(
-                f"{m.sign}{surface(m.pattern)}" for m in ms
-            )
+            side = lambda ms: ", ".join(member_text(m) for m in ms)
             return (f"rule <{r.name}> = {r.connective}( {{ {side(r.antecedent)} }}, "
                     f"{{ {side(r.consequent)} }} )")
 

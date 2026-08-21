@@ -6397,6 +6397,70 @@ def an_expert_is_picked_from_what_the_frame_is_about() -> None:
           [r.name for r in m._expert_pool(kb.atom("smith"))] == ["forge"])
 
 
+def a_saved_session_can_be_read_back() -> None:
+    """§2's not-lossy criterion, at the boundary a person actually reads.
+
+    `save` renders the session as surface text. Two things this session's own
+    features added could not be rendered, and both were found by writing the
+    guide rather than by a check -- so they get one. A labelless entity has no
+    name, and `show` prints it `#1501`, which the tokeniser reads as a COMMENT:
+    the file took the rest of the document with it. And `no p(?x)` is a word in
+    sign position, so it needs the space `+p(?x)` must not have -- without it
+    the file said `noserved(?p)`, one atom, a different rule, and no error.
+    """
+    import json
+    import tempfile
+    import os
+
+    from .core.text import load
+
+    m = Machine()
+    load(m, chr(10).join([
+        "alias sale(?s, ?b) = { +is(+e, sale), +seller(+e, ?s), +buyer(+e, ?b) }",
+        "fact +sale(elara, brin)",
+        "fact +is(brin, traveller)",
+        "rule <thirsty> = implies( { +is(?p, traveller), no served(?p) },",
+        "                          { +wants(?p, ale) } )", ""]))
+    m.run(limit=40)
+
+    rendered = chr(10).join(
+        item["src"] for item in m._rendered() if item["kind"] == "load")
+    check("§2", "⚠⚠⚠ a saved session carries no `#`, which is the one "
+          "character that makes a file unreadable RATHER than wrong -- it "
+          "opens a comment, so one entity would take the document with it",
+          "#" not in rendered)
+    check("§2", "⚠ ...and an absence renders as the word it is: `no p(?x)`, "
+          "not `nop(?x)` -- which would have parsed, as a different rule",
+          "no served(?p)" in rendered)
+
+    path = os.path.join(tempfile.gettempdir(), "ugm-selftest-session.json")
+    try:
+        m.save(path)
+        with open(path, encoding="utf-8") as fh:
+            session = json.load(fh)["session"]
+        back = Machine()
+        back.replay(session, limit=40)
+        g = back.g
+        ents = {n for n, nm in g._name.items() if nm.startswith("entity-")}
+        about = sorted(
+            g.show(e.proposition)
+            for mo in back.chain.moments for e in mo.delta
+            if any(mm in ents for mm in g.members(e.proposition))
+            and back.holds(e.proposition) == PLUS)
+        check("§2", "⭐⭐⭐ ...so a session containing a labelless entity LOADS "
+              "BACK, and every fact about that entity lands on ONE node -- "
+              "which is what the round trip has to preserve, an entity being "
+              "its id and the surface having only names for identity",
+              len(ents) == 1 and len(about) == 3)
+        rules_back = {r.name for r in back.rules.rules}
+        check("§2", "⭐ ...and the rule that asked about an absence is one of "
+              "the rules that came back",
+              "thirsty" in rules_back)
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
+
+
 def a_table_can_outlive_a_run() -> None:
     """§4: let a caller pass its table in.
 
@@ -7077,6 +7141,7 @@ def main() -> int:
     a_line_of_work_can_run_dry_unnoticed()
     the_watcher_is_handed_the_move()
     a_table_can_outlive_a_run()
+    a_saved_session_can_be_read_back()
     the_aggregate_over_bindings_is_one_primitive()
     a_count_is_not_monotone()
     a_computed_numeral_is_not_a_twin()

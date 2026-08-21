@@ -5,13 +5,15 @@ Time shows up in three places here, and it's worth being explicit that this is
 
 | | what it is | where it lives |
 |---|---|---|
-| **about-when** | the stretch a claim concerns | the entry's **locus** |
 | **believed-since** | when the agent came to think so | the entry's **deposit moment** |
+| **about-when** | the stretch a claim concerns | **a claim the corpus makes** — Chapter 19 |
 | **event description** | *afternoon*, *Tuesday*, *morning* | **members of a proposition** |
 
-The first two are Chapter 5's two indices. The third is the one that needs
-discipline, because it's already in use — `cloudy(?day, morning)` — and left
-unexamined it would become a second ordering competing with succession.
+Only the first is the machine's. The second used to be too — an entry could be
+*located* at a moment or a stretch — and Chapter 19 tells the story of why it
+is not any more. The third is the one that needs discipline, because it's
+already in use — `cloudy(?day, morning)` — and left unexamined it would become
+a second ordering competing with succession.
 
 It isn't one, and the rule is:
 
@@ -19,38 +21,70 @@ It isn't one, and the rule is:
 
 *Afternoon* is a **name for a stretch of the chain**, resolved against a clock
 stamp. It is not an ordering relation, and nothing may compare two calendar
-terms directly. To ask which came first is to resolve both to spans and compare
-endpoints — which Chapter 19 already provides.
+terms directly. To ask which came first is to resolve both to stretches and
+compare their endpoints — two moments each, related by ancestry.
 
 A vocabulary that ordered calendar terms among themselves would be two orderings
 that agree by convention and drift apart without anything noticing.
 
-## Ordering two moments
+## Reading the history
 
-A rule can bind the loci of two matched entries and relate them:
+The state answers *what do I think now*. Time questions are about what came
+before it, and those are answered by walking the **chain** — which a rule does
+with three ordinary structural relations:
+
+- **`anc(?a, ?b)`** — `?b` is an ancestor of `?a`; `sanc` is the strict version.
+- **`in_delta(?m, ?e)`** — entry `?e` was deposited in moment `?m`.
+- **`entry_of(?e, p, plus)`** — what that entry actually claims.
+
+A walk has to start somewhere, and the anchor is `asking(?s)` — the seat the
+rule-level read is asked from, which a host seeds with `ask_read`:
 
 ```
-rule <hero>   = causes( { +ready(hero) }, { +acts(hero), -ready(hero) } )
-rule <goblin> = causes( { +acts(hero) },  { +acts(goblin) } )
+fact +ill(paul)
+rule <heal> = causes( { +ill(?x) }, { -ill(?x), +healthy(?x) } )
 
-rule <after> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp) },
-                        { +acted_after(?q, ?p) } )
+rule <recovered> = implies(
+  { +healthy(?x), asking(?now), anc(?now, ?then), in_delta(?then, ?e),
+    entry_of(?e, ill(?x), plus) },
+  { +recovered(?x) } )
 ```
 
 ```
-why acted_after(goblin,hero)?
-  +acted_after(goblin, hero) @M2, licensed by applied(<after>)
-    because +acts(hero) @M1, licensed by applied(<hero>)
-    because +acts(goblin) @M2, licensed by applied(<goblin>)
+ill(paul)        -> -          (the state: he is not ill now)
+recovered(paul)  -> +          (the chain: he was, at ?then)
 ```
 
-The matcher had the locus all along — every entry carries one. What was missing
-was a **pattern** for it.
+Read that pair carefully, because it is the whole point of the chapter:
 
-That got built because a foreign corpus measured what its absence cost: **24% of
-its rules were clock scaffold**, a round counter re-implementing a moment
-ordinal, plus a token threaded through six acting rules and an arithmetic
-operator that existed only to count rounds.
+> **The superseded claim was never lost. It was never in the *state***, which is
+> a different thing.
+
+A matcher sees the state — one winner per proposition — so a plain member like
+`+ill(?x)` finds the *denial*, and *it was on, then it was not* is not
+expressible against the state at all. It is expressible against the chain,
+which keeps every entry in deposit order.
+
+That distinction used to be blurred. A member could name the **locus** of the
+entry that satisfied it, which looked like it could ask about the past and
+could not: it bound the locus of *the entry the state kept* — the denial — so
+naming a moment at which the fact did hold changed nothing, and nothing
+anywhere said so. There was also a `holds_at(p, m, sign)` that resolved a
+proposition *as believed at* a named moment. Both went when the locus did.
+What replaced them is less magic and more honest: the raw chain is ordinary
+structure, and a rule that wants history walks it.
+
+!!! note "Anchoring is not a formality"
+    A skeleton member must have at least one argument already bound. An
+    unanchored `in_delta(?m, ?e)` would enumerate the entire history, so it
+    finds **nothing** instead — which is why the walk above starts at `asking`
+    and steps outward from it. Chapter 5's anchoring discipline, arriving where
+    it bites.
+
+Being able to ask at all matters more than it sounds: a foreign corpus measured
+what its absence cost, and **24% of its rules were clock scaffold** — a round
+counter re-implementing a moment ordinal, plus a token threaded through six
+acting rules and an arithmetic operator that existed only to count rounds.
 
 !!! note "Deep dive: and then it did not remove the scaffold"
     The obvious next step was that `at ?m` would collapse that scaffold, since a
@@ -90,83 +124,13 @@ warning again, and it's why the ordering test walks the predecessor relation
 rather than comparing numbers.
 
 There's a pleasant result here. **A rule can only ever bind moments on its own
-walk** — a rule matches the state resolved at its own locus, so every entry it
-binds has a locus at-or-before that locus, and two such moments are both on one
-path.
+walk** — it anchors at the seat it is asked from and steps outward through
+`anc`, so every moment it reaches is an ancestor of that seat, and two
+ancestors of one moment are always on one path.
 
 Measured on a chain forking 31 times: 145 orderings requested, **every pair
-related**. Containment was already guaranteeing the thing that makes ordering
-well defined.
-
-### What `at ?m` does not buy — and it is not what it looks like
-
-A matcher sees the **resolved** state: one entry per proposition. So two
-*different* facts at different moments are relatable, and **a single fact's own
-history is not**.
-
-*It was on, then it was not* finds nothing through `at ?m`. The reason is worth
-getting exactly right, because the obvious explanation is the wrong one.
-
-`at ?m` is **not** *evaluate this member at m*. It binds **the locus of the
-entry that satisfied the member** — and the entry that satisfies `+ill(?x)` is
-the one the state kept, which is the denial. So naming a moment at which the
-fact did hold changes nothing at all:
-
-```
-fact +ill(paul)
-rule <heal> = causes( { +ill(?x) }, { -ill(?x), +healthy(?x) } )
-
-rule <recovered> = implies(
-    { +healthy(?x) at ?now, anc(?now, ?then), +ill(?x) at ?then },
-    { +recovered(?x) } )
-```
-
-```
-+ill(?x) at ?then                -> recovered(paul) = None
-```
-
-`?then` really is a moment at which Paul was ill. The member still matches
-nothing, and nothing anywhere says so.
-
-### `holds_at` asks the other question
-
-```
-rule <recovered> = implies(
-    { +healthy(?x) at ?now, anc(?now, ?then), holds_at(ill(?x), ?then, plus) },
-    { +recovered(?x) } )
-```
-
-```
-holds_at(ill(?x), ?then, plus)   -> recovered(paul) = +
-```
-
-`holds_at(p, m, sign)` **resolves p at m** — the question Chapter 5's walk has
-always answered and no rule could ask, because the locus it resolved at was
-always the frame's own. The seat is the moment itself, so the answer is *as
-believed at that moment*: what the world looked like from there, not what the
-agent thinks now about back then. Those are different questions and a relation
-that meant one while being named for the other would be worse than an absent
-one.
-
-Three things it declines, each for a reason you already know. An **unbound**
-moment finds nothing, because asking about every moment there is would walk the
-whole history (Chapter 5's anchoring discipline). A **generic** proposition
-finds nothing, because there is nothing to resolve and answering would be
-inventing a subject. And it **mints nothing** — building its answer as a node
-would intern it, and the question would afterwards be findable as its own
-answer.
-
-And the trail shows what was confusing all along:
-
-```
-why recovered(paul)?
-  +recovered(paul) @M1, via kb, licensed by applied(<recovered>)
-    because +healthy(paul) @M1, via kb, licensed by applied(<heal>)
-    because +ill(paul) @M0, via kb, licensed by loaded(ill(paul))
-```
-
-> **The superseded claim was never lost. It was never in the *state*** — which
-> is a different thing, and `at ?m` reads the state.
+related**. The anchoring discipline was already guaranteeing the thing that
+makes ordering well defined.
 
 ## Moments are ordered, not measured
 

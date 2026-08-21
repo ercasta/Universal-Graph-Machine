@@ -185,10 +185,13 @@ rule's `stop` and cannot make that refusal, because the veto is an aggregate —
 its own matches. Measured, and shipped as an instrument rather than as a claim
 that it is acceptable (Chapter 28).
 
-**Buffs are supplied from the host language.** The surface for a postcondition —
-`after { … } => boost(<R>, n)` — is deliberately left open until the loop has
-been watched running for longer. Until it closes, the one part of the table that
-is *not* data is the part learning is supposed to write.
+**A lesson can raise a thing, not a rule.** A postcondition spends
+`attend(?x, n)` on a **node**, and the score-moving forms that named a rule
+(`boost`, `damp`, `reset`) are retired: a rule id goes stale the moment a rule
+is adopted, composed or renamed, so a corpus of experience written against rule
+names stops *loading* rather than going quietly wrong. What is not yet built is
+the other half — a lesson that says *this kind of rule matters here* without
+naming one.
 
 **Loop detection.** Designed, measured, and deliberately not built — because the
 corpora available could not measure a detector for it, and a detector nobody can
