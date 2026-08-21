@@ -781,3 +781,317 @@ patterns are) and it is not reaching the rule. ⚠ First thing to check: whether
 a rule whose consequent NAMES a rule is marked `mentions`, which would make
 `unbound` and `mentioning` fire together and `<silent>` unreachable by
 construction. Left named rather than fixed, as `gates.state` was before it.
+
+---
+
+# Queued: the ATTENTION STACK — `push` and `pop` as postconditions
+
+The author's, 2026-08-21. Not started. Argued and measured below so whoever
+takes it starts from numbers.
+
+⭐ **The author's call: this is the FIRST thing to implement**, ahead of
+`believed(p)` and the queued `at ?m` conversion -- and probably in a fresh
+session, because nothing above it in this file is a prerequisite.
+
+## The proposal, and it is one thing
+
+`Machine._attention` becomes a stack of frames rather than a flat queue, and the
+postcondition vocabulary gains two rows:
+
+    push        start a fresh attention frame
+    pop(?x)     restore the previous frame, attending ?x on it
+
+⚠⚠⚠ **The graph is untouched by both.** This is not a transaction, there is no
+rollback, and nothing derived inside a frame stops existing when it is popped.
+Popping a set of graph changes is a different feature, it does not exist, and it
+is not wanted. Attention management is the whole of this.
+
+## Why: the queue forgets, two ways, and both are constants in the code
+
+    ATTENTION_SPAN = 7   `_push_attention`: *whatever falls off the bottom is
+                         forgotten*                        machine.py:1295
+    PULL = 6             `_pull`: weight = max(1, PULL - i), so nothing lifts
+                         past depth 6                      attention.py:365
+
+So a long sub-line's own writes evict what the agent was doing before it. That
+is not a risk, it is the documented behaviour, and it has already cost this
+repository twice, in numbers it wrote down itself:
+
+    _attend_written    backed out TWICE (20d, 20h) -- *a queue permanently full
+                       of undifferentiated nodes made the agent chase its own
+                       tail and quiesce 30 MOVES EARLY*
+    _attention_asked   *the dungeon quiesced 32 MOVES EARLY and lost 48
+                       CONCLUSIONS*
+
+## ⭐⭐⭐ Why a stack rather than a fourth filter
+
+Three fixes have been tried and all three are **filters on a flat queue**:
+
+    _attention_asked   claimed vs derived
+    _bookkeeping       exclude the machinery's own relations
+    weight             a learned `attend(?x, 3)` outranks a weight-1 push
+
+Each makes the queue's *contents* more selective. None of them can help, because
+at span 7 a long enough sub-line evicts anything, however well chosen. **A stack
+does not filter -- it suspends.** The outer frame is off the queue entirely, so
+it cannot be evicted however long the inner line runs.
+
+⚠ And raising the span is not the answer, because the squeeze is from both
+sides: `ugm.selftest` already measures the other end -- *attention that names
+everything narrows nothing*.
+
+## It is two rows in a vocabulary that already has three
+
+`attend(...)`, `unattend` and `stop` are parsed in one function (`text.py`'s
+`spend()`) and dispatched in one place (`attention.py:651-669`). §5's test is
+that adding a connective adds **rows, not branches**, and this adds two rows to
+the one list that already exists for exactly this kind of thing.
+
+⭐⭐⭐ **And `stop`'s own design note is already the argument for a rule-decided
+pop**, written before anyone asked for one (`text.py:369`):
+
+> *Done is the output of a rule that checks against the goal* -- which the table
+> loop's own design says, and had no way to obey. A rule concludes that here is
+> over; its postcondition is what ends the run. **The loop still knows nothing
+> about goals: it knows a rule spent attention by saying `stop`.**
+
+So `pop` is `stop` scoped to a frame, and `push` is `attend` scoped to a fresh
+one. Neither is a new kind of construct.
+
+## ⭐⭐⭐ A frame carries its own RULESET, and that is the second duty
+
+The author's, 2026-08-21. A frame is not only an attention queue:
+
+    frame = (attention queue, the EXPERT whose rules are in play, its table)
+
+So `push` is how one expert CALLS another and `pop` is how it gets the result
+back -- the attention stack and the consultation stack are **one construct, not
+two**. ⚠ The expert is held by NAME, never as a frozen rule list: `pool_of` is
+*read, never kept* (`probes/experts.py`), because a registry built at load could
+not see a `knows` that a rule concluded.
+
+⭐⭐⭐ **And `probes/experts.py` already names the gap this closes, in its own
+words** (`experts.py:147`):
+
+> ...and run it again, because the answer is a new fact its rules have not seen.
+> **Nothing is resumed: there is no suspended computation, only a table and a
+> chain that has moved.**
+
+An expert today does not wait for a result -- it re-runs its whole loop from the
+top once the callee finishes, because there is nothing to suspend into. And
+`run()` builds a FRESH `Table` whenever none is passed (`attention.py:438`),
+which `experts.py` never does, so the caller's scores are discarded on every
+consultation return.
+
+⚠⚠⚠ **The engine already knows what that costs**, in `tick`'s own docstring:
+
+> The table PERSISTS across calls, or a caller stepping by hand would lose every
+> buff between one tick and the next and be **measuring a different agent each
+> time**.
+
+That is stated about stepping by hand. `experts.py` incurs it on every return,
+by construction. A frame that carries the table is what turns its re-run into a
+resume, and *wait for the result* into something literally true.
+
+⚠ Two things this adds to OPEN below rather than settles:
+
+    the cycle test    `experts.py` keys on the (expert, question) PAIR, not on
+                      the expert -- `A -> B -> A` asking something NEW is
+                      ordinary recursion and must be allowed. With frames the
+                      stack is the natural key, and the caution below applies
+                      with more force, not less.
+    the budget        every `run()` carries its own `limit`, so a chain of
+                      consultations multiplies the budget silently. A real
+                      stack makes *whose budget* a question that has to be
+                      answered rather than inherited.
+
+## ⭐⭐⭐ AUTOMATIC EXPERT SELECTION, by TF-IDF — and it is not a proposal
+
+The author's, 2026-08-21. `push` names the NODES to put in the new frame; the
+expert is chosen from them, automatically, by **TF-IDF over experts**.
+
+⚠⚠⚠ **This is not *propose, and someone else decides*.** The author's, and it
+settles a suggestion of mine that had the wrong shape:
+
+> Like attention, it's life or death. If wrong, nothing can save the system.
+
+**And the design already agrees, in §19's own words.** Recall is life-or-death
+and unarguable in exactly this way -- a rule that was never recalled cannot
+object that it was not -- and the answer this design gave was never a veto over
+the choice. It was a CARVE-OUT for what must never depend on it:
+
+> Recall may be incomplete about what to do. It may not be incomplete about what
+> you must not do.
+
+`_forbid` runs outside recall entirely. So the mitigation for an unarguable
+selection is not making it arguable; it is knowing what must not ride on it.
+
+### ⭐⭐⭐ And TF-IDF is specifically the repair for a collapse this repo MEASURED
+
+`_salient` compared raw relation sets, and the `practice` rewrite recorded what
+that costs: *`_relations_required` collapses to `{goal, in}` for EVERY route, so
+`_salient` cannot tell two routes apart and `leaves()` returns NOTHING -- the
+agent rehearses, is harmed, blames correctly, and learns nothing, **with no
+error anywhere**.*
+
+**IDF is the correction for precisely that pathology.** A relation in every
+expert's pool gets near-zero weight and stops drowning the signal; the
+discriminating terms carry the score. The naive version of this mechanism has
+already failed once here, and this is not a generic scoring choice but the
+principled repair of that failure.
+
+⭐ **It also supersedes a hand-rolled guard.** `_pull` takes the STRONGER, not
+the sum -- *adding them would make the weight a popularity count*. That `max` is
+a crude defence against ubiquity. IDF is the well-founded version of the same
+defence, which is what makes a weighted SUM safe here where a raw one was not.
+
+### DECIDED
+
+    the terms       individual terms scored, with BONUSES FOR COMPOUNDS. ⭐ Same
+                    shape as attention's own scoring, which already decomposes a
+                    proposition into every node it is made of (`_nodes_of`,
+                    machine.py:1283) and pushes each part separately. The
+                    discussion was had once for rules; this is it for experts.
+    when IDF is     ONCE, at startup, when the whole KB is loaded.
+    computed
+    adding an       ...re-scores every other one, and changes which expert is
+    expert          picked for unrelated frames. **A FEATURE, not a bug** --
+                    written down here so nobody debugs it as nondeterminism.
+    the data        FREE. An expert is already a set of rules (`knows(?e, ?r)`,
+    it needs        read off the graph) and rule -> relation is already indexed
+                    (`_by_relation`, attention.py:319). Expert -> terms needs no
+                    new structure.
+
+⚠ **Mine, and strike it if it is not wanted.** What an unarguable step cannot
+buy back is vetoability; what it must not lose is LEGIBILITY. Every other engine
+decision nobody can override is deposited here -- `refused` (the gate's veto),
+`unafforded` (*an attempt at something the palette does not afford, on the
+record*), `declined`. So deposit the pick **and the scores it beat**. On a
+life-or-death step it will be wrong eventually, and `why()` should answer rather
+than shrug. That is `deposit-dont-decide.md` applied to a decision that genuinely
+cannot be delegated.
+
+⚠ **One interaction to know about, not to relitigate.** IDF is fixed at startup;
+pools are *read, never kept*, and `knows(?e, ?r)` can be CONCLUDED mid-run --
+`<inherit>` derives more of them. So an expert's actual pool can grow after its
+scores were computed. Decided as stated; recorded so whoever implements it knows
+the two facts are in tension by design rather than by oversight.
+
+## DECIDED
+
+    frames carry    the attention queue, the expert whose rules are in play,
+                    and that expert's table. Push is a call; pop is a return.
+    who pushes      an EXPERT -- supposition, goal, procedure -- never a pure
+                    reasoning rule. That is the whole point: a reasoning rule
+                    must not be polluted with an external mechanism, and engine
+                    support for the frame is what lets pure rules compose.
+    what pops       a RULE says so. A goal-management rule that checks whether
+                    the goal is reached spends `pop`. ⚠ NOT the loop detecting
+                    its own quiescence -- that would put the decision back in
+                    the engine, and `stop` already settles which way this goes.
+    pop carries     `pop(?x)` attends ?x on the restored frame: the
+    one node back   attention-level analogue of a return value. Without it the
+                    agent returns from a sub-line with no idea it concluded
+                    anything, and has to rediscover it by ordinary matching.
+    deposited       a push and a pop are each written down, per `_unattend`'s
+                    note: *denied, not forgotten -- dropping a Python set is not
+                    readable by any rule and cannot be argued with*. A RECORD of
+                    a focus change, not an undo of anything.
+    NOT in scope    popping graph changes. See the warning at the top.
+
+## OPEN
+
+1. **A depth bound.** `probes/experts.py` sets `DEPTH = 8` with a cycle test
+   keyed on the `(expert, question)` PAIR. ⚠⚠⚠ Copy its caution and not only its
+   constant: an earlier draft of that file returned to the outer loop instead of
+   servicing nested consultations in place, so **the stack was never deeper than
+   one, the cycle test could never fire, and a check asserting depth passed
+   while the stack was flat.**
+2. **Does `stop` become *pop the root*?** Elegant, and not required.
+3. **What else a frame holds.** Queue, expert and table are decided above;
+   `_widened` is the remaining candidate, since it is already a degenerate pop
+   (*the loop admits its table was wrong*).
+4. **An unpopped frame.** Is a leak reclaimed, or is it a thing the agent can be
+   asked about? The second is this design's usual answer.
+5. **What the cycle test keys on** once the stack is frames rather than
+   `(expert, question)` pairs. ⚠ `A -> B -> A` asking something NEW is ordinary
+   recursion and must stay allowed.
+6. **Whose budget.** Every `run()` carries its own `limit`; a chain of
+   consultations multiplies it silently, and a real stack makes that a question
+   rather than an inheritance.
+7. **What must NOT ride on the expert pick**, per §19's carve-out. `_forbid`
+   already runs outside recall; the same question has to be asked of an
+   unarguable expert selection, and it is the only mitigation this design
+   accepts for a life-or-death step.
+8. **How `push` names its nodes.** The selection is computed FROM them, so the
+   notation for saying which they are is the one part of `push` still unwritten.
+   `attend(?x)` is the precedent -- a host rule's own variable, bound by the
+   move that spent it.
+
+## What to measure FIRST, before building
+
+Two things, and neither has a number yet.
+
+1. **Is the eviction loss real in a corpus that already exists?** The figures
+   above were measured on the flat queue's *contents*; nobody has measured how
+   often a sub-line evicts an outer focus that was still wanted.
+2. **Do experts actually discriminate, after IDF?** The overlap is what IDF
+   discounts, so the naive-collapse worry is answered by the choice of metric --
+   but how much signal is LEFT after discounting is still a number nobody has,
+   and it is the number that says whether the pick is a mechanism or a coin
+   flip. ⚠ `_salient` is the standing warning: it failed silently.
+3. **How far does a re-run diverge from a resume?** `probes/experts.py` already
+   re-runs the caller with a fresh table on every consultation return, so the
+   comparison can be made against the code as it stands: run a consultation
+   chain, then run it again passing the caller's table back in, and see whether
+   the agent chooses the same moves. If it does not, `tick`'s *measuring a
+   different agent each time* has a number for the first time.
+
+⚠ A frame that fixes nothing measurable is a mechanism this design would refuse
+on its own terms.
+
+---
+
+# Measured 2026-08-21, and it belongs to SITUATION MANAGEMENT, not to the stack
+
+Kept separate on purpose -- these were probed while the stack was being argued
+and they are a different topic. **⚠ Measured on the CURRENT engine, before
+`believed(p)`**, so re-check anything that turns on entries once anchors are the
+state.
+
+Containment spreading along structure, as one ordinary rule, works today:
+
+    rule <spread> = implies( { +in(?h, ?p), +?rel(?p) as ?t }, { +in(?h, ?t) } )
+
+    in(h1, secret(a)) + said(secret(a))   ->  in(h1, said(secret(a)))    yes
+
+A variable in the relation slot and `as ?t` (`Member.binds`) are both already
+supported, so the mechanism needs no engine support at all. Two limits, running
+in opposite directions:
+
+    ⚠⚠ arity 1 only     `?rel(?p)` matches single-member instances. Measured:
+                        `metal(kettle)` and `boiling(kettle)` reached;
+                        `on(kettle, stove)` and `knows(bob, said(secret(a)))`
+                        NOT. Containment stops at the first multi-ary relation,
+                        and writing a row per (arity, position) is unbounded.
+    ⚠⚠⚠ it over-        `in(h1, kettle)` drags `metal(kettle)` and
+    propagates          `boiling(kettle)` in -- world facts about a real kettle.
+                        The rule cannot tell *minted inside the hypothesis* from
+                        *already true and mentions the same thing*.
+
+⭐ **The engine gap this names is one structural relation, not a mechanism.**
+`structural_relations` (`rules.py:1368`) already carries `chain.ENTRY_OF:
+_members_of` -- *not stored and not walked, but read off the node's own
+members*. A generic member relation is that same kind, one more row in that
+dict, and it collapses the arity problem to a single rule:
+
+    { +in(?h, ?p), +member_of(?t, ?p) }  =>  { +in(?h, ?t) }
+
+⚠⚠⚠ **And the collision to settle before an expert is written:**
+`learning/practice.py:60` already ships `<observe> = implies( { +world(?s),
++did(?a) }, { +in(?s, did(?a)) } )` -- believed world facts are deliberately
+copied INTO a scene. So `in(?s, p)` already means *p is part of scene s*, and it
+cannot also mean *not believed*. Under the anchored shape it does not need to:
+**not-believed is the default**, because minting structure believes nothing and
+nothing mints a `believed(...)` anchor by accident. The marking job shrinks from
+containment to belonging.
