@@ -24,7 +24,11 @@ ROLES: Dict[str, List[str]] = {
     # modifier and is gone with the locus; the parser refuses it by name rather
     # than dropping it, so it is a REFUSAL the surface knows about and not a
     # word it reserves.
-    "the surface": ["causes", "implies", "not", "plus", "minus", "unsure"],
+    # `absent` is the absence MODE's node -- `no p(?x)` reified as
+    # `ant(?r, ?p, absent, ?i)` -- beside the three signs for the same reason
+    # they are here: the surface's own marks, spoken of in argument position.
+    "the surface": ["causes", "implies", "not", "plus", "minus", "unsure",
+                    "absent"],
     # §4-§11: the history, and how to walk it. ⚠ It arrived unclassified and
     # this census is what caught it -- see docs/observations.md §2.14, where
     # the invariant was written down one message before it fired.

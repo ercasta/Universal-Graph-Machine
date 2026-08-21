@@ -20,6 +20,7 @@ from .graph import Graph, NodeId
 from .rules import (
     _defeaters,
     already_there,
+    ABSENT,
     GENERIC,
     CAUSES,
     IMPLIES,
@@ -531,6 +532,9 @@ class Machine:
             # docs/design/machine.md#the-signs-as-arguments-expects-p-plus-men
             "plus": self.rules.SIGN["+"], "minus": self.rules.SIGN["-"],
             "unsure": self.rules.SIGN["?"],
+            # ...and the absence mode's node, so a reified `no` member --
+            # `ant(?r, ?p, absent, ?i)` -- is a row a corpus can ask about.
+            "absent": self.rules.SIGN[ABSENT],
         }
 
         self.selections = 0
@@ -2934,6 +2938,17 @@ class Machine:
                     cache["bucket"] = {}
                     for k in cache["apps"]:
                         self._revive(cache, k)
+            # An absence has no entry to pivot on, so the incremental pass
+            # cannot see it flip: a claim about its relation -- either sign,
+            # because an assertion ends an absence and a denial can begin one
+            # -- re-matches the whole rule, the same move structure growing
+            # makes above.
+            flipped = {self.g.relation_of(e.proposition) for e in delta}
+            for r in self.rules.rules:
+                if any(mm.sign == ABSENT
+                       and self.g.relation_of(mm.pattern) in flipped
+                       for mm in r.antecedent):
+                    cache["rule_pos"].pop(r.node, None)
             for k in suspect:
                 app = cache["apps"].get(k)
                 if app is None:
@@ -3174,6 +3189,22 @@ class Machine:
         # machinery intact and lets refraction filter what survives it.
         if self._passed_up(app) or not self._would_change(app):
             return False
+        # ⚠⚠⚠ An absence is re-asked at the door. A candidate matched while
+        # `no p` held may be applied ticks later, and nothing consumed records
+        # the absence -- there is no entry to go stale, so the premises-still-
+        # current check cannot catch it. Skeleton relations are exempt: their
+        # absence was evaluated by a walker, and BUILDING the proposition to
+        # re-ask would derive the very structure asked about.
+        absent = [m for m in app.rule.antecedent if m.sign == ABSENT]
+        if absent:
+            skel = self.rules.skeleton()
+            for m in absent:
+                if self.g.relation_of(m.pattern) in skel:
+                    continue
+                e = self.chain.resolve(
+                    substitute(self.g, m.pattern, app.bindings))
+                if e is not None and e.sign == PLUS:
+                    return False
         return self._instantiation(app) not in self._spent
 
     def _would_change(self, app: Application) -> bool:

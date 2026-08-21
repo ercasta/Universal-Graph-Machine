@@ -10,11 +10,20 @@ the same moment needs no skeleton, and the skeleton is what §8 adds for chains.
 
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from .chain import Chain, Entry, MINUS, Moment
+from .chain import Chain, Entry, MINUS, Moment, PLUS
 from .graph import Graph, NodeId
 
 CAUSES = "causes"
 IMPLIES = "implies"
+
+# The fourth member mode, and it is a MEMBER mode rather than an entry sign:
+# `no p(?x)` holds when nothing in the state asserts `p(?x)`. §9's `-` means
+# *an entry denies this*, never *absent* -- and it cannot mean absent, because
+# the rule that MATERIALISES a denial needs to ask about absence first
+# (chicken and egg). An absence is asked, never deposited: the gate has no
+# entry sign for it, deliberately, so a consequent that tries is refused at
+# load and a write that slipped past would fail loudly at the chain.
+ABSENT = "no"
 
 
 class _Stop:
@@ -212,6 +221,11 @@ class RuleSet:
         self.SIGN = dict(chain.SIGN) if chain is not None else {
             s: g.atom(s) for s in ("+", "-", "?")
         }
+        # ⚠ In the RULESET's table only, never the chain's: a reified `no`
+        # member needs a sign node to be spoken of (`ant(?r, ?p, absent, ?i)`),
+        # but no entry may ever carry it -- `Gate.write` with this sign would
+        # KeyError at `chain.SIGN`, which is the loud failure we want.
+        self.SIGN[ABSENT] = g.atom("absent")
         self.rules: List[Rule] = []
         # Experience, kept apart from world knowledge: what to reach for after a
         # rule applies (keyed by its node) and what to reach for at ranking time
@@ -1062,7 +1076,10 @@ def match(
                 # notation. ⚠ Safe only because the strata are ORDERED.
                 # →
                 # docs/design/rules.md#an-evaluated-member-that-reads-the-chain-it-yie
-                if want.sign == MINUS:
+                if want.sign in (MINUS, ABSENT):
+                    # `no` over the skeleton IS this negation: structure has no
+                    # denying entry, so absent and denied collapse into one
+                    # question the walker already answers.
                     for _ in walk_fn(g, chain, want, bindings):
                         return  # something satisfies it: the negation fails
                     step(j + 1, bindings)
@@ -1098,6 +1115,27 @@ def match(
                 if b is not None:
                     step(j + 1, b)
                 return
+            if want.sign == ABSENT:
+                # ⭐⭐⭐ Absence, asked rather than matched: holds when nothing
+                # in the state ASSERTS the (now ground) proposition. A denied
+                # proposition is absent too -- `-p` says an entry denies p,
+                # and this asks the prior question. ⚠ Ground by construction:
+                # the loader refuses a `no` member whose variables an earlier
+                # member does not bind, and the walk order keeps authored
+                # relative order, so an open pattern here is a bug upstream --
+                # answered with nothing rather than with everything.
+                grounded = substitute(g, want.pattern, bindings)
+                if g.has_var(grounded):
+                    return
+                e = chain.resolve(grounded)
+                if e is not None and e.sign == PLUS:
+                    return  # something asserts it: the absence fails
+                b = bindings
+                if want.binds is not None:
+                    b = unify(g, want.binds, grounded, bindings)
+                if b is not None:
+                    step(j + 1, b)
+                return
             source = fresh if i == pivot else state
             for e in source.candidates(g, want, bindings):
                 b = unify(g, want.pattern, e.proposition, bindings)
@@ -1124,6 +1162,12 @@ def match(
             # results, one wasted walk. Skipping it saves the walk.
             r_ = g.relation_of(rule.antecedent[pivot].pattern)
             if r_ in computes or r_ in structural:
+                continue
+            # ⚠ Never pivot on an absence: there is no entry for it to have
+            # matched. The machine re-matches the whole rule when a claim
+            # about the absent relation lands, which is this pass's job done
+            # elsewhere.
+            if rule.antecedent[pivot].sign == ABSENT:
                 continue
             run(pivot)
     return results

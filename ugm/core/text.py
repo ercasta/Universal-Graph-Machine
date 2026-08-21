@@ -13,7 +13,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 from .chain import MINUS, PLUS, UNSURE
 from .graph import NodeId
 from .machine import Machine
-from .rules import (CAUSES, IMPLIES, STOP, UNATTEND, Attend, Member, Pop,
+from .rules import (ABSENT, CAUSES, IMPLIES, STOP, UNATTEND, Attend, Member, Pop,
                     Push)
 
 SIGNS = {"+": PLUS, "-": MINUS, "?": UNSURE}
@@ -460,6 +460,17 @@ class Parser:
         if t.kind == "punct" and t.text in SIGNS:
             # `?` is the unsure sign here; `?x` tokenised as a var, never as this
             sign = SIGNS[self.next().text]
+        elif (t.kind == "name" and t.text == "no"
+                and self.i + 1 < len(self.toks)
+                and self.toks[self.i + 1].kind in ("name", "var", "rulename")):
+            # `no p(?x)` -- there is NO p(?x) -- the absence mode, in sign
+            # position because it is one: a fourth way a member relates to the
+            # state, beside asserted, denied and unsure. ⚠ The lookahead is
+            # what keeps `no` an ordinary word everywhere else: `no(...)` is a
+            # term (next token is `(`), a bare `no` before `,` or `}` is the
+            # atom, and only `no <term>` reads as the mode.
+            self.next()
+            sign = ABSENT
         term = self.term()
         # ⚠ `@` is refused rather than ignored. It used to carry a GRADE, and
         # grades are gone: an uncertain conclusion is `+likely(p)`, an ordinary
@@ -1122,10 +1133,31 @@ class Loader:
             raise ParseError(f"line {s.line}: <{s.name}> is already declared")
         s = s._replace(antecedent=self._expand(s.antecedent, "ant", s.line),
                        consequent=self._expand(s.consequent, "con", s.line))
+        if any(m.sign == ABSENT for m in s.consequent):
+            raise ParseError(
+                f"line {s.line}: a rule cannot conclude an absence -- absence "
+                f"is asked, never asserted. To say something is not so, "
+                f"conclude the denial: `-p(...)` (§9)."
+            )
         scope: Dict[str, NodeId] = {}
         ant = [Member(m.sign, self.build(m.term, scope),
                       self.build(m.binds, scope) if m.binds else None)
                for m in s.antecedent]
+        for i, m in enumerate(ant):
+            if m.sign != ABSENT or not self.m.g.has_var(m.pattern):
+                continue
+            # An absence is a CHECK, not a binder: `no p(?x)` with ?x free is
+            # *for no ?x* -- the negative existential §9 says a member cannot
+            # mean -- so every variable must arrive bound, from members that
+            # can bind (an earlier absence binds nothing either).
+            binders = [a for a in ant[:i] if a.sign != ABSENT]
+            if not self._covered(m.pattern, binders):
+                raise ParseError(
+                    f"line {s.line}: rule {s.name!r} asks `no "
+                    f"{self.m.g.show(m.pattern)}` with a variable no earlier "
+                    f"member binds -- an absence is a check on things already "
+                    f"picked out, never a way of picking them out"
+                )
         con = [Member(m.sign, self.build(m.term, scope),
                       self.build(m.binds, scope) if m.binds else None)
                for m in s.consequent]
@@ -1189,6 +1221,11 @@ class Loader:
 
     def _fact(self, s: Statement) -> None:
         assert s.member is not None
+        if s.member.sign == ABSENT:
+            raise ParseError(
+                f"line {s.line}: a fact states; `no ...` asks. Absence is a "
+                f"rule's antecedent, never a deposit."
+            )
         if self._is_alias_use(s.member.term):
             if s.name:
                 raise ParseError(

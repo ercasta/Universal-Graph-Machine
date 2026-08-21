@@ -72,6 +72,17 @@ matching things in the world. *The goblin you attacked three turns ago* and
 value, cacheable and explicitly invalidated. List, Bag, Set, All, Some, count,
 greater, smaller live here.
 
+**Absence is asked, never asserted: `no p(?x)`.** A query needs to say *nothing
+matches this*, and `-` cannot say it — §9's `-` means *an entry denies this*,
+and the rule that materialises a denial has to ask about absence first, which
+is chicken and egg. So `no p(?x)` is a fourth way an antecedent member relates
+to the state, beside `+`, `-` and `?`: it holds when nothing currently asserts
+`p(?x)` (a denied `p` is absent too — `no` asks the prior question). It is a
+check, not a binder — every variable must arrive bound from an earlier member,
+because `no p(?x)` with `?x` free would mean *for no ?x*, the negative
+existential a member cannot mean. And it can never be concluded or deposited:
+a fact states, a consequent asserts or denies, and only an antecedent asks.
+
 **A corpus can name the shape once: an alias.** Reified structure is three
 lines where the old style was one, so the surface lets a corpus define the
 shorthand itself:

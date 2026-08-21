@@ -6905,6 +6905,78 @@ def an_alias_is_shorthand_for_structure() -> None:
           "than the author wrote",
           refused_sign)
 
+
+def absence_is_asked_never_asserted() -> None:
+    """`no p(?x)`: the absence mode, distinct from `-p(?x)` on purpose.
+
+    §9's `-` means *an entry denies this*, never *absent* -- and it cannot
+    mean absent, because the rule that MATERIALISES a denial has to ask about
+    absence first: chicken and egg. So absence is a fourth way a member
+    relates to the state, asked against it rather than matched in it, and it
+    can never be concluded or deposited.
+    """
+    from .core.text import ParseError, load
+
+    m = Machine()
+    kb = load(m, chr(10).join([
+        "fact +door(a)",
+        "fact +door(b)",
+        "fact +open(a)",
+        # absence read directly: b has no open() claim, a has one
+        "rule <shut> = implies( { +door(?d), no open(?d) }, { +closed(?d) } )",
+        # ...and the chicken-and-egg case: a denial MATERIALISED from absence
+        "fact +lamp(l1)",
+        "rule <dark> = implies( { +lamp(?l), no lit(?l) }, { -lit(?l) } )", ""]))
+    m.run(limit=200)
+    g = m.g
+    closed = {g.member(n, 0) for n in g.instances_of(kb.atoms["closed"])
+              if m.holds(n) == PLUS}
+    check("world model", "⭐⭐⭐ `no p(?d)` holds where nothing asserts p(?d) -- "
+          "b is closed, and a (whose open() stands) is not",
+          closed == {kb.atom("b")})
+    check("world model", "⭐⭐⭐ a denial can be MATERIALISED from absence: "
+          "<dark> asks `no lit(?l)` and concludes `-lit(?l)`, which `-` alone "
+          "could never bootstrap",
+          m.holds(g.rel(kb.atoms["lit"], kb.atom("l1"))) == MINUS)
+
+    # Absence becoming TRUE mid-run: nothing asserted `open(c)` being denied
+    # ever matches an absence member incrementally, so the machine re-matches
+    # the rule in full when a claim about the absent relation lands.
+    m2 = Machine()
+    kb2 = load(m2, chr(10).join([
+        "fact +door(c)",
+        "fact +open(c)",
+        "fact +slam(c)",
+        "rule <shut> = implies( { +door(?d), no open(?d) }, { +closed(?d) } )",
+        "rule <slammed> = causes( { +slam(?d), +open(?d) }, { -open(?d) } )", ""]))
+    m2.run(limit=200)
+    check("world model", "⭐⭐ an absence can COME TRUE: open(c) stood, <shut> "
+          "waited, <slammed> denied it, and <shut> fired on the re-match -- "
+          "a flip no delta entry could have pivoted on",
+          m2.holds(m2.g.rel(kb2.atoms["closed"], kb2.atom("c"))) == PLUS
+          and m2.holds(m2.g.rel(kb2.atoms["open"], kb2.atom("c"))) == MINUS)
+
+    unbound = False
+    try:
+        load(Machine(), chr(10).join([
+            "rule <bad> = implies( { no p(?x) }, { +q(?x) } )", ""]))
+    except ParseError:
+        unbound = True
+    check("world model", "⚠ `no p(?x)` with ?x unbound is REFUSED at load: "
+          "*for no ?x* is the negative existential a member cannot mean -- "
+          "an absence checks things already picked out",
+          unbound)
+
+    concluded = False
+    try:
+        load(Machine(), chr(10).join([
+            "rule <bad> = implies( { +p(?x) }, { no q(?x) } )", ""]))
+    except ParseError:
+        concluded = True
+    check("world model", "⚠ a rule cannot CONCLUDE an absence -- absence is "
+          "asked, never asserted; saying something is not so is `-q(...)`",
+          concluded)
+
     # ⚠ The honest limit, stated because it is the failure mode this invites.
     # Refraction bounds re-firing on ONE set of premises. It cannot bound a
     # generative CHAIN -- mint, conclude about the new node, mint again -- since
@@ -7012,6 +7084,7 @@ def main() -> int:
     a_rule_can_introduce_a_thing()
     a_relationship_is_among_ids_a_denotation_is_a_query()
     an_alias_is_shorthand_for_structure()
+    absence_is_asked_never_asserted()
     attention_is_about_a_node_not_a_rule()
     attention_is_learned_from_what_the_move_bound()
     a_lesson_about_attention_is_learned_from_play()
