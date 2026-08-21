@@ -9,7 +9,6 @@ distinguishes them. That works, and it does not transfer.
 See docs/design/lifting.md.
 """
 
-from typing import Dict, List
 
 from ..core.machine import Machine
 from .surprise import common, features, learn

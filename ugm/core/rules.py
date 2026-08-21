@@ -10,7 +10,7 @@ the same moment needs no skeleton, and the skeleton is what §8 adds for chains.
 
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from .chain import Chain, Entry, MINUS, Moment, PLUS
+from .chain import Chain, Entry, MINUS, PLUS
 from .graph import Graph, NodeId
 
 CAUSES = "causes"

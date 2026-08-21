@@ -12,7 +12,7 @@ are stated relative to -- and containment is a premise rather than a mechanism.
 See docs/design/practice.md.
 """
 
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 from ..core.machine import Machine, induce, leaves
 from ..core.text import load

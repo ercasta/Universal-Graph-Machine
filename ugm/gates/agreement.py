@@ -10,8 +10,6 @@ See docs/design/agreement.md.
 from typing import List, Tuple
 
 from ..core.chain import Chain, Moment
-from ..core.graph import Graph
-from ..core.gate import Gate
 from ..core.machine import Machine
 from ..core.text import load
 

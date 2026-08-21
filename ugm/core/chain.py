@@ -8,7 +8,7 @@ See docs/design/chain.md.
 """
 
 import time as _wallclock
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from .graph import Graph, NodeId
 
@@ -344,8 +344,9 @@ class Chain:
 
     def rests_on(self, e: Entry) -> List[Entry]:
         """What this entry was derived from, one hop, read from the graph rather
-        than from the Python field. The two must agree, and `ugm.support` is what
-        holds them to it -- an index is a re-implementation of what it indexes,
+        than from the Python field. The two must agree -- the selftest's
+        structural-mirror checks hold them to it (the retired `ugm.support`
+        did before them) -- an index is a re-implementation of what it indexes,
         which is the lesson `state` paid for."""
         out = []
         for node in self.g.instances_of(self.RESTS_ON):

@@ -11,7 +11,7 @@ built into the engine.**
 UGM is a self-contained Python library with no dependencies.
 
 ```bash
-python -m ugm.selftest              # 646 checks, 0 failing
+python -m ugm.selftest              # 533 checks, 0 failing
 python -m ugm ugm/rules/delay.ugm --why "owed(ana,money)"
 ```
 
@@ -152,7 +152,7 @@ failure, plus a set of gates that each hold a fast path to a slow definition on 
 every fixture**:
 
 ```bash
-python -m ugm.selftest           # 513 checks, 0 failing
+python -m ugm.selftest           # 533 checks, 0 failing
 ./tools_sweep.sh                 # every module with a main(), found on disk
 
 python -m ugm.gates.agreement    # the kept resolution against the raw walk

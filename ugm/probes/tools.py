@@ -7,7 +7,7 @@ getting hurt.
 See docs/design/tools.md.
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from ..core.machine import Machine
 from ..core.text import Loader

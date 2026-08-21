@@ -10,10 +10,9 @@ See docs/design/machine.md.
 from .. import corpora as _corpora
 import inspect
 import heapq
-import os
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .chain import MINUS, PLUS, Chain, Entry, Moment
+from .chain import MINUS, PLUS, Chain, Entry
 from .channels import Arrival, Channels
 from .gate import Gate
 from .graph import Graph, NodeId
@@ -1393,12 +1392,6 @@ class Machine:
     @_attention.setter
     def _attention(self, queue) -> None:
         self._frames[-1].queue = list(queue)
-
-    def _frame(self) -> "Frame":
-        """The frame in play. There is always at least one -- the root, which is
-        never popped, because a run that returned from its outermost line would
-        have nothing to return to and `stop` is what ends a run."""
-        return self._frames[-1]
 
     def _push_frame(self, nodes, licence: Optional[NodeId] = None):
         """Suspend what the agent was doing and open a frame on `nodes`.

@@ -9,7 +9,7 @@ Machine._would_change.
 See docs/design/interpret.md.
 """
 
-from typing import Dict, List, Tuple
+from typing import Dict
 
 from ..core import rules as R
 from ..core.machine import Machine

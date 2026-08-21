@@ -8,7 +8,7 @@ depth is a position rather than a duration.
 See docs/design/clock.md.
 """
 
-from typing import Dict, List, Tuple
+from typing import Dict
 
 from ..core.machine import Machine
 from ..core.text import load

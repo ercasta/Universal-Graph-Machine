@@ -8,7 +8,7 @@ accuracy -- it is the ability for a minority to LOSE.
 See docs/design/forest.md.
 """
 
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..core.machine import Machine
 from ..core.text import Loader

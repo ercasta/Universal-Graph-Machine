@@ -9,7 +9,6 @@ finding that out is half the result.
 See docs/design/teaching.md.
 """
 
-import os
 from typing import Dict, List, Optional, Tuple
 
 from .. import corpora as _corpora

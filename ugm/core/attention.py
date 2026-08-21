@@ -39,7 +39,7 @@ from .machine import Machine, Step
 from .rules import (STOP, UNATTEND, Application, Attend, Member, Pop, Push,
                     Rule,
                     Situation, _superseded, match, substitute)
-from .text import load, load_file
+from .text import load
 
 # A rule the bundle marks `standing` is in the table at the default; everything
 # else is in it at the floor. The author's own correction to an earlier sketch:

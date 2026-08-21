@@ -15,8 +15,11 @@ dependencies = []
 # Verification is `python -m ugm.selftest`, not pytest: a single runner that prints every check's
 # named observations and counts any False as a failure.
 
+# ⚠ Subpackages listed explicitly: `packages = ["ugm"]` alone ships ugm/*.py
+# and silently drops core/, gates/, learning/ and probes/ from the wheel --
+# an install that imports nothing, found in the release sweep.
 [tool.setuptools]
-packages = ["ugm"]
+packages = ["ugm", "ugm.core", "ugm.gates", "ugm.learning", "ugm.probes"]
 
 [tool.setuptools.package-data]
 ugm = ["rules/*.ugm"]

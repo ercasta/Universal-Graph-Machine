@@ -306,3 +306,73 @@ half of the audit. A reasonable release order:
 6. **Then** attention-based scoring, and `prefer` and the buffs after it.
 
 Steps 1–3 are hours. Step 4 is the release.
+
+---
+
+# Second sweep — 2026-08-21, on the tree after the table-loop landing
+
+Run on `982a086` plus this commit's cleanups. The first audit above was taken
+one landing earlier; between the two, most of its Grade A and B items were
+**done**: `ugm.arbitration`, `ugm.walkers`, `ugm.modality`, `ugm.workload` and
+`ugm.melee` are deleted; `boost`/`damp`/`reset` are gone from the surface and
+the parser says so when one is written; `prefer` rows are inert (a row and its
+denial give the same move, and the suite checks that); `<relevant>` left the
+bundle; `Machine.run`'s "staged migration" paragraph now says the table loop IS
+the loop. `vocabulary` runs 18/0 (was 18/2).
+
+## Measured on this tree
+
+- **Module level is clean.** Every module is imported by another or is a door
+  (`if __name__`), and `./tools_sweep.sh` runs 30 doors: **29 green, 1 red** —
+  `gates.quiescence` at 5/6, the pre-existing blind-rule coverage complaint
+  HANDOFF records (167 candidates, 0 disagreeing: the gate agrees, one of its
+  own six rules is exercised by no fixture).
+- **All nine corpora are loaded by something** (`quest-*` through the probe's
+  f-string, which a filename grep misses).
+- **Dead code found: one method** (`Machine._frame`, shadowed by the
+  `_attention` property) — removed. No dead public def anywhere else.
+- **34 unused imports** across 22 files — removed.
+- **The wheel was broken**: `packages = ["ugm"]` shipped no subpackage, so an
+  installed wheel imported nothing. Fixed by listing `ugm.core`, `ugm.gates`,
+  `ugm.learning`, `ugm.probes`.
+- **Stale citations of deleted modules in live code**, fixed in place:
+  `chain.rests_on`'s docstring credited `ugm.support` (the selftest's
+  structural-mirror checks hold that agreement now), `probes/__init__` cited
+  `ugm.modality` in the present tense, and one selftest docstring still called
+  `prefer` "the shipped way".
+- **README check counts** said 646 and 513 in one file; both now read the
+  number the runner prints.
+- **`docs/code-walkthrough.md`** got the tombstone header the deleted-module
+  docs use: still a useful map, wrong in every number, and §4 walks the
+  retired loop.
+
+## Deliberate keeps, verified as deliberate
+
+`docs/design/hindsight.md` and `docs/design/walkers.md` are tombstones for
+deleted modules and say so in their first line; `Machine.tick` and its
+machinery are the comparison arm of `python -m ugm.core.attention`;
+`ugm.workload` mentions in `hanoi`/`artefact` are explicit "the retired..."
+records. None of these is unused code; all of them are the record.
+
+## Still stale, and not a sweep's to fix
+
+Prose that presents the retired loop as the shipped one, unchanged since the
+first audit flagged it:
+
+- `README.md` "The step is `read enough -> recall -> match -> ...`" — the
+  option-set listing, offered as the evidence for zero phases.
+- `docs/rules-design.md` still does not mention the table loop (§19 argues
+  recall), and its `ugm.harmony` collision note (~line 660) names a deleted
+  module.
+- The book: `floor/32-zero-phases.md` lists the old step;
+  `watching/28-the-table.md` still frames the table as "the other loop";
+  26 and 27 are in the old loop's terms. The book was last touched 08-18,
+  one day before the flip.
+- `docs/design/machine.md` (and `rules.md`, `maze.md`, `hanoi.md`,
+  `atlas.md`, `vocabulary.md`, `chain.md`) cite deleted instruments in the
+  present tense where they quote old measurements.
+- `docs/HANDOFF.md` is a dated session record whose numbers are one landing
+  old; it reads as such.
+
+These are rewrites of the argument, not deletions of code — the first audit's
+§3.3 verdict stands: the one item that cannot be fixed by editing numbers.

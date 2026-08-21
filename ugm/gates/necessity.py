@@ -13,7 +13,7 @@ See docs/design/necessity.md.
 import contextlib
 import io
 import sys
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 from ..core.chain import Chain
 from ..core.machine import Machine

@@ -11,14 +11,13 @@ See docs/design/dungeon.md.
 """
 
 from .. import corpora as _corpora
-import os
 import time
 import random
 from typing import List, Optional
 
 from ..core.chain import PLUS
 from ..core.machine import Machine
-from ..core.text import Loader, load_file
+from ..core.text import Loader
 
 CORPUS = _corpora.path("dungeon.ugm")
 

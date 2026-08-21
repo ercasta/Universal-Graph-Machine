@@ -12,9 +12,8 @@ See docs/design/quest.md.
 from .. import corpora as _corpora
 import pathlib
 import sys
-from typing import List
 
-from .table import Local, Processes, Spec, Table, Utterance
+from .table import Processes, Spec, Table
 
 # -- the three corpora -------------------------------------------------------
 

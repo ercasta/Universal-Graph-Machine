@@ -8,7 +8,7 @@ rather than conceded.
 See docs/design/learning.md.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import List, Tuple
 
 from ..core.machine import Machine, forest, induce, leaves
 from ..core.text import ParseError, load

@@ -1,5 +1,17 @@
 # A code walkthrough
 
+> ⚠⚠⚠ **STALE SNAPSHOT (noted 2026-08-21, release sweep).** Run at `907e6c9`,
+> before the module tree grew `core/`, `gates/`, `learning/` and `probes/`,
+> before the table loop shipped as *the* loop, and before `ugm.walkers`,
+> `ugm.arbitration`, `ugm.modality` and `ugm.workload` were deleted. Every
+> `python -m ugm.<name>` below needs the subpackage path now (`ugm.probes.dungeon`),
+> two of the four commands name modules that no longer exist, every count and
+> line number has moved, and §4 walks `Machine.tick` — the retired option-set
+> loop kept only as the comparison arm of `python -m ugm.core.attention`. The
+> *shape* of the map is still roughly right; trust nothing quantitative. The
+> current entry points: `python -m ugm.selftest`, `./tools_sweep.sh`, and
+> `docs/design/*.md` per module.
+
 For a developer who has to work on the engine and has not read 30,000 lines of it. This is a map of
 the **code**: what each file owns, what one step of the loop actually does, where the caches are, and
 which mistakes cost real time here.

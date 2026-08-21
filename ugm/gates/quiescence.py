@@ -7,7 +7,6 @@ See docs/design/quiescence.md.
 """
 
 from .. import corpora as _corpora
-import os
 import time
 from typing import Dict, List, Optional, Tuple
 

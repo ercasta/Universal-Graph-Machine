@@ -9,9 +9,9 @@ See docs/design/bundle.md.
 
 import contextlib
 import io
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional
 
-from ..core.chain import MINUS, PLUS
+from ..core.chain import PLUS
 from ..core.machine import Machine
 
 

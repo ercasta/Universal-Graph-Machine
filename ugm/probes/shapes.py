@@ -13,11 +13,9 @@ import io
 import os
 import sys
 from collections import Counter
-from typing import Optional
 
 from ..core.machine import Machine
 from ..core import text
-from ..core import rules as R
 
 # Sibling corpora, relative to this repository. Absent is normal.
 EXTERNAL = ("../pystrider/restrider/rules/*.ugm", "../harneskills_new/corpus/*.ugm")

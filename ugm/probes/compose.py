@@ -9,7 +9,7 @@ from typing import List, Tuple
 
 from ..core.chain import PLUS
 from ..core.machine import Machine
-from ..core.rules import CAUSES, IMPLIES, Member
+from ..core.rules import CAUSES
 from ..core.text import load
 
 

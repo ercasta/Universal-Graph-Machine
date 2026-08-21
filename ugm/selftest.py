@@ -414,7 +414,7 @@ def _refuses(src: str) -> bool:
 def surface() -> None:
     """One grammar for rules, facts and facts about rules -- because a rule is a
     relation instance like any other, which is R3 and R4 in the surface."""
-    from .core.text import ParseError, Parser, tokenise
+    from .core.text import ParseError, tokenise
 
     m, kb = _loads("fact +on(a, b)\nfact -in(b, c)   # a comment\n")
     check("§3", "the surface writes a fact", m.holds(kb.term("on(a, b)")) == PLUS)
@@ -5599,8 +5599,8 @@ def the_watcher_is_handed_the_move() -> None:
 def attention_is_about_a_node_not_a_rule() -> None:
     """§19: the table, keyed on a thing instead of on a rule.
 
-    prefer(<R>, key, n) is the shipped way of saying *this is worth reaching
-    for*, and everything it can say is about a RULE.
+    `prefer(<R>, key, n)` was the retired way of saying *this is worth
+    reaching for*, and everything it could say was about a RULE.
 
     See docs/design/selftest.md#attention-is-about-a-node-not-a-rule.
     """
