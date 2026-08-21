@@ -19,21 +19,27 @@ They look alike and they are not one construct:
 | composes by | succession — ordered, elements are moments | membership — unordered, elements are individuals |
 | leaks if materialised | invents a number of turns | invents a number of files |
 
-They share one principle, which spans already applied and which this generalises:
+They share one principle, which Chapter 19's stretches already applied and
+which this generalises:
 
 > **Describe the extent. Never enumerate it.**
 
 ## A shape is a definition, not a term
 
 Given Chapter 6's antecedent, a shape needs no new construct. It's a **recursive
-definition over spans**, written as ordinary rules in ordinary vocabulary.
+definition over stretches**, written as ordinary rules in ordinary
+vocabulary. (Chapter 19 tells how a stretch is carried now — two moments in a
+relation the corpus names, rather than a place a claim could sit. These rules
+were first written and measured against the older mechanism, where a stretch
+was a locus; what changed is where the stretch is written down, not the shape
+of the recursion.)
 
 *Taking turns* needs at least two turns, so that's the base case; the step case
 consumes one turn and defers the rest:
 
 ```
-<TT-base>   two consecutive acts by different actors, over the span between them
-<TT-step>   one act, followed by a span over which the others took turns
+<TT-base>   two consecutive acts by different actors, over the stretch between them
+<TT-step>   one act, followed by a stretch over which the others took turns
 ```
 
 Written out and run over a five-moment alternation, those recognise *taking
@@ -67,15 +73,18 @@ Then **one ordinary rule says it**:
 
 ```
 rule <say> = implies( { turns(?s, ?a, ?b), +watching(x) },
-                      { +taking_turns(?a, ?b) at ?s } )
+                      { +taking_turns(?a, ?b, ?s) } )
 ```
+
+The stretch `?s` rides in the **proposition**, because a claim has nowhere else
+to put it — which is exactly Chapter 19's change arriving here.
 
 Two rules to see it, one to say it. The chain-reading rules are allowed to read
 the raw chain precisely **because they cannot assert anything about what they
 find**.
 
 !!! note "Deep dive: the interning trap has four faces"
-    Recursion over spans hangs without interning — the same stretch gets a fresh
+    Recursion over stretches hangs without interning — the same stretch gets a fresh
     node every time and nothing ever reaches a fixed point.
 
     But interning is also this project's single most expensive recurring bug,
@@ -88,8 +97,8 @@ find**.
       was *wrong rather than crashed*;
     - **not pure** — asking the question changed some other answer.
 
-    A span node survives the test because **nothing reads its existence**:
-    `span` is in no structural relation, so no rule enumerates spans and no walk
+    A stretch node survives the test because **nothing reads its existence**:
+    it is in no structural relation, so no rule enumerates stretches and no walk
     visits them. Asking twice gives the same answer, and asking changes no other
     answer.
 
@@ -119,7 +128,7 @@ a fact about that node.
 +size(<g>, 3)        ...and it has three members, if you happen to know
 ```
 
-Membership is not stored, for the same reason a span's contents aren't. What you
+Membership is not stored, for the same reason a stretch's contents aren't. What you
 know about the group is said about the group.
 
 The same move works for a **scalar you don't know**:
