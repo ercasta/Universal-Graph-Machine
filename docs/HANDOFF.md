@@ -85,10 +85,41 @@ line or a rewrite, and it cannot be run after the build. Its fixture ships: `bun
 `<deviation---invalidated>` is where the collapse is lossy, because under anchors absence is
 exactly what `expects(minus)` is satisfied by.
 
-Two open corrections to `wanting.md` 7, both measured this session and NOT yet written in:
-`context: believed` must be KB-wide rather than document-level (partial wrapping made an
-expert's score jump 81 to 411), and containment may be the better spelling than a `believed`
-wrapper, because the mode becomes a binding and one rule serves every mode.
+### Is `context: believed` still needed? Asked at the end of the session, unresolved
+
+The case for it is weaker than it was that morning, and 9.4 is independent of the answer, so
+it can be settled after.
+
+Against, and the third is measured:
+
+- **The wrapper never varies.** Every member of every rule, four listed exceptions. A
+  notation that appears everywhere and never differs carries no information -- the same
+  standard as *a distinction that alters no action should not be represented*.
+- **The alternative is rows, not branches.** The ordinary-member path in `match` is ten
+  lines; an anchor-presence check is one more condition there, in ONE place rather than in
+  every rule. The information is already in the graph: the anchor's presence IS the belief.
+- **The wrapper creates a hazard nothing else does.** Partial wrapping moved an expert's
+  score 81 -> 411. That is possible only because the wrapper is in rule TEXT; structurally
+  there is nothing to partially apply. And 7 sells the migration as incremental -- *a header
+  line rather than a rewrite* -- whose intermediate state is exactly that mixed KB.
+
+For it:
+
+- **The reflective case.** `believed(believed(p))` is meaningful and 7 flags it as needing an
+  explicit escape. Structurally that is an anchor whose proposition is an anchor:
+  expressible, unchecked.
+- **Uniform versus varying is real.** `+part($x, $g)` varies by domain; belief does not. 7
+  reads that as *do not write it by hand*; it reads equally well as *do not write it at all*.
+- **The four constraints do not vanish, they MOVE** -- skip skeleton relations and
+  computators, do not descend into mentions, the consequent's sign -- from the loader to the
+  engine. That relocation is where the surprise would be, and it is unexamined.
+
+This is an argument plus one measurement, not a demonstration. Nothing was built either way.
+
+If the wrapper survives at all, two corrections to 7 are already earned and NOT yet written
+in: it must be KB-wide rather than document-level (the 81 -> 411 measurement), and
+containment may be the better spelling than a `believed` wrapper, because the mode becomes a
+binding and one rule then serves every mode instead of needing a twin per mode.
 
 ---
 
