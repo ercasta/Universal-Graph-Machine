@@ -53,7 +53,7 @@ two-hour and a two-day orientation.
 
 | role | modules | what it means for you |
 |---|---|---|
-| **the engine** | `graph` 215, `chain` 597, `rules` 1992, `gate` 259, `machine` 5604, `text` 1265, `sexpr` 388, `channels` 101 | changing these changes what the machine *is* |
+| **the engine** | `graph` 397, `chain` 336, `rules` 1484, `gate` 156, `machine` 4582, `text` 1450, `attention` 705, `channels` 91 | changing these changes what the machine *is* |
 | **the corpus that ships** | `ugm/rules/bundle.ugm` | conventions as **rules**, not branches. Editing this is not editing the engine |
 | **floor gates** | `state`, `agreement`, `arbitration`, `quiescence`, `bundle`, `necessity`, `vocabulary`, `atlas` | each holds a fast path to a slow definition, on every look |
 | **comparisons** | `attention`, `teaching`, `learning`, `practice`, `table`, `experts` | two loops or two runs over one corpus; *no better* is an allowed answer |
@@ -191,8 +191,8 @@ when and was not.*
 ## 5. The surface, and the bundle
 
 `text.py` is the authoring surface. Statement kinds: `rule`, `fact`, `say <channel>:`, `expert`,
-`after` / `frozen` / `when` (postconditions and rerankers), and `lisp:` for one statement in
-`sexpr.py`'s notation sharing the same token stream.
+and `after` / `frozen` / `when` (postconditions and rerankers). There is one surface: a
+second s-expression reader was deleted on 08-22, unexercised by anything.
 
 Two things about the loader that are load-bearing rather than incidental:
 

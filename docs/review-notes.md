@@ -28,7 +28,10 @@ Channels.py: probably we should demote channels to more "open world". An channel
 Gate.py talks about vetoes, review
 
 
-sexpr.py probably to be deleted.
+~~sexpr.py probably to be deleted.~~ **Deleted 08-22.** 335 lines and two entry points
+(`syntax: lisp` on the first line, `lisp:` on one statement), referenced by nothing --
+not the suite, not a gate, not a probe, not the book -- so no measurement covered it.
+Suite green after removal with no check rewritten.
 
 
 # New Features required:
