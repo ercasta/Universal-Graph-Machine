@@ -384,11 +384,26 @@ erased. Recorded in `docs/todo.md` with what it costs and what it deletes
 `Graph.delete(n)` -- no repoint, no cascade, per the author's call that dangling
 references may stay because *no rule matches an incomplete subgraph*.
 
-**`probes/erase.py` asks that of the matcher rather than trusting it: 4 checks,
-0 failing.**
+**`probes/erase.py` asks that of the matcher rather than trusting it: 6 checks,
+0 failing** (4 here; check 4 added 08-22, below).
 
     both premises present   r(one) = +
     one proposition erased  r(one) = None
+
+⭐⭐⭐ **08-22: the call holds for ONE of the two shapes.** Erase the PREMISE and
+the rule fails to bind, which is what this probe measured. Erase an INDIVIDUAL a
+surviving premise mentions and **nothing is hidden at all** -- `delete` only
+touches the indices inside `if rel is not None`, which an individual does not
+have, and nothing removes a node from the buckets of OTHER nodes that mention
+it. Check 4 runs the two side by side, which is what makes it a finding rather
+than a fixture:
+
+    premise erased        the rule is not applied  (None)
+    individual erased     the rule IS applied      (+)
+    still indexed:        ['is(?d, want)', 'is(#1292(erased), want)']
+
+**The only safe deletion target is the ANCHOR.** Delete anchors; never
+propositions, never individuals. `docs/wanting.md` §7 is the argument.
 
 ⚠⚠⚠ **And it was NOT true when first asked.** Erasing a proposition still named
 by an entry raised `KeyError` twice over -- out of `Situation._keys` and again
