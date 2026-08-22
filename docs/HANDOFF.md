@@ -1,3 +1,97 @@
+# Handoff — 2026-08-22 (the SIGIL changed, and three design threads closed)
+
+    python -m ugm.selftest      557 checks, 0 failing
+    python -m ugm.probes.erase   12 checks, 0 failing   <- was 6
+    python -m ugm.probes.experts 15 checks, 0 failing   <- restructured, no inheritance
+    python -m ugm.probes.frames  21 checks, 0 failing
+    ugm.gates.vocabulary         18 checks, 0 failing
+    ugm.gates.agreement          10 comparisons, 0 disagreeing
+    ugm.gates.quiescence         5/6 rules exercised    <- RED, and older than this
+                                                          session: verified against
+                                                          a worktree at f0c1bba
+    ugm.gates.necessity          baseline 5 checks, 1 failing, then crashes on a
+                                 cp1252 console encode  <- also pre-existing
+    ugm.gates.bundle             runs past 200s without finishing  <- pre-existing
+
+Seven commits: `sigil`, `erasure`, `models`, `sexpr`, `extends`, `census`, `scope`.
+
+## What changed in the tree
+
+**`$` replaces `?` as the variable sigil** (`sigil`). 6,471 substitutions across 129 files.
+`?` was doing two jobs — the UNSURE sign and the variable marker — told apart by a lexer
+lookahead, which is why `bundle.ugm` had to write an unsure member as `? ?p`. It is now
+`? $p` and `?` does one job. The old spelling fails loudly with a message naming the
+replacement. Four hand edits the mechanical pass could not reach, each of which would have
+been a silent wrong answer: the lexer, `vocabulary.py`'s `startswith("?")`, two sigil tests
+written as string fragments in `selftest.py`, and `hanoi.py`'s canonicalising regex.
+
+**`Gate.erase`** (`erasure`) — wanting.md 9.2. `Graph.delete` sat below the gate. Licence
+required and carried both ways; the log names the ENTITY, never the anchor it deleted; and a
+refused erasure DOES NOT HAPPEN, which is what makes it a gate rather than a logger. Four
+kill-probes caught.
+
+**`core/sexpr.py` deleted** (`sexpr`) — 335 lines, two entry points (`syntax: lisp`,
+`lisp:`), referenced by nothing: not the suite, not a gate, not a probe, not the book.
+
+**Expert inheritance deleted** (`extends`) — the reserved name, the surface sugar, the
+vocabulary-gate entry, and `<inherit>` in two probes. `rules.inherit` (guard inheritance in
+composition) is a different thing sharing the word and is untouched.
+
+## What was decided, with the measurements
+
+Three documents carry it: **`docs/models.md`** (new), **`docs/census.md`** (new), and
+`docs/wanting.md` 5, 6, 7, 9.2, 9.3, 9.9, 10.
+
+- **`no` is a member mode, not a quantifier.** `_root` is not deletable via `no` — both forms
+  are refused at load. `_count` does reach it, because a CONSEQUENT may carry a variable no
+  antecedent binds and the aggregate does the quantifying. Not done: three selftest checks
+  are written about the answerer.
+- **`no_more` survives**, but only for cuts that can be revised: an erasure cannot be denied.
+- **Scope is modelling, not mechanism** (models.md 12b). Four proposals retired —
+  containment, expert set-and-reset, root-node pointing, attention gating. A game is an
+  entity with parts; stated, the rules read it as a premise; unstated, nothing recovers it.
+  Measured: distinct entities alone made the crossing WORSE (4 rather than 2).
+- **Attention orders and cannot gate.** Hard exclusion crashes; the passing variant changes
+  no outcome. 7259 narrowings, 367 fallbacks. And `_attend_written` takes only the RHS —
+  decomposed into four nodes, two of which no check can distinguish.
+- **No inheritance between experts**, and the sharper rule: share only what EVERY expert
+  shares. A universal rule has idf zero and is free; a discriminating one duplicated makes
+  the borrower win the question it borrowed.
+- **The census answered "is there anything to simplify in machine.py": no.** Nothing is
+  unreachable. 885 of 4402 lines are corpus-reachable. The one real finding is the
+  dormant-and-not-due predicate written three times, plus a fourth DUE-less variant in
+  `rules.py:507` that may be a different question wearing the same clothes.
+
+## Instrument traps met
+
+- **`g.atom("x")` does not intern, and it bites on the READ side.** A probe that loads
+  correctly and reads with `g.instances_of(g.atom("myrooted"))` gets `[]` for everything, and
+  it looks exactly like the feature not working. It reported the OPPOSITE of the truth
+  through three rounds of narrowing. Use `m.holds(kb.term(...))` on both sides.
+- **A regex caller-match excludes the calls.** `(?<![\w.])name` rules out a preceding dot,
+  which is how a method is called. It reported live methods as unreferenced. Use AST.
+- **`__main__.py` is a product surface, not test scaffolding.** Classifying it with the
+  probes moved 192 lines into "inspection-only".
+
+## Where to pick up
+
+`wanting.md` 11's substrate items are done. The critical path is **anchors** — 8 lists
+`context: believed` as the one settled-but-unbuilt item, and 9.4, 9.8, 9.3b and all of 12
+wait on it.
+
+**Do 9.4 first.** The `-` / `?` collapse decides whether the anchor migration is a header
+line or a rewrite, and it cannot be run after the build. Its fixture ships: `bundle.ugm` has
+**four** deviation rules, not three as wanting.md says twice. Standing prediction:
+`<deviation---invalidated>` is where the collapse is lossy, because under anchors absence is
+exactly what `expects(minus)` is satisfied by.
+
+Two open corrections to `wanting.md` 7, both measured this session and NOT yet written in:
+`context: believed` must be KB-wide rather than document-level (partial wrapping made an
+expert's score jump 81 to 411), and containment may be the better spelling than a `believed`
+wrapper, because the mode becomes a binding and one rule serves every mode.
+
+---
+
 # Handoff — 2026-08-21 (the ATTENTION STACK is built)
 
     python -m ugm.selftest      513 checks, 0 failing   <- was 503; 10 new
