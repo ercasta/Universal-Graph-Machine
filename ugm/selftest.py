@@ -680,19 +680,24 @@ def surprise_is_four_rows() -> None:
             m.holds(g.rel(m.DEVIATES, p)) == PLUS,
         )
 
-    # And the case that must NOT be a deviation, or the rules would fire on
-    # every expectation the world met.
-    m = Machine()
-    g = m.g
-    p = g.rel(g.atom("boiling"), g.atom("kettle"))
-    m.gate.write(g.rel(m.EXPECTS, p, m.rules.SIGN[PLUS]), PLUS, mention=True)
-    m.gate.write(p, PLUS)
-    m.run(limit=8)
-    check(
-        "§18",
-        "an expectation the world met is not a deviation",
-        m.holds(g.rel(m.DEVIATES, p)) is None,
-    )
+    # And the cases that must NOT be a deviation, or the rules would fire on
+    # every expectation the world met. BOTH signs: the minus control was
+    # missing until `ugm.probes.collapse` went looking for it, and it is the
+    # one the `-`/`?` collapse breaks -- under anchors an absence is exactly
+    # what `expects(minus)` is satisfied by, so a naive translation reports a
+    # deviation here, in the direction that looks like success.
+    for met in (PLUS, MINUS):
+        m = Machine()
+        g = m.g
+        p = g.rel(g.atom("boiling"), g.atom("kettle"))
+        m.gate.write(g.rel(m.EXPECTS, p, m.rules.SIGN[met]), PLUS, mention=True)
+        m.gate.write(p, met)
+        m.run(limit=8)
+        check(
+            "§18",
+            f"an expectation the world met ({met}) is not a deviation",
+            m.holds(g.rel(m.DEVIATES, p)) is None,
+        )
 
 
 def the_surface_can_say_what_the_apparatus_is_made_of() -> None:

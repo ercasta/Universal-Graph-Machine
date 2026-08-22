@@ -587,8 +587,82 @@ Four constraints, three of them already precedented:
 - **The consequent is where the sign disappears.** `+p` creates the anchor, `-p` deletes it.
   That is the migration path for every existing corpus — a header line rather than a rewrite
   — but it collides with a question the todo already has open: `-` and `?` collapse into *no
-  anchor matches*, with `bundle.ugm`'s three deviation rules named as the fixture for
-  whether that collapse is lossy.
+  anchor matches*, with `bundle.ugm`'s four deviation rules named as the fixture for
+  whether that collapse is lossy. **Answered in §9.4, and the answer is no** — the collapse
+  takes the four rules to one, and the distinction it merges moves into `not($p)` and comes
+  back as rows. What it is not is a header line everywhere: a `-` in a MEMBER is one of two
+  things and the corpus must say which, and a sign passed as an ARGUMENT — which is what
+  `expects($p, minus)` does — is a proposition wearing a sign's clothes.
+
+### `context: believed` — asked of the engine, and the answer is no
+
+The handoff left this as *an argument plus one measurement, not a demonstration*, with the
+unexamined claim on the *for* side being that the four constraints **do not vanish, they
+MOVE** from the loader into the engine. `ugm.probes.anchors`, 8/0, asks where each one is
+today. They do not move, because they are already there.
+
+**The crux: the entry is already the anchor, on the read side.** The wrapper exists to stop a
+rule matching a bare proposition from reading structure as belief. `match` reads the
+SITUATION — entries — and never the raw graph, so it cannot:
+
+    p(thing) is a node                       True     <- a stored pattern AND a mention
+    ...and is it held?                       None
+    q(thing), from a generic rule            None
+    owned(thing), from a ground one          None
+    ...the same rule, once something asserts it       fires     (kill-probe)
+
+That is the author's own reply — *we never look for a `boiling` floating around in the graph;
+we ALWAYS anchor* — holding of the engine that exists, not of the one being designed.
+
+**The constraints, one at a time.**
+
+- *Skip skeleton relations and computators.* Already a branch in `match`: a computed member is
+  answered by CALLING it, and there is no entry about it anywhere. Nothing to skip because
+  nothing was wrapped.
+- *Do not descend into mentions.* Already structural: a mention anchors the MENTIONING
+  proposition and not what is mentioned. `+said(alice, p(thing))` holds; `p(thing)` does not.
+- *The consequent's sign.* This one does not move either, because no wrapper touches it — it
+  is the anchor build itself, and §9.4 has just answered its member half.
+- *The reflective case needs an explicit escape.* This is the wrapper's own cost, and the
+  measurement makes it worse than stated: the tempting escape, *do not wrap what is already
+  an anchor*, keys the loader's decision on a NAME. `believed` is **not reserved**, and a
+  corpus using it as its own word loads clean today. The escape would read that corpus's word
+  as an anchor it never meant.
+
+**And the wrapper's own hazard, at fixture size.** Because it lives in rule TEXT, half a
+corpus can be wrapped and half not, and the two halves stop being about the same thing —
+silently, both well-formed, both loading clean. That is the 81 → 411 measurement in miniature.
+
+### The finding, which is not the verdict
+
+There is exactly one path where presence in the graph really does mean belief, and it is the
+**structural** path — the one path §7's first constraint tells the wrapper to skip:
+
+    rule <never>  = implies( { +nope(x), in_delta(mm, ee) }, { +never_out(x) } )
+    rule <reader> = implies( { +go(x),   in_delta(mm, $e) }, { +sawdelta($e) } )
+    fact +go(x)
+
+    sawdelta(ee) = +        bound off a rule nobody applied, for a moment that does not exist
+
+`_stored` is the one walker that reads the raw graph, and `_as_fact` guards it by rejecting a
+candidate with variables in its argument positions. A GROUND stored pattern has none, so it
+passes as a deposited fact. The kill-probe confirms it is the pattern being read: delete
+`<never>` and the reader binds nothing.
+
+**So the wrapper protects the path that is already safe and skips the path that is not.** That
+is the demonstration the *for* side was missing, and it points the other way.
+
+### What this settles, and what it leaves
+
+Settled: `context: believed` is not needed, and the belief-wrapping bullet in §8 is withdrawn.
+The information is in the graph already — the anchor's presence IS the belief — and the
+ordinary-member path needs no new condition at all, let alone one per rule.
+
+Left open, and it is now a build item rather than a design one: **the ground-structural-pattern
+leak.** It is a defect today, independent of anchors, and it grows under them, because more
+reads become structural. `_as_fact`'s guard is *has a variable in an argument position*; what
+it wants to ask is *was this deposited*. The two coincide for every pattern with a variable in
+it, which is why nothing has caught it.
 
 ---
 
@@ -614,7 +688,13 @@ Four constraints, three of them already precedented:
   erase it waited on is built.
 - Satisfaction is `no $p`, asked at match time. Nothing is maintained.
 - Only the anchor is ever deleted. The log names the entity.
-- Belief-wrapping is `context: believed`, applied to every component at load.
+- ~~Belief-wrapping is `context: believed`, applied to every component at load.~~
+  **Withdrawn**, measured: the entry is already the anchor on the read side, and every
+  constraint the wrapper would have needed is already a branch in `match`. See the section
+  above and `ugm.probes.anchors`.
+- The `-` / `?` collapse is a REDUCTION, not a loss: four deviation rules become one, and the
+  distinction it merges lives in `not($p)` and returns as rows (§9.4). A sign passed as an
+  argument is a proposition wearing a sign's clothes, and that is where the rewrite is.
 
 ## 9. What is open
 
@@ -641,7 +721,54 @@ Four constraints, three of them already precedented:
    denies the position both rules needed, and the branch is lost silently in fewer ticks
    than the run that succeeds — is the same shape as erase-then-create. Under anchors it
    stops being a walker's problem and becomes everyone's.
-4. The `-` / `?` collapse under anchors, with the three deviation rules as the fixture.
+4. ~~The `-` / `?` collapse under anchors, with the four deviation rules as the fixture.~~
+   **Answered, and the answer is that it is not a loss — it is a reduction.** `ugm.probes.collapse`,
+   10/0. The collapse forces a decision the sign was hiding: what `expects($p, minus)` MEANS once
+   there is no minus to observe.
+
+   **Reading A — keep the sign as an argument, translate the members.** Every `-` member and every
+   `?` member becomes `no`, which is what *a header line rather than a rewrite* means if it means
+   anything. `<deviation-+-contradicted>` and `<deviation-+-invalidated>` become textually the same
+   rule, and the standing prediction holds, on the rule it named in advance:
+
+       expects minus  observed minus  ->  deviates      <- WRONG, by <deviation---invalidated>
+
+   A deviation reported where the expectation was **met** — the direction that looks like success.
+   And deleting the broken rule does not save the reading: with the sign kept as an argument, the
+   two expects-minus rows are decided by two observations that are now one observation, so fixing
+   either loses the other.
+
+       reading A, four rules   expects minus observed minus  -> deviates   want no
+       reading A, two rules    expects minus observed unsure -> no         want deviates
+
+   **Reading B — the sign leaves the expectation and becomes the proposition it names.**
+   `expects($p, minus)` is `expects(not($p))`. Then there is no sign anywhere in the family, and
+   the four rules are **one**:
+
+       rule <deviation> = implies( { +expects($q), no $q }, { +deviates($q) } )
+
+   All six rows, including the control the suite did not have. The four are load-bearing today —
+   dropping any one costs exactly one row, measured — so this is a reduction of something real and
+   not of something already redundant.
+
+   **What the merge costs, and where it went.** Contradicted and invalidated are one deviation now.
+   The distinction did not leave the world: it moved into `not($q)`, which is a proposition with an
+   anchor of its own, and it comes back as rows, with no sign read anywhere.
+
+       { +expects($q), no $q, +not($q) }     -> how = contradicted
+       { +expects($q), no $q, no not($q) }   -> how = invalidated
+
+   Without those two members the two cases are one answer — the kill-probe for that claim.
+
+   **So the migration is a rewrite where a corpus reads a sign as an argument, and a header line
+   everywhere else.** The general rule the fixture yields: a `-` in a MEMBER is one of two things
+   and the corpus must say which — `no $p` (absence) or `+not($p)` (denial) — and a sign passed as
+   an ARGUMENT, as `expects` passes it, is a proposition wearing a sign's clothes. Both are found
+   at load: `no` and `not` are both already spelled.
+
+   **The suite's gap, now closed.** `surprise_is_four_rows` had a control for expects-plus and none
+   for expects-minus, so the row the naive collapse breaks was the one row nothing asked. Both
+   controls now run: 558 checks.
 5. Per-term weights on competence rules, scoring the application rather than the rule and
    combined with the attention multiplier. Parked deliberately. `_attended_first` already
    sums weights over the nodes an application binds; what is added is position, so the same
@@ -879,7 +1006,7 @@ So the unit is, per member evaluated:
 independent of what the rule required. And under anchors the antecedent carries no signs to
 confuse this with: bare means *require the anchor present*, `no` means *require it absent*,
 and `?` goes with the rest, since absence is unknown once the log distinguishes never-said
-from said-and-erased. The three deviation rules in `bundle.ugm` are the named fixture for
+from said-and-erased. The four deviation rules in `bundle.ugm` are the named fixture for
 whether that collapse is lossy.
 
 The polarity that survives is in the consequent, and it is a different kind of thing:

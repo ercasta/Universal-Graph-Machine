@@ -1,3 +1,141 @@
+# Handoff — 2026-08-22 (the `-` / `?` COLLAPSE, and `context: believed` WITHDRAWN)
+
+    python -m ugm.selftest        558 checks, 0 failing   <- was 557; one control
+                                                             the suite never had
+    python -m ugm.probes.collapse  10 checks, 0 failing   <- new
+    python -m ugm.probes.anchors    8 checks, 0 failing   <- new
+    ./tools_sweep.sh                1 failing, 32 run     <- 32 is two more than
+                                                             any sweep has run,
+                                                             and the 1 is
+                                                             `quiescence` at 5/6,
+                                                             which is older than
+                                                             this session
+
+Everything else is as the section below leaves it; nothing in the engine changed.
+
+⚠ One correction to the section below, and it is a correction to an
+instrument reading rather than to a finding: `gates.bundle` does NOT run past
+200s without finishing. Given the sweep's own 900s it completes -- 18 bundled
+rules, 18 exercised, 10 answerers, 0 anomalies. It is slow, not hung, and it
+was reported as the latter because nothing had waited long enough.
+
+## Why this first
+
+`wanting.md` §9.4 was the one open item that **cannot be run after the build**: once belief
+is an anchor there is no `-` and no `?` left to compare against. It was asked as a probe
+rather than as an argument, and the standing prediction — that `<deviation---invalidated>`
+is where the collapse is lossy — held, on the rule it named in advance.
+
+## The answer: it is a reduction, not a loss
+
+`ugm/probes/collapse.py`. Anchors are not built, so today's engine stands in under one
+mapping, stated in the probe's docstring: anchor present = an entry asserting `p`; no anchor
+= no entry at all; denial = an anchor on `not(p)`, minted with the apparatus's own `not`,
+which `<denial>` already reads.
+
+**Reading A — keep the sign as an argument, translate the members.** Every `-` and every `?`
+member becomes `no`. Two of the four rules become textually identical, and:
+
+    expects minus  observed minus  ->  deviates      WRONG, by <deviation---invalidated>
+
+A deviation reported where the expectation was **met** — the direction that looks like
+success. Deleting the broken rule does not save the reading: the two expects-minus rows are
+now decided by two observations that are one observation, so fixing either loses the other.
+Measured both ways.
+
+**Reading B — the sign leaves the expectation and becomes the proposition it names.**
+`expects($p, minus)` is `expects(not($p))`. Four rules become **one**:
+
+    rule <deviation> = implies( { +expects($q), no $q }, { +deviates($q) } )
+
+All six rows, controls included. The four are load-bearing today — dropping any one costs
+exactly one row, measured one at a time — so this reduces something real.
+
+**What the merge costs, and where it went.** Contradicted and invalidated are one deviation
+now. The distinction did not leave the world: it moved into `not($q)`, a proposition with an
+anchor of its own, and comes back as rows with no sign read anywhere —
+`{ ..., +not($q) }` against `{ ..., no not($q) }`. Kill-probed: without those members the
+two cases are one answer.
+
+## So the migration is not a header line everywhere
+
+§7 sells it as one. It is one **for a consequent**. In a MEMBER a `-` is one of two different
+things and the corpus has to say which:
+
+    -$p  as a member   ->   `no $p`      absence
+                       or   `+not($p)`   denial
+
+And a sign passed as an ARGUMENT — which is exactly what `expects($p, minus)` does, twenty
+times over per `_report_shadowed` — is a proposition wearing a sign's clothes. Both are
+findable at load, because `no` and `not` are both already spelled.
+
+## The instrument finding
+
+**The suite had a control for expects-plus and none for expects-minus.** `surprise_is_four_rows`
+checked four disappointments and one met expectation, and the met expectation it checked was
+the plus one — so the single row the naive collapse breaks was the single row nothing asked.
+Both controls now run; that is the 557 → 558.
+
+The probe's own trap, met and left in its docstring: under reading B the deviation is **about
+the expected proposition**, so a minus expectation deviates as `xdev(not(p))`. Reading
+`xdev(p)` for it reports no deviation, which looks exactly like the one-rule translation not
+working, and it did for one run.
+
+## `context: believed` is WITHDRAWN, and the demonstration points the other way
+
+The question the section below left unresolved, asked of the engine rather than argued again.
+`ugm/probes/anchors.py`, 8/0, and `docs/wanting.md` §7 carries the tables.
+
+The *for* side's one unexamined claim was that the four constraints **do not vanish, they
+MOVE** from the loader into the engine. They do not move: they are already there, one branch
+each, and none was written for this question.
+
+- **The crux.** The wrapper exists to stop a rule matching a bare proposition from reading
+  structure as belief. `match` reads the SITUATION — entries — and never the raw graph, so it
+  cannot. `p(thing)` present twice over as a stored pattern and inside a mention, and neither
+  a generic reader nor a ground one fires; assert it and the same rule fires at once. That is
+  the author's own *we ALWAYS anchor*, holding of the engine that exists.
+- **Skeleton and computators**: a computed member is answered by CALLING it, with no entry
+  about it anywhere. **Mentions**: a mention anchors the mentioning proposition and not what
+  is mentioned. **The consequent's sign**: no wrapper touches it — that is the anchor build,
+  and §9.4 just answered its member half.
+- **The escape is worse than stated.** *Do not wrap what is already an anchor* keys the
+  loader's decision on a NAME, and `believed` is **not reserved**: a corpus using it as its
+  own word loads clean today.
+- **The hazard is the wrapper's alone.** Half a corpus wrapped and half not: two vocabularies
+  that cannot meet, both well-formed, both loading clean. The 81 → 411 measurement in
+  miniature.
+
+### The finding, which is not the verdict — and it is a defect today
+
+There is exactly one path where presence in the graph really does mean belief, and it is the
+**structural** path, which is the one path the first constraint tells the wrapper to skip:
+
+    rule <never>  = implies( { +nope(x), in_delta(mm, ee) }, { +never_out(x) } )
+    rule <reader> = implies( { +go(x),   in_delta(mm, $e) }, { +sawdelta($e) } )
+    fact +go(x)
+
+    sawdelta(ee) = +     bound off a rule nobody applied, for a moment that does not exist
+
+`_stored` is the one walker reading the raw graph, and `_as_fact` guards it by rejecting a
+candidate with **variables in its argument positions**. A ground stored pattern has none, so
+it passes as a deposited fact. Kill-probed: delete `<never>` and the reader binds nothing.
+What the guard wants to ask is *was this deposited*; the two coincide for every pattern with
+a variable in it, which is why nothing has caught it. **Independent of anchors, and it grows
+under them**, because more reads become structural.
+
+## Where to pick up
+
+`context: believed` is settled, so the anchor build has nothing left in front of it except the
+leak above, which should go first. Otherwise unchanged from below, minus 9.4: the critical path is **anchors**, `context: believed` is
+still unresolved (the argument for and against is in the section below and nothing here
+touches it), and 9.8, 9.3b and all of 12 wait on the build. What this session adds to that
+decision is one datum: the `expects` family shows that a sign carried as data is a
+proposition, which is a second instance of the shape *the wrapper never varies* — the mode
+wants to be a binding, not a spelling.
+
+---
+
 # Handoff — 2026-08-22 (the SIGIL changed, and three design threads closed)
 
     python -m ugm.selftest      557 checks, 0 failing
@@ -86,6 +224,11 @@ line or a rewrite, and it cannot be run after the build. Its fixture ships: `bun
 exactly what `expects(minus)` is satisfied by.
 
 ### Is `context: believed` still needed? Asked at the end of the session, unresolved
+
+**Answered in the section at the top of this file: no.** What follows is the argument as it
+stood, kept because the measurement that settled it was aimed at the third bullet under *for*
+— the one about the four constraints MOVING — and reading the argument is how that aim makes
+sense.
 
 The case for it is weaker than it was that morning, and 9.4 is independent of the answer, so
 it can be settled after.

@@ -637,8 +637,25 @@ usually comes back: the three-valued reads. `unsure` is reserved vocabulary, a
 `?` member is parseable (`? $p` appears in `bundle.ugm`'s `<deviation---
 invalidated>`), and §6's *a rule that reads ignorance* is a real pattern. Each
 becomes *no `believed(...)` node matches*, which is negation-as-failure -- so
-the honest question is whether the three deviation rules still say what they say
+the honest question is whether the four deviation rules still say what they say
 when ignorance is absence. **They are the fixture for this change.**
+
+✅ **ASKED AND ANSWERED, 2026-08-22** -- `ugm.probes.collapse`, 10/0, and
+`wanting.md` §9.4 carries the tables. They do not say what they say, and that is
+the good news: the four become **one**, because the sign in `expects($p, minus)`
+was a proposition wearing a sign's clothes. Read it as `expects(not($p))` and no
+sign is left in the family at all. The naive translation -- every `-` and `?`
+member becoming `no` -- breaks exactly one row, `<deviation---invalidated>` on
+an expectation the world MET, which is the direction that looks like success;
+and deleting that rule does not save the reading, it moves the loss to the other
+expects-minus row. The distinction the merge eats, contradicted vs invalidated,
+moves into `not($p)` and comes back as rows.
+
+⚠ Two things this found on the way. The suite had a control for expects-plus and
+**none for expects-minus**, so the one row the collapse breaks was the one row
+nothing asked -- both controls now run (558). And the migration is a header line
+only where a `-` is a consequent: in a MEMBER it is one of two different things,
+`no $p` or `+not($p)`, and the corpus has to say which.
 
 ---
 
