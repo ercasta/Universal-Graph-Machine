@@ -326,6 +326,100 @@ refusal is deposited, so nothing fails silently. Push, resolve, pop, push again 
 approaches it. A chain of narrow experts each consulting the next before the last has popped
 is depth, and that is the one shape this architecture could walk into the wall with.
 
+## 12b. Scope: there was no scoping problem
+
+A model reasoning about the Tower of Hanoi should work on **this** game, not on every Hanoi
+game in the graph. That question ran through four proposed mechanisms and ended by retiring
+all of them.
+
+The failure is real. One rule, two games:
+
+    rule <move> = implies( { +on($d, $from), +clear($d), +clear($to), +peg($to) },
+                          { +lands($d, $to) } )
+
+    shared disks, parts unstated     lands(d1, b1)     lands(d1, b2)          2 crossings
+    distinct disks, parts unstated   lands(g1_d1, b2)  and three others       4 crossings
+    parts STATED                     lands(g1_d1, b1)  lands(g2_d1, b2)       none
+
+The middle row is the one worth keeping. *Two games cannot share disks* is true and is not
+the fix: giving each game its own disks made it **worse**, four crossings instead of two,
+because the pegs are still just pegs. `peg(b2)` says b2 is a peg; nothing says which board it
+is on. The rule asks for a clear peg and b2 is one.
+
+The third row is one premise per bound part — `+part($d, $g), +part($from, $g),
++part($to, $g)` — and it is exact.
+
+So: **there was no scoping problem, there was a modelling omission.** A game is an entity
+with parts. Said in the corpus, the rules read it like any other premise. Unsaid, no engine
+mechanism can recover it, because the information is not in the graph at all. That is the
+same construct `docs/world-model.md` already names — *a span is an identified set of
+entities and relationships that can be treated as an entity; a car is an entity and it also
+has wheels* — and the same principle as `wanting.md` 7's *the desire is an entity*.
+
+### Four mechanisms retired, and why each looked plausible
+
+**Containment / hyperedging as a new capability.** Already present: a compound node is an
+n-ary edge, `_contents` reads it (*a moment holds what is asserted there, and anything else
+holds its own members*), and `in($s, p)` is containment with `in` an ordinary corpus
+relation, not one of the reserved names. Nothing to build.
+
+**An expert that sets a containment and resets it afterwards.** This is `suppose`/`discharge`,
+deleted on 2026-08-20. `learning/practice.py`: *a rehearsal used to be a supposition: the
+register stood inside a frame... None of that exists now. A rehearsal is an ANCHOR and
+containment is a premise rather than a mechanism.* A mode is engine state no rule can read,
+date or deny.
+
+**Pointing an expert at a root node.** A frame already says what the agent is about, and
+deliberately does not scope what its rules match. Making it scope would be ambient state
+again — a rule meaning different things depending on what is pushed.
+
+**Discarding applications that do not intersect attention.** Measured, and it fails twice
+over. See below.
+
+### Attention orders; it cannot gate
+
+    partial intersection on bindings     CRASH -- a rule never applies, learning dies
+    same, with a fallback when empty     CRASH -- the set is not empty, it is full of dead candidates
+    prefer attended survivors, else all  557/0, narrowing 7259 times, falling back 367 times
+
+The mechanism: **attention proposes, `_survives` disposes.** `_attended_first` orders, and
+the loop takes the first survivor. 367 times across the suite every attended candidate is
+spent, passed up or quiescent, and the right move is one attention never named. Ordering
+lets it through; filtering deletes it before the survival test runs.
+
+The third form passes and is still not worth adopting: `_attended_first` already sorts
+attended-first, so preferring them walks the same candidates in the same order. It changes no
+outcome.
+
+And gating could not have scoped anything anyway. **Ordering eventually reaches everything**
+— it changes *when*, never *whether* — so it can defer the cross-game derivation but not
+prevent it. Only a premise makes a match fail.
+
+### What attends, corrected
+
+An earlier draft of this section said attention grows to include whatever an application
+touches. **It does not.** `_attend_written` attends only what a move WROTE, plus deliberate
+`attend`. What it does do is decompose the conclusion, so `lands(d1, b1)` pushes four nodes:
+the proposition, the relation atom `lands`, and both arguments.
+
+Which of the four earn their place:
+
+    whole proposition only        557 checks, 1 failing
+    no relation atom, no whole    557 checks, 0 failing
+    bare individuals only         557 checks, 0 failing
+
+The arguments are load-bearing — `_attended_first` ranks bindings and a binding is an
+individual. The relation atom and the whole proposition are distinguished by **no check in
+the suite**. That is half of what enters a bounded, displacement-decayed queue whose own
+docstring records being backed out twice because *a queue permanently full of undifferentiated
+nodes made the agent chase its own tail and quiesce 30 moves early.* Not evidence that
+removing them helps — no check can see the difference — but a candidate with a prior behind
+it.
+
+The residual leak, once the relation atom is gone, is the shared entity: a conclusion's
+arguments are attended, and `d1` really is an argument of something the agent concluded. That
+is the modelling omission again, arriving from the attention side.
+
 ## 13. What is settled
 
 - An illegal move is a classification, not a prohibition. The core model deposits a verdict
@@ -347,6 +441,11 @@ is depth, and that is the one shape this architecture could walk into the wall w
 - There is no right answer to expert selection, and that is the design. Competence and
   findability are one currency, so discrimination rules are both the epistemic and the
   mechanical answer.
+- Scope is modelling, not mechanism. A game is an entity with parts; stated, the rules read
+  it as a premise; unstated, nothing can recover it. Containment, root nodes and attention
+  gating were all attempts to invent a fact nobody had written down.
+- Attention orders and cannot gate. It changes when, never whether, so it can defer a wrong
+  derivation but never prevent one.
 - No inheritance between experts. Share only what EVERY expert shares — a universal rule
   has idf zero and is free; a discriminating one duplicated makes the borrower win the
   question it borrowed. `extends` is deleted.
