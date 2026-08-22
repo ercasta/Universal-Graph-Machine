@@ -8,7 +8,7 @@ postcondition vocabulary gained two rows:
     push($a, $b, ...)   start a fresh attention frame on those nodes
     pop($x)             restore the previous frame, attending $x on it
 
-⚠⚠⚠ **The graph is untouched by both.** This is not a transaction, there is no
+ **The graph is untouched by both.** This is not a transaction, there is no
 rollback, and nothing derived inside a frame stops existing when it is popped.
 Attention management is the whole of this. The one thing a pop takes back is the
 frame's own `attention` claims, and it DENIES them rather than dropping them.
@@ -36,7 +36,7 @@ from ..core.text import Loader, load
 PAD = "".join("rule <p%d> = implies( { +z%d($x) }, { +y%d($x) } )\n" % (i, i, i)
               for i in range(12))
 
-# One outer line of work and one sub-line long enough to evict it. ⚠ The two
+# One outer line of work and one sub-line long enough to evict it.  The two
 # corpora below differ by EXACTLY the two postconditions substituted in --
 # everything else, rule for rule and fact for fact, is the same text.
 HEAD = """
@@ -58,7 +58,7 @@ ITEMS = "".join("fact +item(i%d)\n" % i for i in range(1, 9))
 def _survey(push: str, pop: str):
     """Run the corpus, recording what was attended at each CHOICE.
 
-    ⚠ At the choice and not after the move: `watch` fires once the
+     At the choice and not after the move: `watch` fires once the
     postconditions have run, so a pop had already happened and the frame the
     decision was taken in was not the one being reported -- a check built out of
     the thing under test, which is the trap `probes/experts.py` records.
@@ -141,11 +141,11 @@ def main() -> int:
     print(f"            attended when <report> was chosen: {frame_at[:5]}")
     print()
 
-    gate("⚠ the control finishes both ways -- the stack is being measured, not "
+    gate(" the control finishes both ways -- the stack is being measured, not "
          "the corpus",
          flat_m.holds(flat_kb.term("told(plots)")) == PLUS
          and frame_m.holds(frame_kb.term("told(plots)")) == PLUS)
-    # ⚠⚠⚠ POSITION, not membership. `attend($g)` deposited a standing
+    #  POSITION, not membership. `attend($g)` deposited a standing
     # `attention(plots)` claim, and `_attended()` puts a standing claim at the
     # BOTTOM rather than dropping it -- so *was it forgotten* is the wrong
     # question and would have made this check pass on a technicality. What the
@@ -161,16 +161,16 @@ def main() -> int:
          "queue, and `plots` is back at the FRONT when the outer line resumes, "
          "exactly as `<begin>` left it",
          frame_m._readmitted == 0 and frame_at.index("plots") == 0)
-    gate("⚠ ...and the eight items the sub-line was about are gone from the "
+    gate(" ...and the eight items the sub-line was about are gone from the "
          "outer frame, which is the other half: suspending is not remembering "
          "more, it is remembering the RIGHT things",
          not any(n.startswith("i") and n[1:].isdigit() for n in frame_at))
-    # ⚠⚠⚠ **And it is not a speed-up. It costs slightly MORE.** Written down
+    #  **And it is not a speed-up. It costs slightly MORE.** Written down
     # rather than tuned away: `_pull` lifts from a shorter queue inside the
     # frame, so the shortlist widens a little further. The stack buys the FOCUS
     # and pays a few percent of matching for it, and a probe that reported only
     # the column it won on would be measuring its own conclusion.
-    gate(f"⚠⚠⚠ ...and the loop pays for it: {flat_r.tried} rules matched flat "
+    gate(f" ...and the loop pays for it: {flat_r.tried} rules matched flat "
          f"against {frame_r.tried} framed, {flat_r.widenings} widenings "
          f"against {frame_r.widenings}. The stack is NOT a speed-up -- it is a "
          f"few percent dearer, and what it buys is the line above staying put",
@@ -189,15 +189,15 @@ def main() -> int:
          m.holds(kb.term("pushed(items)")) == PLUS)
     gate("⭐ ...and so is the pop, carrying the node it brought back",
          m.holds(kb.term("popped(plots)")) == PLUS)
-    gate("⚠ the stack came back down: a run that ends inside a frame it opened "
+    gate(" the stack came back down: a run that ends inside a frame it opened "
          "would be a leak the agent cannot be asked about",
          len(m._frames) == 1)
-    gate("⚠⚠ and the graph is UNTOUCHED by the pop -- everything the sub-line "
+    gate(" and the graph is UNTOUCHED by the pop -- everything the sub-line "
          "concluded still stands, because popping graph changes is a different "
          "feature and is not wanted",
          all(m.holds(kb.term("checked(i%d)" % i)) == PLUS
              for i in range(1, 9)))
-    gate("⚠⚠ ...while the frame's own `attention` claims are DENIED rather "
+    gate(" ...while the frame's own `attention` claims are DENIED rather "
          "than dropped, or the suspension would leak the very thing it exists "
          "to put away",
          m.holds(kb.term("attention(i8)")) != PLUS)
@@ -231,14 +231,14 @@ def main() -> int:
          all(s == 0 for _q, (_w, sc) in picks.items() for _e, s in sc
              if s == 0) and any(s > 0 for _w, sc in picks.values()
                                 for _e, s in sc))
-    gate("⚠⚠ ...and here is what is LEFT after discounting, which is the "
+    gate(" ...and here is what is LEFT after discounting, which is the "
          "number `docs/todo.md` asked for: `area(plot1)` TIES the expert that "
          "answers with the expert that asks, because both key on `area`. The "
          "tie falls to authored order. That is signal, not separation",
          picks["area(plot1)"][0] == "geometry"
          and len({s for _e, s in picks["area(plot1)"][1] if s}) == 1
          and len([s for _e, s in picks["area(plot1)"][1] if s]) == 2)
-    gate("⚠ nothing to discriminate is answered with NOTHING, and the frame "
+    gate(" nothing to discriminate is answered with NOTHING, and the frame "
          "keeps the rules of the frame below -- picking the first expert "
          "declared would be a coin flip wearing a mechanism's clothes",
          em._pick_expert([em.g.atom("unrelated")])[0] is None)
@@ -247,7 +247,7 @@ def main() -> int:
     print()
     print("4. the frame carries its expert's table")
     print()
-    # ⚠ Two members apiece, and not for decoration: a one-member antecedent
+    #  Two members apiece, and not for decoration: a one-member antecedent
     # `{ +asking($q) }` matches the MENTION the loader wrote for the rule's own
     # pattern, so the rule applies twice, binds `$q` to a generic, writes
     # nothing, and the corpus looks like it ran. Caught here by asking what it
@@ -265,7 +265,7 @@ fact +known(sum)
     kb2 = load(m2, src)
     root = Table(m2.g, list(m2.rules.rules), _standing(m2))
     r2 = run(m2, limit=20, table=root)
-    gate("⚠ a caller that hands its table in still gets THAT table back, not "
+    gate(" a caller that hands its table in still gets THAT table back, not "
          "whichever frame the run ended in",
          r2.table is root)
     gate("⭐⭐ ...and the root table's tick count is the run's, so a host "
@@ -299,7 +299,7 @@ fact +next(n8, n9)
     run(deep, limit=40)
     print(f"    frames after ten pushes: {len(deep._frames)} "
           f"(FRAME_DEPTH = {FRAME_DEPTH})")
-    gate("⚠⚠⚠ the depth bound HOLDS, and it is asserted directly rather than "
+    gate(" the depth bound HOLDS, and it is asserted directly rather than "
          "read off a log -- `probes/experts.py` records a check that passed "
          "while the stack was flat because it was built out of its own output",
          len(deep._frames) == FRAME_DEPTH)
@@ -319,7 +319,7 @@ fact +at(here)
 fact +place(here)
 """)
     run(cyc, limit=20)
-    gate("⚠ the cycle test is on the PAIR -- the expert AND what it is being "
+    gate(" the cycle test is on the PAIR -- the expert AND what it is being "
          "asked about -- so the same frame is refused rather than reopened",
          any(cyc.g.show(cyc.g.member(inst, 2)) == "already_open"
              for inst in cyc.g.instances_of(cyc.DECLINED)
@@ -334,7 +334,7 @@ fact +here(a)
 fact +place(a)
 """)
     run(rootpop, limit=10)
-    gate("⚠ and a pop with nothing to return to is DECLINED rather than "
+    gate(" and a pop with nothing to return to is DECLINED rather than "
          "raised: whether `stop` should be *pop the root* is elegant and not "
          "required, and until it is, this is a corpus arguing with itself",
          len(rootpop._frames) == 1

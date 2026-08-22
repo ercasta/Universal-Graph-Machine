@@ -4,7 +4,7 @@
 
 This is an expressibility test, in the shape ugm.bundle used: take a domain the
 design was not built for, author it in the surface, and see what cannot be
-said. ⚠ The two things the corpus had to work around, and both are honest
+said.  The two things the corpus had to work around, and both are honest
 findings rather than defects of the demo: 1.
 
 See docs/design/dungeon.md.
@@ -33,7 +33,7 @@ def fight(seed: Optional[int] = 7, limit: int = 4000, extra: str = "",
 
     what each tool was asked. ⭐⭐ predictive is the connective, and it is the
     corpus's most expensive decision. A wound is an event, so §8 says causes:
-    it lands in a later moment and it persists. ⚠ And the first version of this
+    it lands in a later moment and it persists.  And the first version of this
     note said 660x, which was false.
 
     See docs/design/dungeon.md#fight.
@@ -61,14 +61,14 @@ def fight(seed: Optional[int] = 7, limit: int = 4000, extra: str = "",
         if not (a.isdigit() and b.isdigit()):
             return None
         asked.append(mach.g.show(e.proposition))
-        # ⚠ add/sub, and NOT plus/minus: Machine.reserved binds those two names
+        #  add/sub, and NOT plus/minus: Machine.reserved binds those two names
         # to the SIGN atoms, and the loader seeds every corpus's table from it
         # -- so calc(minus, 5, 2) resolved its operator to the minus sign,
         # printed as calc(-, 5, 2), and the tool declined a request it should
         # have answered.
         # → docs/design/dungeon.md#add-sub-and-not-plus-minus-machine
         if op == "sub":
-            # ⚠ THE CLAMP. A rule of the game, stated in Python, because the
+            #  THE CLAMP. A rule of the game, stated in Python, because the
             # surface cannot write a negative numeral. See the module docstring.
             return kb.atom(str(max(0, int(a) - int(b))))
         return None
@@ -80,7 +80,7 @@ def fight(seed: Optional[int] = 7, limit: int = 4000, extra: str = "",
         asked.append(mach.g.show(e.proposition))
         return kb.atom("yes" if int(a) >= int(b) else "no")
 
-    # ⚠⚠⚠ Through the LOADER, never Machine.answerer with a bare string: a
+    #  Through the LOADER, never Machine.answerer with a bare string: a
     # request relation minted beside the corpus's table is a request nobody can
     # write, and an answer built with g.atom is a node no rule can name.
     # → docs/design/dungeon.md#through-the-loader-never-machine-answerer
@@ -179,7 +179,7 @@ def main() -> int:
         print(f"    {who:<9} hp={hp}  {'standing' if present == PLUS else 'down or gone'}")
     print()
 
-    # ⚠ Every check below asks its OWN fight through its OWN loader. A node is
+    #  Every check below asks its OWN fight through its OWN loader. A node is
     # identified by being the node it is, and two machines that loaded the same
     # corpus hold two disjoint graphs -- so `kb.term("over(hero_wins)")` asked of
     # a different fight's machine is a node that fight never heard of, and the
@@ -202,7 +202,7 @@ def main() -> int:
          "being present, which a dead hero taught this corpus the hard way",
          not _acted_after_falling(m))
 
-    # ⚠⚠⚠ The clock, and this check exists because everything else missed it.
+    #  The clock, and this check exists because everything else missed it.
     # → docs/design/dungeon.md#the-clock-and-this-check-exists-because-e
     turned = _turns_after_the_end(m)
     gate("⭐⭐⭐ the CLOCK stops when the fight does -- and this is the only "
@@ -239,7 +239,7 @@ def main() -> int:
 
     # -- the trail ---------------------------------------------------------
     dead = [w for w in ("hero", "goblin1", "goblin2") if holds(m, kb, f"dead({w})")]
-    gate("⚠ the trail check has something to measure: somebody died", bool(dead))
+    gate(" the trail check has something to measure: somebody died", bool(dead))
     if dead:
         e = m.chain.resolve(kb.term(f"dead({dead[0]})"))
         trail = {m.g.show(x.proposition) for x in m.chain.trail(e)}
@@ -249,7 +249,7 @@ def main() -> int:
 
     # -- is any of this dead? ----------------------------------------------
     #
-    # ⚠ A rule that never applies is a rule whose checks cannot fail, and one
+    #  A rule that never applies is a rule whose checks cannot fail, and one
     # fight exercises maybe two thirds of this corpus. Asked of the apparatus's
     # own `exercised(<R>)` fact rather than of a census written beside it.
     seeds = (7, 11, 13, 21, 42, 99, 123)
@@ -267,7 +267,7 @@ def main() -> int:
     # -- preemption --------------------------------------------------------
     fled = [(s, mm, kk) for (s, (mm, kk, _)) in zip(seeds, fights)
             if any(holds(mm, kk, f"fled({w})") for w in ("goblin1", "goblin2"))]
-    gate("⚠ the preemption check has something to measure: a goblin ran",
+    gate(" the preemption check has something to measure: a goblin ran",
          bool(fled))
     if fled:
         s, mm, kk = fled[0]
@@ -363,7 +363,7 @@ def _times_granted(m, kb, who: str) -> int:
 def _acted_after_falling(m) -> List[str]:
     """Any attack DEPOSITED after its attacker was recorded dead.
 
-    ⚠ Read off the chain in deposit order rather than off the tool's call log:
+     Read off the chain in deposit order rather than off the tool's call log:
     the log has no position in the history, so a check written against it could
     only ever compare a count with itself. This repo has a file about the check
     that stopped being able to fail; the first draft of this one could not.

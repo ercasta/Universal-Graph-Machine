@@ -26,13 +26,13 @@ it is wrong:
     mentions  `relations_of`: which relations a NODE is spoken of under, which
               is what attention lifts a rule with
 
-⚠ The three fail in different ways and only the first is loud. A wrong state
+ The three fail in different ways and only the first is loud. A wrong state
 concludes from a premise that was denied; a wrong index silently stops a rule
 applying; wrong keys only make a worse choice, which no fixture asserting an
 outcome can see. That is why the keys are compared here rather than left to the
 checks that read them.
 
-⚠ What this cannot check is the fixtures it is given -- the homogeneous-fixture
+ What this cannot check is the fixtures it is given -- the homogeneous-fixture
 trap, recorded twice in this repo. A state that is wrong only after a denial is
 wrong invisibly if nothing denies anything, so the tally prints how many looks
 followed a supersession and how many had a live goal, and a run where either is
@@ -57,7 +57,7 @@ see what it was thinking about while it concluded it. The sixth is the same
 sentence one index along -- a stale mention makes a worse SHORTLIST -- which is
 why it is here and not in `ugm.selftest`.
 
-⚠⚠⚠ **And the mentions column had to be made to fail before it was worth
+ **And the mentions column had to be made to fail before it was worth
 anything.** A first version compared which relations a node is spoken of under
 and reported 0 disagreements with the decrement removed entirely. The reason is
 worth keeping: a denial does not remove an entry, it replaces `+q(a)` with
@@ -65,7 +65,7 @@ worth keeping: a denial does not remove an entry, it replaces `+q(a)` with
 the one operation the column exists to watch, the relation SET does not move and
 the count is off by one. So the comparison is over the counts.
 
-⚠ Two branches of `_mention` are NOT exercised by anything here, and saying so
+ Two branches of `_mention` are NOT exercised by anything here, and saying so
 is cheaper than implying otherwise. Re-adding an entry already in a bucket
 (`fresh`) and a count actually reaching zero both probe clean at 0 -- the first
 because nothing adds one entry twice, the second because a supersession always
@@ -78,7 +78,7 @@ The index, asked of every key either side has an opinion about -- the
 bare-variable bucket, the per-relation ones, and the per-argument ones
 a join narrows to.
 
-⚠ Asked through `bucket`, never off `_by`, and the difference is the
+ Asked through `bucket`, never off `_by`, and the difference is the
 whole value of the column: a first version compared the dicts directly
 and could not see one read back in the wrong ORDER, or a stale
 reversal handed out after the state moved on. Choosing the key is not
@@ -93,7 +93,7 @@ never a wrong conclusion. Exactly the column `keys` is here for, one
 index along -- and the counting is the part that can drift, because
 `add` and `drop` are the only two places it is ever right or wrong.
 
-⚠⚠⚠ **The COUNTS, not the relations, and the difference is whether
+ **The COUNTS, not the relations, and the difference is whether
 this column measures anything at all.** A first version compared the
 relation sets and could not see `drop` disabled entirely: a denial
 does not remove an entry, it REPLACES `+q(a)` with `-q(a)`, and the

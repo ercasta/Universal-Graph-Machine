@@ -2,7 +2,7 @@
 
 Machine._kept is an optimisation of a semantics, and §20's floor gate is this
 design's standing answer to that: the slow definition stays, so the fast one
-can be held to it rather than trusted. ⚠ What this cannot check is the fixtures
+can be held to it rather than trusted.  What this cannot check is the fixtures
 it is given -- the homogeneous-fixture trap, recorded twice in this repo.
 
 See docs/design/state.md.
@@ -30,7 +30,7 @@ _examples = []
 def _slow_state(m):
     """§4's walk, filtered by what is out of mind. Newest-first.
 
-    ⚠⚠⚠ This CANNOT call `current_state` any more, and the reason is the lesson
+     This CANNOT call `current_state` any more, and the reason is the lesson
     this gate exists to enforce. With the locus gone, `current_state` is one
     line over `chain._claims` -- it reads the very index the maintained state is
     also built from, so a gate calling it would compare an index against
@@ -61,7 +61,7 @@ def install() -> None:
     original = Machine._kept
     def compared(self):
         cache = original(self)
-        # ⚠ The comparison reads the state, and reading the state is what is
+        #  The comparison reads the state, and reading the state is what is
         # being compared, so the instrument stands aside while it is running or
         # it is measuring its own recursion.
         if _tally.get("inside"):
@@ -97,7 +97,7 @@ def install() -> None:
             )
         # The index, asked of every key either side has an opinion about -- the
         # bare-variable bucket, the per-relation ones, and the per-argument
-        # ones a join narrows to. ⚠ Asked through bucket, never off _by, and
+        # ones a join narrows to.  Asked through bucket, never off _by, and
         # the difference is the whole value of the column: a first version
         # compared the dicts directly and could not see one...
         # →
@@ -112,7 +112,7 @@ def install() -> None:
 
         # The fourth, and it is the quietest of the four: relations_of is read
         # to LIFT a rule, so a stale count makes a worse shortlist and never a
-        # wrong conclusion. ⚠ The COUNTS, not the relations, and the difference
+        # wrong conclusion.  The COUNTS, not the relations, and the difference
         # is whether this column measures anything at all.
         # → docs/design/state.md#the-fourth-and-it-is-the-quietest-of-the-four
         for node, held in list(cache["sit"]._rels.items()):
@@ -139,7 +139,7 @@ def install() -> None:
 def main() -> int:
     import sys
 
-    # ⚠ Section signs and warning marks on a cp1252 console. An instrument that
+    #  Section signs and warning marks on a cp1252 console. An instrument that
     # dies printing its own prose reports nothing.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -164,7 +164,7 @@ def main() -> int:
         print(f"         {e}")
     print()
     if _tally["with_a_supersession"] == 0 or _tally["with_a_goal"] == 0:
-        print("  ⚠ A column had nothing to measure: this run compared very little.")
+        print("   A column had nothing to measure: this run compared very little.")
         return 1
     print(f"  {disagreed} disagreements")
     return 1 if disagreed else 0

@@ -15,7 +15,7 @@ from .core.rules import (CAUSES, IMPLIES, Member, RuleSet, match,
 _results: List[Tuple[str, str, bool]] = []
 
 
-# ⚠ `BUNDLE_STRATUM0 = {"span-complete", "span-itself"}` was here -- §11's
+#  `BUNDLE_STRATUM0 = {"span-complete", "span-itself"}` was here -- §11's
 # containment policy, which `Moment.at_or_after` consulted, and which two checks
 # filtered out so they measured a CORPUS's recognisers rather than the bundle's.
 # Both rules went with the locus, so the filter matched nothing and hid nothing:
@@ -59,7 +59,7 @@ def chain_reads() -> None:
     c.succeed(m2, None)
     c.deposit(proposition=p, sign=MINUS)
     check("§6", "a later claim overrides an earlier one", c.holds(p) == MINUS)
-    # ⚠ LOST with the second time: `the earlier moment is unchanged by the later
+    #  LOST with the second time: `the earlier moment is unchanged by the later
     # claim` was `c.holds(p, m1, m3) == PLUS` -- the locus index. `resolve`
     # answers about the chain's end and nothing else. *Did this hold THEN* is a
     # corpus rule over `in_delta`/`anc`/`entry_of` now, not a Python service:
@@ -83,7 +83,7 @@ def a_revision_is_a_second_entry() -> None:
     """What is left of §17's two indices, and it is the half that was never
     about a locus.
 
-    ⚠⚠⚠ The group this replaces was `two_indices`: deposit about M7 from M12,
+     The group this replaces was `two_indices`: deposit about M7 from M12,
     then ask both *what I now think about M7* and *what I thought at M7* and get
     different answers. Neither question is askable -- an entry has no locus, so
     there is no second time to index by. What remains is the claim §12 makes
@@ -121,7 +121,7 @@ def a_revision_is_a_second_entry() -> None:
 
 
 def gate() -> None:
-    """⚠⚠⚠ Four of this group's seven checks were about the FRAME, and there is
+    """ Four of this group's seven checks were about the FRAME, and there is
     no frame. The stamp was *proposition and sign from the rule; locus, deposit,
     licence and source from the frame* -- and two of those four came from a
     register that said where the agent was standing. Gone with it:
@@ -142,7 +142,7 @@ def gate() -> None:
     c.succeed(c.root, None)
     now = c.succeed(c.now, None)
 
-    # ⚠ Held in a variable, not re-minted: `g.atom` does not intern, so
+    #  Held in a variable, not re-minted: `g.atom` does not intern, so
     # `g.atom("supposing")` asked twice is two nodes and the comparison below
     # fails while looking right. The name-identity trap, caught writing this.
     why = g.atom("supposing")
@@ -172,7 +172,7 @@ def uncertainty_is_a_proposition() -> None:
     """There is no grade, and `@` is refused. (§10, §12)
 
     @likely was a field on an entry and a closed set of five names in Python,
-    composed by weakest link on every write. ⚠ What is lost is that weakest
+    composed by weakest link on every write.  What is lost is that weakest
     link was AUTOMATIC and TOTAL.
 
     See docs/design/selftest.md#uncertainty-is-a-proposition.
@@ -182,7 +182,7 @@ def uncertainty_is_a_proposition() -> None:
     check("§10", "`@` is refused, and says what to write instead",
           _refuses("rule <r> = implies( { +p(a) }, { +q(a) @likely } )"))
 
-    # Crossing: what a grade did for free, as corpus lines. ⚠ Since situations
+    # Crossing: what a grade did for free, as corpus lines.  Since situations
     # went, the rule is written ANCHORED -- `holds_in($w, ...)` on both sides --
     # because there is no frame to unwrap the assumption into. The uncertainty
     # is still a proposition a rule can read; what changed is that carrying it
@@ -201,7 +201,7 @@ def uncertainty_is_a_proposition() -> None:
           "downstream can quietly treat it as certain",
           m.holds(kb.term("wet(street)")) is None)
 
-    # ⚠⚠⚠ **What went with situations, recorded rather than quietly dropped.**
+    #  **What went with situations, recorded rather than quietly dropped.**
     # Two independent uncertainties used to give a NESTED conclusion --
     # `likely(possible(c(t)))` -- because each supposition unwrapped its own
     # premise into one frame and discharge re-wrapped what came out. Anchored
@@ -232,7 +232,7 @@ def matching() -> None:
 def _move(m, limit: int = 20):
     """Step until something APPLIES, and hand back that step.
 
-    ⚠ `Machine.tick` is one move of the table loop, and a move is not always an
+     `Machine.tick` is one move of the table loop, and a move is not always an
     application: the loop spends a tick DEPOSITING a doubt when two rules score
     within tolerance, which is its own documented behaviour -- *depositing is
     the move*. A check about what arbitration answered wants the answer, not the
@@ -372,7 +372,7 @@ def trusting_a_channel() -> None:
     check("§13", "and the world claim is separate from the saying", said != raining)
     check("§13", "the trust rule concluded about the world", m.holds(raining) == PLUS)
 
-    # ⚠ None-safe, and the reason is a probe. Deleting <intake> from the bundle
+    #  None-safe, and the reason is a probe. Deleting <intake> from the bundle
     # made this raise an AttributeError instead of failing -- so a mutation that
     # ought to send someone here crashed the runner three checks earlier and
     # every check after it went unreported. A runner whose contract is *any False
@@ -584,7 +584,7 @@ def denial_nests() -> None:
 
     m = Machine()
     kb = load(m, "rule <r> = implies( { +a(x) }, { -b(x) } )")
-    # ⚠⚠⚠ **What went with situations.** A denial concluded under a supposition
+    #  **What went with situations.** A denial concluded under a supposition
     # used to cross out INSIDE the wrapper -- `likely(not(b(x)))` and never
     # `-likely(b(x))` -- and that was `discharge` re-wrapping on the way out.
     # With no frame there is no way out and nothing to re-wrap, so the sign
@@ -716,7 +716,7 @@ def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
         "rule <watch> = implies( { +arrived($c, $p, $s) }, { +noticed($c) } )",
         "",
     ]))
-    # ⚠ Through the LOADER's table, both of them. The first version of this check
+    #  Through the LOADER's table, both of them. The first version of this check
     # used `channels.open("user")` and `g.rel(g.atom("raining"), ...)`, which mint
     # fresh nodes -- so it failed on twins, in a check written about twins. That
     # is `channels.use` earning its place: a surface that has already coined a
@@ -796,7 +796,7 @@ def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
 def a_verdict_names_what_it_settled() -> None:
     """*What am I stuck on?* -- answerable out loud. (§14, §19)
 
-    docs/quest-feedback.md §1. ⚠ Instantiated at the VERDICT rather than at the
+    docs/quest-feedback.md §1.  Instantiated at the VERDICT rather than at the
     subgoal, because a verdict is asked at quiescence -- the latest moment
     there is, and therefore the one that...
 
@@ -827,7 +827,7 @@ def a_verdict_names_what_it_settled() -> None:
           "utter it -- which is what turns *ask someone for help* from a special "
           "case into the general one", ground == ["blocked(have(p1, key1))"])
 
-    # ⚠⚠⚠ **One report per PLAN.** A rule fitted to two goals shares its variable
+    #  **One report per PLAN.** A rule fitted to two goals shares its variable
     # nodes, so both plans carry the same `$k` bound differently and subgoal the
     # same `have($w, $k)` node. The first version of this collected every
     # relevant binding into one environment, let the last one win, and reported
@@ -836,7 +836,7 @@ def a_verdict_names_what_it_settled() -> None:
         "rule <unlock> = implies( { +have($w, $k), +opens($k, $d) }, { +open($d) } )",
         "fact +opens(key1, door1)", "fact +opens(key2, door2)",
         "fact +goal(open(door1))", "fact +goal(open(door2))", ""]))
-    check("§19", "⚠⚠⚠ ...and two plans give two reports, because one rule fitted "
+    check("§19", " ...and two plans give two reports, because one rule fitted "
           "twice shares its variables -- collapsing them lets the last binding "
           "win and the agent says one of the things it is stuck on",
           two == ["blocked(have($w, key1))", "blocked(have($w, key2))"])
@@ -876,7 +876,7 @@ def the_tick_limit_is_on_the_record() -> None:
           "runaway rather than being cut off in silence",
           m2.chain.holds(kb2.term("noticed(runaway)")) == PLUS)
 
-    # ⚠⚠⚠ `Loader.term` parsed one term and dropped the rest of the string, and
+    #  `Loader.term` parsed one term and dropped the rest of the string, and
     # `Loader.say` uses it -- so an agent could say one thing and the hearer
     # believe another, with nothing reporting a difference. A truncation is
     # still a valid term, so it failed as a WRONG ANSWER rather than a crash.
@@ -889,7 +889,7 @@ def the_tick_limit_is_on_the_record() -> None:
             kb3.term(src)
         except ParseError:
             refused.append(src)
-    check("§8", "⚠⚠⚠ `term` refuses leftovers rather than silently truncating -- "
+    check("§8", " `term` refuses leftovers rather than silently truncating -- "
           "what one agent says is what another believes, or the wire is a lie",
           refused == ["a b", "a(b) junk here"])
     check("§8", "...and a term that is genuinely one term still reads, including "
@@ -904,14 +904,14 @@ def silence_over_a_stretch_is_sayable() -> None:
     docs/dungeon-feedback.md §4 asked for negation as failure over an open
     domain: *the hero attacks by default when the player has declared nothing
     this round*, which no corpus can write as -declares(hero, $what), because
-    §9's - needs an entry that DENIES and absence is not denial. ⚠ The channel
+    §9's - needs an entry that DENIES and absence is not denial.  The channel
     is a ground atom here.
 
     See docs/design/selftest.md#silence-over-a-stretch-is-sayable.
     """
     from .core.text import load
 
-    # ⚠⚠⚠ `span_of($s, $a, $b)` went with the locus, and it is NOT missed here.
+    #  `span_of($s, $a, $b)` went with the locus, and it is NOT missed here.
     # It minted one node standing for a stretch, because an entry could be dated
     # to a stretch and `Moment.at_or_after` had to decide whether such a claim
     # was visible. Nothing is dated to anything now, so the two endpoints are
@@ -942,12 +942,12 @@ def silence_over_a_stretch_is_sayable() -> None:
         if declare:
             kb.say("player", "hold(hero)")
         m.run(limit=60)
-        # ⚠ A ROUND IS A STRETCH, so it has duration whether or not anyone spoke.
+        #  A ROUND IS A STRETCH, so it has duration whether or not anyone spoke.
         # Minting the span only when the chain happened to move made silence
         # unrepresentable: there was no span for nothing to have happened in.
         now = m.chain.succeed(m.chain.now, None)
         m.ask_read(now)
-        # ⚠ Unfiltered, and it used to be filtered: the bundle shipped two
+        #  Unfiltered, and it used to be filtered: the bundle shipped two
         # stratum-0 rules of its own and they sat in layer 0. Both went with the
         # locus, so what this enumerates is the corpus's own recognisers and
         # nothing else -- and a bundle rule appearing in layer 0 again would now
@@ -979,7 +979,7 @@ def silence_over_a_stretch_is_sayable() -> None:
 def a_guard_is_an_ordinary_member() -> None:
     """`unless` is *if not*, and *if not* has been built all along. (§12, §21)
 
-    ⭐⭐⭐ An open item that was a NAME rather than a gap. ⚠ What is genuinely
+    ⭐⭐⭐ An open item that was a NAME rather than a gap.  What is genuinely
     absent is not unless, it is AMENDMENT AT A DISTANCE -- adding a guard to a
     rule you did not write.
 
@@ -1008,7 +1008,7 @@ def a_guard_is_an_ordinary_member() -> None:
           "with a minus sign",
           "ant(<regen>, poisoned($x), -, 1)" in said)
 
-    # ⚠⚠ Construction and behaviour are two properties and need two checks --
+    #  Construction and behaviour are two properties and need two checks --
     # `adopt`'s lesson about a grade that was recorded and not obeyed.
     for where, ant_a, ant_b in (
         ("the first", "{ +wounded($x), -poisoned($x) }", "{ +stable($x) }"),
@@ -1038,7 +1038,7 @@ def a_guard_is_an_ordinary_member() -> None:
               f"with the guard in {where} constituent", reaches == {"ally"})
 
 
-# ⚠⚠⚠ DELETED WITH THE LOCUS: `a_span_is_a_locus`, and this is the LARGEST
+#  DELETED WITH THE LOCUS: `a_span_is_a_locus`, and this is the LARGEST
 # single loss of the cut. Eleven checks, and §11's *a locus is a moment or a
 # span* went with the locus that the "or" was about.
 #
@@ -1079,7 +1079,7 @@ def a_guard_is_an_ordinary_member() -> None:
 # *§11's recognitions over a stretch are still sayable*, run. What is NOT
 # recovered by it is the part that made a span a LOCUS: dating a claim to a
 # stretch, and therefore telling *it held throughout* from *it held then*.
-# ⚠⚠⚠ That distinction has no replacement anywhere in the tree. `docs/todo.md`
+#  That distinction has no replacement anywhere in the tree. `docs/todo.md`
 # carries it as the sharpest open question of the scratchpad design.
 
 
@@ -1100,7 +1100,7 @@ def worked_examples() -> None:
 
     check("§8", "<R1> concluded", m.holds(kb.term("boiling(kettle)")) == PLUS)
     check("§6", "including its negative member", m.holds(kb.term("liquid(kettle)")) == MINUS)
-    # ⚠ `<R2>` concludes `likely(rain(...))` where it used to conclude
+    #  `<R2>` concludes `likely(rain(...))` where it used to conclude
     # `rain(...) @likely`. The bare claim is reached only through `<cross>`,
     # and that it comes back WRAPPED is what a grade used to say in a field.
     check("§8", "<R2> concluded, and what it concluded says how strongly",
@@ -1354,7 +1354,7 @@ def the_loop_closes() -> None:
 def recall_is_narrowable() -> None:
     """§19's first slice: recall stops proposing everything, and what narrows it
 
-    is a knob a corpus can set. ⚠⚠⚠ THE prefer TABLE THAT USED TO BE HERE IS
+    is a knob a corpus can set.  THE prefer TABLE THAT USED TO BE HERE IS
     GONE, AND SO IS THE ORDERING IT FED.
 
     See docs/design/selftest.md#recall-is-narrowable.
@@ -1428,7 +1428,7 @@ def recall_is_narrowable() -> None:
         m4.holds(kb4.term("pursued(water(kettle))")) == PLUS,
     )
 
-    # ⚠⚠⚠ A FIXTURE THAT WAS BUILT, RUN, AND NEVER ASSERTED ON.
+    #  A FIXTURE THAT WAS BUILT, RUN, AND NEVER ASSERTED ON.
     # → docs/design/selftest.md#a-fixture-that-was-built-run-and-never-a
 
 
@@ -1437,7 +1437,7 @@ def the_better_move_wins() -> None:
 
     mean something the agent can point at. Before this, the tie among
     applicable, undefeated rules was broken by the order they happened to be
-    written in. ⚠ <relevant> IS GONE WITH prefer, AND THE MOVE GOES BACK TO
+    written in.  <relevant> IS GONE WITH prefer, AND THE MOVE GOES BACK TO
     AUTHORED ORDER.
 
     See docs/design/selftest.md#the-better-move-wins.
@@ -1471,14 +1471,14 @@ def the_better_move_wins() -> None:
         m.holds(kb.term("fits(<toward>, nearer(a))")) == PLUS
         and m.holds(kb.term("fits(<wander>, nearer(a))")) is None,
     )
-    # ⚠⚠⚠ ...and it no longer ACTS on it. This check used to read *and without
+    #  ...and it no longer ACTS on it. This check used to read *and without
     # `<relevant>` the authored order picks the useless one* and was the
     # control; the control is now the behaviour. Stated as a loss, in the
     # fixture that used to demonstrate the gain, because a retirement whose cost
     # is only in a handoff is a retirement nobody can measure later.
     check(
         "§14",
-        "⚠⚠⚠ ...and with `<relevant>` retired it does NOT act on it: knowing "
+        " ...and with `<relevant>` retired it does NOT act on it: knowing "
         "which rule serves the goal and preferring it were two things, and only "
         "the first survives keying on nodes",
         move == "wander",
@@ -1525,7 +1525,7 @@ def an_action_is_substituted_by_its_outcome() -> None:
     )
     check(
         "§15",
-        "⚠⚠⚠ ...and with situations gone the agent ACTS while it plans: there is no "
+        " ...and with situations gone the agent ACTS while it plans: there is no "
         "hypothesis to plan inside, so `doing` emits. Planning without acting is now "
         "a corpus's discipline -- conclude something that is not `doing` until the "
         "decision to act has been taken",
@@ -1652,7 +1652,7 @@ def an_agent_that_can_stop() -> None:
           m1.widenings == 0 and not any(
               m1.holds(n) == PLUS for n in m1.g.instances_of(m1.QUIET)))
 
-    # ⚠⚠ **What went with situations.** `enough` used to end the BRANCH and not
+    #  **What went with situations.** `enough` used to end the BRANCH and not
     # the run when it fired inside a hypothesis -- *is this plan settled* and
     # *is this woken rule done* getting a local answer for free, because a frame
     # was already the unit that could be over. With no frame there is nothing
@@ -1782,7 +1782,7 @@ def experience_is_offline() -> None:
           not Machine().review())
 
     # What is deposited is a fact about the trail; what it is worth is a claim,
-    # so what an agent takes forward is ordinary readable corpus text. ⚠ This
+    # so what an agent takes forward is ordinary readable corpus text.  This
     # world cannot supply a lesson any more, and that is the rewrite showing
     # rather than a fixture going stale.
     # → docs/design/selftest.md#what-is-deposited-is-a-fact-about-the-trail-wha
@@ -1796,7 +1796,7 @@ def experience_is_offline() -> None:
     check("§19", "what it learned is a corpus, not a weight: readable, editable, and "
           "deniable, which is the only way being wrong in recall stays recoverable",
           rows == ["fact +attention(sink, 3)"])
-    # ⚠ This USED to read `a second episode reads it back and reaches the same
+    #  This USED to read `a second episode reads it back and reaches the same
     # conclusion` against the kettle world, where the conclusion was reached
     # with or without the rows -- a check that could not fail. Read back here it
     # has to change an outcome to pass.
@@ -1816,7 +1816,7 @@ def experience_is_offline() -> None:
           "part saves a jug in a world of objects it was never told about",
           fresh.harmed and not taught.harmed
           and any("+attention($" in r for r in generic))
-    # ⚠⚠⚠ **The second half of this check is DELETED with the option-set loop.**
+    #  **The second half of this check is DELETED with the option-set loop.**
     # It measured `_choose`'s recall budget -- how a narrowed shortlist ranked
     # the apparatus -- by spying on a method the table loop does not call, using
     # `ugm.workload` as its corpus. Both are gone (20l). What remains is the
@@ -1870,7 +1870,7 @@ def a_root_goal_is_askable() -> None:
           steps[-1].state == "stopped"
           and m.holds(kb.term("boiling(kettle)")) == PLUS)
 
-    # -- and what rooted does NOT unblock, which is the finding ---------- ⚠⚠⚠
+    # -- and what rooted does NOT unblock, which is the finding ---------- 
     # Checking a root goal for SATISFACTION needs one more thing, and it is not
     # rootedness.
     # → docs/design/selftest.md#and-what-rooted-does-not-unblock-which-is
@@ -1892,7 +1892,7 @@ def a_root_goal_is_askable() -> None:
     check("§6", "a root goal CAN be checked once it is askable -- the goal as its "
           "own plan, and no engine change, because a root goal binds nothing",
           now.holds(kb_now.term("achieved(q(x))")) == PLUS)
-    check("§6", "⚠ ...but only if it already held when the question was asked: with "
+    check("§6", " ...but only if it already held when the question was asked: with "
           "no re-ask a goal reached LATER is never looked at again, because a "
           "request can be made once. `rooted` was necessary and is not sufficient",
           later.holds(kb_later.term("q(x)")) == PLUS
@@ -1932,7 +1932,7 @@ def a_request_can_be_re_asked() -> None:
             "fact standing(<recheck>)",
         ]
 
-    # ⚠ Count the GROUND ones. `instances_of` returns the rule's own consequent
+    #  Count the GROUND ones. `instances_of` returns the rule's own consequent
     # pattern too -- `again(check($w, $w), $m)` is an instance of the relation and
     # holds nothing -- so a raw count reads one too many, which is what the first
     # version of this check did.
@@ -1952,7 +1952,7 @@ def a_request_can_be_re_asked() -> None:
               for n in m.g.instances_of(m.AGAIN)))
     check("§6", "it costs one tick, because a re-ask is one application and one "
           "write and not a second search",
-          # ⚠ A BOUND rather than an exact count, because the exact count is a
+          #  A BOUND rather than an exact count, because the exact count is a
           # property of the loop and not of re-asking: the option-set loop takes
           # 16 and the table loop 19, the three being doubts deposited and
           # settled. What the check is for is that a re-ask is not a second
@@ -1961,7 +1961,7 @@ def a_request_can_be_re_asked() -> None:
           len(steps) <= 20)
 
     # ⭐⭐ And it is bound the way a TOOL is, not the way the other eight
-    # write-time hooks are -- so a corpus can see it and retire it. ⚠ The
+    # write-time hooks are -- so a corpus can see it and retire it.  The
     # criterion for which hooks may follow, because it is not all of them: a
     # capability whose absence is the status quo ante is safe to retire.
     # → docs/design/selftest.md#and-it-is-bound-the-way-a-tool-is-not-the-wa
@@ -1976,12 +1976,12 @@ def a_request_can_be_re_asked() -> None:
           and off.holds(kb_off.term("achieved(q(x))")) is None
           and m.holds(kb.term("answers(<re-ask>, again)")) == PLUS)
 
-    # ⚠⚠⚠ WHEN may a request be re-asked, and it is not free choice. An
+    #  WHEN may a request be re-asked, and it is not free choice. An
     # occasion the re-asking itself can produce warrants the next re-ask, which
     # produces the occasion after that.
     # → docs/design/selftest.md#when-may-a-request-be-re-asked-and-it-is
     slow, _, slow_steps = run(recheck("causes"))
-    check("§21", "⚠⚠⚠ an occasion the re-asking can itself CREATE warrants a "
+    check("§21", " an occasion the re-asking can itself CREATE warrants a "
           "re-ask forever: the same rule with `causes` advances the seat, `quiet` "
           "is once per seat, and the agent asks the same question 100+ times",
           len(slow_steps) >= 300 and minted(slow) > 50)
@@ -1999,7 +1999,7 @@ def a_request_can_be_re_asked() -> None:
 
     def oracle(machine, e):
         calls.append(1)
-        # ⚠ `scope[0].atom`, not `machine.g.atom`. An answer built outside the
+        #  `scope[0].atom`, not `machine.g.atom`. An answer built outside the
         # loader's table is a node no rule can name, and the first version of
         # this check built one -- so the tool answered, the record landed, and
         # `kb.term(...)` asking about it resolved a TWIN that held nothing. The
@@ -2065,7 +2065,7 @@ def a_domain_can_be_taken_out_of_mind() -> None:
     """§19's recall, for FACTS -- the half it never had.
 
     The agent has always narrowed which rules come to mind: dormant until
-    something claims due. It has never narrowed which facts do. ⚠ Unloading is
+    something claims due. It has never narrowed which facts do.  Unloading is
     safe to be wrong about (worst case the domain comes back), which is exactly
     why it may be an ordinary defeasible rule.
 
@@ -2121,7 +2121,7 @@ def a_domain_can_be_taken_out_of_mind() -> None:
           "so the fixture can fail",
           m2.holds(kb2.term("chase(acme)")) is None)
 
-    # ⚠⚠ **And facts that ARRIVE while the agent is running**, which is the case
+    #  **And facts that ARRIVE while the agent is running**, which is the case
     # on-demand loading actually produces: the state is kept across ticks, so a
     # dormant domain has to be filtered on the incremental path as well as the
     # rebuild. Kill-probed separately -- with only the rebuild filter in place,
@@ -2145,7 +2145,7 @@ def a_domain_can_be_taken_out_of_mind() -> None:
           m5.holds(kb5.term("late(acme, roma)")) == PLUS
           and m5.holds(kb5.term("apologise(acme)")) is None)
 
-    # ⚠⚠⚠ ...and the KEPT STATE's own filter needs a JOIN to be visible at all.
+    #  ...and the KEPT STATE's own filter needs a JOIN to be visible at all.
     # With a one-member rule the dormant fact is always the pivot, so the delta
     # filter above already excludes it and killing the state's filter changes
     # nothing. A second member is drawn from the full state instead -- so a
@@ -2180,7 +2180,7 @@ def a_domain_can_be_taken_out_of_mind() -> None:
     check("§19", "...and `due` brings it back, the same pair that wakes a rule",
           m3.holds(kb3.term("chase(acme)")) == PLUS)
 
-    # ⚠⚠⚠ Sharing NAMES and sharing PROVENANCE are different things, and tying
+    #  Sharing NAMES and sharing PROVENANCE are different things, and tying
     # them together was the first version of this. Rules about billing must
     # resolve `owes` to the node the billing facts use -- one scope -- while not
     # being billing data, or unloading billing would unload the rules that read
@@ -2202,7 +2202,7 @@ def its_own_effort_is_reasonable_over() -> None:
 
     one: these should be reasonable over. An agent that reached past its
     shortlist, or was stopped by a bound, knows something about its own effort.
-    ⚠ _enter's comment has said *each reports that it was hit rather than
+     _enter's comment has said *each reports that it was hit rather than
     stopping silently (§13)* since it was written, and the report was
     self.exhausted += 1.
 
@@ -2219,7 +2219,7 @@ def its_own_effort_is_reasonable_over() -> None:
     said = lambda m, rel: [n for n in m.g.instances_of(rel) if m.holds(n) == PLUS]
     check("§21", "reaching past a shortlist is on the record, not only in a "
           "counter", said(tight, tight.WIDENED) and not said(wide, wide.WIDENED))
-    # ⚠ Counted as ENTRIES, not as nodes. `instances_of` returns propositions,
+    #  Counted as ENTRIES, not as nodes. `instances_of` returns propositions,
     # and three deposits of one proposition are one node -- so a node count
     # cannot see duplication at all, and the first version of this check could
     # not fail when the dedup was removed.
@@ -2279,15 +2279,15 @@ def the_knobs_are_claims() -> None:
     raise it before an irreversible step.* As Python fields they were the one
     kind of decision this design does not allow: one nobody can ask about.
 
-    ⚠ `tolerance(n)` was the fourth and is RETIRED. Its only reader was
+     `tolerance(n)` was the fourth and is RETIRED. Its only reader was
     `_close`, which compared two `prefer` scores, and both went with the buffs.
     It was left parseable for a while on the argument that a corpus should be
     able to say a number -- but a number nothing reads is not a claim, it is
-    decoration, so it is gone. ⚠ `depth(n)` and `hypotheses(n)` went the same
+    decoration, so it is gone.  `depth(n)` and `hypotheses(n)` went the same
     way and for the same reason, with situations: both were read only by
     `_enter`, which bounded supposing.
 
-    ⚠ The DEFAULT stays in Python. A default nobody has to choose is not a
+     The DEFAULT stays in Python. A default nobody has to choose is not a
     hidden decision; it is the absence of one.
     """
     from .core.text import load
@@ -2316,7 +2316,7 @@ def the_knobs_are_claims() -> None:
           "corpus makes recall narrow, and widening reports itself",
           wide.widenings == 0 and tight.widenings > 0)
 
-    # ⚠ ...and it steers BOTH places the budget is read: whether to widen, and
+    #  ...and it steers BOTH places the budget is read: whether to widen, and
     # how much of the shortlist to keep. Gated by comparing against the Python
     # field it replaces -- with only the first site reading the fact, the run
     # widens and never narrows, and the tick counts come apart. The `widenings`
@@ -2329,7 +2329,7 @@ def the_knobs_are_claims() -> None:
           "it replaces -- same ticks, same widenings, both places it is read",
           (len(pysteps), pyb.widenings) == (len(factsteps), factb.widenings))
 
-    # ...and the other two steer as well. ⚠ Checking that they READ was not
+    # ...and the other two steer as well.  Checking that they READ was not
     # enough: with only the reader in place, mutating the depth bound back to
     # its Python field failed nothing. A knob that is read and not obeyed is
     # the same defect wearing the fix's clothes.
@@ -2345,7 +2345,7 @@ def a_session_can_be_saved_and_resumed() -> None:
     """A session is **what it was told**, and §3's determinism is why that is
 
     enough. Measured before building it: the same corpus reproduces the same
-    619 entries byte for byte, across four PYTHONHASHSEEDs. ⚠ Replaying a
+    619 entries byte for byte, across four PYTHONHASHSEEDs.  Replaying a
     session must not re-do it.
 
     See docs/design/selftest.md#a-session-can-be-saved-and-resumed.
@@ -2386,7 +2386,7 @@ def a_session_can_be_saved_and_resumed() -> None:
 
     r = Machine()
     r.actuator("hands")
-    # ⚠⚠ A render that cannot be read back is not a save file, and it fails by
+    #  A render that cannot be read back is not a save file, and it fails by
     # RAISING -- a `ParseError` on a sign printed as `+` where the surface reads
     # `plus`, or a rule that was never emitted. §20's lesson from `bundlefile`,
     # in a check written after it: a runner whose contract is *any False is a
@@ -2533,7 +2533,7 @@ def a_dry_search_reaches_for_what_is_out_of_mind() -> None:
           "for what it put aside rather than reporting the goal unreachable",
           m1.holds(kb1.term("chase(acme)")) == PLUS and m1.recoveries == 1)
 
-    # ⚠⚠⚠ **Only when something is outstanding**, and this is what keeps the
+    #  **Only when something is outstanding**, and this is what keeps the
     # escalation from undoing the saving it guards. A run with nothing asked of
     # it is declining nothing, so there is nothing to be wrong about -- and
     # escalating anyway wakes every domain at the end of every run. Measured:
@@ -2556,7 +2556,7 @@ def the_state_is_kept_not_rebuilt() -> None:
     the way it was the binding constraint. A moment is a delta, so the state
     after a write is the state before plus one claim.
 
-    ⚠⚠⚠ Kill-probed four ways when it landed, and **three of the four changed
+     Kill-probed four ways when it landed, and **three of the four changed
     nothing that 323 checks could see**. These are those three. An incremental
     state has to reproduce `resolve`'s ordering exactly, and each of these is a
     place where it silently might not.
@@ -2576,7 +2576,7 @@ def the_state_is_kept_not_rebuilt() -> None:
           "recent* rests on -- the order is semantics, not a detail of the walk",
           order and order[0] == p and order.index(p) < order.index(q))
 
-    # ⚠⚠⚠ TWO of this group's three checks were about the two indices, and both
+    #  TWO of this group's three checks were about the two indices, and both
     # are gone with the locus. They were:
     #
     #   a later DEPOSIT about an earlier LOCUS does not displace a claim about a
@@ -2612,7 +2612,7 @@ def a_scope_can_span_documents() -> None:
 
     A corpus is a bound, and that is why coreference does not arise in authored
     knowledge: kettle means one node inside the bound by construction, not by
-    inference, and a name outside a scope names nothing. ⚠ What this
+    inference, and a name outside a scope names nothing.  What this
     deliberately is NOT: sameas(a, b) in the graph.
 
     See docs/design/selftest.md#a-scope-can-span-documents.
@@ -2649,7 +2649,7 @@ def a_scope_can_span_documents() -> None:
           and m.holds(priv.term("red(kettle)")) is None)
 
 
-# ⚠⚠⚠ DELETED WITH THE LOCUS: `a_rule_can_relate_two_moments`.
+#  DELETED WITH THE LOCUS: `a_rule_can_relate_two_moments`.
 #
 # *The goblin acts after the hero* (§8, §12, §20), written as `at $m`:
 #
@@ -2676,7 +2676,7 @@ def a_scope_can_span_documents() -> None:
 #                            { acted_after($q, $p) } )
 #     → acted_after(goblin, hero)
 #
-# ⚠ What that version is NOT the same as: it is stratum 0, so its conclusion is
+#  What that version is NOT the same as: it is stratum 0, so its conclusion is
 # MINTED structure rather than a deposited entry, and `_state()` will not show
 # it. `docs/todo.md` carries the conversion.
 
@@ -2716,7 +2716,7 @@ def a_computation_happens_inside_the_application() -> None:
           m.holds(kb.term("purse(hero, 7)")) == PLUS
           and m.holds(kb.term("purse(smith, 8)")) == PLUS)
 
-    # ⚠ A computator consumes no ENTRY, so it contributes nothing to the trail.
+    #  A computator consumes no ENTRY, so it contributes nothing to the trail.
     # That is the honest record rather than a gap: nothing was matched. The
     # antecedent has five members and three of them are entries.
     deposited = [e for e in m._state() if e.sign == PLUS
@@ -2727,7 +2727,7 @@ def a_computation_happens_inside_the_application() -> None:
 
     # The arguments must be ground when it runs, so a computator member only
     # computes once earlier members have bound them -- here n($x) is DERIVED,
-    # so the rule matches from a delta rather than on the opening pass. ⚠ The
+    # so the rule matches from a delta rather than on the opening pass.  The
     # engine also skips pivoting on a computator, and that is an OPTIMISATION
     # rather than a correctness fix -- measured both ways, the results are
     # identical...
@@ -2750,7 +2750,7 @@ def a_member_can_name_what_it_matched() -> None:
     `at $m` said WHERE an entry sits and went with the locus; `as $t` says WHAT
     it says, under a name, and stays -- it was never about a second time. Same
     one-line mechanism, and it answers a question that had two unsatisfying
-    answers before it. ⚠ And two members hoping to co-refer -- +tagged($t),
+    answers before it.  And two members hoping to co-refer -- +tagged($t),
     +on($x, $y) -- is coincidence, not reference: nothing links them, and it
     appears to work only while there...
 
@@ -2773,7 +2773,7 @@ def a_member_can_name_what_it_matched() -> None:
           "copy -- propositions have one identity however often built",
           bool(got) and m.g.member(got[0].proposition, 0) is kb.term("on(a, b)"))
 
-    # ⚠⚠⚠ Same argument as the locus, and the fifth time it has been made: a
+    #  Same argument as the locus, and the fifth time it has been made: a
     # slot `reify` does not record is one `adopt` and `compose` drop, and the
     # rule that comes back is a different rule.
     r = [x for x in m.rules.rules if x.name == "r"][0]
@@ -2783,7 +2783,7 @@ def a_member_can_name_what_it_matched() -> None:
           and [x.binds for x in built[1]] == [x.binds for x in r.antecedent])
 
 
-# ⚠⚠⚠ DELETED WITH THE LOCUS: `the_skeleton_is_an_ordinary_member`.
+#  DELETED WITH THE LOCUS: `the_skeleton_is_an_ordinary_member`.
 #
 # Three fixtures (§5, §6, §11, §12), and all three bound a moment with `at $m`:
 #
@@ -2838,7 +2838,7 @@ def the_matchers_are_one() -> None:
           "entry is not",
           m.rules.is_stratum0(up) and not m.rules.is_stratum0(ord_))
 
-    # ⚠⚠⚠ Driven by the ORDINARY LOOP, not by `settle_structure`. The first
+    #  Driven by the ORDINARY LOOP, not by `settle_structure`. The first
     # version of this check ran the settler, which calls `_mint_structure`
     # directly -- so a kill-probe removing the branch in `_conclude` broke
     # nothing and the check passed for the wrong reason. `_conclude` is the path
@@ -2857,13 +2857,13 @@ def the_matchers_are_one() -> None:
           and not [e for e in m._state()
                    if m.g.relation_of(e.proposition) == above])
 
-    # ⚠ Interning is what makes the fixpoint detectable, and the count has to
+    #  Interning is what makes the fixpoint detectable, and the count has to
     # be taken BEFORE substitution -- substitute builds the grounded node with
     # g.rel, which interns, so a novelty test made afterwards always finds the
     # fact already present.
     # → docs/design/selftest.md#interning-is-what-makes-the-fixpoint-detectabl
     m.settle_structure()
-    check("§6", "⚠ a stratum-0 fixpoint that has settled derives NOTHING on a "
+    check("§6", " a stratum-0 fixpoint that has settled derives NOTHING on a "
           "second run -- the novelty test survives interning",
           m.settle_structure() == 0)
 
@@ -2890,18 +2890,18 @@ def the_matchers_are_one() -> None:
           "needs no notation -- there is no entry for a sign to be a claim about",
           got == reached - {a.node} and b.node in got)
 
-    # ⚠⚠⚠ And it is safe only because the strata are ORDERED. `far` negates
+    #  And it is safe only because the strata are ORDERED. `far` negates
     # `near`; run in one layer, `far` is derived against a half-built `near` and
     # the answer depends on the order the rules were tried. Structure has no
     # sign, so a wrong one cannot be taken back -- an entry would merely be
     # superseded. The layering is what makes the negation mean what it says.
     layers = m2.rules.strata()
     names = [[r.name for r in L] for L in layers]
-    check("§6", "⚠⚠⚠ ...and the negated relation is settled in an EARLIER layer, "
+    check("§6", " ...and the negated relation is settled in an EARLIER layer, "
           "because structure has no sign and a wrong fact cannot be denied",
           len(names) > 1 and "r3" in names[-1] and "r2" in names[0])
 
-    # ⚠ Recursion is not a cycle to be refused -- dep_after is transitive and
+    #  Recursion is not a cycle to be refused -- dep_after is transitive and
     # reads itself -- but negation INSIDE a recursion has no stratification at
     # all, and refusing it loudly is the only honest answer.
     # → docs/design/selftest.md#recursion-is-not-a-cycle-to-be-refused-dep
@@ -2911,7 +2911,7 @@ def the_matchers_are_one() -> None:
         "rule <y> = implies( { p($s, $a), -q($s, $a) }, { q($s, $a) } )",
         ""]))
     lone = [r for r in m3.rules.rules if r.name == "y"][0]
-    check("§6", "⚠⚠ a relation that appears ONLY negated in its own definition "
+    check("§6", " a relation that appears ONLY negated in its own definition "
           "never enters the skeleton -- the fixpoint works from below, so it is "
           "not stratum 0 and there is nothing to stratify",
           not m3.rules.is_stratum0(lone) and m3.rules.strata())
@@ -2927,12 +2927,12 @@ def the_matchers_are_one() -> None:
         refused = False
     except ValueError:
         refused = True
-    check("§6", "⚠ ...and once it IS structure, negating it recursively is "
+    check("§6", " ...and once it IS structure, negating it recursively is "
           "refused, naming itself -- there is no order over it that gives one "
           "answer",
           refused)
 
-    # ⚠⚠⚠ `pred` was the reflexive-transitive walk under the name of the
+    #  `pred` was the reflexive-transitive walk under the name of the
     # immediate one. Registered for corpora to write, and written by nothing, so
     # nothing could see it. A name whose meaning is not what the name says is
     # worse than an absent one: a corpus that used it would have been right to
@@ -2952,12 +2952,12 @@ def the_matchers_are_one() -> None:
     ancestors = {m4.g.members(n)[1]
                  for n in m4.g.instances_of(kb4.term("ancestor"))
                  if not m4.g.has_var(n)}
-    check("§11", "⚠⚠⚠ `pred` is the IMMEDIATE predecessor and `anc` is the "
+    check("§11", " `pred` is the IMMEDIATE predecessor and `anc` is the "
           "reflexive walk -- one name, one meaning, and `pred` used to be the "
           "walk",
           parents == {c1.node} and ancestors == {c0.node, c1.node, c2.node})
 
-    # ⚠⚠⚠ A fixpoint has to be shown to REACH one, and *nothing new on the
+    #  A fixpoint has to be shown to REACH one, and *nothing new on the
     # second run* cannot show it: a novelty test that never fires satisfies
     # that trivially, and the kill-probe proved it -- breaking novelty broke
     # zero checks.
@@ -2974,7 +2974,7 @@ def the_matchers_are_one() -> None:
     m6.settle_structure()
     steps = {m6.g.members(n)[1] for n in m6.g.instances_of(kb6.term("step"))
              if not m6.g.has_var(n)}
-    check("§6", "⚠⚠⚠ the stratum-0 fixpoint REACHES one -- a transitive closure "
+    check("§6", " the stratum-0 fixpoint REACHES one -- a transitive closure "
           "five deep is complete, which *nothing new on the second run* cannot "
           "show and a broken novelty test satisfies trivially",
           steps == {mo.node for mo in walk_up[:-1]})
@@ -2983,7 +2983,7 @@ def the_matchers_are_one() -> None:
     # → docs/design/selftest.md#a-fact-s-own-history-on-the-ordinary-loop
     m7 = Machine()
     kb7 = load(m7, chr(10).join([
-        # ⚠ The order used to be `sanc($l2, $l1)` over the two entries' LOCI.
+        #  The order used to be `sanc($l2, $l1)` over the two entries' LOCI.
         # An entry has no locus, so the order is over the moments they were
         # deposited in -- which is the only time there is now, and which is
         # exactly what `resolve` reads.
@@ -3010,17 +3010,17 @@ def the_matchers_are_one() -> None:
           len(changed) == 1
           and m7.g.show(changed[0].proposition) == "changed(open(door))")
 
-    # ⚠⚠⚠ ...and it STOPS. Quiescence asks `resolve` about what a rule would
+    #  ...and it STOPS. Quiescence asks `resolve` about what a rule would
     # write; a stratum-0 conclusion never enters the chain, so `resolve` answers
     # None for ever and the verdict is *yes, this changes something* on every
     # tick. Worse, the verdict is cached and retired only when a proposition it
     # READ changes -- and a stratum-0 rule reads none, so the True was permanent.
     # Measured before fixing: 60 ticks of `applied`, identical bindings.
-    check("§6", "⚠⚠⚠ ...and the loop goes QUIET on it -- a stratum-0 rule is asked "
+    check("§6", " ...and the loop goes QUIET on it -- a stratum-0 rule is asked "
           "about the graph, not the state, and its verdict is never cached",
           steps[-1].state == "quiescent" and len(steps) < 10)
 
-    # ⚠⚠⚠ And asking must not answer.
+    #  And asking must not answer.
     # → docs/design/selftest.md#and-asking-must-not-answer-for-a-stratu
     m8 = Machine()
     kb8 = load(m8, chr(10).join([
@@ -3035,7 +3035,7 @@ def the_matchers_are_one() -> None:
     before_n = m8.g.count()
     first = [m8._would_change(a) for a in apps]
     again = [m8._would_change(a) for a in apps]
-    check("§6", "⚠⚠⚠ ...and ASKING does not answer: the stratum-0 quiescence "
+    check("§6", " ...and ASKING does not answer: the stratum-0 quiescence "
           "verdict mints nothing, so the same question put twice gets the same "
           "answer and two paths over one state agree",
           first == again and any(first) and m8.g.count() == before_n)
@@ -3048,11 +3048,11 @@ def the_matchers_are_one() -> None:
     kb5 = load(m5, chr(10).join([
         "rule <mine> = implies( { asking($s), anc($s, $d), in_delta($d, $e) },",
         "                      { held($s, $e) } )",
-        # ⚠⚠⚠ The DISCRIMINATING case, and the check was vacuous without it.
+        #  The DISCRIMINATING case, and the check was vacuous without it.
         # → docs/design/selftest.md#the-discriminating-case-and-the-check-was-v
         "rule <loose> = implies( { asking($s), in_delta($d, $e) },",
         "                       { anywhere($s, $e) } )", ""]))
-    # ⚠ The two writes are INTERLEAVED with the forking, and they have to be:
+    #  The two writes are INTERLEAVED with the forking, and they have to be:
     # a deposit lands at `chain.now`, which is the latest moment made, so both
     # writes issued after both `succeed`s would land on the right branch and
     # leave the left one empty -- and the check below passes vacuously on an
@@ -3089,7 +3089,7 @@ def the_matchers_are_one() -> None:
 
     loose = [n for n in m5.g.instances_of(kb5.term("anywhere"))
              if not m5.g.has_var(n)]
-    check("§4", "⚠⚠⚠ ...and an UNANCHORED skeleton member finds nothing rather "
+    check("§4", " ...and an UNANCHORED skeleton member finds nothing rather "
           "than the whole history -- nothing is prohibited, it simply has no "
           "bound to walk from, which is what the fork check needs to be able to "
           "fail",
@@ -3099,7 +3099,7 @@ def the_matchers_are_one() -> None:
 def a_half_finished_change_is_observable_and_actionable() -> None:
     """A transfer, mid-flight, looks exactly like a finished state. (§8, §19)
 
-    Predicted by a foreign corpus and constructed here. ⚠ And an ordinary rule
+    Predicted by a foreign corpus and constructed here.  And an ordinary rule
     acts on it.
 
     See docs/design/selftest.md#a-half-finished-change-is-observable-and-actionable.
@@ -3135,7 +3135,7 @@ def a_half_finished_change_is_observable_and_actionable() -> None:
     tot = [m.g.show(e.proposition) for e in m._state()
            if e.sign == PLUS and m.g.show(e.proposition).startswith("total(")]
     sums = sorted(sum(int(x) for x in t[6:-1].split(", ")) for t in tot)
-    check("§8", "⚠⚠⚠ a transfer mid-flight is OBSERVABLE: an observer sees a "
+    check("§8", " a transfer mid-flight is OBSERVABLE: an observer sees a "
           "total that never existed, and nothing contradicts anything",
           12 in sums and 15 in sums)
 
@@ -3163,7 +3163,7 @@ def a_half_finished_change_is_observable_and_actionable() -> None:
 def a_reserved_name_no_longer_changes_meaning_silently() -> None:
     """One node with two meanings. (§5, Appendix C)
 
-    Reported by a foreign corpus, which lost a session to it. ⚠ A report and
+    Reported by a foreign corpus, which lost a session to it.  A report and
     not a refusal, and that is forced.
 
     See docs/design/selftest.md#a-reserved-name-no-longer-changes-meaning-silently.
@@ -3194,7 +3194,7 @@ def a_relation_can_be_named_by_a_variable() -> None:
     """`$p($t)` -- the effect named by data. (§3, §5, §12)
 
     The substrate could always BUILD a relation instance whose relation slot is
-    a variable; it is an ordinary generic node. ⚠ The cost is §3's index, and
+    a variable; it is an ordinary generic node.  The cost is §3's index, and
     it lands only on an ANTECEDENT member.
 
     See docs/design/selftest.md#a-relation-can-be-named-by-a-variable.
@@ -3213,10 +3213,10 @@ def a_relation_can_be_named_by_a_variable() -> None:
           "rule serves a catalogue that would otherwise be a fact per pair",
           m.holds(kb.term("burned(goblin)")) == PLUS
           and m.holds(kb.term("chilled(orc)")) == PLUS)
-    # ⚠ ...and it does not smear across the catalogue. The kill-probe that
+    #  ...and it does not smear across the catalogue. The kill-probe that
     # matters: bind the relation but not the argument and every spell hits every
     # target, which is the shape a wrong binding takes here.
-    # ⚠ The positives are restated here deliberately. Asked about the absences
+    #  The positives are restated here deliberately. Asked about the absences
     # alone this passes when the whole mechanism is off and everything is None
     # -- a check that cannot fail under the mutation it exists for, which is the
     # default rather than the exception in this file.
@@ -3228,7 +3228,7 @@ def a_relation_can_be_named_by_a_variable() -> None:
     # A consequent whose RELATION nothing bound is still refused, exactly as
     # one whose argument nothing bound always was -- the gate's rule did not
     # need to learn about this, which is the sign it was the right place for
-    # it. ⚠ This used to LOAD and then quietly mint nothing, and the note here
+    # it.  This used to LOAD and then quietly mint nothing, and the note here
     # said the gate was the right place for it.
     # →
     # docs/design/selftest.md#a-consequent-whose-relation-nothing-bound-is-sti
@@ -3289,7 +3289,7 @@ def a_verb_is_defined_once_and_a_world_is_declared() -> None:
           "weapons, a sword is a weapon, and the trade goes through",
           m.holds(kb.term("owns(hero, sword)")) == PLUS
           and m.holds(kb.term("stocks(smith, sword)")) == MINUS)
-    # ⚠ And the purse is INVALIDATED, not silently stale -- §16's pair. The
+    #  And the purse is INVALIDATED, not silently stale -- §16's pair. The
     # first version of this fixture wrote `? purse($b)` against a `purse(b, n)`
     # fact, so it invalidated a proposition nobody had ever asserted and the
     # old amount went on reading `+`. An arity slip is silent here.
@@ -3359,7 +3359,7 @@ def an_amount_is_a_tool_and_an_unknown_amount_is_a_node() -> None:
           "function, so it is a tool, and the purse goes 20 to 17",
           m.holds(kb.term("purse(hero, 17)")) == PLUS
           and m.holds(kb.term("purse(hero, 20)")) == UNSURE)
-    # ⚠ The retraction of the trigger is load-bearing, not tidiness: without it
+    #  The retraction of the trigger is load-bearing, not tidiness: without it
     # the rule debits forever, which is §14's re-ask criterion arriving in a
     # corpus. The first version of this fixture did exactly that.
 
@@ -3388,7 +3388,7 @@ def an_amount_is_a_tool_and_an_unknown_amount_is_a_node() -> None:
           "reads what is known of the unknown and concludes from it",
           m3.holds(kb3.term("overflows(glass)")) == PLUS)
 
-    # ⚠ What stays open, as a check so it cannot be forgotten: the direct form.
+    #  What stays open, as a check so it cannot be forgotten: the direct form.
     # A consequent naming a value its antecedent never bound is an existential,
     # and it is refused at LOAD with a message rather than silently dropped.
     from .core.text import ParseError
@@ -3436,7 +3436,7 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
     check("§12", "...and it carries the union of the premises with the join "
           "threaded -- 2 + 2 members become 3, not 4",
           len(ant) == 3 and len(made[0].consequent) == 1)
-    # ⚠ `composed_from` was a Python dict, so *which rules is this a shortcut
+    #  `composed_from` was a Python dict, so *which rules is this a shortcut
     # for* was unanswerable -- §1's defect, and the one §21 needs for
     # *decompose on surprise*, since the agent has to know which sub-steps to
     # re-run. Kill-probe: drop the deposit and only this check falls.
@@ -3447,13 +3447,13 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
     check("§4", "...and the shortcut reaches the same conclusion",
           m.holds(kb.term("q(a, d)")) == PLUS)
 
-    # ⚠⚠⚠ **What went with situations.** `compose` used to be REFUSED inside a
+    #  **What went with situations.** `compose` used to be REFUSED inside a
     # supposition, for `_adopt`'s reason exactly: one rule set is shared by
     # every frame, so a shortcut built while supposing would apply after the
     # frame was discharged and to everything. The refusal was also the third
     # place §5 lets the machinery decline on the record. Both are gone.
 
-    # ⚠⚠⚠ **`has_var` is not a usable guard for anything naming a rule**, and
+    #  **`has_var` is not a usable guard for anything naming a rule**, and
     # copying `_adopt`'s was the bug this fixture found. A LIVE rule node holds
     # the variables of its own patterns, so `compose(<s1>, <s2>)` reads generic
     # however ground the claim is -- §5's use/mention distinction, arriving at
@@ -3469,7 +3469,7 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
           "nothing, which is also what refuses a generic request",
           len(m3.rules.rules) == n3)
 
-    # ⚠⚠⚠ **Composing across a `causes` flattens two moments into one
+    #  **Composing across a `causes` flattens two moments into one
     # antecedent and LOSES CONCLUSIONS.** §14: a `causes` consequent lands in a
     # successor, so the second rule's other premises are read one moment later
     # than the first rule's own. The composite asks for all of them together.
@@ -3491,7 +3491,7 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
                               if r.node not in (byy["a"].node, byy["b"].node)]
         mm.run(limit=60)
         return mm.holds(kk.term("s(t)")) == PLUS
-    check("§4", "⚠⚠⚠ composing across a `causes` would lose a conclusion, so "
+    check("§4", " composing across a `causes` would lose a conclusion, so "
           "it is REFUSED -- *n steps become one* has to mean with the SAME "
           "conclusion", reaches(False) is True and reaches(True) is None)
     # ...and exactly the unsound shape, not every mixed pair: only members
@@ -3508,7 +3508,7 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
           "`causes`, because the chain crossed a causal step",
           still is not None and still.connective == CAUSES)
 
-    # ⚠⚠⚠ The twin trap INVERTED, and this fixture is what found it.
+    #  The twin trap INVERTED, and this fixture is what found it.
     # → docs/design/selftest.md#the-twin-trap-inverted-and-this-fixture-i
     from .core.text import Loader, ParseError
     m4 = Machine()
@@ -3518,12 +3518,12 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
         refused_reg = False
     except ParseError:
         refused_reg = True
-    check("§19", "⚠⚠⚠ ...and a corpus tool may not share a request relation "
+    check("§19", " ...and a corpus tool may not share a request relation "
           "with the apparatus -- refused at registration, where the claim is "
           "made", refused_reg)
     # ...and a request of its own is still fine, or the refusal would have
     # closed the door instead of guarding it.
-    # ⚠ A DIFFERENT tool name, because the first registration is refused and a
+    #  A DIFFERENT tool name, because the first registration is refused and a
     # probe that removes the refusal would otherwise trip the name check
     # instead -- a kill-probe that raises where the answer is False reports
     # nothing, and that trap is now recorded five times in this file.
@@ -3536,7 +3536,7 @@ def an_example_becomes_a_rule() -> None:
 
     generalise is the dual of unify -- matching asks what two structures must
     agree about, anti-unification asks what they already do -- and it is the
-    operation *learn from examples* is made of. ⚠ The tool DECLINES rather than
+    operation *learn from examples* is made of.  The tool DECLINES rather than
     generalising anything.
 
     See docs/design/selftest.md#an-example-becomes-a-rule.
@@ -3549,7 +3549,7 @@ def an_example_becomes_a_rule() -> None:
     g = Graph()
     f, a, b, c = g.atom("f"), g.atom("a"), g.atom("b"), g.atom("c")
     lgg = generalise(g, g.rel(f, a, b), g.rel(f, a, c), {})
-    # ⚠ Guarded, not indexed. A lazy generalisation returns a bare variable,
+    #  Guarded, not indexed. A lazy generalisation returns a bare variable,
     # which has no member 0 -- so the first version of this check RAISED where
     # the answer is False, and a runner that cannot say False about an absence
     # reports nothing. Fourth time in this file.
@@ -3589,7 +3589,7 @@ def an_example_becomes_a_rule() -> None:
             w(gg.rel(machine.CONN, node, machine.rules.IMPLIES))
             w(gg.rel(machine.ANT, node, ant, machine.chain.SIGN[PLUS],
                      machine._numeral(0)))
-            # ⚠ WRAPPED, and the reason is §12 rather than modesty: a rule
+            #  WRAPPED, and the reason is §12 rather than modesty: a rule
             # nobody authored is exactly the kind whose conclusions must stay
             # weaker than what it was told -- and since grades went, saying so
             # is saying it in the conclusion, where a rule can read it and a
@@ -3626,7 +3626,7 @@ def an_example_becomes_a_rule() -> None:
           "beliefs rest on something learned",
           m.holds(kb.term("known(gate)")) is None)
 
-    # ⚠ Unrelated examples have a BARE VARIABLE as their generalisation -- a
+    #  Unrelated examples have a BARE VARIABLE as their generalisation -- a
     # rule that fires on everything. The tool declines, which §17 says is an
     # answer and not a failure.
     junk, kb_j = build(chr(10).join([
@@ -3641,7 +3641,7 @@ def an_example_becomes_a_rule() -> None:
         "fact +seen(gate)", ""]))
     j_before = len(junk.rules.rules)
     junk.run(limit=120)
-    check("§17", "⚠ and two examples with nothing in common teach nothing: the "
+    check("§17", " and two examples with nothing in common teach nothing: the "
           "tool declines rather than proposing a rule that fires on everything",
           len(junk.rules.rules) == j_before
           and junk.holds(kb_j.term("likely(known(gate))")) is None)
@@ -3652,7 +3652,7 @@ def a_rule_can_author_a_rule() -> None:
 
     A rule has been data since §14's worked example -- rule(<R>), conn, ant,
     con -- and it went one way: RuleSet.rule was called by the parser and by
-    tests and by nothing else. ⚠ The tool PROPOSES.
+    tests and by nothing else.  The tool PROPOSES.
 
     See docs/design/selftest.md#a-rule-can-author-a-rule.
     """
@@ -3670,7 +3670,7 @@ def a_rule_can_author_a_rule() -> None:
 
             The variable is minted here, once, and used in both patterns --
             which is exactly what no corpus can do, and the whole reason this
-            is a function rather than a rule. ⚠ In the CORPUS's name scope, and
+            is a function rather than a rule.  In the CORPUS's name scope, and
             the first version was not.
 
             See docs/design/selftest.md#compose.
@@ -3685,7 +3685,7 @@ def a_rule_can_author_a_rule() -> None:
             w(g.rel(machine.CONN, node, machine.rules.IMPLIES))
             w(g.rel(machine.ANT, node, g.rel(kbb.atom("seen"), x),
                     machine.chain.SIGN[PLUS], machine._numeral(0)))
-            # ⚠ The conclusion is WRAPPED -- `likely(known($x))` -- and that is
+            #  The conclusion is WRAPPED -- `likely(known($x))` -- and that is
             # the check rather than the flavour. A rule nobody authored should
             # not conclude as strongly as one that was told, and since grades
             # went that is said in the consequent itself, where a rule can read
@@ -3715,7 +3715,7 @@ def a_rule_can_author_a_rule() -> None:
     check("§14", "⭐ a rule the agent did not start with is live: the graph "
           "described one, a corpus adopted it, and the loop reads it",
           len(m.rules.rules) == before + 1)
-    # ⚠⚠⚠ And it IS the node the graph described. Minting a fresh one made the
+    #  And it IS the node the graph described. Minting a fresh one made the
     # live rule a twin: everything a corpus had said about the described rule
     # went to a node that was not a rule, and everything the machinery said
     # about the live one named a node no corpus could reach. Invisible until a
@@ -3749,7 +3749,7 @@ def a_rule_can_author_a_rule() -> None:
                   for p in inert.g.instances_of(inert.ANSWERED)
                   if inert.holds(p) == PLUS))
 
-    # ⚠⚠⚠ **What went with situations, and it was a real guard.** Adopting
+    #  **What went with situations, and it was a real guard.** Adopting
     # inside a supposition used to be REFUSED: `RuleSet.rules` is one list
     # shared by every frame, so a rule adopted while supposing would apply
     # after the frame was discharged, and to everything. With no frame there is
@@ -3757,7 +3757,7 @@ def a_rule_can_author_a_rule() -> None:
     # than satisfied.** `docs/descriptions-to-rules.md` argues the replacement:
     # propose/dispose belongs at the boundary a description crosses.
 
-    # ⚠ The POSITION, which `reify` did not record until this needed it.
+    #  The POSITION, which `reify` did not record until this needed it.
     # Without it the members are ordered by the accident of minting -- which
     # reproduces authored order for anything `reify` wrote, so a check over it
     # could never fail. Deposited out of order on purpose.
@@ -3774,7 +3774,7 @@ def a_rule_can_author_a_rule() -> None:
           "so reading it back is not a guess about minting order",
           sorted(order) == [("0", back.g.relation_of(kb_b.term("a(z)"))),
                             ("1", back.g.relation_of(kb_b.term("b(z)")))])
-    # ⚠ There is no grade member any more: `con` is four, like `ant`. The fifth
+    #  There is no grade member any more: `con` is four, like `ant`. The fifth
     # carried the grade a consequent would conclude at, and it went with `@` --
     # an uncertain conclusion is `+likely(p)`, which is already in the pattern.
     con = [p for p in back.g.instances_of(back.CON)
@@ -3871,7 +3871,7 @@ def the_agent_harmonizes_itself() -> None:
     from .core.rules import generalise
     from .core.text import Loader
 
-    # ⚠ One learner PER LOADER, and the first version had one closing over the
+    #  One learner PER LOADER, and the first version had one closing over the
     # first machine's. A name resolved through `kb.atom` is a node in THAT
     # machine's graph, so the second machine got node ids from the first --
     # ints that mean something else. The twin trap across two graphs, which is
@@ -3925,12 +3925,12 @@ def the_agent_harmonizes_itself() -> None:
           "rule that did not exist when the policy was written",
           len(learned_rules) == 1
           and mm.holds(mm.g.rel(mm.DORMANT, learned_rules[0].node)) == PLUS)
-    # ⚠ Built with `g.rel`, not `kb.term`: a rule adopted at runtime is named
+    #  Built with `g.rel`, not `kb.term`: a rule adopted at runtime is named
     # after its node and does not print as anything the surface can parse.
     # That is the wall `artefact` recorded from the other side -- a rule reaches
     # what a tool made by BINDING, never by naming it literally.
     (secret,) = [r for r in mm.rules.rules if r.name == "secret"]
-    # ⚠⚠ ...and the author does not have to know the order. Written the other
+    #  ...and the author does not have to know the order. Written the other
     # way round -- the precedence in the SAME consequent as the adoption, and
     # before it -- the fact lands while `$r` is not yet a rule, so the write
     # hook drops it. `_adopt` re-reads what the graph already says about the
@@ -3952,7 +3952,7 @@ def the_agent_harmonizes_itself() -> None:
         "fact +hinged(vault)", "fact +sealed(vault)", ""]))
     early.run(limit=200)
     early_learned = [r for r in early.rules.rules if r.name.startswith("learned")]
-    check("§16", "⚠ a claim written BEFORE the rule is live still counts: the "
+    check("§16", " a claim written BEFORE the rule is live still counts: the "
           "author may say it in either order and cannot tell which they chose",
           len(early_learned) == 1
           and early.holds(early.g.rel(early.DORMANT, early_learned[0].node)) == PLUS
@@ -4016,7 +4016,7 @@ def what_a_learned_rule_may_conclude() -> None:
         return m, kb, steps
 
     broad, kb_b, _ = episode(False, "+dormant($r), ")
-    check("§14", "⚠ taking the rule out is too broad for what an agent learns: "
+    check("§14", " taking the rule out is too broad for what an agent learns: "
           "one sealed object suppresses the learned rule about every object, "
           "including the one it is right about",
           broad.holds(kb_b.term("open(vault)")) == MINUS
@@ -4076,10 +4076,10 @@ def taking_a_rule_out_is_on_the_record() -> None:
           any(asked.g.show(pp) == "doing(ask(<hot>))"
               for pp in asked.g.instances_of(asked.DOING)
               if asked.holds(pp) == PLUS))
-    # ⚠⚠⚠ ...and it CANNOT leave the agent, which is the wall this fixture
+    #  ...and it CANNOT leave the agent, which is the wall this fixture
     # found and the first thing acquisition runs into.
     # → docs/design/selftest.md#and-it-cannot-leave-the-agent-which-is-t
-    check("§15", "⚠ but an intent NAMING A RULE never leaves the agent: a rule "
+    check("§15", " but an intent NAMING A RULE never leaves the agent: a rule "
           "node is generic, and the act boundary refuses a description",
           not asked.emitted)
 
@@ -4092,7 +4092,7 @@ def a_join_is_not_a_scan() -> None:
     measuring it, and it was a SECOND quadratic: quiet, weigh, heap and kept
     all address the option set -- n ticks, each weighing what could apply --
     and this one has a constant option set and does its damage inside one tick.
-    ⚠ What is reordered is the WALK, never the antecedent.
+     What is reordered is the WALK, never the antecedent.
 
     See docs/design/selftest.md#a-join-is-not-a-scan.
     """
@@ -4120,7 +4120,7 @@ def a_join_is_not_a_scan() -> None:
             # In a `finally`: a probe that mutates a module and crashes leaves
             # every later check in this run counting into a dead list.
             R.unify = original
-        # ⚠ Ground instances that are CLAIMED, not `instances_of` -- the rule's
+        #  Ground instances that are CLAIMED, not `instances_of` -- the rule's
         # own consequent `grand($p, $y)` is an instance of the relation and
         # holds nothing, and counting it read 99 where the answer is 98. The
         # same miscount this file has recorded once already; and `g.atom` mints
@@ -4143,7 +4143,7 @@ def a_join_is_not_a_scan() -> None:
           "only what would have failed to unify",
           (small_found, large_found) == (98, 198))
 
-    # ⚠⚠⚠ **And `consumed` is filled by MEMBER, not by the order walked.** This
+    #  **And `consumed` is filled by MEMBER, not by the order walked.** This
     # needs its own check because no outcome can show it: permuting `consumed`
     # permutes `heap`'s stamp and §12's trail, and the suite -- and
     # the retired `ugm.arbitration`, which compared two paths that would permute alike --
@@ -4156,7 +4156,7 @@ def a_join_is_not_a_scan() -> None:
         "fact +a(t)", "fact +b(t)", ""]))
     state = m._situation()
     (rule,) = [r for r in m.rules.rules if r.name == "j"]
-    # ⚠ The delta holds member 1's entry ONLY, which is the case that walks
+    #  The delta holds member 1's entry ONLY, which is the case that walks
     # member 1 before member 0. Handing it the whole state instead finds the
     # application on the first pivot and dedups the second away -- so the walk
     # under test never runs, and the check passes vacuously. It did.
@@ -4180,7 +4180,7 @@ def the_apparatus_eats_its_own_cooking() -> None:
     can ask about*, and the same one `exercised`, the entry's grade and a tool's
     binding each closed. The fix is always: put it in the graph.
 
-    Six requests, six bindings, all facts. ⚠⚠⚠ And **deniable is not the same as
+    Six requests, six bindings, all facts.  And **deniable is not the same as
     forgettable**: four are §19's carve-out, where denying is *refused* on the
     record rather than obeyed.
     """
@@ -4219,7 +4219,7 @@ def the_apparatus_eats_its_own_cooking() -> None:
           and off.holds(kb_off.term("boiling(kettle)")) == PLUS
           and steps_off[-1].state == "quiescent")
 
-    # ⚠⚠⚠ §19's carve-out, a fifth time. Deny `<fit>` and backward reading stops
+    #  §19's carve-out, a fifth time. Deny `<fit>` and backward reading stops
     # -- silently, on one corpus line. So the four it applies to are `standing`,
     # which is the fact the bundle already uses for exactly this claim, and the
     # denial is REFUSED rather than ignored: a fourth silent decline is what §5
@@ -4231,7 +4231,7 @@ def the_apparatus_eats_its_own_cooking() -> None:
         "fact +water(kettle)", "fact +goal(boiling(kettle))", ""]))
     keep.run(limit=400)
     subs = [n for n in keep.g.instances_of(keep.SUBGOAL) if keep.holds(n) == PLUS]
-    # ⚠ About THIS binding, not a count of every refusal in the run. The first
+    #  About THIS binding, not a count of every refusal in the run. The first
     # version asserted `== 1` over all of them, and `ugm.bundle` -- which denies
     # one binding per run across the whole suite -- turned that into a false
     # anomaly on three other answerers. A check that counts globals cannot
@@ -4260,12 +4260,12 @@ def the_apparatus_eats_its_own_cooking() -> None:
           len([n for n in ctl.g.instances_of(ctl.SUBGOAL) if ctl.holds(n) == PLUS]) == 2
           and not [n for n in ctl.g.instances_of(ctl.REFUSED) if ctl.holds(n) == PLUS])
 
-    # ⚠⚠⚠ I put `<remember>` in the retirable column first, and the measurement
+    #  I put `<remember>` in the retirable column first, and the measurement
     # moved it. The reasoning was *narrowing off means exhaustive recall, which
     # is the default* -- wrong about which thing this answers. `_remember` is not
     # the narrowing; it is the ANSWER to the recall request, and `<ask-fit>` keys
     # on `recalled($r, $w)`, so nothing asks `fit` about anything without it.
-    check("§21", "⚠ `<remember>` answers the recall REQUEST, it is not recall's "
+    check("§21", " `<remember>` answers the recall REQUEST, it is not recall's "
           "narrowing -- so it is standing too, and the criterion is only as good "
           "as knowing what a thing does",
           keep.holds(keep.g.rel(keep.STANDING,
@@ -4276,7 +4276,7 @@ def the_apparatus_eats_its_own_cooking() -> None:
 def a_rule_says_that_it_ran() -> None:
     """`exercised(<R>)` -- the claim `applied(<R>)` was already making, as a
 
-    PROPOSITION rather than as an entry field (§14, §21). ⚠ The reaction half
+    PROPOSITION rather than as an entry field (§14, §21).  The reaction half
     is NOT here, and the blocker is §6's, not a new one.
 
     See docs/design/selftest.md#a-rule-says-that-it-ran.
@@ -4300,7 +4300,7 @@ def a_rule_says_that_it_ran() -> None:
     check("§5", "it is deposited once, not once per application: it is a claim "
           "about the rule, not a count",
           len([n for n in ran.g.instances_of(ran.EXERCISED)]) == 1)
-    check("§21", "⚠ and the reaction half is still blocked on §6's root-goal check: "
+    check("§21", " and the reaction half is still blocked on §6's root-goal check: "
           "`blocked` is written either way, because it means *no rule fits* and "
           "what concludes `exercised` is the machinery",
           ran.holds(kb.term("achieved(exercised(<r>))")) is None)
@@ -4507,7 +4507,7 @@ def a_tool_is_data() -> None:
           "oracle" in {r.name for r, _ in bad.blame()})
     check("§19", "a tool that advised well is not blamed", not good.blame())
 
-    # ⚠ And the registration says so when it is wrong. Reported by `pystrider`:
+    #  And the registration says so when it is wrong. Reported by `pystrider`:
     # a two-argument function registered through the scoped door raised out of
     # `gate.write` at the first write, naming neither the tool nor the
     # registration -- one cycle to find, and easy to write because the
@@ -4517,7 +4517,7 @@ def a_tool_is_data() -> None:
     refused = _Machine()
     kb_r = _load(refused, "fact +nothing(x)\n")
     try:
-        # ⚠ The WRONG arity is three now, and it used to be two. The protocol
+        #  The WRONG arity is three now, and it used to be two. The protocol
         # was `(machine, frame, entry)`; the frame went with the seat, so a
         # `(frame, entry)` stub -- which is what this check used to hand in --
         # is a correctly-shaped answerer today and would be accepted.
@@ -4550,7 +4550,7 @@ def a_tool_is_data() -> None:
           m.holds(kb2.term("answered(<oracle>, advice(kettle), smash(jug1))")) == PLUS
           and not m.emitted)
 
-    # ⚠ The trap this cost three times before it was written down.
+    #  The trap this cost three times before it was written down.
     twin, _, called_t = episode("fill(kettle)", scoped=False)
     check("§3", "a tool registered by NAME mints its own request relation and is "
           "never called -- anything binding a name goes through the table that "
@@ -4585,7 +4585,7 @@ def an_episode_teaches_the_next_one() -> None:
           "anything an episode writes down",
           ep1.rows and not any("<" in r for r in ep1.rows))
 
-    # ⚠ These three were computed and never checked -- the fixture ran the
+    #  These three were computed and never checked -- the fixture ran the
     # transfer and asserted nothing about it. Reading them is the whole point.
     ep2 = Episode(world(jug_first=True) + chr(10).join(ep1.rows) + chr(10))
     check("§19", "the taught episode does not repeat the damage", not ep2.harmed)
@@ -4652,7 +4652,7 @@ def subgoals_make_blame_sayable() -> None:
           "name for *applied*",
           not m2.blame())
 
-    # ⚠ The trap, and it is why blame needs `-` rather than absence. Most
+    #  The trap, and it is why blame needs `-` rather than absence. Most
     # unachieved subgoals in a run are GENERIC (`heat($a, kettle)`) and were never
     # meant to hold as stated. Counting those as failures blames every rule for
     # every search it ever ran.
@@ -4664,7 +4664,7 @@ def subgoals_make_blame_sayable() -> None:
         "fact +goal(boiling(kettle))", "",
     ]))
     m3.run(limit=4000)
-    check("§19", "⚠ and a search that left generic subgoals unmet blames nobody -- "
+    check("§19", " and a search that left generic subgoals unmet blames nobody -- "
           "`heat($a, kettle)` was never meant to hold as stated",
           m3.holds(kb3.term("boiling(kettle)")) == PLUS and not m3.blame())
 
@@ -4723,7 +4723,7 @@ def taking_one_way_passes_up_the_others() -> None:
           m.holds(kb.term("intact(jug1)")) == PLUS
           and m.holds(kb.term("juice(jug1)")) == PLUS)
 
-    # ⚠ The control, and it is the whole judgement: without the denial the
+    #  The control, and it is the whole judgement: without the denial the
     # agent does BOTH, including the destructive one. Nothing in the engine
     # stops it, and that is deliberate -- a loser is deferred, not rejected.
     loose, kb_l, both = run_it(corpus(spend=False))
@@ -4731,7 +4731,7 @@ def taking_one_way_passes_up_the_others() -> None:
           "measuring the denial and not the arbitration",
           len(both) == 2 and loose.holds(kb_l.term("intact(jug1)")) == MINUS)
 
-    # ⚠⚠⚠ What spending COSTS, measured rather than conceded. Passing up used
+    #  What spending COSTS, measured rather than conceded. Passing up used
     # to be revisable: the chosen way did not deliver, the apparatus noticed the
     # want was still open, and a corpus rule handed the alternative back by
     # denying the `forgone` deposit. A spent want cannot be noticed at all --
@@ -4769,7 +4769,7 @@ def taking_one_way_passes_up_the_others() -> None:
 def doubt_is_a_tie() -> None:
     """Doubt is deposited when the agent has more than one move -- and what that
 
-    replaced was a SCORE. ⚠⚠⚠ THIS FUNCTION'S SUBJECT IS RETIRED, AND THE COST
+    replaced was a SCORE.  THIS FUNCTION'S SUBJECT IS RETIRED, AND THE COST
     IS GATED BELOW.
 
     See docs/design/selftest.md#doubt-is-a-tie.
@@ -4806,7 +4806,7 @@ def doubt_is_a_tie() -> None:
     def doubted(machine):
         """`close` between two of the CORPUS's moves.
 
-        ⚠ Not any `close` at all. The bundle is in the table too, and it is in
+         Not any `close` at all. The bundle is in the table too, and it is in
         two minds about its own apparatus on every run -- `close(<plan>,
         <expand>)` and `close(<ask-recall>, <ask-check>)` are deposited even by
         a corpus with a single rule. Counting those made the control below pass
@@ -4839,7 +4839,7 @@ def doubt_is_a_tie() -> None:
         first_corpus_move(tie)[0] == "byA",
     )
 
-    # ⚠⚠⚠ THE LOSS, ASSERTED RATHER THAN FILED. Every one of these used to move
+    #  THE LOSS, ASSERTED RATHER THAN FILED. Every one of these used to move
     # the outcome; none of them moves anything now. Written as a check so that
     # the day a score-keyed mechanism comes back, this FAILS and sends whoever
     # brought it back to the paragraph above.
@@ -4850,7 +4850,7 @@ def doubt_is_a_tie() -> None:
     ]
     outcomes = {(first_corpus_move(v)[0], doubted(first_corpus_move(v)[1]))
                 for v in variants}
-    check("§19", "⚠ and NOTHING a corpus can say about preference changes the "
+    check("§19", " and NOTHING a corpus can say about preference changes the "
           "move any more: a `prefer` row and its denial both give the same "
           "first move and the same doubt as the bare tie",
           outcomes == {("byA", True)})
@@ -4859,7 +4859,7 @@ def doubt_is_a_tie() -> None:
 def support_can_be_withdrawn() -> None:
     """*Nothing holds this up any more* -- the third negative existential, and
 
-    the one that deliberately stops short of doing anything about it. ⚠ It is
+    the one that deliberately stops short of doing anything about it.  It is
     ASKED, never volunteered, for blocked's reason: a proposition may rest on
     several things, so one withdrawal says nothing until the rest have been...
 
@@ -4915,7 +4915,7 @@ def support_can_be_withdrawn() -> None:
           m3.holds(kb3.term("q(a)")) == PLUS
           and m3.holds(kb3.term("unsupported(q(a))")) is None)
 
-    # ⚠ Unsupported and false are different in BOTH directions, which is the
+    #  Unsupported and false are different in BOTH directions, which is the
     # distinction the whole design of this rests on. `p(a)` is denied and yet not
     # unsupported: it was asserted, so it rests on nothing and has not lost a
     # reason -- it has been contradicted, which is a different thing.
@@ -4924,7 +4924,7 @@ def support_can_be_withdrawn() -> None:
     m4.run(limit=200)
     check(
         "§9",
-        "⚠ a denied fact is not an unsupported one: it was asserted, so it never "
+        " a denied fact is not an unsupported one: it was asserted, so it never "
         "had a reason to lose",
         m4.holds(kb4.term("p(a)")) == MINUS
         and m4.holds(kb4.term("unsupported(p(a))")) is None,
@@ -4941,7 +4941,7 @@ def support_can_be_withdrawn() -> None:
           derived is not None and bool(m.chain.rests_on(derived)))
     check(
         "§20",
-        "⚠ and it AGREES with the field it mirrors -- an index is a "
+        " and it AGREES with the field it mirrors -- an index is a "
         "re-implementation of what it indexes, and only a check says they match",
         all(
             {x.node for x in mm.chain.rests_on(e)} == set(e.consumed)
@@ -4955,7 +4955,7 @@ def support_can_be_withdrawn() -> None:
 def a_binding_can_be_reconsidered() -> None:
     """The last of the four hats: *when may a binding be reconsidered?*
 
-    It was stuck for a smaller reason than it looked. ⚠ And BOTH halves are
+    It was stuck for a smaller reason than it looked.  And BOTH halves are
     needed -- either alone is worse than neither.
 
     See docs/design/selftest.md#a-binding-can-be-reconsidered.
@@ -5007,7 +5007,7 @@ def a_binding_can_be_reconsidered() -> None:
     )
 
     only_excl, _, _, _ = taps(base + redo.replace("-binds($p, $v, butt),", ""))
-    check("§18", "⚠ excluding alone is inert -- the surviving binding pins the "
+    check("§18", " excluding alone is inert -- the surviving binding pins the "
           "variable before the exclusion is consulted",
           only_excl == ["butt"])
 
@@ -5015,7 +5015,7 @@ def a_binding_can_be_reconsidered() -> None:
         base + redo.replace("+excluded($p, $v, butt),", ""), limit=300)
     check(
         "§15",
-        "⚠⚠⚠ ...and denying alone RUNS AWAY: the same candidate is chosen again "
+        " ...and denying alone RUNS AWAY: the same candidate is chosen again "
         "and denied again, which is the re-ask criterion in a third place",
         len(only_deny) > 50 and deny_steps[-1].state == "applied",
     )
@@ -5026,7 +5026,7 @@ def a_binding_can_be_reconsidered() -> None:
         base + "fact +excluded(plan(<pour>, water(kettle)), $t, butt)" + chr(10))
     check(
         "§8",
-        "⚠⚠ and it cannot be a corpus FACT: a statement's variables are scoped "
+        " and it cannot be a corpus FACT: a statement's variables are scoped "
         "to it, so that `$t` is a different node and excludes nothing",
         asfact == ["butt"],
     )
@@ -5037,7 +5037,7 @@ def withdrawing_a_binding_withdraws_what_used_it() -> None:
 
     _settle builds its env by READING the plan's bindings, and wrote its answer
     with consumed=(e, s) -- so a conclusion that relied on *which tap* did not
-    rest on the entry that said which tap. ⚠ Only the bindings the goal
+    rest on the entry that said which tap.  Only the bindings the goal
     actually USES are consumed.
 
     See docs/design/selftest.md#withdrawing-a-binding-withdraws-what-used-it.
@@ -5057,7 +5057,7 @@ def withdrawing_a_binding_withdraws_what_used_it() -> None:
     ])
     drop = ("rule <drop> = implies( { +quiet($m), +binds($p, $v, butt) },"
             " { -binds($p, $v, butt) } )" + chr(10))
-    # ⚠ Asked on the DENIAL, not at `quiet`. Both rules key on the same occasion
+    #  Asked on the DENIAL, not at `quiet`. Both rules key on the same occasion
     # otherwise, and the one authored first runs first -- so the question was
     # answered while the binding was still intact and reported nothing. §16's
     # ordering trap, in a fixture rather than in the engine.
@@ -5103,7 +5103,7 @@ def withdrawing_a_binding_withdraws_what_used_it() -> None:
     )
     check(
         "§18",
-        "⚠ ...and only on the bindings its own goal uses, not on every sibling's "
+        " ...and only on the bindings its own goal uses, not on every sibling's "
         "choice",
         ach is not None
         and all(
@@ -5245,7 +5245,7 @@ def the_index_agrees_with_the_walk() -> None:
     walk over a world with a revision about an earlier moment, which separates
     the two orderings.
 
-    ⚠ The walk it is checked against has SHRUNK with the read. It used to take
+     The walk it is checked against has SHRUNK with the read. It used to take
     the greatest `(locus depth, seat depth, position)` over every claim, filtered
     by `locus.at_or_after(e.locus)` and by *is this deposit on my branch*. Both
     filters answered questions that no longer exist, so the brute force is now
@@ -5260,7 +5260,7 @@ def the_index_agrees_with_the_walk() -> None:
     kb = load(m, chr(10).join([
         "rule <a> = causes(  { +p($x) }, { +q($x) } )",
         "rule <b> = implies( { +q($x) }, { +r($x) } )",
-        # ⚠ A third `causes` step, because supposing was what used to make this
+        #  A third `causes` step, because supposing was what used to make this
         # chain deep. Without it the same fixture makes four moments where it
         # used to make more, and the breadth check below is what noticed.
         "rule <c> = causes(  { +r($x) }, { +s($x) } )",
@@ -5295,10 +5295,10 @@ def the_index_agrees_with_the_walk() -> None:
         f"the indexed read agrees with the walk it replaced, {comparisons} comparisons",
         not disagreements,
     )
-    # ⚠ The old bound was `comparisons > 1000`, and it counted seat x locus x
+    #  The old bound was `comparisons > 1000`, and it counted seat x locus x
     # proposition. With one time there is one comparison per proposition, so the
     # number falls by three orders of magnitude and the bound has to fall with
-    # it -- ⚠⚠⚠ but the thing it was GUARDING must not: a run whose chain never
+    # it --  but the thing it was GUARDING must not: a run whose chain never
     # revised anything would agree trivially.
     revised = [p for p in props if len(m.chain.claims_about(p)) > 1]
     check(
@@ -5308,7 +5308,7 @@ def the_index_agrees_with_the_walk() -> None:
     )
 
 
-# ⚠⚠⚠ DELETED WITH THE SEAT: `a_cause_moves_the_register`.
+#  DELETED WITH THE SEAT: `a_cause_moves_the_register`.
 #
 # §17 said *every seat move is a write*, and §21 carried it as owed for as long
 # as it existed. `Gate.reseat` paid it: advancing the register deposited
@@ -5323,7 +5323,7 @@ def the_index_agrees_with_the_walk() -> None:
 # it. What `moved($from, $to)` reported is `pred($to, $from)`, which is ordinary
 # skeleton and which every structural rule already reads.
 #
-# ⚠ `Gate.MOVED`, `Gate.FRAME` and `Gate.PROCESS` were left as dead atoms by
+#  `Gate.MOVED`, `Gate.FRAME` and `Gate.PROCESS` were left as dead atoms by
 # this cut, and `moved` stayed in `gates/vocabulary.py`'s reserved list. All
 # four are gone now -- and it was `ugm.gates.vocabulary` that found them, not a
 # reading: its census reports a name that is classified and never minted, and
@@ -5357,7 +5357,7 @@ def reference_is_binding() -> None:
         m.holds(kb.term("noted(plan(<boil>, boiling(kettle)))")) == PLUS,
     )
 
-    # ⚠ **A hypothesis used to be referable the same way** -- `left($frame, $a)`
+    #  **A hypothesis used to be referable the same way** -- `left($frame, $a)`
     # bound the occasion of leaving one, so a corpus could name a hypothesis it
     # had never been given a name for. There are no frames to leave now, and the
     # `left`/`resume` vocabulary went with them.
@@ -5419,7 +5419,7 @@ def the_chain_mirrors_nothing_of_its_own() -> None:
             n_entries += 1
             if g.relation_of(e.node) is not ch.ENTRY:
                 bad.append(("relation", e.node))
-            # ⚠ Member 0 was the LOCUS and is the proposition now -- an entry
+            #  Member 0 was the LOCUS and is the proposition now -- an entry
             # is two members, not three. A mirror check that kept the old
             # offsets would compare the proposition against a moment node and
             # report every entry as broken, which is the loud failure; the
@@ -5470,7 +5470,7 @@ def the_chain_mirrors_nothing_of_its_own() -> None:
     check("§20", "...and every Moment field is too -- pred, delta and depth",
           len(ch.moments) >= 2 and not mbad)
 
-    # ⚠ Three mirror checks went with the span: that a `Span` is its own node
+    #  Three mirror checks went with the span: that a `Span` is its own node
     # with two ordered members and nothing of its own but the end's depth, that
     # `locus_by_node` resolves a bound node back to EITHER kind -- the one place
     # a moment and a span met -- and that a span is interned. There is one kind
@@ -5489,7 +5489,7 @@ def a_cached_application_can_be_retracted() -> None:
     """§6, §12. Negation as failure on a structural member is evaluated **at
 
     match time, and the delta-match cache carries applications across ticks --
-    so a structural fact appearing later has to be able to take one back. ⚠⚠⚠
+    so a structural fact appearing later has to be able to take one back. 
     It could not.
 
     See docs/design/selftest.md#a-cached-application-can-be-retracted.
@@ -5532,7 +5532,7 @@ def a_structural_member_needs_a_ground_anchor() -> None:
     as an anchor although nothing in it was known, and the walk read the whole
     history. Any structured argument did it: `rests_on($e, foo($p))`.
 
-    ⚠ `has_var` is not the test either -- it cannot see through bindings, and
+     `has_var` is not the test either -- it cannot see through bindings, and
     `loaded($p)` with `$p` bound is ground in fact and generic in shape. So the
     question is asked of the binding, recursively.
     """
@@ -5624,7 +5624,7 @@ def an_unindexed_member_says_so() -> None:
     between a parse and a hang. The information existed at the point where it
     was discarded.
 
-    ⚠ **Both numbers, because the count alone does not rank them.** Measured on
+     **Both numbers, because the count alone does not rank them.** Measured on
     `ugm.interpret` below: the member that falls back most often is not the one
     that costs most, because the relation it scans has almost nothing in it.
     """
@@ -5668,7 +5668,7 @@ def a_line_of_work_can_run_dry_unnoticed() -> None:
     The harness asked for a scoped widening -- *this line of work found
     nothing* rather than *the machine found nothing* -- and marked the request
     checkable and unchecked, with the honest note that if the window goes empty
-    often enough in practice the request evaporates. ⚠ And the tier is reached
+    often enough in practice the request evaporates.  And the tier is reached
     only once the other line of work is exhausted, so the agent answers the
     utterance after the room goes quiet rather than while it is...
 
@@ -5753,7 +5753,7 @@ def the_watcher_is_handed_the_move() -> None:
     check("§4", "...carrying what the application itself wrote, which is the "
           "number the harness was reaching inside the engine for",
           all(isinstance(s.wrote, tuple) for _c, s in seen))
-    # ⚠ The point of the ask: `wrote` is the application's own deposit, so it
+    #  The point of the ask: `wrote` is the application's own deposit, so it
     # cannot contain the refraction bookkeeping `_spend` adds after it.
     check("§4", "...and it does NOT contain `_spend`'s refraction bookkeeping, "
           "which is what over-reported before",
@@ -5815,16 +5815,16 @@ def attention_is_about_a_node_not_a_rule() -> None:
           f"stopped widening past it ({bare.tried} rules matched over the run, "
           f"{lifted.tried} with attention)",
           lifted.tried < bare.tried and lifted.widenings < bare.widenings)
-    # ⚠⚠⚠ This has now been wrong TWICE, in two different columns, and both
+    #  This has now been wrong TWICE, in two different columns, and both
     # times it read as a finding.
     # → docs/design/selftest.md#this-has-now-been-wrong-twice-in-two-diff
     everything = run(["fact +attention(thing9)", "fact +attention(thing10)",
                       "fact +attention(thing11)"])
-    check("§19", "⚠ attention that names everything cannot say which one "
+    check("§19", " attention that names everything cannot say which one "
           "matters: attend one and its rule goes first, attend three and the "
           "one you named does not",
           lifted.applied[0] == "r11" and everything.applied[0] != "r11")
-    # ⚠⚠⚠ ...and now a THIRD time, in a third column, and this one was the
+    #  ...and now a THIRD time, in a third column, and this one was the
     # check's own footing. `_attention_asked` ordered standing claims by
     # iterating a SET, so which of three equally-claimed nodes lifted hardest
     # was decided by node id -- and adding one reserved atom to the machinery
@@ -5840,7 +5840,7 @@ def attention_is_about_a_node_not_a_rule() -> None:
           everything.applied == bare.applied
           and everything.tried < bare.tried
           and everything.widenings < bare.widenings)
-    check("§19", "⚠ and the STATE is what the lift is read through, not the "
+    check("§19", " and the STATE is what the lift is read through, not the "
           "graph: attending to a node the agent holds nothing about lifts "
           "nothing at all",
           run(["fact +attention(nowhere)"]).applied == bare.applied)
@@ -5874,7 +5874,7 @@ def attention_is_learned_from_what_the_move_bound() -> None:
     about attention can live -- and `attend($x)` says *think about what this
     move just bound*, in the host rule's own variables.
 
-    ⚠ It is the first postcondition that DEPOSITS rather than moving a score, so
+     It is the first postcondition that DEPOSITS rather than moving a score, so
     the table does not run it: `Table.spend` stays a pure account of scores and
     the loop hands attends to the machine.
     """
@@ -5900,7 +5900,7 @@ def attention_is_learned_from_what_the_move_bound() -> None:
 
     _m, _kb, plain = go([])
     # ⭐⭐⭐ This check used to assert the opposite, and the change is the result.
-    # ⚠ Which means a focus lesson no longer has to teach THIS.
+    #  Which means a focus lesson no longer has to teach THIS.
     # → docs/design/selftest.md#this-check-used-to-assert-the-opposite-an
     check("§18", "⭐⭐⭐ untaught, the move after `<spot>` is already about the "
           "goblin `<spot>` bound -- the machinery attends what a move wrote, so "
@@ -5920,11 +5920,11 @@ def attention_is_learned_from_what_the_move_bound() -> None:
 
     m2, kb2, both = go(["after <spot> => attend($x)",
                         "after <strike> => unattend"])
-    check("§19", "⚠ `unattend` is `reset` for attention, and it DENIES rather "
+    check("§19", " `unattend` is `reset` for attention, and it DENIES rather "
           "than forgets -- so a focus that has moved on is on the record",
           both == taught and m2.holds(kb2.term("attention(goblin1)")) == MINUS)
 
-    # ...and a ranking-time trigger is now REFUSED rather than ignored. ⚠ It
+    # ...and a ranking-time trigger is now REFUSED rather than ignored.  It
     # used to be accepted and silently unable to write: _rerank ran it on rules
     # that had not applied and may never apply, so a deposit from there would
     # have...
@@ -5936,7 +5936,7 @@ def attention_is_learned_from_what_the_move_bound() -> None:
         load(m3, chr(10).join(base + ["when { +leader($z) } => attend($z)", ""]))
     except ParseError as exc:
         refused = str(exc)
-    check("§19", "⚠⚠⚠ a RANKING-time trigger is REFUSED, not quietly ignored -- "
+    check("§19", " a RANKING-time trigger is REFUSED, not quietly ignored -- "
           "nothing runs one any more, and the error says to hang the lesson off "
           "the rule that RUNS",
           refused is not None and "after <R>" in refused)
@@ -5964,7 +5964,7 @@ def a_lesson_about_attention_is_learned_from_play() -> None:
     src = chr(10).join([
         "rule <spot>   = implies( { +leader($x), +side($s) }, { +marked($x) } )",
         "rule <strike> = implies( { +marked($y), +side($t) }, { +struck($y) } )",
-        # ⚠ Was `after <spot> => boost(<strike>, 9)`. The buff's only job here
+        #  Was `after <spot> => boost(<strike>, 9)`. The buff's only job here
         # was to INTERLEAVE the two rules, so that what `<spot>` bound carried
         # into the next move and carry-over had something to count. `standing`
         # is the authored floor-raise and produces the identical run -- measured,
@@ -6006,7 +6006,7 @@ def a_teacher_cannot_supervise_what_it_cannot_see() -> None:
     """§19: why the attention lesson is learned from play and not from the gold
     teacher.
 
-    ⚠⚠⚠ **`arbitrate` is binding-blind, and so is every teacher built on it.**
+     **`arbitrate` is binding-blind, and so is every teacher built on it.**
     Its key is `(score(rule), rules.index(rule))`, so two applications of ONE
     rule tie exactly and the first in walk order wins. Asking *where did the
     table pick the wrong binding* of a teacher that cannot pick a binding
@@ -6029,7 +6029,7 @@ def a_teacher_cannot_supervise_what_it_cannot_see() -> None:
     check("§14", "one rule, two goblins, two applications -- so there IS a "
           "binding to choose", len(apps) == 2)
     chosen = arbitrate(m.rules, apps, lambda r: ())
-    check("§19", "⚠⚠⚠ ...and arbitration returns the FIRST of them whatever the "
+    check("§19", " ...and arbitration returns the FIRST of them whatever the "
           "priority says, because its key is over rules: a teacher built on it "
           "can never demonstrate a binding",
           chosen is apps[0]
@@ -6041,7 +6041,7 @@ def a_recursion_is_a_node_with_a_phase() -> None:
 
     Hanoi's recursion is depth-first and ORDERED -- unstack, then place, then
     restack -- and ugm.hanoi records four corpora that failed before this one
-    worked. ⚠ Minted per OCCASION, not per parameters, and Hanoi is where that
+    worked.  Minted per OCCASION, not per parameters, and Hanoi is where that
     stops being a nicety: solve(d1, x, z, y) occurs TWICE in a three-disk
     solution, so a call...
 
@@ -6064,14 +6064,14 @@ def a_recursion_is_a_node_with_a_phase() -> None:
           "unretuned -- 15 moves, identical to the recursive solution",
           four["solved"] and four["moves"] == four["optimal"]
           and len(four["moves"]) == 15)
-    check("§14", "⚠ a call is minted per OCCASION: the same parameters recur "
+    check("§14", " a call is minted per OCCASION: the same parameters recur "
           "within one solution, so a node keyed on them would collide with "
           "itself and refraction would block the second",
           optimal(3).count(("d1", "x", "z")) == 2)
 
     for rule in ("descend", "ascend", "placed"):
         gone = solve(4, without=rule, limit=2000)
-        check("§18", "⚠ without <%s> the puzzle is not solved, so the phase "
+        check("§18", " without <%s> the puzzle is not solved, so the phase "
               "machine is load-bearing rather than decoration" % rule,
               not gone["solved"])
     blind = solve(4, without="finished", limit=2000)
@@ -6089,7 +6089,7 @@ def a_recursion_can_be_learned_from_watching_it() -> None:
     `tower($e,$s,$t,$f)` coming back. `generalise` reads both off two examples;
     nothing searches.
 
-    ⚠ ONE demonstration is not experience -- rules that fire once are declined,
+     ONE demonstration is not experience -- rules that fire once are declined,
     and what is induced does not solve even the size it was taught on. That is
     the check that makes the two-demonstration result mean anything.
     """
@@ -6112,7 +6112,7 @@ def a_recursion_can_be_learned_from_watching_it() -> None:
           "what they called a variable -- including <descend> and <ascend>, "
           "whose peg permutation is the whole of Hanoi",
           len(same) == 10 and "descend" in same and "ascend" in same)
-    check("§17", "⚠ and the two it misses are `d1` where a person wrote `$d`: "
+    check("§17", " and the two it misses are `d1` where a person wrote `$d`: "
           "the smallest disk is called d1 at EVERY size, so varying n never "
           "varies that argument -- what a demonstration holds constant is what "
           "a learner believes is necessary",
@@ -6125,7 +6125,7 @@ def a_recursion_can_be_learned_from_watching_it() -> None:
 
     thin, thin_data = demonstrate((3,))
     only, thin_declined = induce(thin)
-    check("§17", "⚠⚠⚠ ONE demonstration is not experience: rules that fire once "
+    check("§17", " ONE demonstration is not experience: rules that fire once "
           "are declined, and what is induced does not solve even three disks",
           thin_declined != {}
           and not solve_learned(3, only, thin_data, limit=4000)["solved"])
@@ -6136,7 +6136,7 @@ def the_action_palette_is_declared_and_discoverable() -> None:
 
     ⭐⭐⭐ conn($r, causes) was the nearest thing to an action palette and it
     answers a different question: how a rule relates to the world, not that the
-    agent may deliberately do it. ⚠ The signature is generic, so it is
+    agent may deliberately do it.  The signature is generic, so it is
     MENTIONED rather than claimed -- the gate refuses to deposit a proposition
     with a variable in it, and rightly.
 
@@ -6184,7 +6184,7 @@ def the_action_palette_is_declared_and_discoverable() -> None:
         load(Machine(), "fact +move($x, $y)" + chr(10))
     except ParseError as e:
         refused = str(e)
-    check("§4", "⚠ ...while the same generic term written as a FACT is refused "
+    check("§4", " ...while the same generic term written as a FACT is refused "
           "outright -- *a fact may not contain a variable* -- which is why an "
           "action has to be a claim ABOUT a pattern and not the pattern itself",
           refused is not None and "may not contain a variable" in refused)
@@ -6244,7 +6244,7 @@ def a_bad_attempt_is_declined_rather_than_ignored() -> None:
           "covered disk by the world model's own rule, an action that does not "
           "exist by the machinery",
           bad["covered"] and bad["unafforded"])
-    check("§20", "⚠ and the world model's decline is load-bearing -- correct "
+    check("§20", " and the world model's decline is load-bearing -- correct "
           "play never makes an illegal move, so SOLVING cannot kill that rule "
           "and the ablation had to be pointed at the misbehaviour instead",
           not misbehave(3, without="covered")["covered"])
@@ -6253,7 +6253,7 @@ def a_bad_attempt_is_declined_rather_than_ignored() -> None:
 def outstanding_business_is_not_dropped_in_silence() -> None:
     """§9: an agent may not walk away from a request without saying so.
 
-    ⭐⭐⭐ Low priority as a PREMISE, not a score. ⚠ Both endings, and they are
+    ⭐⭐⭐ Low priority as a PREMISE, not a score.  Both endings, and they are
     disjoint.
 
     See docs/design/selftest.md#outstanding-business-is-not-dropped-in-silence.
@@ -6283,7 +6283,7 @@ def outstanding_business_is_not_dropped_in_silence() -> None:
     own = Machine()
     kown = load(own, corpus(3) + "fact +attempt(move(d3, y))" + chr(10))
     own.run(limit=400)
-    check("§9", "⚠ where the world model DOES have a rule, its own decline is "
+    check("§9", " where the world model DOES have a rule, its own decline is "
           "what stands -- the watchdog is the last word, not the first",
           own.holds(kown.term("declined(move(d3, y), covered)")) == PLUS
           and own.holds(kown.term("declined(move(d3, y), unattended)")) is None)
@@ -6294,7 +6294,7 @@ def what_was_learned_is_a_document() -> None:
 
     ⭐⭐⭐ ugm.teaching has claimed since it was written that a lesson is *a
     document -- savable, diffable, arguable, and loadable into a corpus that
-    was never taught* -- and it had no open and no write in it. ⚠ Three
+    was never taught* -- and it had no open and no write in it.  Three
     provenance levels over one construct, and only the marker tells them apart
     once they are in one file: frozen the machinery may not touch this
     (plain)...
@@ -6367,7 +6367,7 @@ def what_was_learned_is_a_document() -> None:
     twin = M()
     tldr = load(twin, src)
     added = install_focuses(twin, tldr, lesson.focuses(played, conditional=True))
-    check("§20", "⚠ the installer and the document come from ONE renderer, so "
+    check("§20", " the installer and the document come from ONE renderer, so "
           "the lesson that is inspectable is the lesson that ran",
           added == doc.count("learned after"))
 
@@ -6419,7 +6419,7 @@ def a_weight_may_be_NEGATIVE() -> None:
           "once nothing else is left, because a weight orders and only "
           "`dormant` takes a rule out",
           "smash(jug1)" in damped)
-    # ⚠ Through the LOADER's node, not `g.atom`: an unscoped load has its own
+    #  Through the LOADER's node, not `g.atom`: an unscoped load has its own
     # name table, so `g.atom("jug1")` here is a different node from the one the
     # corpus wrote, and the lookup silently misses. Caught by this check failing.
     check("§19", "the weight is read as written, sign and all",
@@ -6433,7 +6433,7 @@ def a_weight_may_be_NEGATIVE() -> None:
     check("§19", "two claims about one thing take the stronger SIGNAL, not the "
           "higher number", two._attention_weights().get(kb2.term("jug1")) == -5)
 
-    # ⚠ Only a numeral. `-` is the sign marker everywhere else in the surface,
+    #  Only a numeral. `-` is the sign marker everywhere else in the surface,
     # and a term that merely starts with it is still refused.
     refused = False
     try:
@@ -6447,7 +6447,7 @@ def a_weight_may_be_NEGATIVE() -> None:
 def attention_is_a_bounded_queue() -> None:
     """§19: what the agent is thinking about is a QUEUE, and position is weight.
 
-    ⭐⭐⭐ It replaces three things at once. ⚠ Decay by displacement is the better
+    ⭐⭐⭐ It replaces three things at once.  Decay by displacement is the better
     notion than a timer: ten quiet ticks should not forget what you were doing,
     and ten busy ones should.
 
@@ -6468,7 +6468,7 @@ def attention_is_a_bounded_queue() -> None:
           and ns[0] not in [n for n, _w in m._attention])
 
     m._push_attention(ns[-3])
-    check("§19", "⚠ re-attending something already held MOVES it up rather than "
+    check("§19", " re-attending something already held MOVES it up rather than "
           "adding it twice, or one node would crowd out everything else the "
           "agent knows it is doing",
           m._attention[0][0] is ns[-3]
@@ -6507,7 +6507,7 @@ def attention_suspends_rather_than_filtering() -> None:
     long enough sub-line evicts anything however well chosen. A stack does not
     filter: the outer frame is off the queue entirely.
 
-    ⚠⚠⚠ The graph is untouched by both. Nothing derived inside a frame stops
+     The graph is untouched by both. Nothing derived inside a frame stops
     existing when it is popped, and the one thing a pop takes back is the
     frame's own `attention` claims -- denied, in `_unattend`'s sense, not
     dropped.
@@ -6537,7 +6537,7 @@ def attention_suspends_rather_than_filtering() -> None:
           "return value",
           m.g.show(back[0]) == "answer" and back[1] is outer
           and len(m._frames) == 1)
-    check("§19", "⚠⚠ the frame's own `attention` claim is DENIED rather than "
+    check("§19", " the frame's own `attention` claim is DENIED rather than "
           "dropped, because dropping a Python set is not readable by any rule "
           "and cannot be argued with",
           m.holds(m.g.rel(m.ATTENTION, inner)) == MINUS)
@@ -6566,7 +6566,7 @@ def attention_suspends_rather_than_filtering() -> None:
     deep = Machine()
     for i in range(FRAME_DEPTH + 4):
         deep._push_frame([deep.g.atom("d%d" % i)])
-    check("§19", f"⚠⚠⚠ the stack is BOUNDED at {FRAME_DEPTH} frames, and the "
+    check("§19", f" the stack is BOUNDED at {FRAME_DEPTH} frames, and the "
           "refusal is deposited -- a push that quietly did nothing is "
           "indistinguishable from one that had nothing to do",
           len(deep._frames) == FRAME_DEPTH
@@ -6578,7 +6578,7 @@ def attention_suspends_rather_than_filtering() -> None:
 def an_expert_is_picked_from_what_the_frame_is_about() -> None:
     """§19: `push` names nodes; the EXPERT is computed from them, by TF-IDF.
 
-    ⚠⚠⚠ Unarguable, and knowingly so -- and §19 already answered this shape of
+     Unarguable, and knowingly so -- and §19 already answered this shape of
     problem. The answer was never a veto over the choice: *recall may be
     incomplete about what to do; it may not be incomplete about what you must
     not do.* So the mitigation is knowing what must not ride on it (`_forbid`
@@ -6623,7 +6623,7 @@ def an_expert_is_picked_from_what_the_frame_is_about() -> None:
           f"named by the rule that pushed them -- a rule that had to name the "
           f"callee would be doing the selecting ({named})",
           m.g.show(who) == "baker" and named["smith"] == 0)
-    check("§19", "⚠ and nothing to discriminate is answered with NOTHING: a "
+    check("§19", " and nothing to discriminate is answered with NOTHING: a "
           "frame that scores zero everywhere keeps the rules of the frame "
           "below, because picking the first expert declared would be a coin "
           "flip wearing a mechanism's clothes",
@@ -6637,7 +6637,7 @@ def an_expert_is_picked_from_what_the_frame_is_about() -> None:
                           kb.term("iron(ore)"))) == PLUS
           and any(m._claims(i) for i in m.g.instances_of(m.SUITS)
                   if m.g.member(i, 0) is kb.atom("baker")))
-    check("§19", "⚠ a frame holds the expert by NAME and reads its pool on "
+    check("§19", " a frame holds the expert by NAME and reads its pool on "
           "demand, because `knows($e, $r)` can be CONCLUDED mid-run -- here "
           "`<learn>` gives smith a rule that belonged to nobody, and a pool "
           "frozen at push time could not see it",
@@ -6676,11 +6676,11 @@ def a_saved_session_can_be_read_back() -> None:
 
     rendered = chr(10).join(
         item["src"] for item in m._rendered() if item["kind"] == "load")
-    check("§2", "⚠⚠⚠ a saved session carries no `#`, which is the one "
+    check("§2", " a saved session carries no `#`, which is the one "
           "character that makes a file unreadable RATHER than wrong -- it "
           "opens a comment, so one entity would take the document with it",
           "#" not in rendered)
-    check("§2", "⚠ ...and an absence renders as the word it is: `no p($x)`, "
+    check("§2", " ...and an absence renders as the word it is: `no p($x)`, "
           "not `nop($x)` -- which would have parsed, as a different rule",
           "no served($p)" in rendered)
 
@@ -6721,7 +6721,7 @@ def a_table_can_outlive_a_run() -> None:
     `absorb` changes it, so a rebuilt table differs from the kept one exactly in
     the rules the agent ADOPTED since -- which is the case this check is for.
 
-    ⚠ **The ticks continue rather than restarting.** Nothing decays any more, so
+     **The ticks continue rather than restarting.** Nothing decays any more, so
     this no longer guards a lift's age; it is what keeps the count a host can
     read monotone across calls.
     """
@@ -6788,7 +6788,7 @@ def the_aggregate_over_bindings_is_one_primitive() -> None:
     kb = load(m, SRC)
     m.run(limit=60)
 
-    # ⚠ Named through `rule_nodes`, not rebuilt with `kb.term`: a statement's
+    #  Named through `rule_nodes`, not rebuilt with `kb.term`: a statement's
     # variables are scoped to it, so re-parsing `count(goblin($x))` mints a
     # fresh `$x` and asks about a different description. That is exactly what
     # forced the answer to be keyed on the ask, and it catches a test author
@@ -6810,11 +6810,11 @@ def the_aggregate_over_bindings_is_one_primitive() -> None:
           "special-case: nothing was told about a troll",
           m.holds(kb.term("untold(t)")) == PLUS)
 
-    # ⚠⚠⚠ Could this have failed? A count that always answered 2 would pass the
+    #  Could this have failed? A count that always answered 2 would pass the
     # first check, and a corpus reading a constant would pass the rest. Three
     # counts over one corpus, each a different number, is what makes the
     # instrument an instrument -- and the elf is the control for the goblins.
-    check("§1", "⚠ and the answer TRACKS THE WORLD rather than being a "
+    check("§1", " and the answer TRACKS THE WORLD rather than being a "
           "constant: three descriptions over one corpus, three numbers",
           counted("elves", 1) == PLUS and counted("trolls", 0) == PLUS)
 
@@ -6824,7 +6824,7 @@ def a_count_is_not_monotone() -> None:
 
     A count is true of a moment and the next entry can falsify it -- so
     counted(p, 2) and counted(p, 3) are different propositions and asserting
-    the second leaves the first standing. ⚠ Re-asking is the corpus's job and
+    the second leaves the first standing.  Re-asking is the corpus's job and
     it is the ordinary discipline: a request is a fact, so it is SPENT and
     re-asserted.
 
@@ -6883,7 +6883,7 @@ def a_computed_numeral_is_not_a_twin() -> None:
     m = Machine()
     kb = load(m, chr(10).join(src))
     m.run(limit=60)
-    check("§1", "⚠ a count past nine is the SAME node as the numeral a corpus "
+    check("§1", " a count past nine is the SAME node as the numeral a corpus "
           "wrote, so a rule can read it -- the twin trap, seventh time",
           m.holds(m.g.rel(m.COUNTED, kb.rule_nodes["things"],
                           m._numeral(12))) == PLUS
@@ -6897,7 +6897,7 @@ def two_things_can_turn_out_to_be_one() -> None:
     loader's name table decides it at intake (text.py: *a corpus is a bound,
     kettle means one node inside it, by construction and not by inference,
     which is why coreference does not arise in authored knowledge at all*), and
-    interning decides it for compounds. ⚠ The repoint is the whole of the
+    interning decides it for compounds.  The repoint is the whole of the
     implementation.
 
     See docs/design/selftest.md#two-things-can-turn-out-to-be-one.
@@ -6927,7 +6927,7 @@ def two_things_can_turn_out_to_be_one() -> None:
           "follows: every relationship either stood in is a relationship of the "
           "one thing, so `bright(evening)` IS `bright(morning)`",
           g.rel(bright, es) == b_ms)
-    check("§3", "⚠ ...and what was said BEFORE the merge is still reachable, "
+    check("§3", " ...and what was said BEFORE the merge is still reachable, "
           "which is what the repoint buys -- without it the pre-merge nodes are "
           "orphaned in the index and the belief is silently gone",
           m.holds(kb.term("seen_by(galileo, evening_star)")) == PLUS
@@ -6954,7 +6954,7 @@ def two_things_can_turn_out_to_be_one() -> None:
           g2.rel(g2.relation_of(k1), kb2.atom("sam"),
                  g2.rel(inner, kb2.atom("evening_star"))) == k1)
 
-    # ⚠⚠⚠ **A merge is now UNCONDITIONAL, and that is what situations cost
+    #  **A merge is now UNCONDITIONAL, and that is what situations cost
     # here.** Deciding two things are the same is a decision, and it used to be
     # containable: a merge made inside a branch was invisible outside it, so an
     # agent could ask *what if these were one thing* without committing. With no
@@ -6969,24 +6969,24 @@ def two_things_can_turn_out_to_be_one() -> None:
     a3, b3 = kb3.atom("morning_star"), kb3.atom("evening_star")
     br3 = g3.relation_of(kb3.term("bright(morning_star)"))
     g3.merge(a3, b3)
-    check("§3", "⚠⚠⚠ a merge holds everywhere and cannot be taken back -- what "
+    check("§3", " a merge holds everywhere and cannot be taken back -- what "
           "used to be containable in a branch is now a commitment, and nothing "
           "in the engine records that it was ever in doubt",
           g3.rel(br3, b3) == kb3.term("bright(morning_star)"))
 
-    # ⚠ The cost discipline: an unmerged graph must compute the key it computed
+    #  The cost discipline: an unmerged graph must compute the key it computed
     # before identity existed, or every corpus that never corefers pays for one
     # that does. Asked structurally rather than by timing, because a timing
     # check on a shared machine reports the weather.
     plain = Machine()
-    check("§3", "⚠ ...and a graph where nothing has merged computes the same "
+    check("§3", " ...and a graph where nothing has merged computes the same "
           "interning key it did before identity existed, so nothing that never "
           "corefers pays for this",
           plain.g._key(1, (2, 3)) == (1, (2, 3)) and not plain.g._merges)
 
     # ⭐⭐⭐ TWO VOCABULARIES, AND NO RULE MENTIONS A DENOTATION. This is what the
     # identity layer is FOR, and it is the answer to *must every rule be full
-    # of denoted by*. ⚠ It took three layers to be true, and each was silent on
+    # of denoted by*.  It took three layers to be true, and each was silent on
     # its own: interning and the argument index (the candidate is filed), unify
     # (the candidate is not...
     # → docs/design/selftest.md#two-vocabularies-and-no-rule-mentions-a-d
@@ -7010,7 +7010,7 @@ def a_rule_can_introduce_a_thing() -> None:
     """`+kind`: a consequent may name something that did not exist.
 
     Everything a consequent could name came from a binding or was written
-    literally, so *there is some new person here* was unsayable. ⚠ Refraction
+    literally, so *there is some new person here* was unsayable.  Refraction
     is what stops it running away, and it already existed.
 
     See docs/design/selftest.md#a-rule-can-introduce-a-thing.
@@ -7041,7 +7041,7 @@ def a_rule_can_introduce_a_thing() -> None:
           "so a rule can say several things about what it just introduced",
           all(m.holds(g.rel(kb.atoms["is"], p, kb.atom("person"))) == PLUS
               for p in people))
-    check("§4", "⚠⚠⚠ ...and REFRACTION is what bounds it: three premises, three "
+    check("§4", " ...and REFRACTION is what bounds it: three premises, three "
           "firings, three nodes -- a minting rule never re-fires on bindings it "
           "has already used, which quiescence could not have caught because a "
           "fresh node always changes something",
@@ -7122,17 +7122,17 @@ def a_relationship_is_among_ids_a_denotation_is_a_query() -> None:
           "with the declaration that forbade it",
           len(refusals) == 1
           and g.relation_of(g.member(refusals[0], 2)) is m.RELATIONSHIP)
-    check("world model", "⚠⚠⚠ ...refused ONCE -- the veto runs before the mint, "
+    check("world model", " ...refused ONCE -- the veto runs before the mint, "
           "so a rule whose every conclusion is turned away brings no orphan "
           "into being and the loop goes quiet rather than retrying forever",
           m.gate.refusals == 1)
-    check("world model", "⚠ ...so no relationship in the world holds of an "
+    check("world model", " ...so no relationship in the world holds of an "
           "expression: every held role fact is among id-bearing things",
           all(g.relation_of(mm) is None
               for rel in ("named", "denotes", "agent", "target")
               for n in g.instances_of(kb.atoms[rel]) if m.holds(n) == PLUS
               for mm in g.members(n)))
-    check("world model", "⚠ ...and the denotation still WORKS, as a query: "
+    check("world model", " ...and the denotation still WORKS, as a query: "
           "<reify>'s antecedent matched it, which is how the roles got filled",
           attack is not None and m.holds(denotation) is None)
 
@@ -7203,7 +7203,7 @@ def an_alias_is_shorthand_for_structure() -> None:
 
     nested = g.rel(kb.atoms["mention"], kb.atom("m9"),
                    g.rel(kb.atoms["attacks"], kb.atom("gob"), kb.atom("hero")))
-    check("world model", "⚠⚠⚠ a NESTED occurrence is not expanded: "
+    check("world model", " a NESTED occurrence is not expanded: "
           "`mention(m9, attacks(gob, hero))` keeps the compound as written -- "
           "nested is a denotation, and expanding it would put words in the "
           "mention's mouth",
@@ -7215,7 +7215,7 @@ def an_alias_is_shorthand_for_structure() -> None:
             "alias a($x) = { +p($x) }", "fact -a(q)", ""]))
     except ParseError:
         refused_sign = True
-    check("world model", "⚠ a signed alias use is REFUSED rather than "
+    check("world model", " a signed alias use is REFUSED rather than "
           "distributed: `-` over several claims is a different statement "
           "than the author wrote",
           refused_sign)
@@ -7277,7 +7277,7 @@ def absence_is_asked_never_asserted() -> None:
             "rule <bad> = implies( { no p($x) }, { +q($x) } )", ""]))
     except ParseError:
         unbound = True
-    check("world model", "⚠ `no p($x)` with $x unbound is REFUSED at load: "
+    check("world model", " `no p($x)` with $x unbound is REFUSED at load: "
           "*for no $x* is the negative existential a member cannot mean -- "
           "an absence checks things already picked out",
           unbound)
@@ -7288,11 +7288,11 @@ def absence_is_asked_never_asserted() -> None:
             "rule <bad> = implies( { +p($x) }, { no q($x) } )", ""]))
     except ParseError:
         concluded = True
-    check("world model", "⚠ a rule cannot CONCLUDE an absence -- absence is "
+    check("world model", " a rule cannot CONCLUDE an absence -- absence is "
           "asked, never asserted; saying something is not so is `-q(...)`",
           concluded)
 
-    # ⚠ The honest limit, stated because it is the failure mode this invites.
+    #  The honest limit, stated because it is the failure mode this invites.
     # Refraction bounds re-firing on ONE set of premises. It cannot bound a
     # generative CHAIN -- mint, conclude about the new node, mint again -- since
     # those are different bindings every time. `bounded(ticks)` is the backstop
@@ -7303,7 +7303,7 @@ def absence_is_asked_never_asserted() -> None:
         "fact +thing(a)",
         "rule <spawn> = implies( { +thing($x) }, { +thing(+thing) } )", ""]))
     m2.run(limit=40)
-    check("§21", "⚠⚠⚠ ...but a GENERATIVE CHAIN is not bounded by refraction, and "
+    check("§21", " ...but a GENERATIVE CHAIN is not bounded by refraction, and "
           "the run says so through the one record that can: `bounded(ticks)`",
           m2.holds(kb2.term("bounded(ticks)")) == PLUS)
 

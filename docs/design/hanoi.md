@@ -41,7 +41,7 @@ PHASE. *Which step of this call am I on* becomes a fact. That is
 `docs/HANDOFF.md`'s *a multi-tick plan is a NODE, not a string* -- reached from
 the other direction, by writing the alternative and watching it fail.
 
-⚠ Minted per OCCASION and not per parameters, which matters here rather than in
+ Minted per OCCASION and not per parameters, which matters here rather than in
 principle: `solve(d1, x, z, y)` occurs TWICE in a three-disk solution, so a call
 node keyed on its arguments would collide with itself and refraction would block
 the second. `+call` mints one node per application, which is exactly right.
@@ -56,13 +56,13 @@ stack never sees it. The stage ORDER is data a corpus deposits
 (`advances(unstacking, placing)`, `closes(waiting)`), because the order of the
 steps is exactly what differs between one recursive plan and the next.
 
-⚠ **One domain cannot show that a mechanism is general**, so there are two.
+ **One domain cannot show that a mechanism is general**, so there are two.
 `COUNTDOWN` below shares nothing with Hanoi -- no disks, no pegs, no `want`, no
 action -- and runs on the same three rules. Before the split, `<unstacked>` and
 `<restacked>` were rules in this file; they are now the bundle's `<call-advance>`
 and `<call-return>` plus two facts.
 
-⚠ And this is NOT a second planner. `<expand>` in the bundle is a STRATEGY --
+ And this is NOT a second planner. `<expand>` in the bundle is a STRATEGY --
 means-ends, decompose a goal by some rule's antecedents -- and it stays exactly
 what it was. What is shared here is what any strategy needs underneath it.
 
@@ -95,13 +95,13 @@ That permutation IS Hanoi. Nothing here searches: `generalise` is the dual of
 **The learned rules alone -- nothing authored but the puzzle itself -- solve 5,
 6 and 7 disks in the optimal sequence, having seen only 3 and 4.**
 
-⚠⚠⚠ **Two demonstrations, and ONE is not enough** -- which is what makes the
+ **Two demonstrations, and ONE is not enough** -- which is what makes the
 result mean anything. Taught on 3 alone, two rules fire once and are declined
 outright, and what is induced does not solve even the size it was taught on.
 Taught on 3 and 4, nothing is declined. The repo already had this as *experience
 means more than one fight*; here it is a pass/fail rather than a degradation.
 
-⚠ **The two rules it does NOT recover are the sharp finding.** `<base>` and
+ **The two rules it does NOT recover are the sharp finding.** `<base>` and
 `<leaf>` keep `d1` where a person wrote `$d`, and no number of SIZES fixes it:
 the smallest disk is called `d1` at every size, so varying `n` never varies that
 argument. Varying the size does not vary everything, and what a demonstration
@@ -111,14 +111,14 @@ defect is invisible in the outcome and visible only in the diff against what a
 person wrote. Which is the reason to compare against the authored rule at all,
 rather than only against the behaviour.
 
-⚠ What is NOT learned is the plumbing: `<call-spawn>`, `<call-advance>` and
+ What is NOT learned is the plumbing: `<call-spawn>`, `<call-advance>` and
 `<call-return>` are the bundle's, and the demonstration teaches the domain.
 
-⚠ And the teacher demonstrates CALLS, not only moves. Inferring the call tree
+ And the teacher demonstrates CALLS, not only moves. Inferring the call tree
 from a bare move trace is program induction and is not attempted here -- stated
 because the difference is the whole of what this result claims.
 
-⚠ The recursion below is AUTHORED, and learning it is measured against it. What this fixture provides is the
+ The recursion below is AUTHORED, and learning it is measured against it. What this fixture provides is the
 target: a corpus whose knowledge is entirely structural, on a task where an
 identity-keyed version cannot work at all, and a teacher that CAN supervise a
 binding -- which `ugm.teaching`'s cannot, because `arbitrate` keys on
@@ -136,12 +136,12 @@ the way down and `tower($e, $s, $t, $f)` on the way back. Anti-unification --
 `generalise`, the dual of `unify`, which this repository already had -- reads
 both straight off two demonstrations.
 
-⚠ **Examples cross as TEXT.** A node id means nothing outside the graph that
+ **Examples cross as TEXT.** A node id means nothing outside the graph that
 minted it, so two demonstrations on two machines cannot share one, and this is
 the repo's own rule for what may cross (`ugm/table.py`) arriving on the
 learning side.
 
-⚠⚠⚠ **A minted node has no name, and the whole call stack is minted**, so
+ **A minted node has no name, and the whole call stack is minted**, so
 every example about `stage($c, ...)` was unsayable -- which is every example
 about the recursion. `_sayable` gives one a placeholder, and the placeholder
 has to be UNIQUE PER EXAMPLE: the same within an example so `$c` co-refers,
@@ -159,14 +159,14 @@ Two bad attempts, and what becomes of them.
         covered      the world model declines it, and says why
         unafforded   the MACHINERY declines it, because no such action exists
 
-    ⚠⚠⚠ **The decline is LATE.** The attempt stands from tick 0 and is not
+     **The decline is LATE.** The attempt stands from tick 0 and is not
     declined until tick ~101, because `<covered>` sits at the floor and the
     shortlist is busy with the recursion. Correct, and slow: a refusal the agent
     only learns about after it has finished is a poor thing to learn from. That
     is the concrete argument for attending to what a move just wrote -- an
     attempt is a fresh fact, and nothing currently lifts the rules about it.
 
-    ⚠ The two are declined by different things on purpose. What is LEGAL is the
+     The two are declined by different things on purpose. What is LEGAL is the
     world model's business and a rule says it; what EXISTS is the palette's, and
     only the machinery can check it, because subsumption runs the pattern
     against the entry and here the entry is the generic one.

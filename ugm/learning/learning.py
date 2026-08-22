@@ -2,7 +2,7 @@
 
 Learning here is offline and it is a corpus: an episode ends, review and blame
 walk the trail, and learned() writes surface text the next episode loads.
-Nothing about the loop changes. ⚠ The cost is real too, and it is measured
+Nothing about the loop changes.  The cost is real too, and it is measured
 rather than conceded.
 
 See docs/design/learning.md.
@@ -76,7 +76,7 @@ def run(jug_first: bool = True, rounds: int = 3, carry: str = "",
         keep: bool = True) -> List[Episode]:
     """Play the same world `rounds` times, each one loading what came before.
 
-    ⚠⚠⚠ What is carried ACCUMULATES, and it has to, which is a finding about
+     What is carried ACCUMULATES, and it has to, which is a finding about
     the rewrite rather than a convenience.
 
     See docs/design/learning.md#run.
@@ -90,7 +90,7 @@ def run(jug_first: bool = True, rounds: int = 3, carry: str = "",
         if not keep:
             learned = list(ep.rows)
             continue
-        # ⚠ Deduped by identity, so restating is not revising (§8) -- two
+        #  Deduped by identity, so restating is not revising (§8) -- two
         # copies of one lesson are one proposition, exactly as two identical
         # `prefer` rows always were.
         for row in ep.rows:
@@ -147,7 +147,7 @@ def harm_episode(order, extra=()):
 
 
 def the_lesser_of_two_evils_is_unsayable(rounds: int = 3):
-    """⚠⚠⚠ A route can only be preferred over one it is NOT about. Measured.
+    """ A route can only be preferred over one it is NOT about. Measured.
 
     This used to be lesser_of_two_evils, and it used to report a result: with
     magnitude accumulated across episodes the agent converged on the cheaper of
@@ -173,7 +173,7 @@ def a_lesson_outlives_its_rule() -> dict:
 
     ⭐⭐⭐ The whole argument for keying on nodes, and it is one run. A rule id is
     not stable: rules are adopted, composed, rewritten and edited, and §21 is
-    full of mechanisms that do it. ⚠ The rename is the whole difference.
+    full of mechanisms that do it.  The rename is the whole difference.
 
     See docs/design/learning.md#a-lesson-outlives-its-rule.
     """
@@ -316,13 +316,13 @@ def main() -> int:
     gate("⭐ the second does not -- an episode taught the next one something",
          not eps[1].harmed)
     gate("and it stays taught: the third does not regress", not eps[2].harmed)
-    # ⚠⚠⚠ The control for the line above, and it is the code as it stood.
+    #  The control for the line above, and it is the code as it stood.
     # Under `prefer` a good episode re-derived the lesson by CREDIT, so
     # replacing the carry each round was invisible. With credit gone, an
     # episode that goes well says nothing at all -- and the lesson is forgotten
     # the moment it starts working.
     forgetful = run(jug_first=True, rounds=3, keep=False)
-    gate("⚠⚠⚠ ...and it stays taught only because what is carried ACCUMULATES: "
+    gate(" ...and it stays taught only because what is carried ACCUMULATES: "
          "keep just the last episode's rows and the third smashes the jug again, "
          "because the second had nothing to say",
          not forgetful[1].harmed and forgetful[2].harmed)
@@ -349,7 +349,7 @@ def main() -> int:
     gate("⭐⭐⭐ suppression alone does NOT fix it -- the agent blames the "
          "smasher, stops recommending it, and smashes the jug again",
          ctrl[0].harmed and ctrl[1].harmed)
-    gate("⚠ ...and with credit gone it now writes NOTHING AT ALL, where it used "
+    gate(" ...and with credit gone it now writes NOTHING AT ALL, where it used "
          "to write rows about the wrong half of the choice -- suppression on "
          "its own has no sentence left to say",
          not ctrl[0].rows)
@@ -386,11 +386,11 @@ def main() -> int:
     print()
     gate("a depth-0 tree (an unconditional fact) fixes the world it learned in",
          costs["depth-0"][0] < costs["nothing"][0])
-    gate("⚠⚠⚠ ...and is WRONG in the other one, because it can only say *always*",
+    gate(" ...and is WRONG in the other one, because it can only say *always*",
          costs["depth-0"][1] > costs["nothing"][1])
     gate("a learned RULE, generalised over the objects it saw",
          any(r.startswith("rule <learned-") and "$v0" in r for r in cond))
-    gate("⚠ but taking EVERY circumstance is over-specific: the rule declines to "
+    gate(" but taking EVERY circumstance is over-specific: the rule declines to "
          "fire in C and the agent breaks a jug it did not need to",
          costs["unpruned"][2] > costs["refined"][2])
     gate("⭐⭐⭐ refinement finds the depth that pays -- strictly better than the "
@@ -400,7 +400,7 @@ def main() -> int:
     gate("and what it kept is one test, not zero -- pruning to nothing would be "
          "the unconditional row it was supposed to improve on",
          any(r.startswith("rule <learned-") for r in refined))
-    gate("⚠ and marked `standing`, without which it is passed up as a rival "
+    gate(" and marked `standing`, without which it is passed up as a rival "
          "way of getting the same want, before it can advise",
          any(r.startswith("fact standing(<learned-") for r in cond))
 
@@ -422,7 +422,7 @@ def main() -> int:
           f"{sum(1 for r in tree if r.startswith('rule '))}")
     print(f"    induced total cost {total(tree)}")
     print()
-    gate("⚠⚠⚠ episodes propose UNCONDITIONAL leaves -- an episode only knows the "
+    gate(" episodes propose UNCONDITIONAL leaves -- an episode only knows the "
          "cost of the route it took, which is the oscillation as a hypothesis",
          any(not leaf[2] for leaf in proposed))
     gate("⭐⭐⭐ ...and joint pruning removes them: induction over three episodes "
@@ -432,20 +432,20 @@ def main() -> int:
          "dominated the raw proposals",
          any(r.startswith("rule <learned-") for r in tree))
 
-    # ⚠ A measured NEGATIVE result, gated so it cannot rot into a claim.
+    #  A measured NEGATIVE result, gated so it cannot rot into a claim.
     bagged = forest(eps, total)
     print(f"    bagging three trees instead: total {total(bagged)}"
           f" (one tree: {total(tree)})")
     print()
-    # ⚠⚠⚠ The VERDICT survives the rewrite and the REASON does not, which is
+    #  The VERDICT survives the rewrite and the REASON does not, which is
     # worth more than the number.
     # → docs/design/learning.md#the-verdict-survives-the-rewrite-and-the-rea
-    gate("⚠⚠⚠ bagging still does NOT pay, and no longer because of summation: "
+    gate(" bagging still does NOT pay, and no longer because of summation: "
          "attention takes the stronger, not the sum, and is MONOTONE -- one "
          "over-general leaf attends and no number of leaves declining to "
          "attend can overrule it",
          total(bagged) > total(tree))
-    gate("⚠ and it is exactly the over-general leaf: the bag keeps a lesson "
+    gate(" and it is exactly the over-general leaf: the bag keeps a lesson "
          "with no test at all beside two that learned the condition",
          any(r.startswith("rule <t") and "+precious" not in r for r in bagged))
 
@@ -470,7 +470,7 @@ def main() -> int:
          "TO LOAD: a corpus of experience made unreadable by an edit elsewhere",
          ren["prefer row"][2] is not None)
 
-    # ⚠⚠⚠ **THE CREDIT COMPARISON IS RETIRED, BECAUSE IT STOPPED BEING ONE.**
+    #  **THE CREDIT COMPARISON IS RETIRED, BECAUSE IT STOPPED BEING ONE.**
     # It ran the taught episode with the old `prefer(<squeeze>, juice, 3)` rows
     # added back by hand and reported that they changed nothing -- on the stated
     # reason that those rules *had no rivals to be lifted over*. With `prefer`
@@ -494,7 +494,7 @@ def main() -> int:
         print(f"  {label:<14} {str(seq):<24} {rows or 'nothing'}")
     print()
     good, bad = ev["good start"], ev["bad start"]
-    gate("⚠⚠⚠ nothing is learned in either direction -- where both routes "
+    gate(" nothing is learned in either direction -- where both routes "
          "are ABOUT the same things, no node lifts one and not the other",
          not good[1] and not bad[1])
     gate("...so the bad start never improves, and the good one never decays: "
@@ -510,7 +510,7 @@ def main() -> int:
     gate("⭐ and it is a REFUSAL, not a silence: the alternative was found and "
          "named, and `_salient` declined to key a lesson on it",
          bool(alts) and all(ep0._salient(r, choosers) is None for r, _ in alts))
-    gate("⚠ the two routes are symmetric in what they are about, which is the "
+    gate(" the two routes are symmetric in what they are about, which is the "
          "whole of the reason -- `holds` is required by both",
          bool(set.intersection(*[ep0._relations_required(c) for c in choosers]
                                + [ep0._relations_required(alts[0][0])])))
@@ -536,7 +536,7 @@ def main() -> int:
   The tests still come off the trail, so the hypothesis space is still the
   corpus's own vocabulary, and there are still no features to engineer.
 
-  ⚠⚠⚠ WHAT A NODE CANNOT SAY, measured rather than conceded. A node separates
+   WHAT A NODE CANNOT SAY, measured rather than conceded. A node separates
   two routes only when they are ABOUT different things. Where both hold their
   vessel -- `holds(jug1, kettle)` and `holds(vase, kettle)` -- no node lifts one
   and not the other, so the lesser of two evils, which `prefer` could state,
@@ -550,7 +550,7 @@ def main() -> int:
   rule. `how sure is a WRAPPER, not a field` is untouched as a claim -- `induce`
   still hedges an unobserved leaf -- but nothing here exercises it any more.
 
-  ⚠⚠⚠ CREDIT WAS LOAD-BEARING, AND NOT WHERE IT LOOKED. Recommending the rules
+   CREDIT WAS LOAD-BEARING, AND NOT WHERE IT LOOKED. Recommending the rules
   that HELPED reads like decoration beside regret, and dropping it changes no
   single run here. What it was quietly doing was RE-WRITING the lesson every
   round: episode 2 took the tap, the tap was on the support of the outcome, so
@@ -563,14 +563,14 @@ def main() -> int:
   claimed to be. The control is in the run above: keep only the last episode's
   rows and the third smashes the jug again.
 
-  ⚠ AN ENSEMBLE STILL DOES NOT PAY, through a different mechanism. The old
+   AN ENSEMBLE STILL DOES NOT PAY, through a different mechanism. The old
   reason was that `_priority` SUMS and summation is not voting. Attention takes
   the stronger, not the sum -- and fails one step deeper, because attending is
   MONOTONE: one over-general leaf attends the tap where two others would not,
   and there is no sentence for *not this one, here*. `unattend` clears the whole
   queue. A forest still needs something that can DEFEAT.
 
-  ⚠ AND THE SIGNAL IS STILL ONE EPISODE DEEP. Nothing here weighs a route that
+   AND THE SIGNAL IS STILL ONE EPISODE DEEP. Nothing here weighs a route that
   usually works against one that worked once. The weight on an `attention` claim
   is now a place to put that -- `attention(x, n)` carries its evidence count the
   way `attend($x, n)` always has -- and nothing yet accumulates into it.""")

@@ -38,7 +38,7 @@ not good.
 
 ## How suppression works, and why this shape
 
-⚠ Not by deleting the atom -- a name is minted in `Machine.__init__` and half the
+ Not by deleting the atom -- a name is minted in `Machine.__init__` and half the
 engine holds a reference to it, so deletion is a crash rather than an experiment.
 Instead every deposit **about** that relation is re-pointed at a dead one:
 
@@ -54,7 +54,7 @@ is exactly the thing under test.
 `Chain.deposit` (§13's gate is the only stamper), so a single patch reaches every
 route -- rules, tools, the bundle, and the machinery's own `_note`.
 
-⚠ A suppression that makes the suite **crash** counts as killed, not as an error
+ A suppression that makes the suite **crash** counts as killed, not as an error
 of this instrument. A crash is the suite noticing in the loudest available way,
 and scoring it otherwise would flatter every name whose absence breaks Python
 before it breaks a check.
@@ -66,7 +66,7 @@ the one at the bottom: names where **n = 0**.
 
 ## Which names this probe can even reach, mea
 
-⚠⚠⚠ **Which names this probe can even reach, measured rather than assumed.**
+ **Which names this probe can even reach, measured rather than assumed.**
 Suppression rewrites the relation of a deposited PROPOSITION, so a name
 that is never one -- a connective (`causes`), a sign (`plus`), an argument
 atom (`ticks`), or a structural relation, which is minted beside an entry

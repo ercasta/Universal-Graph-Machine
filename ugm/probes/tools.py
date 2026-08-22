@@ -1,7 +1,7 @@
 """Can a tool be data? (§5, §17, §19, §21)
 
 A tool -- a lookup, a solver, a small model -- is not a new kind of thing in
-this design. ⚠ A tool mints nodes, and minting is where this design keeps
+this design.  A tool mints nodes, and minting is where this design keeps
 getting hurt.
 
 See docs/design/tools.md.
@@ -121,7 +121,7 @@ def main() -> int:
         " { +possible(kind($x, $k)) } )",
         "fact +thing(kettle)", ""]))
     m3.run(limit=80)
-    # ⚠ The corpus's WRAPPER, where this used to read the corpus's GRADE. Same
+    #  The corpus's WRAPPER, where this used to read the corpus's GRADE. Same
     # argument, and now a rule can act on it: what the tool said is believed
     # only as `possible(...)`, and the bare claim is never asserted.
     gate("...and the CORPUS governs, not the tool's confidence -- a "
@@ -143,13 +143,13 @@ def main() -> int:
     gate("a tool that advised well is not blamed", not good.blame())
 
     rows = bad.learned()
-    gate("⚠ but a tool is not RECOMMENDED -- a `prefer` row is read by recall "
+    gate(" but a tool is not RECOMMENDED -- a `prefer` row is read by recall "
          "and recall proposes rules, so a row naming a tool would be inert",
          not any("<oracle>" in r for r in rows))
 
     # -- the trap, encoded -------------------------------------------------
     twin, kbt, called_t = episode("fill(kettle)", scoped=False)
-    gate("⚠⚠⚠ the twin control: registering a tool by NAME mints its own "
+    gate(" the twin control: registering a tool by NAME mints its own "
          "request relation, and it waits forever for a request nobody can make",
          not called_t)
 
@@ -157,7 +157,7 @@ def main() -> int:
     # learn that `0 failing` and `0 checks, 0 failing` print the same thing.
     print(f"\n{ran} checks, {failing} failing")
     print("""
-  ⚠ WHAT IS STILL PYTHON, and it is the honest half. The answerer's BODY is
+   WHAT IS STILL PYTHON, and it is the honest half. The answerer's BODY is
   native and always will be -- that is the point of a tool. What moved is the
   binding, the record and the licence. The remaining debt is narrower and
   worth stating exactly: `_fit`, `_verdict`, `_settle`, `_dispatch` and
@@ -167,7 +167,7 @@ def main() -> int:
   needs answered to run at all, and a corpus that could retire `_fit` could
   retire backward reading, which is a different argument (§19's carve-out).
 
-  ⚠ AND WHAT A MODEL WOULD ADD that this stub does not test: nondeterminism.
+   AND WHAT A MODEL WOULD ADD that this stub does not test: nondeterminism.
   §3 forbids reading a derived result out of an unseeded source, and a
   sampled answer is exactly that -- two runs would diverge with the trail
   recording neither the choice nor the reason. A real answerer needs a seed

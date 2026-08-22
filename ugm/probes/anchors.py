@@ -19,14 +19,14 @@ They are already in the engine, one branch each, and none of them was written
 for this question. What is left on the wrapper's side of the ledger is its own
 escape (check 5) and its own hazard (check 6).
 
-⚠⚠⚠ And check 7 is the finding rather than the verdict: there IS one path where
+ And check 7 is the finding rather than the verdict: there IS one path where
 presence in the graph really does mean belief, and it is the STRUCTURAL path --
 the one path §7's first constraint tells the wrapper to skip. A ground
 structural pattern stored in a rule that is never applied reads as a deposited
 fact, so a reader binds a moment that does not exist. The wrapper would not have
 caught it.
 
-⚠ Nothing here is an argument about anchors, which are not built. Every check is
+ Nothing here is an argument about anchors, which are not built. Every check is
 about TODAY's matcher, and it is worth exactly what today's matcher shares with
 the anchored one: the entry indirection, which is the half the anchor design
 keeps.

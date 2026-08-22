@@ -73,7 +73,7 @@ Passing up is revisable by construction, and nothing had to be un-said to revise
 it -- where a `forgone` deposit had to be denied by a corpus rule, and a spent
 goal had to be re-asserted.
 
-⚠ And the failing route is not re-attempted: with one route and no delivery the
+ And the failing route is not re-attempted: with one route and no delivery the
 agent tries it once and stops. Refraction already says *not again on these
 grounds*, so nothing has to weigh a re-attempt down. A weight is the wrong tool
 for it anyway -- `attention(sink, -3)` says *this way is against my character*,

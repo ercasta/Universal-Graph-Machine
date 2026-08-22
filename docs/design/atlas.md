@@ -26,19 +26,19 @@ antecedent is grounded; a live rule grounds everything in its consequent. Iterat
 to a fixpoint -- monotone, so it converges -- and whatever is left over is
 unreachable **from this corpus's own text**.
 
-⚠ **It is a static over-approximation, and saying which direction matters.** It
+ **It is a static over-approximation, and saying which direction matters.** It
 ignores arguments entirely: `owns(smith, sword)` grounds `owns` for every rule
 that reads `owns($a, $b)`, whatever the arguments. So a rule this calls live may
 still never fire, and a rule it calls **dead genuinely cannot** -- there is no
 binding of anything that would satisfy it. The false direction is the safe one:
 every report is a real defect, and the silence is not a guarantee.
 
-⚠ Negated members are premises for this purpose -- a `-p($x)` member needs an
+ Negated members are premises for this purpose -- a `-p($x)` member needs an
 entry that denies `p`, so `p` still has to be established by something.
 
 ## A bare-variable consequent concludes ANYTH
 
-⚠⚠⚠ **A bare-variable consequent concludes ANYTHING, and
+ **A bare-variable consequent concludes ANYTHING, and
 every corpus that believes what it is told has one.** The
 quest's `{ +says(dm, $p, plus) } ⟹ { +$p }` is the trust
 rule -- the thing that makes an utterance a belief -- and
@@ -56,18 +56,18 @@ fifth time in this repository.
 Pairs of the corpus's own rules that could conclude opposite signs of one
     thing -- the offline half of harmonization.
 
-    ⚠⚠⚠ **Filtered to a SPECIFIC unifier, and that filter is the whole
+     **Filtered to a SPECIFIC unifier, and that filter is the whole
     instrument.** `ugm.harmony` measured the unfiltered version across this
     repository: **3,551 latent pairs, of which 3,545 unify only through a bare
     variable** -- `<denial>` concludes `-$p`, so it latently fights every
     positive rule ever written. Reporting those would bury the six real ones.
 
-    ⚠ And *latent* is all it is: two rules that could disagree may have
+     And *latent* is all it is: two rules that could disagree may have
     antecedents that never hold together, which is a join this does not compute.
     So it is a question for an author, not a defect -- which is why it prints
     separately from the things that are.
 
-    ⚠⚠⚠ **Measured, and the rate says how far to trust it**: **1 pair** on the
+     **Measured, and the rate says how far to trust it**: **1 pair** on the
     passenger-rights corpus -- `weather vs crewing`, a real question, since a
     flight delayed by a storm AND short of crew has two answers and nobody said
     which -- against **28** on the dungeon. The dungeon's are almost all the

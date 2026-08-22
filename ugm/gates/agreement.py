@@ -15,17 +15,17 @@ from ..core.text import load
 
 # The read, as rules. Written in the surface, so this is also the
 # expressibility claim: nothing here is a notation the document invented for
-# the engine. ⚠ The order within a delta is walked back from a CANDIDATE, not
+# the engine.  The order within a delta is walked back from a CANDIDATE, not
 # closed over every entry.
 # → docs/design/agreement.md#the-read-as-rules-written-in-the-surface-so-t
 #
-# ⚠⚠⚠ **`<beaten-locus>` is GONE, and every remaining rule lost a key.** The
+#  **`<beaten-locus>` is GONE, and every remaining rule lost a key.** The
 # read used to be keyed by `(seat, locus, prop)` and ordered by locus FIRST --
 # `sanc($lf, $le)` -- with the deposit order only breaking ties within one
 # locus. An entry has no locus, so there is one order left and it is the one
 # `<dep-within>`/`<dep-across>` already computed: **later supersedes earlier**.
 #
-# ⚠ This gate was not running while that was untrue. `tools_sweep.sh` grepped
+#  This gate was not running while that was untrue. `tools_sweep.sh` grepped
 # for `^def main` and this module's entry point is `run`, so nothing executed
 # it -- and `entry_of` had silently gone from four arguments to three, which
 # made every rule here match nothing.
@@ -67,7 +67,7 @@ def _fixture() -> Tuple[Machine, dict]:
     """A history with everything the read is for: inheritance, a change of the
     world, several claims in one delta, and a fork.
 
-    ⚠ It was *everything the TWO INDICES are for*, and the revision-of-the-past
+     It was *everything the TWO INDICES are for*, and the revision-of-the-past
     block -- three writes at `locus=m1` from a frame seated at `m3` -- went with
     them. What replaces it as the discriminating case is the run of three claims
     in ONE delta, which is what `<dep-within>` and `<dep-within-step>` order and
@@ -82,14 +82,14 @@ def _fixture() -> Tuple[Machine, dict]:
     p_bc = g.rel(on, b, c)
 
     m0 = chain.root
-    # ⚠ A deposit lands at the chain's end, so each write follows the `succeed`
+    #  A deposit lands at the chain's end, so each write follows the `succeed`
     # that makes the moment it belongs in. The frame used to say where; nothing
     # says where now, which is why the order of these lines is the fixture.
     m1 = chain.succeed(m0, None)
     gate.write(p_ab, "+")            # asserted early, inherited later
     m2 = chain.succeed(m1, None)
     gate.write(p_bc, "+")            # a second proposition, to not answer with
-    # ⚠⚠⚠ The fork comes BEFORE the main line continues, and it has to.
+    #  The fork comes BEFORE the main line continues, and it has to.
     # `Chain.resolve` says *later supersedes earlier* over the whole chain and
     # filters by no branch -- its own comment: "nothing forks, so every deposit
     # is on the one branch". Written last, the fork tip IS `chain.now`, and the
@@ -116,7 +116,7 @@ def _fixture() -> Tuple[Machine, dict]:
 def _ruled(m: Machine, best, proposition, seat: Moment):
     """The entry node the rule-level read returns, or None.
 
-    ⚠ `best` is resolved through the LOADER's table, not minted here. `g.atom`
+     `best` is resolved through the LOADER's table, not minted here. `g.atom`
     does not intern, so a `best` built beside the corpus is a twin of the one
     the rules conclude and this would answer nothing, however well the read ran.
     The trap this repo has paid for eight times.
@@ -145,7 +145,7 @@ def _compare(drop: Tuple[str, ...] = ()) -> Tuple[int, List[str], int]:
     """Run every read both ways. `drop` deletes named rules from the rule-level
     path, which is how the fixture is tested for having any power at all.
 
-    ⚠⚠⚠ **The native side is asked from the CHAIN'S END and the rule-level side
+     **The native side is asked from the CHAIN'S END and the rule-level side
     from each seat, and that is not a mismatch -- it is the whole remaining
     content of the gate.** `Chain.resolve` takes no seat now: it answers about
     the one standpoint there is. The rules still take one, because `asking($s)`

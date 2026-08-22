@@ -2,7 +2,7 @@
 
     python -m ugm.probes.experts
 
-ugm/table.py puts several agents in a room. ⚠ An expert may consult an expert,
+ugm/table.py puts several agents in a room.  An expert may consult an expert,
 so this is a STACK and it needs a cycle test.
 
 ⭐⭐⭐ **And the stack is now the ENGINE's**, so this file holds two ways of
@@ -38,11 +38,11 @@ DEPTH = 8
 def pool_of(m: Machine, kb: Loader, expert: str) -> List[Rule]:
     """The rules this expert may consider, read off the graph.
 
-    ⚠ Read, never kept. A registry built at load could not see a `knows` a rule
+     Read, never kept. A registry built at load could not see a `knows` a rule
     concluded, and `precedence is read, not kept` is the same finding one
     construct along.
 
-    ⚠⚠⚠ **Through the LOADER, never `m.g.atom`.** `Graph.atom` does not intern,
+     **Through the LOADER, never `m.g.atom`.** `Graph.atom` does not intern,
     and an unscoped `load()` gets its own name table -- so `m.g.atom("knows")`
     here is a DIFFERENT node from the `knows` the corpus wrote, and every pool
     came back empty with nothing saying why. The twin trap, for the eighth time
@@ -131,7 +131,7 @@ class Consultation:
         """Run one consultation. Returns whether an answer was deposited."""
         key = (who, self.m.g.show(q))
         if key in self.stack:
-            # ⚠ The cycle test is on the PAIR, not on the expert. `A -> B -> A`
+            #  The cycle test is on the PAIR, not on the expert. `A -> B -> A`
             # asking something new is ordinary recursion and must be allowed;
             # asking the same thing again is the loop.
             self._refuse(who, q, "already being asked")
@@ -150,7 +150,7 @@ class Consultation:
             self.m._note(self.m.g.rel(self.kb.atom("question"), q))
             pool = pool_of(self.m, self.kb, who)
             self._run(who, pool)
-            # ⚠⚠⚠ **And this is where the recursion actually happens.** The first
+            #  **And this is where the recursion actually happens.** The first
             # version ran the consulted expert and returned, leaving anything IT
             # asked for to the outer loop -- so the stack was never deeper than
             # one, the cycle test could never fire, and a check asserting depth
@@ -163,7 +163,7 @@ class Consultation:
                     break
                 self.ask(*nxt)
                 # ...and run it again, because the answer is a new fact its rules
-                # have not seen. ⚠ Nothing is resumed HERE: there is no suspended
+                # have not seen.  Nothing is resumed HERE: there is no suspended
                 # computation, only a table and a chain that has moved. `resume`
                 # hands the same table back, which is the nearest this shape can
                 # get to one -- the attention stack is what makes it literal, and
@@ -223,7 +223,7 @@ def work(m: Machine, kb: Loader, first: str, limit: int = 200,
             break
         talk.ask(*want)
         # ...and the caller runs again, because the answer is a new fact and its
-        # rules have not seen it yet. ⚠ With `resume` off this rebuilds the
+        # rules have not seen it yet.  With `resume` off this rebuilds the
         # caller's table from scratch, which is the thing being measured.
         talk._run(first, pool_of(m, kb, first))
     report = run(m, limit=limit, pool=pool_of(m, kb, first),
@@ -306,7 +306,7 @@ after <perimeter> => push(twice($w))
 rule <perim-done> = implies( { +reply(twice($w), $s), +wide($r, $w) },
                              { +reply(perim($r), $s) } )
 
-# ⚠ The surveyor no longer knows that geometry exists. It deposits the QUESTION
+#  The surveyor no longer knows that geometry exists. It deposits the QUESTION
 # and pushes a frame on it; who answers is computed from the question.
 expert surveyor
 fact +knows(surveyor, <replied>)
@@ -356,7 +356,7 @@ def _ported_fixture():
 def _fixture():
     """One machine, ONE loader -- which is not tidiness.
 
-    ⚠⚠⚠ An unscoped `load()` gets its own name table, so loading the
+     An unscoped `load()` gets its own name table, so loading the
     inheritance rule and the corpus through two calls makes two `knows`
     relations that never meet. Measured the hard way: every pool came back
     empty and nothing said why.
@@ -379,7 +379,7 @@ def main() -> int:
     bad = ran = 0
 
     def gate(claim: str, ok: bool) -> None:
-        # ⚠ Counted rather than written down. The total below was the literal
+        #  Counted rather than written down. The total below was the literal
         # `7`, so a check added to this file did not change the number it
         # printed -- a count that cannot go up is not a count.
         nonlocal bad, ran
@@ -415,10 +415,10 @@ def main() -> int:
     gate("⭐⭐⭐ no expert holds another's rules: the pools are DISJOINT, "
          "which is what the selector discriminates on",
          disjoint and all(pools))
-    # ⚠ ...and the cost, which is the half that keeps the check honest. A
+    #  ...and the cost, which is the half that keeps the check honest. A
     # probe that only asserted disjointness would pass on three EMPTY pools and
     # on a corpus where nobody ever needed anybody.
-    gate("⚠ ...and it is a cost rather than free: geometry cannot double, so "
+    gate(" ...and it is a cost rather than free: geometry cannot double, so "
          "an expert needing another's work must HAND OFF rather than absorb it "
          "-- which is the architecture, not a limitation of it",
          "double" not in names["geometry"] and "area" in names["geometry"]
@@ -436,7 +436,7 @@ def main() -> int:
     gate("⭐⭐ the surveyor got its answer, from an expert it shares a graph "
          "with and nothing else",
          m.holds(kb2.term("plot(plot1, 12)")) == PLUS)
-    gate("⚠ the answer arrived in a TOOL's shape, so the caller cannot tell "
+    gate(" the answer arrived in a TOOL's shape, so the caller cannot tell "
          "an expert from a function",
          m.holds(kb2.term("answered(geometry, area(plot1), 12)")) == PLUS)
 
@@ -453,7 +453,7 @@ def main() -> int:
     gate("⭐⭐⭐ an expert may consult an expert: the surveyor asked geometry, "
          "which asked arithmetic, and the answer came back up both hops",
          m.holds(kb3.term("fencing(plot1, 6)")) == PLUS)
-    gate(f"⚠ the stack has something to measure -- it really went "
+    gate(f" the stack has something to measure -- it really went "
          f"{talk2.deepest} deep, asserted rather than read off the log",
          talk2.deepest > 1)
 
@@ -471,7 +471,7 @@ fact +question(loop(x))
     run(m, limit=40)
     _r, talk3 = work(m, kb, "a", limit=40)
     kb4 = kb
-    gate("⚠⚠⚠ a consultation cycle is refused rather than hung -- and the "
+    gate(" a consultation cycle is refused rather than hung -- and the "
          "refusal is on the record, because returning nothing quietly is "
          "indistinguishable from having nothing to say",
          bool(talk3.refused)
@@ -503,7 +503,7 @@ fact +question(loop(x))
     picked = {m.g.show(inst) for inst in m.g.instances_of(m.PUSHED)
               if m.holds(inst) == PLUS}
     print(f"    routed: {sorted(picked)}")
-    gate("⚠ and the routing is on the record, expert and question together, "
+    gate(" and the routing is on the record, expert and question together, "
          "because a pick nobody can override must at least be readable",
          any("geometry" in p for p in picked))
 
@@ -521,7 +521,7 @@ fact +question(loop(x))
     print(f"    re-run  {runs[False]}")
     print(f"    resume  {runs[True]}")
     print()
-    # ⚠⚠⚠ And WHY, because a zero that is not explained is a check that has
+    #  And WHY, because a zero that is not explained is a check that has
     # stopped looking. A rebuilt table is byte-identical to a run one in the
     # only two fields that decide a move.
     mm, kk = _fixture()
@@ -530,7 +530,7 @@ fact +question(loop(x))
     kept = Table(mm.g, pool, _standing(mm))
     run(mm, limit=10, pool=pool, table=kept)
     rebuilt = Table(mm.g, pool, _standing(mm))
-    gate("⚠⚠⚠ MEASUREMENT 3: a re-run and a resume choose the SAME MOVES, in "
+    gate(" MEASUREMENT 3: a re-run and a resume choose the SAME MOVES, in "
          "the same order. The divergence is zero",
          runs[False] == runs[True] and len(runs[False]) > 4)
     gate("...and it is structural rather than lucky: with the buffs retired a "
@@ -576,7 +576,7 @@ fact +taught(<splint>)
          "`<splint>` applied on the next move",
          "splint" in srep.applied
          and sm.holds(sk.term("set(bob)")) == PLUS)
-    gate("⚠ which is `absorb`'s own failure mode -- *the rule was live, it was "
+    gate(" which is `absorb`'s own failure mode -- *the rule was live, it was "
          "the node the graph described, and it never applied because nothing "
          "had a score for it* -- caught by comparing the two paths rather than "
          "by reading either",

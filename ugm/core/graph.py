@@ -31,7 +31,7 @@ class Graph:
         self.scans: Dict[str, List[int]] = {}
 
         # -- identity (coreference) ---------------------------------- ⭐⭐⭐
-        # The third identity, and it is the one that can be decided LATE. ⚠
+        # The third identity, and it is the one that can be decided LATE. 
         # Leaves only, and the default is the node itself.
         # → docs/design/graph.md#identity-coreference
         self._identity: Dict[NodeId, NodeId] = {}
@@ -64,7 +64,7 @@ class Graph:
         self._by_arg: Dict[Tuple[NodeId, int, NodeId], List[NodeId]] = {}
         # Which variables are in a node, memoised. Immutable for `_has_var`'s
         # reason -- a node's relation and members are fixed when it is built.
-        # ⚠ It lives HERE and not beside its one reader, because a node id means
+        #  It lives HERE and not beside its one reader, because a node id means
         # nothing outside the graph that minted it: a module-level cache keyed
         # on the id answered a second machine's question with the first
         # machine's node, and the suite reported a corpus rule as concluding
@@ -74,7 +74,7 @@ class Graph:
     def identity_of(self, n: NodeId) -> NodeId:
         """What `n` counts as -- itself, unless something merged it.
 
-        ⚠ Follows chains: merging `b` into `a` and then `a` into `c` leaves `b`
+        Follows chains: merging `b` into `a` and then `a` into `c` leaves `b`
         pointing at `a`, so this walks to the representative. No path
         compression, because a merge is a claim and the chain is the record of
         the order the claims were made in.
@@ -230,7 +230,7 @@ class Graph:
         """A variable, for the generic moments of a rule (§4)."""
         n = self._mint(None, (), name)
         self._is_var[n] = True
-        # ⚠ Both, and this is the one place they can disagree: `_mint` decides
+        #  Both, and this is the one place they can disagree: `_mint` decides
         # genericity from the relation and members, which a bare variable has
         # none of, so it would record False. A variable IS the generic thing.
         self._has_var[n] = True
@@ -252,7 +252,7 @@ class Graph:
     def find_rel(self, relation: NodeId, *members: NodeId) -> Optional[NodeId]:
         """The interned instance if it exists, without creating one.
 
-        ⚠ `rel` cannot answer this: asking would build the thing asked about.
+         `rel` cannot answer this: asking would build the thing asked about.
         That is harmless for a proposition and not harmless for the skeleton,
         where existing IS the fact -- so §6's quiescence needs a question it can
         put without answering it. See `rules.already_there`.
@@ -300,7 +300,7 @@ class Graph:
             self._by_rel.setdefault(kr, []).append(n)
             for i, mm in enumerate(km):
                 self._by_arg.setdefault((kr, i, mm), []).append(n)
-            # ⚠⚠⚠ **Only once something has merged.** Maintaining these at
+            #  **Only once something has merged.** Maintaining these at
             # every mint cost the suite 9% -- 8.25s to 9.01s -- for corpora that
             # never corefer and never will, which is the one thing this layer
             # promised not to do. They are built by a single scan at the first
@@ -316,7 +316,7 @@ class Graph:
     # -- reading ----------------------------------------------------------
 
     def relation_of(self, n: NodeId) -> Optional[NodeId]:
-        """⚠ Tolerant of a DELETED node, and it has to be. `probes/erase`
+        """ Tolerant of a DELETED node, and it has to be. `probes/erase`
         measured the alternative: erasing a proposition still named by an entry
         raised `KeyError` out of `Situation._keys`, because the state walk reads
         the relation of every entry it indexes. *Dangling references can stay*
@@ -362,7 +362,7 @@ class Graph:
         """Every instance of a relation with this node in this argument position.
         The narrow form of `instances_of`, and the same guarantee: mint order.
 
-        ⚠ The list is the index's OWN and must not be mutated -- a caller that
+         The list is the index's OWN and must not be mutated -- a caller that
         edited it would edit every later read.
         """
         return self._by_arg.get((relation, pos, member), [])

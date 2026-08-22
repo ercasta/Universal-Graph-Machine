@@ -13,16 +13,16 @@ The postcondition that ends the run, as a sentinel rather than a node.
     vocabulary rather than branches -- which is the test this design applies to
     connectives and applies here for the same reason.
 
-    ⚠ There were three more -- `boost`, `damp` and `reset` -- and they moved a
+     There were three more -- `boost`, `damp` and `reset` -- and they moved a
     SCORE. They named a rule, so they are retired with `prefer`. The vocabulary
     got shorter and no branch appeared, which is the property that mattered.
 
-    ⚠ Deliberately not `g.atom("stop")`. A corpus may name a rule `<stop>`, and
+     Deliberately not `g.atom("stop")`. A corpus may name a rule `<stop>`, and
     a reserved atom would make the verb and the rule one node with two meanings
     -- the twin trap, which this repository has now recorded seven times. A
     sentinel cannot collide with anything a corpus can write.
 
-    ⚠ And it is not a *score*. The design's line about norms applies exactly:
+     And it is not a *score*. The design's line about norms applies exactly:
     a thing that must not be outweighed is a premise, never a number. Stopping
     is decided by the rule's own antecedent -- the query that had to hold for
     the postcondition to run at all -- and never by outranking anybody.
@@ -37,7 +37,7 @@ The postcondition that deposits attention on what the move just bound.
     else a postcondition could spend has ever done, and it is why it is the one
     that survived the retirement.
 
-    ⚠ That is the point rather than a wrinkle. Attention is a fact about a node
+     That is the point rather than a wrinkle. Attention is a fact about a node
     -- readable by rules, deniable, attributable, dated -- and a postcondition is
     the only place a lesson about it can live. `docs/HANDOFF.md` 2026-08-15
     measured why: a learned recogniser written as a RULE has to win a move to be
@@ -45,13 +45,13 @@ The postcondition that deposits attention on what the move just bound.
     spending a move on recognition competes with doing the work*. A
     postcondition is evaluated for free after whatever applied.
 
-    ⚠ So the deposit is NOT the table's business, and this file's sentinel is
+     So the deposit is NOT the table's business, and this file's sentinel is
     where it stops: `Table.spend` stays a pure account of scores and the loop
     hands attends to the machine. A table that could write claims would be an
     interpreter with a memory, which is the thing the four primitives exist
     instead of.
 
-    ⚠ A class rather than a sentinel because it carries the term to attend to,
+     A class rather than a sentinel because it carries the term to attend to,
     which `stop` and `reset` do not. `term` is a node once the loader has built
     it, and the parser's own term before that.
     
@@ -78,7 +78,7 @@ engine: there was nowhere to put a locus, so *the goblin acts after the
 hero* was unwritable and a foreign corpus spent 24% of itself
 re-implementing a moment ordinal as a round counter.
 
-⚠ The matcher had the locus all along -- every `Entry` carries one. What
+ The matcher had the locus all along -- every `Entry` carries one. What
 was missing was a pattern for it, which is the third time this session a
 wall turned out to be information nothing looked at.
 
@@ -160,7 +160,7 @@ already declines it.
 
 ## A caller may supply the node, and adopt
 
-⚠⚠⚠ **A caller may supply the node, and `adopt` must.** A rule the
+ **A caller may supply the node, and `adopt` must.** A rule the
 graph describes is already a node -- a corpus concluded `ant(<R>,
 ...)` about it, and `<R>` is what any `dormant`, any `exercised`
 record and any later claim will name. Minting a fresh node here made
@@ -185,7 +185,7 @@ Every relation an ordinary rule reads as STRUCTURE rather than as a
         BELOW, a relation is structural only if something grounded in the chain
         makes it so. A cycle of rules concluding about each other adds nothing.
 
-        ⚠ Recomputed when a rule is added, because `adopt` means the rule set
+         Recomputed when a rule is added, because `adopt` means the rule set
         moves at run time and a stratum a rule was classified into before it
         existed is a stale answer. Cached because `match` asks per member.
 
@@ -193,7 +193,7 @@ Every relation an ordinary rule reads as STRUCTURE rather than as a
 
 The stratum-0 rules, grouped into layers that must run in order.
 
-        ⚠⚠⚠ **Negation makes the ORDER load-bearing, and structure cannot be
+         **Negation makes the ORDER load-bearing, and structure cannot be
         taken back.** `best` is *a candidate nothing beats*. Applied before
         `beaten` has finished deriving, it mints a fact that is wrong and that
         nothing can deny -- a skeleton fact has no sign, which is the whole
@@ -208,7 +208,7 @@ The stratum-0 rules, grouped into layers that must run in order.
         ceiling: if the layers keep rising, the rules negate each other in a
         cycle and there is no stratification to find.
 
-        ⚠ Refused loudly rather than run in some order that happens to work.
+         Refused loudly rather than run in some order that happens to work.
         An unstratifiable set gives a different answer depending on the order
         the rules are tried, and this is the one component whose whole purpose
         is to agree with the walk on every look.
@@ -243,7 +243,7 @@ Collapse `first` then `second` into one rule (§4).
         either constituent, and verified as behaviour and not only as structure,
         since a member carried and not obeyed is `adopt`'s own defect.
 
-        ⚠ What is genuinely absent is **amendment at a distance** -- adding a
+         What is genuinely absent is **amendment at a distance** -- adding a
         guard to a rule you did not write -- and calling that `unless` is what
         made a one-member rule look like a missing language feature. It is now
         refused by decision rather than open by omission: an ordinary rule may
@@ -261,7 +261,7 @@ Collapse `first` then `second` into one rule (§4).
 
 ## Composing across a causes FLATTENS TWO M
 
-⚠⚠⚠ **Composing across a `causes` FLATTENS TWO MOMENTS INTO ONE
+ **Composing across a `causes` FLATTENS TWO MOMENTS INTO ONE
 ANTECEDENT, and it loses conclusions.** §14: a `causes` consequent
 lands in a SUCCESSOR, so the second rule's other premises are read
 where the first rule's effect holds -- one moment later than the
@@ -300,7 +300,7 @@ a node's own `_rel` field still says `debt`. Candidates found and thrown
 away: the rule matches nothing, reports nothing, and looks like a corpus
 bug. Measured exactly that way before this line existed.
 
-⚠ Guarded on `_merges`, so a corpus that never corefers compares two ints
+ Guarded on `_merges`, so a corpus that never corefers compares two ints
 as it always did. `identity_of` is called on the hottest path in the
 engine and it has to cost nothing until something has merged.
 
@@ -312,7 +312,7 @@ variable -- and this is the line that decided it could never match.
 Binding it is what makes *apply the effect named by this ability* a
 rule rather than one fact per (ability, target) pair.
 
-⚠ It costs §3's only index: a pattern whose relation is unknown has no
+ It costs §3's only index: a pattern whose relation is unknown has no
 bucket, so `Situation.candidates` falls back to the ANY bucket and
 scans. That is the same trade the design already takes for a
 bare-variable pattern, and it is why this is allowed rather than
@@ -337,7 +337,7 @@ The least general structure both `a` and `b` are instances of (Plotkin).
     concludes about something nothing binds. That is the crux of building a rule
     out of two examples, and it is one dictionary.
 
-    ⚠ What agrees is KEPT. `f(a, b)` and `f(a, c)` give `f(a, $1)`, never
+     What agrees is KEPT. `f(a, b)` and `f(a, c)` give `f(a, $1)`, never
     `f($1, $2)`: an implementation that variabilises everything returns a
     generalisation, just not the least one, and the rule it yields fires on
     everything.
@@ -386,7 +386,7 @@ Ground a consequent pattern. Anything still generic afterwards is a rule
 
 The node `substitute` WOULD produce, if it already exists. Never mints.
 
-    ⚠⚠⚠ **`substitute` interns, so asking with it changes the answer.** For an
+     **`substitute` interns, so asking with it changes the answer.** For an
     ordinary conclusion that is harmless -- a proposition nobody has claimed
     anything about is inert, and quiescence goes on to ask the CHAIN about it.
     For a stratum-0 conclusion the node's existence *is* the fact, so
@@ -430,14 +430,14 @@ The current state, plus the one index matching actually asks for.
     state calls instead of constructing a new one; the constructor is still there
     for the callers that genuinely have a fresh list (a delta, the instrument).
 
-    ⚠ **Order is part of the answer.** Entries arrive here **newest-first** and
+     **Order is part of the answer.** Entries arrive here **newest-first** and
     §18's *a description with two candidates resolves to the most recent* rests
     on it. So a bucket is a dict in ARRIVAL order -- oldest first, which is the
     order a maintained state can append to -- and read back reversed. The
     reversal is cached per bucket and dropped when that bucket changes, so a
     rule reading a bucket nothing touched this tick pays nothing.
 
-    ⚠⚠ And the honest limit of that, measured rather than assumed: reversing
+     And the honest limit of that, measured rather than assumed: reversing
     the STATE breaks 6 checks, and reversing the BUCKETS breaks none. Since
     `heap` the within-rule order is a stamp off the consumed entries' nodes, not
     the order they were discovered in, so nothing downstream reads a bucket's
@@ -459,7 +459,7 @@ The current state, plus the one index matching actually asks for.
     position, node)`. A member whose argument is bound looks there instead, and
     the join becomes O(N × matches).
 
-    ⚠ **Only when the argument is an ATOM**, and that is soundness rather than
+     **Only when the argument is an ATOM**, and that is soundness rather than
     conservatism. `unify` compares a ground *structure* member-by-member, so it
     accepts a structurally equal node that is not the same node -- the twin
     trap, which this repo has recorded six times -- and an index keyed on
@@ -488,11 +488,11 @@ second one, so a lift costs two dict reads and no matching. That is
 what makes attention cheaper than the reranker it competes with, whose
 every trigger is a match.
 
-⚠ **Counted, not a set**, because `drop` has to be exact. Two entries
+ **Counted, not a set**, because `drop` has to be exact. Two entries
 can mention one node under one relation, and dropping either would
 take the relation away from a node the other still speaks of.
 
-⚠ It is maintained off the SAME keys the argument index files under,
+ It is maintained off the SAME keys the argument index files under,
 which is what keeps it honest: it indexes what that index indexes, and
 `ugm.state` holds it to a rebuild. So it inherits that index's own
 limit -- an argument that is a structure is not filed, and neither is
@@ -500,7 +500,7 @@ it here.
 
 ## Atoms here too, and for the same reason read f
 
-⚠ Atoms here too, and for the same reason read from the other end:
+ Atoms here too, and for the same reason read from the other end:
 the only thing that ever looks in one of these buckets is a
 pattern member that is an atom, and an atom cannot equal a
 structure. Filing the structured members as well is a bucket per
@@ -535,7 +535,7 @@ Unify a generic moment against an anchored one, over the current state.
     Union over the passes, deduped -- an application consuming two fresh entries
     is found once per fresh member and must be reported once.
 
-    ⚠ The delta is a `Situation` like any other, so this adds no representation.
+     The delta is a `Situation` like any other, so this adds no representation.
     §4 already says *a moment is a signed delta*; the matcher simply had not
     been reading it that way.
 
@@ -547,7 +547,7 @@ Unify a generic moment against an anchored one, over the current state.
     cannot help with. Measured: 4,994,004 unifications over a 1,000-node tree,
     of which the index removed a third and the ordering removed the rest.
 
-    ⚠ **What may be reordered is the WALK, never the antecedent.** `consumed` is
+     **What may be reordered is the WALK, never the antecedent.** `consumed` is
     filled by member position, so §12's trail and `heap`'s stamp -- which reads
     the consumed entries' nodes -- see exactly what authored order would have
     given them. What does change is the order applications are *discovered* in,
@@ -566,7 +566,7 @@ sign can mean is *this was not derived*. `-beaten(...)` is
 exactly `stratum0`'s `Item(negated=True)`, written in the
 surface a corpus already has.
 
-⚠⚠⚠ Safe only because the strata are ORDERED. §6's fixpoint
+ Safe only because the strata are ORDERED. §6's fixpoint
 is built from below, so a negated member names a relation
 whose derivation is finished before this rule is reached --
 and `_settled` below is what makes that true of the run and
@@ -584,7 +584,7 @@ it HERE is what makes an application atomic: the result is
 available to the same consequent, in one moment, so a transfer
 cannot be caught half-done (§22).
 
-⚠ The arguments must be ground by now. A member whose
+ The arguments must be ground by now. A member whose
 arguments are still open computes nothing and matches nothing,
 rather than guessing -- and the pivot never lands on one (see
 `run`), so authored order is what decides.
@@ -629,14 +629,14 @@ A skeleton relation that is IN the graph -- `pred`, `in_delta`,
     split. A separate engine was never needed to do it; the relations simply
     were not in the resolved state, which is what `match` was being handed.
 
-    ⚠⚠ **At least one argument must be bound**, and the discipline is *bounded
+     **At least one argument must be bound**, and the discipline is *bounded
     by something already known* rather than *bounded by a named position*. My
     first version fixed the anchor at argument 0, which reads `in_delta` only as
     *a moment's entries* -- and deposit order across moments needs it the other
     way, as *an entry's moment*. Both directions are bounded; neither
     enumerates the history.
 
-    ⚠⚠⚠ **This is weaker than `_anchored`'s guarantee and the difference is
+     **This is weaker than `_anchored`'s guarantee and the difference is
     worth stating.** An upward walk cannot reach a sibling branch *whatever* is
     bound (§11: one parent, several successors). Here containment holds
     COMPOSITIONALLY instead -- the binding that anchors this member came from
@@ -646,7 +646,7 @@ A skeleton relation that is IN the graph -- `pred`, `in_delta`,
 
 ## GROUND, not merely not-a-variable. This
 
-⚠⚠⚠ **GROUND, not merely not-a-variable.** This asked `is_var`, which is
+ **GROUND, not merely not-a-variable.** This asked `is_var`, which is
 False for any relation instance -- so `licensed_by($e, loaded($p))` counted
 `loaded($p)` as an anchor although nothing in it was known, and the walk
 enumerated every instance in the history. That is exactly the leak the
@@ -685,7 +685,7 @@ docs/observations.md §3.1, finding 2.
     be bound by a walk the frame could make, so a moment on a sibling branch is
     unreachable to bind in the first place.
 
-    ⚠ Nothing is minted. Building the answer as a node and unifying against it
+     Nothing is minted. Building the answer as a node and unifying against it
     would intern it, and the harness's question would then be findable as its
     own answer -- the interning trap's fourth face. Only the sign slot can need
     binding, so it is bound by hand.
@@ -727,12 +727,12 @@ The instances worth offering this member, using §3's argument-position
     pattern-heavy by construction. The information exists exactly here, at the
     point where it was being discarded.
 
-    ⚠ Counted on the GRAPH rather than reported by return value, because this
+     Counted on the GRAPH rather than reported by return value, because this
     is a generator's inner loop reached through two structural readers that have
     no report to write on and no rule in hand. Keyed by the member as written,
     which is what an author has to go and change.
 
-    ⚠⚠ **Both the count and the SIZE, because the count alone does not rank
+     **Both the count and the SIZE, because the count alone does not rank
     them.** Measured on `ugm.interpret`: `asking($s)` falls back 169 times and
     `met($a)` 16, which reads as one problem and one footnote -- and `asking`
     has a single instance, so those 169 fallbacks visit 169 nodes between them
@@ -786,7 +786,7 @@ A skeleton relation that needs no anchor, because it is bounded by
     its own conclusions -- which it did, and `beaten` and `best` derived
     nothing at all while `cand` derived 193.
 
-    ⚠ The containment argument therefore rests on the SEED. A machinery that
+     The containment argument therefore rests on the SEED. A machinery that
     seeds a seat the frame cannot see would derive facts about it, and nothing
     structural would stop it. `Machine.ask_read` is the one caller.
 
@@ -801,12 +801,12 @@ A skeleton relation that needs no anchor, because it is bounded by
         recogniser is: `<TT-base>` builds the stretch it has just recognised.
       * **the span bound** -- it is decomposed, like any other node's members.
 
-    ⚠ Unanchored it yields nothing, and here that is not politeness but the
+     Unanchored it yields nothing, and here that is not politeness but the
     population: any two moments form a span, so enumerating them is quadratic in
     the history and every one of them meaningless until something recognises
     over it.
 
-    ⚠⚠⚠ **Yes, this MINTS while matching, and the interning trap is why that
+     **Yes, this MINTS while matching, and the interning trap is why that
     needs an argument rather than a shrug.** A quiescence verdict computed with
     `substitute` was unsound precisely because minting made the conclusion exist
     -- so a matcher that creates nodes is the same shape. The difference is what
@@ -837,13 +837,13 @@ The skeleton, as members an ordinary rule may write (§6, §12).
         stored closure would be a cache of something derived. Anchored, upward,
         and single-valued by §11, which is what keeps containment structural.
 
-    ⚠ `entry_of` is a third thing again: not stored and not walked, but *read
+     `entry_of` is a third thing again: not stored and not walked, but *read
     off the node's own members*. An entry is a relation instance like any other
     and always was.
 
 ## pred was the reflexive-transitive walk,
 
-⚠⚠⚠ **`pred` was the reflexive-transitive walk, under the name of the
+ **`pred` was the reflexive-transitive walk, under the name of the
 immediate one.** It was registered for corpora to write (`machine.py`'s
 name table) and no rule in this repo or the foreign one ever wrote it, so
 nothing could see that `pred($m, $n)` yielded every ancestor AND `$m`

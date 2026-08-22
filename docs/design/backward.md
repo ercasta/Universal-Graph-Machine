@@ -41,7 +41,7 @@ a fresh request node -- where under the phase it was not expressible at all.
 `ugm.backward`'s original 29th fact is therefore recorded here as a *claim about
 the phase*, not as a current output.
 
-⚠ **The re-ask now exists** (`again(<request>, <occasion>)`, §13) and this run
+ **The re-ask now exists** (`again(<request>, <occasion>)`, §13) and this run
 still does not use one, deliberately: what it measures is the replacement on its
 own, and a corpus rule that recovers the fact would measure the corpus. The
 `a_request_can_be_re_asked` checks in `ugm.selftest` are where the recovery is

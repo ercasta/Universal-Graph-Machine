@@ -39,7 +39,7 @@ is the whole of what *jointly trained* can honestly mean here -- **a shared
 credit assignment, not a shared update rule**. The rule side rewrites its corpus;
 a model side would fine-tune on labels the same walk produced.
 
-⚠⚠⚠ **A tool mints nodes, and minting is where this design keeps getting hurt.**
+ **A tool mints nodes, and minting is where this design keeps getting hurt.**
 Registering `oracle` to answer `guess` by NAME mints a second `guess` beside the
 one the corpus writes, so the tool waits forever for a request nobody can make;
 and an answer built with `g.atom("vessel")` is a node no rule can name. Both were

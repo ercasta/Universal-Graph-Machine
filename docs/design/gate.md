@@ -86,7 +86,7 @@ Move a frame to a later seat, and SAY SO. What it is for: the agent's
         and the only trace was a frame node being re-minted, which no rule can
         read.
 
-        ⚠ **And it is not derivable from the chain, which is why a fact about a
+         **And it is not derivable from the chain, which is why a fact about a
         moment is the only place it can live.** `pred` says the new moment
         follows the old one; it does not say the REGISTER went there, because
         moments are minted for spans, predictions and suppositions too. `succeed`
@@ -109,7 +109,7 @@ otherwise a supposition's own entries would be minted wherever the
 register happened to be pointing and the containment would have a hole
 in it at the one place claims are made.
 
-⚠ The hooks run OUTSIDE the pin. `_enter` is an `on_write` hook and
+ The hooks run OUTSIDE the pin. `_enter` is an `on_write` hook and
 it opens a supposition, which moves the register; restoring around it
 would put the register back and leave the machine reasoning inside a
 frame whose situation nothing is standing in.

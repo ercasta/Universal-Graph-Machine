@@ -1,7 +1,7 @@
 """§20's floor gate for quiescence: the verdict *this would change nothing*,
 
 native against rule-level. agreement does it for the read, arbitration for the
-move, state for what is kept. ⚠ This is recorded rather than acted on.
+move, state for what is kept.  This is recorded rather than acted on.
 
 See docs/design/quiescence.md.
 """
@@ -123,7 +123,7 @@ def _admissible(m: Machine, h: Harvest, app: Application) -> Optional[List[tuple
     """The conclusions this application would write, as (prop, sign) -- or None
     if it falls in one of the uncompared branches, tallied.
 
-    ⚠ It was `(locus, prop, sign)`, and the locus came from `_conclude_at`,
+     It was `(locus, prop, sign)`, and the locus came from `_conclude_at`,
     which resolved a member's `at $m` against the bindings. Both are gone, and
     with them the `span` branch -- *the bound locus is not a moment*. Its
     counter is kept in the tally as a permanent zero rather than removed,
@@ -401,7 +401,7 @@ def run() -> int:
     print()
     print("  can this fixture fail? -- one rule suppressed at a time")
     # ⭐⭐⭐ The probe used to re-run the whole fixture for every rule, and four
-    # fifths of the gate's 16 minutes were spent doing it. ⚠ And the count it
+    # fifths of the gate's 16 minutes were spent doing it.  And the count it
     # used to print is gone deliberately, because with an early exit it would
     # mean *how far we got*, not *how wrong it is*.
     # → docs/design/quiescence.md#the-probe-used-to-re-run-the-whole-fixture

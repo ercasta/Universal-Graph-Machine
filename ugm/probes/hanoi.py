@@ -4,7 +4,7 @@
 
 Every other fixture here measures which RULE to reach for. None could measure
 which BINDING, and the retired ugm.workload -- built for scale -- had exactly ONE
-individual (item), so it cannot measure it even in principle. ⚠ Minted per
+individual (item), so it cannot measure it even in principle.  Minted per
 OCCASION and not per parameters, which matters here rather than in principle:
 solve(d1, x, z, y) occurs TWICE in a three-disk solution, so a call node
 keyed...
@@ -164,7 +164,7 @@ def facts(n: int, pegs: Tuple[str, ...] = PEGS, target: str = "z") -> str:
     L.append("fact +on(d%d, %s)" % (n, pegs[0]))
     L.append("fact +clear(d1)")
     L.append("fact +smallest(d1)")
-    # ⚠⚠⚠ **Stated, not left absent.** `-clear($d)` means *an entry denies
+    #  **Stated, not left absent.** `-clear($d)` means *an entry denies
     # this*, never *there is no entry* (§9) -- so a world model that merely
     # omits `clear(d2)` cannot be asked whether d2 is covered, and the rule that
     # declines a move onto a covered disk matches nothing until something has
@@ -235,7 +235,7 @@ def solve(n: int, without: str = "", limit: int = 20000) -> dict:
 # -- learning the recursion from watching it -------------------------------
 # ⭐⭐⭐ What is learned is the PERMUTATION, and it is the whole insight of Hanoi:
 # a parent call tower($d, $f, $t, $s) spawns tower($e, $f, $s, $t) on the way
-# down and tower($e, $s, $t, $f) on the way back. ⚠ Examples cross as TEXT.
+# down and tower($e, $s, $t, $f) on the way back.  Examples cross as TEXT.
 # → docs/design/hanoi.md#learning-the-recursion-from-watching-it
 
 # What is not the corpus's own: the apparatus, and the stack the bundle now
@@ -374,7 +374,7 @@ def solve_learned(n: int, learned: dict, data: List[str],
     moves: List[Tuple[str, str]] = []
 
     def watch(mm, table, window, chosen, tick, step=None):
-        # ⚠ Read off what the move DEPOSITED, never off its bindings: a learned
+        #  Read off what the move DEPOSITED, never off its bindings: a learned
         # rule's variables are `$g47`, so nothing outside it can name them.
         # `at($d, $p)` says the same thing in the corpus's own vocabulary, which
         # is the only part that survives being learned.
@@ -399,7 +399,7 @@ def _canonical(text: str) -> str:
             seen[v] = "$v%d" % len(seen)
         return seen[v]
     flat = " ".join(text.split())
-    # ⚠ Spacing is not a difference. A person writes `$a,$b` and the renderer
+    #  Spacing is not a difference. A person writes `$a,$b` and the renderer
     # writes `$g6, $g7`; comparing those as strings reported two rules as
     # DIFFERING from themselves.
     for ch in ",(){}":
@@ -412,7 +412,7 @@ def misbehave(n: int = 3, without: str = "", limit: int = 400) -> dict:
 
     ⭐⭐⭐ The whole of what step 2 buys. Before it, an attempt to move a covered
     disk simply matched nothing -- and *nothing happened* is indistinguishable
-    from *nothing was wrong*. ⚠ The two are declined by different things on
+    from *nothing was wrong*.  The two are declined by different things on
     purpose.
 
     See docs/design/hanoi.md#misbehave.
@@ -438,7 +438,7 @@ def misbehave(n: int = 3, without: str = "", limit: int = 400) -> dict:
 def _authored() -> Dict[str, str]:
     """The authored rules, by name.
 
-    ⚠ Split rather than matched. A regex over `rule <...> = ... } )` silently
+     Split rather than matched. A regex over `rule <...> = ... } )` silently
     missed two of the twelve -- one written with two spaces before the `=` and
     one spanning lines -- and a comparison that quietly drops what it cannot
     parse reports agreement it never checked.
@@ -521,7 +521,7 @@ def main() -> int:
     survivors = []
     for name in re.findall(r"rule <([^>]+)>", RULES):
         if name in DECLINING:
-            # ⚠ Ablated against the exercise that NEEDS it. Hanoi's own play
+            #  Ablated against the exercise that NEEDS it. Hanoi's own play
             # never makes an illegal move -- the recursion is correct -- so
             # solving cannot kill a rule that only declines, and the gate said
             # so the first time it ran.
@@ -584,7 +584,7 @@ def main() -> int:
             print("    FAIL  learned rules did not solve %d disks optimally" % n)
             bad += 1
 
-    # ⚠ And the gate can fail: ONE demonstration is not experience.
+    #  And the gate can fail: ONE demonstration is not experience.
     print()
     print("  ...and one demonstration is not enough, which is what makes the "
           "two-demonstration result mean anything:")

@@ -64,7 +64,7 @@ the world the lesson is carried into and the attention lesson still saves the
 jug, while the `prefer` row does not merely go inert -- **it fails to load**,
 because it names a statement that is not there. Measured below.
 
-⚠⚠⚠ **The cost is real too, and it is measured rather than conceded.** A node
+ **The cost is real too, and it is measured rather than conceded.** A node
 can only separate two routes that are ABOUT different things. Where both routes
 hold their vessel -- `holds(jug1, kettle)` and `holds(vase, kettle)` -- no node
 lifts one and not the other, so the lesser of two evils, which `prefer` could
@@ -74,7 +74,7 @@ state, is now unsayable. That arm of this file is a negative result.
 
 Play the same world `rounds` times, each one loading what came before.
 
-    ⚠⚠⚠ **What is carried ACCUMULATES, and it has to, which is a finding
+     **What is carried ACCUMULATES, and it has to, which is a finding
     about the rewrite rather than a convenience.** This used to replace the
     carry with whatever the last episode wrote, and that worked only because a
     lesson was re-derived every round by CREDIT: episode 2 took the tap, the tap
@@ -92,7 +92,7 @@ Play the same world `rounds` times, each one loading what came before.
 
 ## `the_lesser_of_two_evils_is_unsayable`
 
-⚠⚠⚠ A route can only be preferred over one it is NOT about. Measured.
+ A route can only be preferred over one it is NOT about. Measured.
 
     This used to be `lesser_of_two_evils`, and it used to report a result: with
     magnitude accumulated across episodes the agent converged on the cheaper of
@@ -137,7 +137,7 @@ Carry a lesson into a world where the rule it is about was RENAMED.
     `<use-tap>` is a statement reference and there is no such statement. A
     corpus of experience could be made unreadable by an edit somewhere else.
 
-    ⚠ The rename is the whole difference. Same world, same objects, same
+     The rename is the whole difference. Same world, same objects, same
     authored order, one identifier changed.
 
 ## `a_learned_rule_is_a_decision_tree`
@@ -161,7 +161,7 @@ A `prefer` FACT is a decision tree of depth ZERO. A rule says *when*.
 
 ## The VERDICT survives the rewrite and the REA
 
-⚠⚠⚠ The VERDICT survives the rewrite and the REASON does not, which is
+ The VERDICT survives the rewrite and the REASON does not, which is
 worth more than the number. Under `prefer` the explanation was
 *`_priority` sums, and summation is not voting*: an over-general row was
 ADDED to the others and could not be outvoted. Attention does not sum --

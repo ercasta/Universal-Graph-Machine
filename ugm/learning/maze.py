@@ -4,7 +4,7 @@
 
 predicts the VARIANCE, not the mean. ugm.lifting shows that a lesson
 generalises: contains(_, :solid) covers k5, which holds pebbles and was never
-heated. ⚠ The regions are authored (in_region), not derived from the doors.
+heated.  The regions are authored (in_region), not derived from the doors.
 
 See docs/design/maze.md.
 """
@@ -163,7 +163,7 @@ def _run(src: str, lift: bool):
 def _held_out() -> List[str]:
     """Terms the held-out regions contain that ALSO occur in training. Must be
     empty, or the memoriser is being graded on cases it has seen."""
-    # ⚠ Word boundaries, not `in`. The first version asked `term in TRAINING`
+    #  Word boundaries, not `in`. The first version asked `term in TRAINING`
     # and reported `oil` as shared -- because it is a substring of `boiling`.
     # A held-out check that fires on a false sharing is exactly as useless as
     # one that misses a real one, and this is the half that fails loudly.

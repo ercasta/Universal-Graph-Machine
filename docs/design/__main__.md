@@ -16,6 +16,6 @@ prints was already in the graph: a corpus with a typo ends `quiescent` with
 and until now there was no way to be told. Every `__main__` in this package was
 an instrument; none of them was a door.
 
-⚠ A resumed session does **not** act again. The boundary is muted for the whole
+ A resumed session does **not** act again. The boundary is muted for the whole
 replay, so what it did lands as `taken` and becomes `did` through the bundle:
 the agent remembers acting, and nothing leaves twice.

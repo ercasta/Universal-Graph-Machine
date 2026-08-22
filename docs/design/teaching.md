@@ -18,7 +18,7 @@ there with **roughly half the matching**:
     quest-p1   21 -> 18 moves, 18.8 -> 11.1 matched/move, 0 domain conclusions lost
     dungeon   143 -> 139 moves, 31.6 -> 16.0 matched/move, 0 additional lost
 
-⚠⚠⚠ **The gate said the opposite until it was pointed at the right thing.** It
+ **The gate said the opposite until it was pointed at the right thing.** It
 counted every proposition the taught run did not reach, and a calibrated table
 **hesitates less** -- so it deposits fewer `close`, `settled` and
 `spent(<settle-doubt>, ...)` records, and the gate read the mechanism working as
@@ -49,7 +49,7 @@ something CONDITIONAL, keyed on what was true at the time:
     rule <A> = ...
       learned after <A> { ... } => attend($x, n)
 
-⚠⚠⚠ **The bigram arms are gone, and the measurement is why.** The smallest
+ **The bigram arms are gone, and the measurement is why.** The smallest
 conditional thing that carries a sequence used to be a bigram on the rule that
 just applied -- `after <A> => boost(<R>, n)`, *after A, prefer R* -- with a query
 added by anti-unification. Three arms were built on it (`bigram`, `query`,
@@ -78,7 +78,7 @@ agent what to think ABOUT -- `after <A> => unattend, attend($x)`, keyed on a
 node -- and so it is the only one that can reach the BINDING, which no buff can
 name.
 
-⚠⚠⚠ **It cannot be learned from the teacher, and finding that out is half the
+ **It cannot be learned from the teacher, and finding that out is half the
 result.** `arbitrate`'s key is `(score(rule), rules.index(rule))`, so two
 applications of one rule tie exactly and the first in walk order wins: **the gold
 teacher is binding-blind in precisely the way the table is.** Asked *where did
@@ -93,7 +93,7 @@ things it was ever bound to -- the one that varies. On the dungeon `<check-ac>`
 has four variables that carry every single time, and attending to four things is
 attending to nothing.
 
-⚠ **What it is worth, honestly: nothing this harness can see.** Measured, it
+ **What it is worth, honestly: nothing this harness can see.** Measured, it
 costs nothing and loses nothing -- and it does not deliver the bigram's speed
 either.
 
@@ -116,7 +116,7 @@ it too.** `(rule, "$x") -> times the value `$x` took carried into the
 following move`, beside `values`, which is how many DISTINCT things
 that variable was ever bound to.
 
-⚠⚠⚠ **This signal comes from PLAY and not from the teacher, and it
+ **This signal comes from PLAY and not from the teacher, and it
 has to.** The gold teacher is `arbitrate`, whose key is
 `(score(rule), rules.index(rule))` -- so two applications of one rule
 tie exactly and the first in walk order wins. **The teacher is
@@ -169,7 +169,7 @@ What to think ABOUT after each rule: one variable per rule, learned
         into a variable across demonstrations, read one level up to decide what
         is worth attending to rather than what is worth saying.
 
-        ⚠ Two firings at least, for this file's standing reason: one example
+         Two firings at least, for this file's standing reason: one example
         generalises to itself.
 
 ## `emit`
@@ -181,28 +181,28 @@ What was learned about ATTENTION, as a document a person can read.
     was never taught* -- and it had no `open` and no `write` in it. The text was
     built, loaded, and dropped on the floor. This is the missing half.
 
-    ⚠ It is the ORDINARY SURFACE, so it round-trips by construction: `Loader`
+     It is the ORDINARY SURFACE, so it round-trips by construction: `Loader`
     reads it back with no special path, a person can edit a line in place, and
     an edited line and a learned one are indistinguishable to the machine. That
     is the property wanted for *bootstrapped by authors, refined by play, edited
     again* -- and it is why the marker exists, since it is the only thing that
     then tells them apart.
 
-    ⚠⚠ Only attention. `prefer` and the score buffs are not emitted, because
+     Only attention. `prefer` and the score buffs are not emitted, because
     they name other rules and are on their way out for exactly that reason.
 
 ## The trigger form, as text: a lesson is a documen
 
 The trigger form, as text: a lesson is a document.
 
-⚠ There were two more -- `WHEN` and `AFTER`, both writing `boost(<R>, n)`.
+ There were two more -- `WHEN` and `AFTER`, both writing `boost(<R>, n)`.
 They are retired with the buffs, and with them `Lesson.lessons`,
 `Lesson.recognisers`, `install` and `install_recognisers`.
 ⭐⭐⭐ **A learned lesson ADJUSTS rather than replaces**, and for attention that
 is the absence of `unattend`: the lesson says *and also think about this*,
 adding to whatever else is attended rather than clearing the field first.
 
-⚠ It was `unattend, attend($v)` and the clearing was doing real work -- a
+ It was `unattend, attend($v)` and the clearing was doing real work -- a
 claim has no `LIFE`, so attention accumulates without something to take it
 back. What replaces it is the automatic half, which is not built:
 `docs/HANDOFF.md` 20d records attending the last move's right-hand side being
@@ -231,10 +231,10 @@ This is `ugm.attention`'s rule one construct along -- *the comparison has to be
 over conclusions rather than over moves, because two runs that reach the same
 beliefs by different routes agree about the world, and that is the question.*
 
-⚠ The gate keeps its teeth: `intends` is a domain relation and IS lost on the
+ The gate keeps its teeth: `intends` is a domain relation and IS lost on the
 dungeon -- by the UNCALIBRATED arm too, which is what says the loss is not
 calibration's doing.
-⚠⚠⚠ **`attention` is here, and leaving it out flattered the mechanism.** A
+ **`attention` is here, and leaving it out flattered the mechanism.** A
 focus lesson deposits `attention(...)` and denies it again, so the focus arm
 reached **538 conclusions against 523** uncalibrated -- and counted naively
 that reads as *attention makes the agent conclude more*. Measured: all 15 were
@@ -244,7 +244,7 @@ arriving from the arm that was added last.
 
 ## none is the UNCALIBRATED arm, and it went mi
 
-⚠ `none` is the UNCALIBRATED arm, and it went missing. This function's
+ `none` is the UNCALIBRATED arm, and it went missing. This function's
 own docstring says the loop runs twice, uncalibrated and calibrated, and
 the gate in `main` still read `before`/`after` -- keys nothing here has
 produced for some time. So the gate raised `KeyError` on the first corpus
@@ -252,7 +252,7 @@ every run: it could not fail, because it never got as far as comparing,
 and `dungeon` was never measured at all. A gate that crashes reports the
 same thing as a gate that passes -- nothing -- and it does it loudly
 enough that nobody reads the rest.
-⚠⚠⚠ **THREE ARMS ARE GONE WITH THE BUFFS**: `bigram`, `query` and
+ **THREE ARMS ARE GONE WITH THE BUFFS**: `bigram`, `query` and
 `occasion` all installed `boost(<R>, n)` rows, and `both` was `focus`
 plus `bigram`. Every one of them named a RULE, which is what the
 retirement is about -- and the measurement that motivated it is on the

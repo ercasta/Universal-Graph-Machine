@@ -29,7 +29,7 @@ ABSENT = "no"
 class _Stop:
     """The postcondition that ends the run, as a sentinel rather than a node.
 
-    ⭐ attend deposits a claim, unattend denies one, and this stops. ⚠ There
+    ⭐ attend deposits a claim, unattend denies one, and this stops.  There
     were three more -- boost, damp and reset -- and they moved a SCORE.
 
     See docs/design/rules.md#stop.
@@ -49,7 +49,7 @@ class Attend:
 
     ⭐⭐⭐ A different KIND of row from the ones it outlived. boost, damp and
     reset moved a score and stop ends the run -- all of them the loop's own
-    bookkeeping. ⚠ That is the point rather than a wrinkle.
+    bookkeeping.  That is the point rather than a wrinkle.
 
     See docs/design/rules.md#attend.
     """
@@ -67,12 +67,12 @@ class Attend:
 class _Unattend:
     """...and the one that takes it back, which is `reset` for attention.
 
-    ⚠ It denies what is attended rather than forgetting it, and the difference
+     It denies what is attended rather than forgetting it, and the difference
     is the whole of `deposit-dont-decide.md`: *the agent stopped attending to
     this here* is a dated, attributable, deniable claim, where dropping a Python
     set is nothing anyone can read or argue with.
 
-    ⚠⚠ And something has to, or attention accumulates until it names everything
+     And something has to, or attention accumulates until it names everything
     -- which is measurably the same as naming nothing (`ugm.selftest`:
     *attention that names everything narrows nothing*). A buff had `LIFE` for
     this reason; a claim has a denial.
@@ -95,7 +95,7 @@ class Push:
     connective adds rows to the one list that already exists for this, and the
     list is `text.py`'s `spend()` and `attention.py`'s dispatch.
 
-    ⚠ It names NODES and never an expert. Which expert the frame belongs to is
+     It names NODES and never an expert. Which expert the frame belongs to is
     computed from them (`Machine._pick_expert`), because a rule that had to name
     the callee would be doing the selecting.
     """
@@ -138,7 +138,7 @@ class Member(NamedTuple):
 
     sign: str
     pattern: NodeId
-    # ⚠ `at $m` -- WHERE the entry must sit -- went with the locus itself. An
+    #  `at $m` -- WHERE the entry must sit -- went with the locus itself. An
     # entry has no second time to bind to. A rule that wants history reads
     # `in_delta`/`anc`/`entry_of`, which are ordinary structural relations.
     # ⭐ ...and a name for WHAT matched. at $m says where the entry sits; as $t
@@ -221,7 +221,7 @@ class RuleSet:
         self.SIGN = dict(chain.SIGN) if chain is not None else {
             s: g.atom(s) for s in ("+", "-", "?")
         }
-        # ⚠ In the RULESET's table only, never the chain's: a reified `no`
+        #  In the RULESET's table only, never the chain's: a reified `no`
         # member needs a sign node to be spoken of (`ant($r, $p, absent, $i)`),
         # but no entry may ever carry it -- `Gate.write` with this sign would
         # KeyError at `chain.SIGN`, which is the loud failure we want.
@@ -288,7 +288,7 @@ class RuleSet:
         different authors, precedence and provenance.
         """
         rel = self.CAUSES if connective == CAUSES else self.IMPLIES
-        # ⚠⚠⚠ A caller may supply the node, and adopt must.
+        #  A caller may supply the node, and adopt must.
         # → docs/design/rules.md#a-caller-may-supply-the-node-and-adopt
         if node is None:
             node = self.g.instance(
@@ -296,7 +296,7 @@ class RuleSet:
             )
         r = Rule(node, connective, antecedent, consequent, name)
         self.rules.append(r)
-        # ⚠ A new rule can move the fixpoint -- it may read only structure and
+        #  A new rule can move the fixpoint -- it may read only structure and
         # so make its own conclusion structural. `adopt` makes this a run-time
         # event, not a load-time one.
         self._skeleton = None
@@ -317,7 +317,7 @@ class RuleSet:
         """Every relation an ordinary rule reads as STRUCTURE rather than as a
 
         claim: the chain's own (self.structural) plus whatever a stratum-0 rule
-        concludes. ⭐⭐⭐ The strata are derived, not assigned. ⚠ Recomputed when
+        concludes. ⭐⭐⭐ The strata are derived, not assigned.  Recomputed when
         a rule is added, because adopt means the rule set moves at run time and
         a stratum a rule was classified into before it existed is a stale...
 
@@ -342,7 +342,7 @@ class RuleSet:
     def strata(self) -> List[List["Rule"]]:
         """The stratum-0 rules, grouped into layers that must run in order.
 
-        ⚠⚠⚠ Negation makes the ORDER load-bearing, and structure cannot be
+         Negation makes the ORDER load-bearing, and structure cannot be
         taken back. best is *a candidate nothing beats*.
 
         See docs/design/rules.md#strata.
@@ -370,7 +370,7 @@ class RuleSet:
                     if a.sign == MINUS:
                         negated[c].add(b)
 
-        # ⚠ RECURSION is not a cycle to be refused -- `dep_after` is transitive
+        #  RECURSION is not a cycle to be refused -- `dep_after` is transitive
         # and reads itself. Mutually recursive relations must share a layer and
         # settle together, so the layers are over the strongly connected
         # components rather than over the relations. Iterative, because the
@@ -390,7 +390,7 @@ class RuleSet:
                             continue
                         step = 1 if (cb != c or b in negated.get(rel, ())) else 0
                         if cb == c and b in negated.get(rel, ()):
-                            # ⚠⚠⚠ Negation INSIDE a recursion has no
+                            #  Negation INSIDE a recursion has no
                             # stratification: the answer depends on the order
                             # the rules happened to be tried, and this is the
                             # one component whose whole purpose is to agree with
@@ -428,7 +428,7 @@ class RuleSet:
         predicate decides both halves, which is why there is no second rule
         type, no marker on the surface and no second interpreter.
 
-        ⚠ An antecedent-less rule is NOT stratum 0. It claims unconditionally,
+         An antecedent-less rule is NOT stratum 0. It claims unconditionally,
         and a conclusion nothing structural licensed is a claim about the world
         however few premises it has.
         """
@@ -455,13 +455,13 @@ class RuleSet:
 
         This is the design's largest available speedup, because it removes
         steps rather than making them cheaper, and the artifact is an ordinary
-        node -- askable, attributable, defeasible. ⚠ What is genuinely absent
+        node -- askable, attributable, defeasible.  What is genuinely absent
         is amendment at a distance -- adding a guard to a rule you did not
         write -- and calling that unless is what made a one-member rule...
 
         See docs/design/rules.md#compose.
         """
-        # ⚠⚠⚠ Composing across a causes FLATTENS TWO MOMENTS INTO ONE
+        #  Composing across a causes FLATTENS TWO MOMENTS INTO ONE
         # ANTECEDENT, and it loses conclusions.
         # → docs/design/rules.md#composing-across-a-causes-flattens-two-m
         if first.connective == CAUSES and len(second.antecedent) > 1:
@@ -530,7 +530,7 @@ def unify(
     if pattern == node:
         return bindings
     # ⭐⭐⭐ Identity, at BIND TIME -- and without this the rest of the identity
-    # layer is half a feature. ⚠ Guarded on _merges, so a corpus that never
+    # layer is half a feature.  Guarded on _merges, so a corpus that never
     # corefers compares two ints as it always did.
     # → docs/design/rules.md#identity-at-bind-time-and-without-th
     if g._merges and g.identity_of(pattern) == g.identity_of(node):
@@ -545,7 +545,7 @@ def unify(
         if g.identity_of(prel) == g.identity_of(nrel):
             prel = nrel
     if prel != nrel:
-        # ⭐ A variable in the RELATION slot. ⚠ It costs §3's only index: a
+        # ⭐ A variable in the RELATION slot.  It costs §3's only index: a
         # pattern whose relation is unknown has no bucket, so
         # Situation.candidates falls back to the ANY bucket and scans.
         # → docs/design/rules.md#a-variable-in-the-relation-slot-the-subst
@@ -572,7 +572,7 @@ def generalise(
 
     The dual of unify, and the operation *learn from examples* is made of:
     matching asks what two structures have to agree about, and this asks what
-    they already agree about. ⚠ What agrees is KEPT.
+    they already agree about.  What agrees is KEPT.
 
     See docs/design/rules.md#generalise.
     """
@@ -768,7 +768,7 @@ def already_there(
 ) -> Optional[NodeId]:
     """The node `substitute` WOULD produce, if it already exists. Never mints.
 
-    ⚠⚠⚠ substitute interns, so asking with it changes the answer.
+     substitute interns, so asking with it changes the answer.
 
     See docs/design/rules.md#already-there.
     """
@@ -809,7 +809,7 @@ def current_state(chain: Chain) -> List[Entry]:
     and no walk -- the governing entry is the last one deposited, and `_claims`
     already holds them in that order.
 
-    ⚠⚠⚠ **But `_claims` is keyed by FIRST mention, and the order is semantics.**
+     **But `_claims` is keyed by FIRST mention, and the order is semantics.**
     Iterating its values gives the propositions in the order they were first
     spoken about, so a proposition claimed at M1 and revised at M9 comes back
     where the M1 claim put it -- and *a description with two candidates resolves
@@ -833,7 +833,7 @@ class Situation:
 
     §3 gives the substrate exactly one index, over instances by relation, and
     says why: *a rule whose antecedent names a relation has to start somewhere,
-    and scanning every node is the alternative*. ⚠ Order is part of the answer.
+    and scanning every node is the alternative*.  Order is part of the answer.
 
     See docs/design/rules.md#situation.
     """
@@ -850,7 +850,7 @@ class Situation:
         self._entries: Optional[List[Entry]] = None
         # ⭐⭐⭐ The third index, and it is the one attention needs: which
         # RELATIONS a node is currently spoken of under. The two above are read
-        # by a pattern that already knows its relation. ⚠ Counted, not a set,
+        # by a pattern that already knows its relation.  Counted, not a set,
         # because drop has to be exact.
         # → docs/design/rules.md#the-third-index-and-it-is-the-one-attenti
         self._rels: Dict[NodeId, Dict[NodeId, int]] = {}
@@ -867,7 +867,7 @@ class Situation:
             rel = self.g.identity_of(rel)
         keys = [(e.sign, rel), (e.sign, self.ANY)]
         if rel is not None:
-            # ⚠ Atoms here too, and for the same reason read from the other
+            #  Atoms here too, and for the same reason read from the other
             # end: the only thing that ever looks in one of these buckets is a
             # pattern member that is an atom, and an atom cannot equal a
             # structure.
@@ -885,7 +885,7 @@ class Situation:
         self._order[e.node] = e
         for k in self._keys(e):
             bucket = self._by.setdefault(k, {})
-            # ⚠ Only a bucket this entry was not already in moves the count.
+            #  Only a bucket this entry was not already in moves the count.
             # `add` is idempotent everywhere else -- a dict assignment over the
             # same key -- and a count is the one thing that would not be.
             fresh = e.node not in bucket
@@ -944,7 +944,7 @@ class Situation:
         rel = None if g.is_var(want.pattern) else g.relation_of(want.pattern)
         if rel is not None and g._merges:
             rel = g.identity_of(rel)
-        # ⚠ A pattern whose RELATION is a variable has no bucket either: nothing
+        #  A pattern whose RELATION is a variable has no bucket either: nothing
         # is known about what it names until it matches. It takes the same ANY
         # bucket a bare variable does, which is the index cost of allowing one
         # -- stated here rather than discovered on a workload.
@@ -983,7 +983,7 @@ class Situation:
                 m = bindings.get(m)
                 if m is None:
                     continue  # not bound yet; this member says nothing here
-            # ⚠ Atoms only: `unify` reduces to identity for a node with no
+            #  Atoms only: `unify` reduces to identity for a node with no
             # relation and no members, and to a structural comparison for
             # anything else -- which can accept a twin an identity key drops.
             if g.relation_of(m) is not None or g.members(m):
@@ -1008,7 +1008,7 @@ def match(
     """Unify a generic moment against an anchored one, over the current state.
 
     Records which entries it matched. That is not overhead: it is what makes a
-    misbehaving rule distinguishable from a misresolving chain. ⚠ The delta is
+    misbehaving rule distinguishable from a misresolving chain.  The delta is
     a Situation like any other, so this adds no representation.
 
     See docs/design/rules.md#match.
@@ -1034,7 +1034,7 @@ def match(
                     if k in seen:
                         return
                     seen.add(k)
-                # ⚠ A computator consumes no ENTRY, so its slot stays empty and
+                #  A computator consumes no ENTRY, so its slot stays empty and
                 # is dropped here. §12 says `consumed` is filled by member
                 # position, and that is about ORDER rather than arity -- nothing
                 # indexes it positionally (checked), every reader iterates, and
@@ -1052,7 +1052,7 @@ def match(
                 # An evaluated member that reads the chain. It yields each way
                 # its arguments can be satisfied, anchored by what is bound.
                 # ⭐⭐⭐ A MINUS here is negation as failure, and it needs no
-                # notation. ⚠ Safe only because the strata are ORDERED.
+                # notation.  Safe only because the strata are ORDERED.
                 # →
                 # docs/design/rules.md#an-evaluated-member-that-reads-the-chain-it-yie
                 if want.sign in (MINUS, ABSENT):
@@ -1071,7 +1071,7 @@ def match(
                 # ⭐ A computator: evaluated, not matched. §12's skeleton is
                 # *conditions on the binding that claim nothing* --
                 # distinctness is already one -- and arithmetic is exactly
-                # that. ⚠ The arguments must be ground by now.
+                # that.  The arguments must be ground by now.
                 # → docs/design/rules.md#a-computator-evaluated-not-matched-12
                 args = [walk(g, a, bindings) for a in g.members(want.pattern)]
                 if any(g.is_var(a) for a in args):
@@ -1082,7 +1082,7 @@ def match(
                     return  # a computator that raises answers nothing
                 if got is None:
                     return
-                # ⚠⚠⚠ `got` is a NODE, resolved by whoever registered the
+                #  `got` is a NODE, resolved by whoever registered the
                 # function in the corpus's own table. Building one here with
                 # `g.atom` mints a fresh node, so the result would be a TWIN of
                 # the value the corpus writes -- the rule fires, the fact lands,
@@ -1098,7 +1098,7 @@ def match(
                 # ⭐⭐⭐ Absence, asked rather than matched: holds when nothing
                 # in the state ASSERTS the (now ground) proposition. A denied
                 # proposition is absent too -- `-p` says an entry denies p,
-                # and this asks the prior question. ⚠ Ground by construction:
+                # and this asks the prior question.  Ground by construction:
                 # the loader refuses a `no` member whose variables an earlier
                 # member does not bind, and the walk order keeps authored
                 # relative order, so an open pattern here is a bug upstream --
@@ -1132,7 +1132,7 @@ def match(
         run(None)
     else:
         for pivot in range(len(rule.antecedent)):
-            # ⚠ Never pivot on a computator -- and this is an OPTIMISATION,
+            #  Never pivot on a computator -- and this is an OPTIMISATION,
             # not a correctness fix, which is worth saying because the first
             # comment here claimed the opposite. A computator walked first has
             # nothing bound to compute from, so that pass finds nothing; but
@@ -1142,7 +1142,7 @@ def match(
             r_ = g.relation_of(rule.antecedent[pivot].pattern)
             if r_ in computes or r_ in structural:
                 continue
-            # ⚠ Never pivot on an absence: there is no entry for it to have
+            #  Never pivot on an absence: there is no entry for it to have
             # matched. The machine re-matches the whole rule when a claim
             # about the absent relation lands, which is this pass's job done
             # elsewhere.
@@ -1205,7 +1205,7 @@ def _stored(g, chain, want, bindings):
 
     delta_next, rests_on, and whatever a stratum-0 rule concludes -- matched by
     unifying against its ground instances. ⭐⭐⭐ This is the whole of the second
-    matcher, and it is four lines. ⚠ At least one argument must be bound, and
+    matcher, and it is four lines.  At least one argument must be bound, and
     the discipline is *bounded by something already known* rather than *bounded
     by a named position*.
 
@@ -1213,7 +1213,7 @@ def _stored(g, chain, want, bindings):
     """
     rel = g.relation_of(want.pattern)
     args = g.members(want.pattern)
-    # ⚠⚠⚠ GROUND, not merely not-a-variable.
+    #  GROUND, not merely not-a-variable.
     # → docs/design/rules.md#ground-not-merely-not-a-variable-this
     if not any(_ground(g, a, bindings) for a in args):
         return  # unbounded: this would enumerate the history, so it finds nothing
@@ -1293,7 +1293,7 @@ _SAFE = set()
 def _narrowed(g, rel, want, bindings):
     """The instances worth offering this member, using §3's argument-position
 
-    index instead of every instance of the relation. ⚠ Counted on the GRAPH
+    index instead of every instance of the relation.  Counted on the GRAPH
     rather than reported by return value, because this is a generator's inner
     loop reached through two structural readers that have no...
 
@@ -1370,7 +1370,7 @@ def _bounded(g, chain, want, bindings):
 
     construction: asking(<seat>), and whatever a stratum-0 rule concludes. ⭐⭐⭐
     This is where the anchoring discipline actually divides, and it is not
-    where I first drew it. ⚠ The containment argument therefore rests on the
+    where I first drew it.  The containment argument therefore rests on the
     SEED.
 
     See docs/design/rules.md#bounded.
@@ -1389,11 +1389,11 @@ def _members_of(g, chain, want, bindings):
     An entry node IS `entry(proposition, sign)`, so this reads what is already
     there; nothing is stored for it.
 
-    ⚠ Anchored on the ENTRY. Decomposing is single-valued -- one entry has one
+     Anchored on the ENTRY. Decomposing is single-valued -- one entry has one
     proposition and one sign -- so from an anchored entry this yields at most
     one binding, and unanchored it would enumerate the whole history.
 
-    ⚠⚠⚠ It took FOUR arguments, and the second was the locus. With the locus
+     It took FOUR arguments, and the second was the locus. With the locus
     gone the arity is three, and the guard below is what said so: `len(parts)
     != 3` against an entry that now has two members made `entry_of` match
     NOTHING, silently, in every rule that reads the chain.
@@ -1421,12 +1421,12 @@ def structural_relations(chain) -> Dict[NodeId, Callable]:
     §6 says stratum 0 is *a property of a rule* -- every antecedent member is
     structural -- decided *by inspecting an antecedent rather than by a
     designer assigning layers*, and that it *runs under the same interpreter*.
-    ⚠ entry_of is a third thing again: not stored and not walked, but *read off
+     entry_of is a third thing again: not stored and not walked, but *read off
     the node's own members*.
 
     See docs/design/rules.md#structural-relations.
     """
-    # ⚠⚠⚠ pred was the reflexive-transitive walk, under the name of the
+    #  pred was the reflexive-transitive walk, under the name of the
     # immediate one.
     # → docs/design/rules.md#pred-was-the-reflexive-transitive-walk
     return {

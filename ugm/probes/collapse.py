@@ -131,7 +131,7 @@ def _anchor_run(rules, expect, observe, read=None) -> bool:
 
     `expect` is a sign word under reading A, and that word with a "B" on it
     under reading B, where the expectation names the proposition instead of
-    carrying a sign. ⚠ Under B the deviation is ABOUT the expected proposition,
+    carrying a sign.  Under B the deviation is ABOUT the expected proposition,
     so a minus expectation deviates as `xdev(not(p))` -- reading `xdev(p)` for
     it reports no deviation, which looks exactly like the rule not working.
     """

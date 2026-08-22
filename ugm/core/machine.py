@@ -77,7 +77,7 @@ ATTENTION_SPAN = 7
 
 #: How deep the attention stack may go. A backstop against a corpus that pushes
 #: its way down for ever on ever-changing nodes, which the cycle test cannot see
-#: -- the nodes are different every time. ⚠ Copied from `probes/experts.py`'s
+#: -- the nodes are different every time.  Copied from `probes/experts.py`'s
 #: `DEPTH`, and so is its caution: an earlier draft of that file returned to the
 #: outer loop instead of servicing nested consultations in place, so the stack
 #: was never deeper than one, the cycle test could never fire, and a check
@@ -97,14 +97,14 @@ class Frame:
     *a caller stepping by hand would lose every buff between one tick and the
     next and be measuring a different agent each time*.
 
-    ⚠⚠⚠ **The graph is untouched by push and pop.** This is not a transaction,
+     **The graph is untouched by push and pop.** This is not a transaction,
     there is no rollback, and nothing derived inside a frame stops existing when
     it is popped. Attention management is the whole of this. The one thing a pop
     does take back is the frame's own `attention` claims, and it DENIES them
     rather than dropping them -- `_unattend` scoped to a frame, for the reason
     `_unattend` gives.
 
-    ⚠ The expert is held by NAME -- a node -- never as a frozen rule list, and
+     The expert is held by NAME -- a node -- never as a frozen rule list, and
     `_expert_pool` is read on demand: `knows($e, $r)` can be CONCLUDED mid-run
     by an ordinary rule, and a pool frozen at push time could not see one. The
     same finding as `pool_of` is *read, never kept*.
@@ -149,7 +149,7 @@ class Machine:
         self.ROOT = self.g.atom("root")        # ask
         self.ROOTED = self.g.atom("rooted")    # ...and the answer, when it is one
         # ⭐⭐⭐ The aggregate over bindings, and it is the GENERAL case of
-        # rooted, unsupported and blocked rather than a fourth of them. ⚠ NOT
+        # rooted, unsupported and blocked rather than a fourth of them.  NOT
         # in reserved, deliberately.
         # → docs/design/machine.md#the-aggregate-over-bindings-and-it-is-the
         self.NEW = self.g.atom("new")
@@ -257,7 +257,7 @@ class Machine:
         # Forgoing: the thing arbitration was assumed to do and never did.
         # →
         # docs/design/machine.md#forgoing-the-thing-arbitration-was-assumed-to-d
-        # Tools. ⚠ THE one loaded node.
+        # Tools.  THE one loaded node.
         # → docs/design/machine.md#tools-21-s-honest-debt-taken-a-request-answe
         self.LOADED = self.g.atom("loaded")
         self.SCOPED = self.g.atom("scoped")
@@ -278,7 +278,7 @@ class Machine:
         # a proposed rule still has to match, can still be defeated, and still
         # competes in arbitration. Nothing owns the loop (§18).
         self.DUE = self.g.atom("due")
-        # Attention: what the agent is thinking about, said about a NODE. ⚠ And
+        # Attention: what the agent is thinking about, said about a NODE.  And
         # it is safe by construction under the action palette: attention is a
         # FACT, so a learned rule that sets it can redirect what the agent
         # considers and can...
@@ -314,16 +314,16 @@ class Machine:
         # should answer rather than shrug.
         self.SUITS = self.g.atom("suits")
         # §18's call stack, as facts -- the plumbing under a recursive plan,
-        # and deliberately NOT a strategy for making one. ⚠ advances/closes are
+        # and deliberately NOT a strategy for making one.  advances/closes are
         # DATA, not rules.
         # → docs/design/machine.md#18-s-call-stack-as-facts-the-plumbing-under
         self.AFFORDED = self.g.atom("afforded")
         # ...and asking for one. attempt(move(d1, z)) is the agent proposing to
-        # act; the world model's own rules resolve it, or decline it. ⚠
+        # act; the world model's own rules resolve it, or decline it. 
         # Deposited, not VETOED.
         # → docs/design/machine.md#and-asking-for-one-attempt-move-d1-z-is
         self.ATTEMPT = self.g.atom("attempt")
-        # ⚠ Distinct from `refused`, which is the GATE's: a write a norm
+        #  Distinct from `refused`, which is the GATE's: a write a norm
         # covered, arity 3, carrying the norm that forbade it. *You may not* and
         # *there is no such move* are different claims and conflating them would
         # lose both.
@@ -365,7 +365,7 @@ class Machine:
         # which made them the one kind of decision this design does not allow
         # -- one nobody can ask about or argue with.
         # → docs/design/machine.md#the-other-three-knobs-by-the-same-argument
-        # ⚠ Owned by the machine, not minted beside the loader's. Precedence is
+        #  Owned by the machine, not minted beside the loader's. Precedence is
         # read from the graph now, so the node a corpus writes and the node the
         # arbitrator looks for have to be one -- `atom` does not intern, and
         # that twin has cost this repo seven findings.
@@ -387,7 +387,7 @@ class Machine:
         # Where a rule's member says its entry must sit (§12's locus).
         # ...and asking how two of them are ordered (§10, §22).
         # ...and the name a member gives what it matched (§12's `as`).
-        # ⚠ NOT `self.BINDS`, which is the PLAN-bindings relation twelve lines
+        #  NOT `self.BINDS`, which is the PLAN-bindings relation twelve lines
         # of this file already use. Reusing the attribute made every plan print
         # its bindings as `names(...)` and broke `ugm.backward` -- one node with
         # two meanings, committed by the author of the note warning about it.
@@ -535,12 +535,12 @@ class Machine:
             "arrived_on": self.chain.ARRIVED_ON,
             "mentioned": self.chain.MENTIONED,
             "entry_of": self.chain.ENTRY_OF,
-            # ⚠ `span_of($s, $start, $end)` was described here and is GONE with
+            #  `span_of($s, $start, $end)` was described here and is GONE with
             # the locus -- a stretch was a kind of locus, and an entry has none.
             # The comment outlived the row it documented; `ugm.gates.vocabulary`
             # is what proved the name was gone rather than merely unused.
             "asking": self.chain.ASKING, "asked": self.chain.ASKED,
-            # ⚠ Without this line `time($m, $t)` in a corpus is a FRESH
+            #  Without this line `time($m, $t)` in a corpus is a FRESH
             # atom -- `g.atom` does not intern -- so the rule is well
             # formed, `is_stratum0` says no, the member matches nothing,
             # and nothing raises. The name-identity trap, caught here on
@@ -560,7 +560,7 @@ class Machine:
             "need": self.NEED,
             "causes": self.rules.CAUSES, "implies": self.rules.IMPLIES,
             # The signs as ARGUMENTS -- expects(p, plus) mentions a sign where
-            # +p uses one. ⚠ unsure is NOT load-bearing for the bundle, and the
+            # +p uses one.  unsure is NOT load-bearing for the bundle, and the
             # first version of this comment said it was.
             # →
             # docs/design/machine.md#the-signs-as-arguments-expects-p-plus-men
@@ -671,7 +671,7 @@ class Machine:
                              self.BUDGET,
                              self.WIDENED, self.REACHED,
                              self.BOUNDED, self.ADOPT,
-                             # ⚠ `self.gate.MOVED` was the last name here, and
+                             #  `self.gate.MOVED` was the last name here, and
                              # it was bookkeeping for a reason that is gone
                              # twice over: a seat move was the machinery's
                              # record of its own advance, and there is neither
@@ -696,7 +696,7 @@ class Machine:
                 self.g.rel(self.STANDING, r.node), PLUS,
                 licence=self.g.rel(self.REIFIED, r.node), source=self.KB, mention=True,
             )
-        # ⭐⭐⭐ The apparatus eats its own cooking. ⚠ <remember> is the fourth,
+        # ⭐⭐⭐ The apparatus eats its own cooking.  <remember> is the fourth,
         # and I put it in the safe column first.
         # → docs/design/machine.md#the-apparatus-eats-its-own-cooking-ans
         self.gate.on_write.append(self._adopt)
@@ -743,7 +743,7 @@ class Machine:
         self.gate.veto.append(self._only_among_ids)
         self.gate.on_write.append(self._unafforded)
         # ⭐⭐⭐ Attention is a bounded QUEUE, newest first -- what replaces
-        # unattend, LIFE and the accumulation problem at once. ⚠ And it decays
+        # unattend, LIFE and the accumulation problem at once.  And it decays
         # by DISPLACEMENT rather than by a timer, which is the better notion:
         # ten quiet ticks should not forget what you were doing, and ten busy
         # ones...
@@ -754,7 +754,7 @@ class Machine:
         # filter, it SUSPENDS -- the outer frame is off the queue entirely, so
         # it cannot be evicted however long the inner line runs.
         self._frames: List[Frame] = [Frame()]
-        # ⚠ Set once, at startup, and kept: `(document frequency, term counts)`
+        #  Set once, at startup, and kept: `(document frequency, term counts)`
         # over experts. Adding an expert re-scores every other one and changes
         # which expert is picked for unrelated frames -- a FEATURE, not a bug,
         # written down so nobody debugs it as nondeterminism. See `_idf`.
@@ -763,7 +763,7 @@ class Machine:
         # measurement `docs/todo.md` asks for before the stack is believed.
         self._evicted: set = set()
         self._readmitted = 0
-        # ⚠ The lowest frame the RUNNING loop may pop back to. A nested `run()`
+        #  The lowest frame the RUNNING loop may pop back to. A nested `run()`
         # -- a consultation, a supposition, a table of agents -- serves the frame
         # it started on and must not pop the caller's out from under it, so the
         # floor moves with the run rather than being fixed at the root.
@@ -808,7 +808,7 @@ class Machine:
         nothing anywhere saying so.
         """
         known = set(self.reserved.values())
-        # ⚠⚠⚠ The mint marker is the one relation that is surface-reachable
+        #  The mint marker is the one relation that is surface-reachable
         # WITHOUT being a reserved name, and it has to be, or bundling a rule
         # that introduces something is impossible.
         # → docs/design/machine.md#the-mint-marker-is-the-one-relation-that-i
@@ -818,7 +818,7 @@ class Machine:
         def visit(n: NodeId) -> None:
             rel = self.g.relation_of(n)
             if rel is None:
-                # ⚠⚠⚠ An ARGUMENT atom is a twin waiting to happen exactly as a
+                #  An ARGUMENT atom is a twin waiting to happen exactly as a
                 # relation is, and this returned early on every one of them.
                 # →
                 # docs/design/machine.md#an-argument-atom-is-a-twin-waiting-to-happ
@@ -829,7 +829,7 @@ class Machine:
             if rel not in known and self.g.show(rel) not in missing:
                 missing.append(self.g.show(rel))
             if rel is self.NEW:
-                # ⚠ A mint MARKER is internal. `+k` says *one new thing per
+                #  A mint MARKER is internal. `+k` says *one new thing per
                 # application* and `k` is how the author told two markers apart
                 # inside one consequent -- it names nothing a corpus could ask
                 # about, so requiring it to be reserved would reserve a letter.
@@ -871,7 +871,7 @@ class Machine:
         w(self.g.rel(self.RULE, rule.node))
         conn = self.rules.CAUSES if rule.connective == "causes" else self.rules.IMPLIES
         w(self.g.rel(self.CONN, rule.node, conn))
-        # ⚠⚠ The POSITION.
+        #  The POSITION.
         # → docs/design/machine.md#the-position-it-was-missing-and-it-is-pa
         for i, m in enumerate(rule.antecedent):
             w(self.g.rel(self.ANT, rule.node, m.pattern,
@@ -981,7 +981,7 @@ class Machine:
             return
         plan, goal = self.g.members(e.proposition)
         state = self._state()
-        # ⚠⚠⚠ The entries, not only the map.
+        #  The entries, not only the map.
         # → docs/design/machine.md#the-entries-not-only-the-map-this-buil
         env: dict = {}
         env_from: dict = {}
@@ -1043,7 +1043,7 @@ class Machine:
 
         §6 recorded the gap and §12 recorded why it could not be a rule: a root
         goal is a goal($w) with no subgoal($p, $w), and a - member says *an
-        entry denies this*, never *for no $p*. ⚠ It is asked, not volunteered,
+        entry denies this*, never *for no $p*.  It is asked, not volunteered,
         for the reason §19 gives about recall: this is a question about a
         search that has got somewhere, and asking it of every goal...
 
@@ -1069,7 +1069,7 @@ class Machine:
         count(goblin($x)) a REQUEST, asked by a corpus rule counted(goblin($x),
         2) the answer, and it always answers ⭐⭐⭐ The general case of the three
         asks above it, and the reason it is worth having is that they are three
-        special cases of one question. ⚠ Answered at the ask, not at
+        special cases of one question.  Answered at the ask, not at
         quiescence.
 
         See docs/design/machine.md#count.
@@ -1081,7 +1081,7 @@ class Machine:
         # `_spend_posts` builds one the same way for a postcondition's query.
         probe = Rule(e.proposition, IMPLIES,
                      [Member(PLUS, pattern)], [], "<count>")
-        # ⚠ Distinct PROPOSITIONS, not applications, and this is a GUARD rather
+        #  Distinct PROPOSITIONS, not applications, and this is a GUARD rather
         # than a repair -- said plainly because the difference matters.
         # → docs/design/machine.md#distinct-propositions-not-applications-and-t
         seen = set()
@@ -1091,11 +1091,11 @@ class Machine:
             structural=self.rules.skeleton(),
         ):
             seen.add(substitute(self.g, pattern, hit.bindings))
-        # ⚠⚠⚠ Keyed on the ASK, not on the pattern, and that is what makes the
+        #  Keyed on the ASK, not on the pattern, and that is what makes the
         # answer readable at all.
         # → docs/design/machine.md#keyed-on-the-ask-not-on-the-pattern-and
         answer = self.g.rel(self.COUNTED, e.proposition, self._numeral(len(seen)))
-        # ⚠⚠⚠ A COUNT IS A FUNCTIONAL ATTRIBUTE, so the old one is denied in
+        #  A COUNT IS A FUNCTIONAL ATTRIBUTE, so the old one is denied in
         # the same breath.
         # → docs/design/machine.md#a-count-is-a-functional-attribute-so-the
         for old in self.g.instances_of(self.COUNTED):
@@ -1183,7 +1183,7 @@ class Machine:
         """A goal, with whatever its own plan has since bound filled in.
 
         ⭐⭐⭐ A verdict was reported AS THE RULE WROTE IT, and by the time it is
-        reported that is no longer the most informed thing available. ⚠ The
+        reported that is no longer the most informed thing available.  The
         consequence is exactly the one they named, and it is not cosmetic: a
         generic term cannot be uttered (§14 -- _dispatch refuses a generic
         intent, because...
@@ -1269,7 +1269,7 @@ class Machine:
         rel = self.g.relation_of(proposition)
         if rel is None or rel is self.REFUSED:
             return None
-        # ⚠ A `+kind` marker is exempt: `new(kind)` is an id COMING TO BE, not
+        #  A `+kind` marker is exempt: `new(kind)` is an id COMING TO BE, not
         # an expression -- which is what lets `_decide_change` consult this
         # veto on a minting rule's conclusion before anything is minted.
         if all(self.g.relation_of(mm) is None
@@ -1325,7 +1325,7 @@ class Machine:
 
         The machinery consulting a corpus's rules, on demand, with both
         arguments already bound -- the door _forbid, precedence() and _recall
-        already use, given a general name. ⚠ The author's line is about logic
+        already use, given a general name.  The author's line is about logic
         BURIED in Python, not about the direction of a call.
 
         See docs/design/machine.md#reaching.
@@ -1401,14 +1401,14 @@ class Machine:
         an expert -- a rule that had to name one would be choosing the callee,
         which is the thing selection exists to do.
 
-        ⚠ Returns None if the push was refused, and a refusal is DEPOSITED: a
+         Returns None if the push was refused, and a refusal is DEPOSITED: a
         consultation that returned nothing and one that was never opened are two
         different things, and the second is the agent's own business to react to.
         """
         nodes = [n for n in nodes
                  if n is not None and not self.g.has_var(n)]
         if not nodes:
-            # ⚠ Ground only, and silently so -- the same judgement `_spend_one`
+            #  Ground only, and silently so -- the same judgement `_spend_one`
             # makes about `attend($x)` naming a variable the move did not bind.
             # A frame about no one is not a frame.
             return None
@@ -1420,7 +1420,7 @@ class Machine:
                        licence)
         key = (expert, frozenset(nodes))
         if any((f.expert, frozenset(f.on)) == key for f in self._frames):
-            # ⚠ The cycle test is on the PAIR -- the expert AND what it is being
+            #  The cycle test is on the PAIR -- the expert AND what it is being
             # asked about -- never on the expert alone. `A -> B -> A` about
             # something NEW is ordinary recursion and must stay allowed; the same
             # expert on the same nodes is the loop. `probes/experts.py` keys on
@@ -1457,12 +1457,12 @@ class Machine:
         which is what `probes/experts.py` does today, re-running the caller from
         the top because there is nothing to resume into.
 
-        ⚠⚠ The frame's own `attention` claims are DENIED, and nothing else is
+         The frame's own `attention` claims are DENIED, and nothing else is
         touched. Everything the frame concluded stands: popping a set of graph
         changes is a different feature, it does not exist, and it is not wanted.
         """
         if len(self._frames) - 1 <= self._floor:
-            # ⚠ The root is not popped. Whether `stop` should BE *pop the root*
+            #  The root is not popped. Whether `stop` should BE *pop the root*
             # is elegant and not required; until it is, a pop with nothing to
             # return to is declined on the record rather than raised, because a
             # corpus that pops too often is arguing with itself and that is its
@@ -1508,7 +1508,7 @@ class Machine:
     def _expert_pool(self, expert: Optional[NodeId]) -> List["Rule"]:
         """The rules this expert may consider, read off the graph.
 
-        ⚠ Read, never kept: a registry built at load could not see a `knows`
+         Read, never kept: a registry built at load could not see a `knows`
         a rule concluded, and an ordinary rule can conclude one.
         """
         if expert is None:
@@ -1577,7 +1577,7 @@ class Machine:
         version of the same defence, which is what makes a weighted SUM safe
         here where a raw one was not.
 
-        ⚠ Computed once, at the first pick, over the whole KB as loaded. Pools
+         Computed once, at the first pick, over the whole KB as loaded. Pools
         are read and never kept, and `knows($e, $r)` can be concluded mid-run,
         so an expert's actual pool can GROW after its scores were computed. The
         two facts are in tension by design rather than by oversight.
@@ -1599,7 +1599,7 @@ class Machine:
     def _pick_expert(self, nodes):
         """Which expert a frame about `nodes` belongs to, by TF-IDF.
 
-        ⚠⚠⚠ **Unarguable, and knowingly so.** Like attention it is life or
+         **Unarguable, and knowingly so.** Like attention it is life or
         death -- an expert that is never picked cannot object that it was not --
         and §19 already answered this shape of problem. The answer was never a
         veto over the choice: *recall may be incomplete about what to do; it may
@@ -1607,7 +1607,7 @@ class Machine:
         recall entirely, so the mitigation for an unarguable selection is not
         making it arguable, it is knowing what must not ride on it.
 
-        Returns `(expert or None, [(expert, hundredths) ...])`. ⚠ **None when
+        Returns `(expert or None, [(expert, hundredths) ...])`.  **None when
         nothing discriminates.** A score of zero everywhere means the terms are
         in every pool or in none, and picking the first expert declared would be
         a coin flip wearing a mechanism's clothes -- so the frame keeps the
@@ -1661,7 +1661,7 @@ class Machine:
         if self._claims(prop):
             return False
         self._note(prop, licence)
-        # ⚠ Recorded against the frame that made it, so a pop denies exactly
+        #  Recorded against the frame that made it, so a pop denies exactly
         # what its own line of work claimed and nothing the line below did.
         self._frames[-1].claimed.append(node)
         return True
@@ -1669,7 +1669,7 @@ class Machine:
     def _attend_written(self, wrote) -> None:
         """What a move just wrote goes on the queue, at weight 1.
 
-        ⚠⚠⚠ Backed out TWICE before (20d, 20h) and back only because the piece
+         Backed out TWICE before (20d, 20h) and back only because the piece
         it was missing now exists. Everything one move writes arrives at the
         same depth, so the queue alone cannot tell those nodes apart -- and a
         queue permanently full of undifferentiated nodes made the agent chase
@@ -1679,7 +1679,7 @@ class Machine:
         just happened*; a multiplier is *and a lesson says this part mattered*.
         """
         for e in reversed(tuple(wrote or ())):
-            # ⚠ NOT the agent's own record-keeping. `spent`, `did`, `goal` and
+            #  NOT the agent's own record-keeping. `spent`, `did`, `goal` and
             # the rest are how the machinery remembers what it did, not things
             # the world is about -- and a queue full of them is a queue that
             # says nothing about the situation.
@@ -1705,14 +1705,14 @@ class Machine:
     def _push_attention(self, node: NodeId, weight: int = 1) -> None:
         """To the top, and whatever falls off the bottom is forgotten.
 
-        ⚠ Re-attending something already in the queue MOVES it up rather than
+         Re-attending something already in the queue MOVES it up rather than
         adding it twice: a thing thought about twice is one thing thought about
         recently, and a queue that held duplicates would let one node crowd out
         everything else the agent knows it is doing.
         """
         queue = self._frames[-1].queue
         if node in self._evicted:
-            # ⚠⚠⚠ **The number the stack has to justify itself against.** A node
+            #  **The number the stack has to justify itself against.** A node
             # that fell off the bottom and is wanted AGAIN is an outer focus a
             # sub-line evicted while it was still live -- the agent rediscovering
             # by ordinary matching what it already knew it was doing. Counted
@@ -1731,12 +1731,12 @@ class Machine:
     def _unattend(self, licence: Optional[NodeId] = None) -> int:
         """Stop thinking about whatever it was -- `reset`, for attention.
 
-        ⚠ **Denied, not forgotten.** *The agent stopped attending to this here*
+         **Denied, not forgotten.** *The agent stopped attending to this here*
         is dated and attributable; dropping a Python set is not readable by any
         rule and cannot be argued with. That is `docs/deposit-dont-decide.md`
         applied to the one piece of state a postcondition can now write.
 
-        ⚠⚠ And something must say it. Attention accumulates otherwise, and
+         And something must say it. Attention accumulates otherwise, and
         attention that names everything narrows nothing -- measured in
         `ugm.selftest`. A buff had `LIFE` for this reason; a claim has a denial,
         and a corpus decides when.
@@ -1760,7 +1760,7 @@ class Machine:
         only the machinery can check it, because subsumption runs the pattern
         against the entry and here the entry is the generic one.
 
-        ⚠ Cheap for `_forbid`'s reason: indexed by what is being written, so it
+         Cheap for `_forbid`'s reason: indexed by what is being written, so it
         costs nothing on a write that is not an attempt, and the palette is
         walked only for one that is.
         """
@@ -1777,7 +1777,7 @@ class Machine:
             if len(sig) != 1 or not self._claims(node):
                 continue
             # ⭐⭐⭐ The palette is the AUTHOR's, and this is what makes that true
-            # rather than conventional. ⚠ The affordance is not refused — a
+            # rather than conventional.  The affordance is not refused — a
             # corpus may say what it likes, and a claim ABOUT the palette is
             # not a claim ON it.
             # →
@@ -1846,7 +1846,7 @@ class Machine:
         """Nothing applies -- but is that because a domain is out of mind? (§19)
 
         §19's carve-out for the fourth time, and the argument transfers whole.
-        ⚠ Only when something is outstanding, and running it without that is
+         Only when something is outstanding, and running it without that is
         how the shape became clear.
 
         See docs/design/machine.md#recover.
@@ -1930,7 +1930,7 @@ class Machine:
                 licence=self.g.rel(self.GOAL, wanted), source=self.KB, mention=True,
             )
             stopped = True
-        # ⭐⭐⭐ And an ATTEMPT nobody resolved, which is the same claim. ⚠ It has
+        # ⭐⭐⭐ And an ATTEMPT nobody resolved, which is the same claim.  It has
         # to be HERE and not in a watchdog keyed on quiet, and that is the
         # whole finding.
         # → docs/design/machine.md#and-an-attempt-nobody-resolved-which-is-t
@@ -1941,7 +1941,7 @@ class Machine:
 
         ⭐⭐⭐ A goal still open and a request still outstanding are the same
         claim -- *the agent was asked for something and it did not happen* --
-        so both go on the record as open and both veto a stop once. ⚠ Called
+        so both go on the record as open and both veto a stop once.  Called
         from BOTH endings, and that is the whole of it.
 
         See docs/design/machine.md#notice-attempts.
@@ -1958,7 +1958,7 @@ class Machine:
             if (seat, asked) in self._noticed:
                 continue
             self._noticed.add((seat, asked))
-            # ⚠⚠⚠ The machinery says this, not a bundled watchdog, and the
+            #  The machinery says this, not a bundled watchdog, and the
             # reason is measured rather than aesthetic.
             # →
             # docs/design/machine.md#the-machinery-says-this-not-a-bundled-wat
@@ -1995,7 +1995,7 @@ class Machine:
     def _wake(self) -> bool:
         """The loop found nothing to do. Say so, in the graph, once per seat.
 
-        ⚠ And notice what is still outstanding while there is still a tick to
+         And notice what is still outstanding while there is still a tick to
         react in -- the same call _enough makes before stopping satisfied.
 
         See docs/design/machine.md#wake.
@@ -2019,7 +2019,7 @@ class Machine:
         """Register a function that is COMPUTED during a match (§12, §22).
 
         { +purse($a, $x), +cost($i, $c), minus($x, $c) as $new } ⭐⭐⭐ Purity is
-        structural here, not declared. ⚠ It is registered in the CORPUS's
+        structural here, not declared.  It is registered in the CORPUS's
         scope, for Loader.answerer's reason: a relation is a name, and a name
         minted beside the corpus's table is a relation nobody...
 
@@ -2037,13 +2037,13 @@ class Machine:
     def answerer(self, name: str, request: str, fn) -> "Answerer":
         """Register something that answers a request. §21's debt, as data.
 
-        A tool is not a new kind of thing. ⚠ The name goes in the <...>
+        A tool is not a new kind of thing.  The name goes in the <...>
         namespace, which is the namespace of STATEMENTS, because a tool is
         something other statements are about.
 
         See docs/design/machine.md#answerer.
         """
-        # ⚠ request may be a NodeId, and for a corpus relation it must be.
+        #  request may be a NodeId, and for a corpus relation it must be.
         # → docs/design/machine.md#request-may-be-a-nodeid-and-for-a-corpus-re
         try:
             inspect.signature(fn).bind(None, None)
@@ -2084,7 +2084,7 @@ class Machine:
             if a.request is not rel:
                 continue
             if not self._claims(self.g.rel(self.ANSWERS, a.node, a.request)):
-                # ⚠⚠⚠ §19's carve-out, a fifth time, and the argument transfers
+                #  §19's carve-out, a fifth time, and the argument transfers
                 # verbatim: recall may be incomplete about what to DO, never
                 # about how to READ.
                 # →
@@ -2224,7 +2224,7 @@ class Machine:
         subgoal is already satisfied at the moment the subgoal appears; if
         forward reasoning satisfies it three ticks later, nothing asks again,
         because re-concluding +check(p, w) restates what the chain says and
-        quiescence drops it. ⚠ What an occasion may be is the whole question,
+        quiescence drops it.  What an occasion may be is the whole question,
         and it is not free choice.
 
         See docs/design/machine.md#again.
@@ -2273,7 +2273,7 @@ class Machine:
         self._acted.add(e.node)
         (what,) = self.g.members(e.proposition)
         if self.replaying:
-            # ⚠⚠⚠ Replaying a session must not re-do it.
+            #  Replaying a session must not re-do it.
             # → docs/design/machine.md#replaying-a-session-must-not-re-do-it-t
             self.gate.write(
                 self.g.rel(self.TAKEN, what), "+",
@@ -2301,7 +2301,7 @@ class Machine:
     def _adopt(self, e: Entry) -> None:
         """Make a rule the graph describes into a rule the loop reads.
 
-        adopt(<R>) ⭐⭐⭐ reify went one way. ⚠ Refused inside a supposition, and
+        adopt(<R>) ⭐⭐⭐ reify went one way.  Refused inside a supposition, and
         this is containment rather than caution.
 
         See docs/design/machine.md#adopt.
@@ -2319,10 +2319,10 @@ class Machine:
         connective, ant, con = built
         # Through `RuleSet.rule`, so an adopted rule is a rule in every respect:
         # reified, indexed by what it concludes, and visible to `_recall` on the
-        # next tick. ⚠ Its name is the node's, so `why()` and the report print
+        # next tick.  Its name is the node's, so `why()` and the report print
         # something a reader can look up rather than ninety characters of its
         # own structure.
-        # ⚠ The node the graph described, never a fresh one. See `RuleSet.rule`.
+        #  The node the graph described, never a fresh one. See `RuleSet.rule`.
         self.rules.rule(connective, ant, con, self.g.show(node), node)
 
     def _compose(self, e: Entry) -> None:
@@ -2331,7 +2331,7 @@ class Machine:
         compose(<a>, <b>) ⟹ composed(<c>, <a>, <b>) §4 calls composition the
         design's larger optimisation -- it removes steps rather than making
         them cheaper -- and it had no trigger: the function existed and only
-        Python called it, which is where adopt was before it was a door. ⚠
+        Python called it, which is where adopt was before it was a door. 
         Refused inside a supposition, and it is _adopt's argument exactly.
 
         See docs/design/machine.md#compose.
@@ -2339,7 +2339,7 @@ class Machine:
         members = self.g.members(e.proposition)
         if len(members) != 2:
             return None
-        # ⚠⚠⚠ has_var is not a usable guard here, and copying _adopt's was the
+        #  has_var is not a usable guard here, and copying _adopt's was the
         # bug.
         # → docs/design/machine.md#has-var-is-not-a-usable-guard-here-and
         first = self.rules.by_node.get(members[0])
@@ -2371,7 +2371,7 @@ class Machine:
         is not read -- amending a rule is denying one of its members, and that
         has to be what the reader sees.
 
-        ⚠ **Position is what orders the members**, not the order the facts were
+         **Position is what orders the members**, not the order the facts were
         deposited in. Minting order would reproduce authored order by accident
         for anything `reify` wrote, and a check over it could never fail.
         """
@@ -2443,11 +2443,11 @@ class Machine:
         deleted (20k, 20l). What a caller of `tick` wants is *step once and
         look*, and this is that: the same loop `run` is, bounded to one move.
 
-        ⚠ The table PERSISTS across calls, or a caller stepping by hand would
+         The table PERSISTS across calls, or a caller stepping by hand would
         lose every buff between one tick and the next and be measuring a
         different agent each time.
 
-        ⚠⚠ **Measured 2026-08-21, and that warning is currently INERT.** With
+         **Measured 2026-08-21, and that warning is currently INERT.** With
         the buffs retired a score is `STANDING` or `FLOOR` and only `absorb`
         moves it, so a rebuilt table and a kept one agree in both fields that
         decide a move -- `probes/experts.py` runs a consultation chain both ways
@@ -2468,7 +2468,7 @@ class Machine:
 
         stopped is not a search that found nothing (§9, §15). ⭐⭐⭐ And the bound
         says so, which is §21's defect for the eleventh time and the one a
-        foreign corpus asked for first. ⚠ Deposited only when the loop is still
+        foreign corpus asked for first.  Deposited only when the loop is still
         WORKING at the limit.
 
         See docs/design/machine.md#run.
@@ -2505,7 +2505,7 @@ class Machine:
             return live
 
         # Nothing DERIVED narrows this step, and finding out why was a
-        # session's clearest negative result. ⚠ The cap used to order by
+        # session's clearest negative result.  The cap used to order by
         # prefer(<R>, key, n) before cutting.
         # →
         # docs/design/machine.md#nothing-derived-narrows-this-step-and-finding-o
@@ -2529,7 +2529,7 @@ class Machine:
     def _attended(self) -> List[NodeId]:
         """What the agent is thinking ABOUT: the nodes it claims `attention` of.
 
-        The counterpart to _in_play, and the difference is the point. ⚠ Ground
+        The counterpart to _in_play, and the difference is the point.  Ground
         only.
 
         See docs/design/machine.md#attended.
@@ -2556,10 +2556,10 @@ class Machine:
         lost 48 conclusions because a queue full of the last move's nodes
         decided which rules were matched at all.
 
-        ⚠ Ordered by the QUEUE where a claim is in it, so a claim just made
+         Ordered by the QUEUE where a claim is in it, so a claim just made
         outranks one standing since the corpus loaded.
         """
-        # ⚠⚠⚠ **GRAPH order for the tail, and it was a SET.** `for n in {...}`
+        #  **GRAPH order for the tail, and it was a SET.** `for n in {...}`
         # iterated by node id, so which standing claim lifted hardest was decided
         # by how many atoms the machinery happened to mint before the corpus was
         # loaded -- and adding one reserved name reordered a shortlist in a check
@@ -2578,7 +2578,7 @@ class Machine:
         """Every standing `attention` claim, as `(node, weight)`, in graph order.
 
         ⭐⭐⭐ A claimed attention may carry its evidence count, exactly as a
-        spent one does. ⚠ A weight that is not a numeral is ignored rather than
+        spent one does.  A weight that is not a numeral is ignored rather than
         refused: a numeral is an atom whose name reads as a number, and
         attention(x, soon) is a claim about...
 
@@ -2607,7 +2607,7 @@ class Machine:
     def _attention_weights(self) -> dict:
         """Node -> the multiplier a lesson put on it, for the lift.
 
-        ⚠ The STRONGER of the two, never the sum. A node both spent and
+         The STRONGER of the two, never the sum. A node both spent and
         claimed is not twice as salient, and adding them would make the weight a
         popularity count -- the same judgement `_pull` makes about a rule
         reachable from two attended nodes.
@@ -2671,7 +2671,7 @@ class Machine:
             self.chain.succeed(self.chain.now, licence)
         mention = self._is_mention(app)
 
-        # ⭐⭐⭐ §6's price, charged by §6's own test. ⚠ That is the whole of the
+        # ⭐⭐⭐ §6's price, charged by §6's own test.  That is the whole of the
         # difference between the two matchers.
         # → docs/design/machine.md#6-s-price-charged-by-6-s-own-test-a
         if self.rules.is_stratum0(app.rule):
@@ -2679,14 +2679,14 @@ class Machine:
             return ()
 
         wrote: List[Entry] = []
-        # ⭐⭐⭐ A rule may introduce a thing that did not exist. ⚠ One node per
+        # ⭐⭐⭐ A rule may introduce a thing that did not exist.  One node per
         # distinct marker per APPLICATION, so +a(+p) and +b(+p) in one
         # consequent are about the same new thing, and two firings are about
         # two things.
         # → docs/design/machine.md#a-rule-may-introduce-a-thing-that-did-not
         marks = self._markers(app.rule)
         if marks:
-            # ⚠⚠⚠ The veto runs before the MINT, not only before the deposit.
+            #  The veto runs before the MINT, not only before the deposit.
             # An application whose EVERY conclusion the gate would turn away
             # brings nothing into being: the marker-form conclusions are
             # written instead -- and refused, so the record is the one
@@ -2869,7 +2869,7 @@ class Machine:
         """
         added = 0
         for m in app.rule.consequent:
-            # ⚠⚠⚠ The count is taken BEFORE substitution, and that is the whole
+            #  The count is taken BEFORE substitution, and that is the whole
             # of the fixpoint.
             # →
             # docs/design/machine.md#the-count-is-taken-before-substitution-an
@@ -2890,7 +2890,7 @@ class Machine:
             self.g.rel(self.g.relation_of(grounded), *self.g.members(grounded))
             if self.g.count() != before:
                 added += 1
-            # ⚠⚠⚠ A structural fact enters no delta, so nothing re-triggers a
+            #  A structural fact enters no delta, so nothing re-triggers a
             # rule that reads it.
             # →
             # docs/design/machine.md#a-structural-fact-enters-no-delta-so-noth
@@ -2922,7 +2922,7 @@ class Machine:
         different: *recall for stratum 0 is all of them, every time -- the set
         is small and fixed, so the policy is a different table, not a different
         mechanism.* Match is the shared one, the rules are ordinary rules, and
-        the conclusion is minted by the shared _mint_structure. ⚠ Each LAYER to
+        the conclusion is minted by the shared _mint_structure.  Each LAYER to
         fixpoint before the next begins, because a negated member reads a lower
         layer and must read a finished one (RuleSet.strata).
 
@@ -2962,7 +2962,7 @@ class Machine:
         """Which domains are not in mind. `dormant` until something claims
         `due` -- the same pair that governs a rule, and for the same reason.
 
-        ⚠⚠⚠ Read by BOTH the kept state and the delta that feeds incremental
+         Read by BOTH the kept state and the delta that feeds incremental
         matching, which is why it is a method rather than a local. Filtering
         only the state left the delta unfiltered, so a fact in a dormant domain
         was invisible to the state and still matched once on the tick it
@@ -2980,19 +2980,19 @@ class Machine:
 
         current_state is §4's walk and the design calls it the single most
         consequential cost: it collects every proposition the chain has ever
-        claimed on this branch and resolves each one. ⚠ Order is part of the
+        claimed on this branch and resolves each one.  Order is part of the
         answer here too, and more sharply than in matching.
 
         See docs/design/machine.md#kept.
         """
         # ⭐⭐⭐ What is in mind, for FACTS. The agent has always narrowed which
         # rules come to mind -- dormant until something claims due -- and never
-        # which facts do. ⚠ Unloading is safe to be wrong about: worst case the
+        # which facts do.  Unloading is safe to be wrong about: worst case the
         # domain comes back.
         # → docs/design/machine.md#what-is-in-mind-for-facts-the-agent-ha
         hidden = self._out_of_mind()
         seat = self.chain.now
-        # ⚠ `_merges` is part of the key: a merge changes which entries answer
+        #  `_merges` is part of the key: a merge changes which entries answer
         # which member, and the kept state is MAINTAINED rather than rebuilt --
         # so without this the state keeps answering with the index it had
         # before two things became one.
@@ -3007,7 +3007,7 @@ class Machine:
             for e in reversed(current_state(self.chain)):
                 if e.source in hidden:
                     continue
-                # ⚠ Keyed by the proposition alone. It used to be
+                #  Keyed by the proposition alone. It used to be
                 # `(proposition, span)`, because two recognitions over different
                 # stretches superseded nothing of each other -- and a span was a
                 # LOCUS. With no locus there is one order and the later claim
@@ -3066,7 +3066,7 @@ class Machine:
     def _state(self) -> List[Entry]:
         """The kept state as a list, newest-first. See `_kept`.
 
-        ⚠ The list is the Situation's own and is rebuilt only when the state
+         The list is the Situation's own and is rebuilt only when the state
         changes, so a caller that sorted it in place would be sorting the
         state. Every caller iterates.
         """
@@ -3100,13 +3100,13 @@ class Machine:
     ) -> List[Application]:
         """What could apply here -- carried across ticks instead of rediscovered.
 
-        ⭐⭐⭐ The loop was stateless between ticks. ⚠ And an application can stop
+        ⭐⭐⭐ The loop was stateless between ticks.  And an application can stop
         being applicable, which is the part that is not merely bookkeeping.
 
         See docs/design/machine.md#applications.
         """
         hidden = self._out_of_mind()
-        # ⚠⚠⚠ **What is in mind is part of the cache key**, and leaving it out is
+        #  **What is in mind is part of the cache key**, and leaving it out is
         # a silent bug rather than a slow one: while a domain is dormant its
         # entries are filtered out of the delta and the cursors move past them
         # anyway. Wake the domain and those facts are behind every rule's cursor
@@ -3148,7 +3148,7 @@ class Machine:
                 if any(self.g.relation_of(mm.pattern) in grown
                        for mm in r.antecedent):
                     cache["rule_pos"].pop(r.node, None)
-                    # ⚠⚠⚠ ...and its cached applications with it, because a
+                    #  ...and its cached applications with it, because a
                     # full re-match can only ADD.
                     # →
                     # docs/design/machine.md#and-its-cached-applications-with-it-be
@@ -3206,7 +3206,7 @@ class Machine:
                     self._retire(cache, k)
 
         # 2. Full match for rules newly come to mind; delta match for the rest.
-        # ⚠⚠⚠ The position is PER RULE, and a global one is wrong.
+        #  The position is PER RULE, and a global one is wrong.
         # →
         # docs/design/machine.md#2-full-match-for-rules-newly-come-to-mind-delt
         deltas: dict = {}
@@ -3255,11 +3255,11 @@ class Machine:
                 for c in a.consumed:
                     cache["by_prop"].setdefault(c.proposition, set()).add(k)
 
-        # ⚠⚠⚠ Order is part of the answer, not a detail of how it was found.
+        #  Order is part of the answer, not a detail of how it was found.
         # → docs/design/machine.md#order-is-part-of-the-answer-not-a-detail
         rank = {r.node: i for i, r in enumerate(proposed)}
         live = set(rank)
-        # ⚠ Which `defeat` reads, and which is O(rules) rather than O(candidates)
+        #  Which `defeat` reads, and which is O(rules) rather than O(candidates)
         # -- so it is built whether or not the list is.
         self._matched_rules = {
             node: proposed[rank[node]]
@@ -3279,7 +3279,7 @@ class Machine:
         out = [cache["apps"][k] for k in cache["live"] if k[0] in live]
         out.sort(key=lambda a: (rank[a.rule.node],
                                 tuple(order.get(c.node, last) for c in a.consumed)))
-        # ⚠⚠⚠ What defeat must NOT be given is this list, and that is the whole
+        #  What defeat must NOT be given is this list, and that is the whole
         # difficulty of the change.
         # → docs/design/machine.md#what-defeat-must-not-be-given-is-this-li
         return out
@@ -3296,7 +3296,7 @@ class Machine:
         """
         out = self._applications(proposed, state, materialise=True)
         out = [a for a in out if self._would_change(a)]
-        # ⚠⚠⚠ Sorted, because arbitrate picks the FIRST among applications of
+        #  Sorted, because arbitrate picks the FIRST among applications of
         # one rule and until now nothing said which that was.
         # → docs/design/machine.md#sorted-because-arbitrate-picks-the-firs
         return sorted(out, key=_order_key)
@@ -3427,7 +3427,7 @@ class Machine:
         # machinery intact and lets refraction filter what survives it.
         if not self._would_change(app):
             return False
-        # ⚠⚠⚠ An absence is re-asked at the door. A candidate matched while
+        #  An absence is re-asked at the door. A candidate matched while
         # `no p` held may be applied ticks later, and nothing consumed records
         # the absence -- there is no entry to go stale, so the premises-still-
         # current check cannot catch it. Skeleton relations are exempt: their
@@ -3450,12 +3450,12 @@ class Machine:
 
         not a step. Without this the loop would reapply every rule forever, and
         *nothing left to do* would be unsayable. ⭐⭐⭐ And it was the agent
-        recomputing its entire option set on every move. ⚠ What the measurement
+        recomputing its entire option set on every move.  What the measurement
         corrected.
 
         See docs/design/machine.md#would-change.
         """
-        # ⚠⚠⚠ A stratum-0 verdict is never cached, and finding out why took a
+        #  A stratum-0 verdict is never cached, and finding out why took a
         # runaway.
         # → docs/design/machine.md#a-stratum-0-verdict-is-never-cached-and-f
         if self.rules.is_stratum0(app.rule):
@@ -3486,7 +3486,7 @@ class Machine:
         return answer
 
     def _decide_change(self, app: Application, touched: List[NodeId]) -> bool:
-        # ⚠⚠⚠ A stratum-0 rule is asked about the GRAPH, not the state.
+        #  A stratum-0 rule is asked about the GRAPH, not the state.
         # → docs/design/machine.md#a-stratum-0-rule-is-asked-about-the-graph
         if self.rules.is_stratum0(app.rule):
             for m in app.rule.consequent:
@@ -3571,7 +3571,7 @@ class Machine:
         """For each relation name: how often it is READ (an antecedent member)
 
         and WRITTEN (a consequent member, or a fact deposited). ⭐⭐⭐ Meaning in
-        an open class is given by the web. ⚠ A VARIABLE in relation position is
+        an open class is given by the web.  A VARIABLE in relation position is
         not a name, and reporting one was this instrument's own bug.
 
         See docs/design/machine.md#web.
@@ -3604,11 +3604,11 @@ class Machine:
     def unwebbed(self, rules=None) -> List[str]:
         """Names some rule READS that nothing anywhere writes.
 
-        ⚠ **The engine's own names are excluded, because the MACHINERY supplies
+         **The engine's own names are excluded, because the MACHINERY supplies
         them**: the bundle reads `arrived`, `emitted`, `taken` and `quiet` and
         writes none of them, correctly. Without this the bundle reports 11.
 
-        ⚠⚠ **Only this direction is a signal, and it was measured rather than
+         **Only this direction is a signal, and it was measured rather than
         assumed.** *Written and never read* reports 11 to 17 names on healthy
         corpora -- the machinery's bookkeeping, plus a corpus's own OUTPUTS,
         since nobody reads an answer. That was `ugm.harmony`'s false-positive
@@ -3622,7 +3622,7 @@ class Machine:
     def holds(self, proposition: NodeId) -> Optional[str]:
         """What the agent believes about this proposition, or None.
 
-        ⚠ It used to take a `locus` -- *what did you believe THEN* -- and that
+         It used to take a `locus` -- *what did you believe THEN* -- and that
         went with the locus itself. History is not lost: `in_delta`, `pred`,
         `anc` and `entry_of` are ordinary structural relations, so asking about
         the past is a rule a corpus writes rather than a second Python read.
@@ -3752,7 +3752,7 @@ class Machine:
         apart here would mean a tool could give a bad answer, cost the agent a
         goal, and be the one thing `blame` could not see.
 
-        ⚠ Rules first, so a tool cannot shadow a rule if a name is ever reused.
+         Rules first, so a tool cannot shadow a rule if a name is ever reused.
         The loader already refuses that at authoring; this is the second door.
         """
         out = {r.node: r for r in self.rules.rules}
@@ -3780,7 +3780,7 @@ class Machine:
 
         Offline learning crossing an episode boundary is a corpus being
         written, and a corpus is text -- so what an agent learned is readable,
-        editable and arguable rather than a weight somewhere. ⚠ Credit is not
+        editable and arguable rather than a weight somewhere.  Credit is not
         written any more, and that is a loss, stated.
 
         See docs/design/machine.md#learned.
@@ -3806,7 +3806,7 @@ class Machine:
             if node in seen:
                 continue
             seen.add(node)
-            # ⚠⚠⚠ A lesson may only name something that OUTLIVES the episode.
+            #  A lesson may only name something that OUTLIVES the episode.
             # A labelless entity is minted while the run goes and is a
             # different node next time, so `attention(#1501, 3)` would name
             # nothing in the episode that loads it -- and `#` opens a comment,
@@ -3829,7 +3829,7 @@ class Machine:
         is carried for identity and measurement only; **nothing written from
         this mentions it**, which is the point of the rewrite.
 
-        ⚠ Tools are blamed and credited -- `_statements` puts them on the walk
+         Tools are blamed and credited -- `_statements` puts them on the walk
         deliberately -- but never promoted. A lesson naming a tool would cost
         nothing, break nothing, and look exactly like one that works, which is
         the failure mode `ugm.bundle` exists to catch.
@@ -3851,14 +3851,14 @@ class Machine:
 
         The tests of a learned decision tree, and they are read off the trail
         rather than engineered: the ground propositions on the support of what
-        was lost, less four kinds that cannot discriminate. ⚠ All of them, as a
+        was lost, less four kinds that cannot discriminate.  All of them, as a
         conjunction, and the choice is made on which error is recoverable --
         the same judgement forgoing made.
 
         See docs/design/machine.md#circumstances.
         """
         skip = set(self._bookkeeping) | {self.DOING, self.GOAL, self.DID, self.EMITTED}
-        # ⚠ The CHOOSING rule's antecedent only, not every blamed rule's. The
+        #  The CHOOSING rule's antecedent only, not every blamed rule's. The
         # blame walk reaches the physics too (`<cost>`, `<extra>`), and the
         # physics rules are precisely the ones whose antecedents name the
         # damaging circumstance -- so excluding theirs deletes the signal. Found
@@ -3915,7 +3915,7 @@ class Machine:
         """What the passed-up route is ABOUT and the route that harmed is not.
 
         ⭐⭐⭐ This is the whole of what it takes to key a lesson on a NODE
-        instead of on a rule, and it needs no new bookkeeping. ⚠ The test is
+        instead of on a rule, and it needs no new bookkeeping.  The test is
         the LIFT ITSELF, and it has to be, because a proxy for it wrote a
         lesson that could not work.
 
@@ -3958,7 +3958,7 @@ class Machine:
         Every constant becomes a variable, shared across the conjunction so
         that completes(jug1, heirlooms), precious(jug1) becomes completes($v0,
         $v1), precious($v0) -- the join is what makes it a claim about a *kind*
-        of situation rather than a longer way of naming this one. ⚠ names is an
+        of situation rather than a longer way of naming this one.  names is an
         OUT parameter, and it is not a convenience.
 
         See docs/design/machine.md#generalise.
@@ -3981,7 +3981,7 @@ class Machine:
         """One learned rule per promoted alternative, plus its `standing` line.
 
         ⭐⭐⭐ The BINDER is always in the antecedent, and it is what makes an
-        attention lesson generalise at all. ⚠ The name carries no rule id:
+        attention lesson generalise at all.  The name carries no rule id:
         <learned-water-tap> is the want and the binder's relation.
 
         See docs/design/machine.md#advice-rows.
@@ -4007,7 +4007,7 @@ class Machine:
     def refine(self, cost, score: int = 3) -> List[str]:
         """Drop the tests that do not pay. §4's *compose what never surprised*,
 
-        from the other end: decompose what turns out not to matter. ⚠ What this
+        from the other end: decompose what turns out not to matter.  What this
         is NOT is mutation.
 
         See docs/design/machine.md#refine.
@@ -4018,7 +4018,7 @@ class Machine:
         def rows_for(keep: List[NodeId]) -> List[str]:
             return self._advice_rows(keep, harmed, score)
 
-        # ⚠⚠⚠ STEEPEST descent, not first-improvement, and the difference is
+        #  STEEPEST descent, not first-improvement, and the difference is
         # not a refinement of a refinement -- it decides whether this works at
         # all.
         # → docs/design/machine.md#steepest-descent-not-first-improvement-and
@@ -4088,7 +4088,7 @@ class Machine:
         another way of getting `w`. Asked once, here, where a lesson is being
         drawn -- it used to be asked on every move, and deposited.
 
-        ⚠ What makes two rules alternatives is that they answer the same want,
+         What makes two rules alternatives is that they answer the same want,
         not that they conclude the same thing, which is `_wants`'s argument and
         the reason this reads goals rather than consequents.
         """
@@ -4131,14 +4131,14 @@ class Machine:
         bundled = {r.node for r in self.bundle}
         rule_by_node = {r.node: r for r in self.rules.rules}
 
-        # ⚠ `show` prints a sign atom as `+`, and the surface reads a sign in
+        #  `show` prints a sign atom as `+`, and the surface reads a sign in
         # ARGUMENT position as `plus`. So a rendered `says(user, $p, +)` does
         # not reparse -- rendering has to speak the surface's language, not the
         # graph's printing convention. Found by reading the first save file.
         signs = {v: k for k, v in self.reserved.items()
                  if k in ("plus", "minus", "unsure")}
 
-        # ⚠⚠⚠ A LABELLESS ENTITY HAS NO NAME TO RENDER, and `show` prints one
+        #  A LABELLESS ENTITY HAS NO NAME TO RENDER, and `show` prints one
         # as `#1501` -- which the tokeniser reads as a COMMENT, so a session
         # containing one saved a file that could not be loaded back at all.
         # Found by writing the guide, which is the second time the save file
@@ -4177,7 +4177,7 @@ class Machine:
             return f"{surface(rel)}({', '.join(surface(x) for x in self.g.members(n))})"
 
         def member_text(m) -> str:
-            # ⚠ `no p($x)` is a WORD in sign position, so it needs the space
+            #  `no p($x)` is a WORD in sign position, so it needs the space
             # that `+p($x)` must not have. Without it the file said
             # `noserved($p)` -- one atom, a different rule, and no error.
             sep = " " if m.sign == ABSENT else ""
@@ -4237,7 +4237,7 @@ class Machine:
         *what it was told* is a complete description of *what it knows*. And it
         is a file a person can read, diff and argue with, which a pickle is not.
 
-        ⚠ What it cannot carry: a tool's answers. An answerer is a Python
+         What it cannot carry: a tool's answers. An answerer is a Python
         function, so a resumed session must re-register its tools, and a SAMPLED
         answer would not reproduce at all -- §21 already records that a real
         model needs its seed on the record before it is reproducible reasoning.
@@ -4296,7 +4296,7 @@ class Machine:
         """
         out: List[str] = []
         holds = lambda p: self.holds(p)
-        # ⚠ `has_var` is NOT a filter here. A subgoal backward reading has not
+        #  `has_var` is NOT a filter here. A subgoal backward reading has not
         # bound yet -- `heat($a, kettle)` -- is exactly what a reader needs to
         # see, and filtering it emptied the tree and left the subgoals looking
         # like roots. The guard belongs on `goal`, where a description is not a
@@ -4317,7 +4317,7 @@ class Machine:
         for n in live(self.EXPANDS):
             plan, wanted, _rule = self.g.members(n)
             plans.setdefault(wanted, []).append(plan)
-        # ⚠ Not the apparatus's own goals. Backward reading makes `need(...)`
+        #  Not the apparatus's own goals. Backward reading makes `need(...)`
         # and `fits(...)` goals like any other, and shown here they read as
         # things the user asked for -- several of them permanently `BLOCKED`,
         # which is both true and meaningless. A report is about the world the
@@ -4361,7 +4361,7 @@ class Machine:
             out.append("asked for:")
             for w in roots:
                 walk(w, 1, frozenset())
-        # ⚠ From the GRAPH, not from `self.emitted`. That list is a Python
+        #  From the GRAPH, not from `self.emitted`. That list is a Python
         # field holding this process's emissions, so a RESUMED session -- which
         # remembers acting and correctly did not act again -- reported having
         # done nothing. `did(...)` is the claim, and it is what a reader wants:
@@ -4387,7 +4387,7 @@ class Machine:
         correctness, because a missing support link removes a weak link from the
         minimum and the conclusion becomes falsely confident.
 
-        ⚠ It took a `locus` -- *why did you believe that THEN* -- and answering
+         It took a `locus` -- *why did you believe that THEN* -- and answering
         it needed the second index. What it answers now is about the chain's
         end, which is the only standpoint there is.
         """
@@ -4442,7 +4442,7 @@ def leaves(episode) -> List[Tuple[str, str, Tuple[str, ...]]]:
     tests = episode._circumstances(episode._choosers(harmed))
     out = []
     for rule, binder, node, key in episode._regretted(harmed):
-        # ⚠ Rendered TOGETHER, never separately. The tests and the binder share
+        #  Rendered TOGETHER, never separately. The tests and the binder share
         # variables wherever they share a constant, and that join is what makes
         # a leaf a claim about a kind of situation rather than a longer way of
         # naming this one -- `precious($v0), completes($v0, $v1), tap($v2)`.
@@ -4459,7 +4459,7 @@ def leaves(episode) -> List[Tuple[str, str, Tuple[str, ...]]]:
 def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
     """Grow a decision tree with MORE THAN ONE LEAF, from more than one episode.
 
-    refine prunes a single path. ⚠ It still cannot ADD a test no episode saw,
+    refine prunes a single path.  It still cannot ADD a test no episode saw,
     nor merge two leaves into one.
 
     See docs/design/machine.md#induce.
@@ -4501,7 +4501,7 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
         """`attention($v, n)`, or `possible(...)` when nothing was observed.
 
         ⭐⭐⭐ How sure is a WRAPPER, not a field, and this was the argument that
-        eventually deleted grades outright. ⚠ And the test is constant-free,
+        eventually deleted grades outright.  And the test is constant-free,
         which §15 went to some trouble for: observed versus never tried is a
         distinction the trail makes, not a threshold anybody chose.
 
@@ -4513,7 +4513,7 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
     def rows_for(tree) -> List[str]:
         out = []
         for i, (name, key, tests, binder, var) in enumerate(tree):
-            # ⚠ The BINDER survives every prune. A leaf may lose every test and
+            #  The BINDER survives every prune. A leaf may lose every test and
             # still be a rule, because the node it advises attending has to be
             # bound by something -- and a leaf pruned to its binder alone is the
             # generic depth-0 lesson, *whatever plays that part, think about it*.
@@ -4530,7 +4530,7 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
     tree = cand
     best = cost(rows_for(tree))
     while True:
-        # ⚠⚠⚠ ORDER MATTERS ON A PLATEAU, and this is where the search failed.
+        #  ORDER MATTERS ON A PLATEAU, and this is where the search failed.
         # Reaching the good tree needs TWO edits -- drop the unconditional leaf
         # AND drop a test -- each individually neutral.
         # → docs/design/machine.md#order-matters-on-a-plateau-and-this-is-wher
@@ -4556,7 +4556,7 @@ def forest(episodes, cost, trees: int = 3, score: int = 3) -> List[str]:
     """Many trees over different episodes, combined by union.
 
     induce grows one tree from everything the agent has been through, which
-    means one unlucky episode is in every leaf it produces. ⚠ MEASURED, AND IT
+    means one unlucky episode is in every leaf it produces.  MEASURED, AND IT
     DOES NOT PAY -- one tree beats the bag.
 
     See docs/design/machine.md#forest.
@@ -4571,7 +4571,7 @@ def forest(episodes, cost, trees: int = 3, score: int = 3) -> List[str]:
     out: List[str] = []
     for i, rows in enumerate(grown):
         for r in rows:
-            # ⚠ Rename EVERY row of the tree, not the rule alone. The first
+            #  Rename EVERY row of the tree, not the rule alone. The first
             # version prefixed the rule and left `standing(<learned-...>)`
             # pointing at the old name, and the loader refused the corpus --
             # which is `<...>` doing its job: a name that does not resolve is an

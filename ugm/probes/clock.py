@@ -39,7 +39,7 @@ def _run(clock: bool, extra: str = "") -> Dict[str, object]:
     return {
         "entries": [(m.g.show(e.proposition), e.sign)
                     for mo in m.chain.moments for e in mo.delta],
-        # ⚠ Variable-bearing instances are the RULE'S OWN PATTERN, which
+        #  Variable-bearing instances are the RULE'S OWN PATTERN, which
         # `instances_of` returns like any other node. Counting them as stamps
         # made the moment count disagree, and reading one as a number raised.
         "stamps": [m.g.show(n) for n in m.g.instances_of(m.chain.TIME)
@@ -109,7 +109,7 @@ def main() -> int:
          began_a and began_b and began_a != began_b)
 
     read = _run(True, READS)
-    # ⚠ One per SEAT, not one per run. `asking` is minted at every seat the
+    #  One per SEAT, not one per run. `asking` is minted at every seat the
     # register occupies, so a two-moment corpus reads two stamps -- and the
     # first version of this check asserted one, which is the fixture being
     # misread rather than the rule misbehaving.

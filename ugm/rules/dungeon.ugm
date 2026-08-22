@@ -12,7 +12,7 @@
 #     <arith>    calc(op, a, b)          there is no arithmetic in the surface
 #     <compare>  beats(a, b)             ...and no ordering either
 #
-# ⚠ A tool PROPOSES. Every one of them lands `answered(...)`, a record, and it
+#  A tool PROPOSES. Every one of them lands `answered(...)`, a record, and it
 # is a rule below that turns it into a claim about the fight.
 #
 # -- THE ROUND COUNTER IS GONE, and what replaced it is this corpus's own law --
@@ -25,7 +25,7 @@
 # rounds. The reply's proposal was that `at $m` and spans would collapse it,
 # since a round integer is a moment ordinal re-implemented in the corpus.
 #
-# ⚠⚠⚠ **That proposal is wrong, and probing it is what found the right answer.**
+#  **That proposal is wrong, and probing it is what found the right answer.**
 # A locus cannot make a request fresh, because THE READ INHERITS: deposit
 # `roll(d20, hit(a, b))` at a later moment and the chain already answers `+`
 # there, so the application changes nothing and quiescence drops it -- correctly.
@@ -85,7 +85,7 @@ fact +may(hero)
 # turns that into an intention. Delete `<trust-player>` and the declarations sit
 # on the record, believed by nobody, and the hero never swings.
 #
-# ⚠ The round survives HERE and nowhere else, because this is the one place a
+#  The round survives HERE and nowhere else, because this is the one place a
 # claim crosses a boundary. Two agents cannot refer to the same moment, so a
 # declaration names its round the way a person would.
 
@@ -150,7 +150,7 @@ rule <swing> = implies(
     { +attack($a, $d) },
     { +roll(d20, hit($a, $d)) } )
 
-# ⚠ **Only the DICE are spent, and the other two tools are not.** A die is the
+#  **Only the DICE are spent, and the other two tools are not.** A die is the
 # world speaking, so asking twice is two questions and the second must be a
 # genuine change to the chain. `beats(14, 11)` and `calc(sub, 5, 2)` are pure
 # functions: the same question has the same answer for ever, so their records
@@ -186,13 +186,13 @@ rule <subtract> = implies(
       +hp($d, $h) },
     { +calc(sub, $h, $n) } )
 
-# ⚠ **A functional attribute has to retract its own old value.** `hp(g1, 5)` and
+#  **A functional attribute has to retract its own old value.** `hp(g1, 5)` and
 # `hp(g1, 2)` are different propositions, so asserting the second leaves the
 # first standing and the goblin has two hit point totals at once. There is no
 # notion of a key in this design and this is what that costs: every update is a
 # denial and an assertion, authored as a pair.
 #
-# ⚠⚠⚠ **THE FINDING OF THIS DEMO: an event has to be spent, and nothing in the
+#  **THE FINDING OF THIS DEMO: an event has to be spent, and nothing in the
 # design spends it for you.** A fact persists until something denies it, so a
 # rule that models something *happening* re-matches its own trigger for ever.
 # This took two rounds of the same mistake:
@@ -209,7 +209,7 @@ rule <subtract> = implies(
 # Quiescence cannot see either, because each pass genuinely says something new.
 # The rule is: **whatever a rule consumes, it must deny in the same breath** --
 # and since the round counter went, the two dice requests are on that list too.
-# ⚠ **The to-hit roll is a PREMISE here, and it is here to be spent.** It is
+#  **The to-hit roll is a PREMISE here, and it is here to be spent.** It is
 # what established the hit, so `<wound>` genuinely consumes it -- and it has to
 # be named in the antecedent to be denied in the consequent, because a rule may
 # conclude only about variables its antecedent bound. The gate refuses the

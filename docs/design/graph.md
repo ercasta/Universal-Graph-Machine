@@ -74,7 +74,7 @@ What changes here is the STRUCTURAL layer: a node is minted into a
 situation, and a situation sees its own nodes plus its ancestors' --
 never a sibling's, and never a descendant's.
 
-⚠ **Ancestor visibility is CAPPED, and the cap is what makes this a
+ **Ancestor visibility is CAPPED, and the cap is what makes this a
 branch rather than a window onto a moving parent.** A situation
 records the node counter as it stood when it was cut; an ancestor node
 minted after that is a later commit on another branch and is not in
@@ -96,7 +96,7 @@ situation would reference nodes belonging to the situation it came
 from -- and a delta names the relationship `healthy(paul)` as much as
 it names `paul`.
 
-⚠ **An atom is minted, never derived from the members' atoms.**
+ **An atom is minted, never derived from the members' atoms.**
 Deriving it would make identity structural rather than asserted, so
 two situations that happened to build the same shape would be forced
 to agree that it is the same relationship, with nothing holding the
@@ -115,7 +115,7 @@ loader's name table decides it at intake, interning decides it for
 compounds -- so two nodes are one node or they are unrelated, and
 there is no third state. This is the third state.
 
-⚠ **Leaves only, and the default is the node itself.** A compound's
+ **Leaves only, and the default is the node itself.** A compound's
 identity is not stored because it is DERIVED: interning keys on the
 identities of the relation and members, so the canonical node *is* the
 derived identity. That is the exact opposite of the atom rule one
@@ -129,11 +129,11 @@ block up, and the asymmetry is load-bearing:
 One id cannot be both minted and derived, which is why this is a third
 id rather than a reading of the second.
 
-⚠⚠ **An unmerged corpus pays nothing.** With no entry here every
+ **An unmerged corpus pays nothing.** With no entry here every
 lookup returns the node it was given, so the interning key is
 byte-identical to what it was before identity existed. That is the
 same discipline `count` is held to: nothing that never corefers pays.
-⚠⚠⚠ **AND IT SUPERSEDES THE ATOM LAYER ABOVE -- next commit.** The
+ **AND IT SUPERSEDES THE ATOM LAYER ABOVE -- next commit.** The
 author's argument, and it is right: branching is a COPY, so two nodes
 with one identity in two branches are one thing, which is the whole of
 what an atom does. The objection this file records one block up --
@@ -182,7 +182,7 @@ tie-break from a hash.
         built on THOSE. Merging two leaves therefore induces merges all the way
         up, and the worklist below is that cascade.
 
-        ⚠⚠⚠ **Without the repoint, everything said before the merge is LOST.**
+         **Without the repoint, everything said before the merge is LOST.**
         `bright(morning)` was interned under a key naming morning's identity;
         after the merge `rel(bright, morning)` computes a key naming the new
         one, finds nothing, and mints a third node while the original sits
@@ -191,11 +191,11 @@ tie-break from a hash.
         it. This is the whole of what makes identity a change to the INDICES
         rather than a field on a node.
 
-        ⚠ **Per situation, so a merge inside a hypothesis dies with it.**
+         **Per situation, so a merge inside a hypothesis dies with it.**
         Deciding two things are the same is a decision, and a decision made
         while supposing is not a decision about the world.
 
-        ⚠ It does NOT decide anything: the caller supplies the pair, and the
+         It does NOT decide anything: the caller supplies the pair, and the
         caller is a rule concluding `same(a, b)`. `deposit-dont-decide.md` --
         the engine may compute the consequence, never make the choice.
 
@@ -213,14 +213,14 @@ Materialise the thing `a` names, in `target`, **from atoms alone**.
         to consult, atoms would be labels on a structure rather than a structure
         of their own, and nothing could ever be thrown away.
 
-        ⚠ **Already-there wins, by the visibility walk.** If `target` can
+         **Already-there wins, by the visibility walk.** If `target` can
         already see a realisation of `a`, that one is the answer -- rebuilding
         beside it would put two nodes for one thing in one situation, which is
         the twin trap wearing a replay. That is also what makes this idempotent,
         and what lets it be checked against capped visibility: rebuilding
         something a situation can already reach must be a no-op.
 
-        ⚠ A variable rebuilds as a variable. `_is_var` is not derivable from the
+         A variable rebuilds as a variable. `_is_var` is not derivable from the
         structure -- a bare variable has no relation and no members, exactly like
         an atom -- so it is carried across explicitly. Without this a replayed
         rule's members turn into ground atoms named `$x` and match nothing.
@@ -235,7 +235,7 @@ Transport a node into `target`, and RECORD that it landed there.
         seat has to re-state it in the caller's situation or the caller's own
         indices would carry a reference to something it cannot see.
 
-        ⚠ **Structure decides identity WITHIN the target, and the atom index
+         **Structure decides identity WITHIN the target, and the atom index
         records where the carried thing landed.** Those are two different
         claims and both are needed. The first is `docs/situations.md`'s own
         rule -- *within a situation, the same relationship is one node* -- so a
@@ -259,7 +259,7 @@ members', so the atom alone says nothing about what it is made of.
 Without this table an atom is a name for a node that has to still
 exist, which is the thing replay is for getting rid of.
 
-⚠ Kept beside `_members` rather than replacing it. `_members` is per
+ Kept beside `_members` rather than replacing it. `_members` is per
 NODE and is what every reader walks; this is per ATOM and is what
 survives the node being discarded. They are the same shape and they
 answer different questions -- which is the whole of why there are two

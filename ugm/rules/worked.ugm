@@ -14,7 +14,7 @@ rule <boil> = causes(
 # §8 <R2>. `implies`, so it lands in the SAME moment and is derived. Written as
 # `causes`, the backward reader would produce a plan to make it rain by making
 # it cloudy -- the two-connective split is what makes that plan unwritable.
-# ⚠ `@likely` was a GRADE on the conclusion. Grades are gone: what a rule says
+#  `@likely` was a GRADE on the conclusion. Grades are gone: what a rule says
 # about the strength of its conclusion is now *in* the conclusion, and a rule
 # can read it. Nothing believes `rain(monday, afternoon)` bare until something
 # crosses the modality, which is `<cross>` below.

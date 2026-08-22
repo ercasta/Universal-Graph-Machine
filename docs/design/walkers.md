@@ -1,6 +1,6 @@
 # `walkers.py` — the argument
 
-> ⚠⚠⚠ **The module is DELETED (2026-08-20).** This file is kept because five
+>  **The module is DELETED (2026-08-20).** This file is kept because five
 > other documents cite what it measured, and because the prose *is* the record
 > of it — but nothing here describes live code.
 >
@@ -19,7 +19,7 @@
 > the agent notices it is choosing under doubt — `close(<R1>, <R2>)` — depends
 > on table position. `docs/todo.md` carries it as an open question.
 >
-> ⚠ What is no longer measured anywhere: *moving loses a branch silently*, and
+>  What is no longer measured anywhere: *moving loses a branch silently*, and
 > the by-path/by-node growth rates.
 
 Moved out of the module so the code reads as code. Each section is the
@@ -96,7 +96,7 @@ one option and hopeless when there are forty, so credit assignment becomes
 possible at all. Nothing here learns yet; this is the property that makes
 learning worth attempting.
 
-⚠⚠⚠ **Per walker, and it used to be measured per WINDOW, which is not the same
+ **Per walker, and it used to be measured per WINDOW, which is not the same
 claim and broke the day something unrelated moved.** A window holds every
 application the agent weighed across ALL walkers, so two walkers with one option
 each make a window of two while nothing about any walker's choice has changed.
@@ -234,7 +234,7 @@ until something claims `due`, which is shipped and untouched here.
 
 ## Per WALKER, not per window, and the differ
 
-⚠⚠⚠ **Per WALKER, not per window, and the difference is the whole claim.**
+ **Per WALKER, not per window, and the difference is the whole claim.**
 This read `max(rep.windows)` and called it *one option is weighed per
 move*. It is not the same measurement: a window holds every application
 the agent weighed, across ALL walkers, so two walkers with one option each
@@ -252,7 +252,7 @@ walker its applications are about, and take the largest group.
 
 ## THE TICK COUNT IS NOT ASSERTED, and that i
 
-⚠⚠⚠ **THE TICK COUNT IS NOT ASSERTED, and that is the third time this
+ **THE TICK COUNT IS NOT ASSERTED, and that is the third time this
 fixture has been moved by an edit somewhere else.** It read
 `ordered["ticks"] != plain["ticks"]` -- *ordering changed WHEN* -- and the
 two counts now coincide at 18, because retiring `<relevant>` made the

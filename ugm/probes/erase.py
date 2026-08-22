@@ -4,7 +4,7 @@ The author's call, 2026-08-20: deletion does not repoint and does not cascade,
 because *no rule will match an incomplete subgraph*. That is a claim about the
 matcher, so it is asked of the matcher rather than trusted.
 
-⚠ `merge` had to answer the same question in the other direction and its answer
+ `merge` had to answer the same question in the other direction and its answer
 was the repoint -- *without it, everything said before the merge is LOST*. This
 is that question, asked of the opposite operation.
 
@@ -60,7 +60,7 @@ def main() -> int:
         "rule <both> = implies( { +p($x), +q($x) }, { +r($x) } )",
         "fact +p(one)", "fact +q(one)", ""]))
     # erase one premise's PROPOSITION out from under the entry that claims it.
-    # ⚠ The id is taken BEFORE the delete: `kb2.term(...)` re-mints, so asking
+    #  The id is taken BEFORE the delete: `kb2.term(...)` re-mints, so asking
     # for it afterwards hands back a different node -- check 1's finding,
     # arriving as a trap in this file's own first draft.
     erased = kb2.term("q(one)")
@@ -70,7 +70,7 @@ def main() -> int:
     print(f"    both premises present   r(one) = {before}")
     print(f"    one proposition erased  r(one) = {after}")
     print()
-    gate("⚠ the control fires, so the check can fail", before == "+")
+    gate(" the control fires, so the check can fail", before == "+")
     gate("⭐⭐⭐ a rule does NOT fire on a subgraph one of whose premises was "
          "erased -- the dangling half is unreachable, not wrong", after != "+")
 
@@ -153,7 +153,7 @@ def main() -> int:
          "rigid designator and a premise is a description, so the log names the "
          "thing that cannot be revised",
          m5.g.member(record, 0) == ent and ent != anchor)
-    gate("⚠ and the deletion still HAPPENED, so this is a record of something "
+    gate(" and the deletion still HAPPENED, so this is a record of something "
          "rather than a record instead of it",
          m5.g.find_rel(kb5.term("is"), ent, kb5.term("want")) is None)
     gate("...and the on_write hooks saw it, which `Graph.delete` sits below: "
@@ -161,7 +161,7 @@ def main() -> int:
          any(e.proposition == record for e in seen))
 
     # 6. The property that makes it a GATE rather than a logger: a refused
-    #    erasure does not happen. ⚠ Without this the class is a decoration --
+    #    erasure does not happen.  Without this the class is a decoration --
     #    it would record what it was going to do and then do it regardless.
     m6 = Machine()
     kb6 = load(m6, "\n".join(["fact +is(d1, want)", ""]))

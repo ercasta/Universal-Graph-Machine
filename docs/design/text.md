@@ -52,7 +52,7 @@ A relation instance, an atom, a variable or a rule reference, still
     recursing), `unify` learned to compare one when `$p($t)` landed, and this is
     the last component that could not read it.
 
-    ⚠ Set only for a CHAINED application, so every term that parsed before this
+     Set only for a CHAINED application, so every term that parsed before this
     existed still parses to the identical shape. `a(b)` is `Term("a", (b,))` as
     it always was, not `Term("", (b,), fn=Term("a"))` -- which matters because
     `_fact` reads `term.head` against `DESCRIBES` to spot one, and rewriting the
@@ -85,7 +85,7 @@ A postcondition, as written: a query, and what it spends if it holds.
         (plain)     a person wrote it
         learned     play added it, and re-learning may replace it
 
-    ⚠ And learning ADJUSTS rather than replaces, which needs no arithmetic at
+     And learning ADJUSTS rather than replaces, which needs no arithmetic at
     all: two postconditions on one rule both spend, so an authored `attend($x)`
     beside a learned `attend($y)` leaves the agent thinking about both. Measured.
     Strip every `learned` line and the bootstrap is exactly what is left.
@@ -116,7 +116,7 @@ one of them may refuse. Keeping those apart is the point: an
 illegal request that merely fails to match is silence, and this
 design's standing complaint is that silence reads as a corpus bug.
 
-⚠ No angle brackets. `<...>` names STATEMENTS, and an action is
+ No angle brackets. `<...>` names STATEMENTS, and an action is
 not a statement -- it is a term the agent may deposit, so it is
 named the way a relation instance is named, by being written.
 
@@ -139,7 +139,7 @@ has no identity but the one the author gives it.
         `after` fires when its rule applies and its query holds. `frozen` marks
         what a calibration process may not touch.
 
-        ⚠⚠⚠ **`when` IS REFUSED, and that is a change from a silent no-op.** A
+         **`when` IS REFUSED, and that is a change from a silent no-op.** A
         `when` trigger fired at RANKING time and belonged to no rule; the only
         thing that ran one was `_rerank`, which reordered a shortlist by the
         buffs the trigger spent. Both are retired, so a `when` trigger now
@@ -155,7 +155,7 @@ has no identity but the one the author gives it.
 form an abbreviation for the entry, whose locus the frame supplies;
 this is how a rule says otherwise, and it relates two moments.
 
-⚠ Written out rather than punctuated. `@` used to mean a grade and is
+ Written out rather than punctuated. `@` used to mean a grade and is
 now refused with a message (above); reusing it would be the island §2
 warns about, on the page. A bare name here is unambiguous because a
 member is followed by `,` or `}`.
@@ -176,7 +176,7 @@ decided at intake and still by construction; documents under different
 scopes stay apart, which is the default and is what a fresh corpus
 wants.
 
-⚠ Note what this deliberately does NOT do: assert identity in the
+ Note what this deliberately does NOT do: assert identity in the
 graph. `sameas(a, b)` would need equals-for-equals in matching, and
 congruence is either machinery (a decision nobody can argue with) or a
 rule per relation per position (combinatorial). Deciding identity when
@@ -199,8 +199,8 @@ same goal with only its own domain in mind, 1.6s and 198 ticks, and
 agent has always narrowed which RULES come to mind (`dormant`/`due`)
 and has never narrowed which facts do.
 
-⚠ Unscoped documents keep `kb`, which is what every corpus has had.
-⚠⚠⚠ **Sharing names and sharing provenance are DIFFERENT things**, and
+ Unscoped documents keep `kb`, which is what every corpus has had.
+ **Sharing names and sharing provenance are DIFFERENT things**, and
 tying them together was wrong -- caught by the first fixture that used
 both. Rules about billing must resolve `owes` to the same node the
 billing facts do, so they share a *scope*; but they are not billing
@@ -237,14 +237,14 @@ Register a tool **in this corpus's scope**, which is the only scope in
         and `<...>` is resolved at authoring.
 
         `fn(machine, frame, entry)` returns the answer node, or `None` for *I
-        have nothing to say*. ⚠ Said here as well as on `Machine.answerer`
+        have nothing to say*.  Said here as well as on `Machine.answerer`
         because this is the door the note above tells everyone to use, and a
         reader who never opens the other one has no way to learn the arity from
         the one they are told to call.
 
 ## The apparatus must not be joined on its ow
 
-⚠⚠⚠ **The apparatus must not be joined on its own requests, and this
+ **The apparatus must not be joined on its own requests, and this
 was found by the apparatus squatting on a name a fixture already
 used.** `_answer` calls EVERY answerer bound to a relation, so a
 corpus tool registered on `compose` and the apparatus's own composer
@@ -263,7 +263,7 @@ beside this one is made from.
 
 ## A NUMERAL is not this document's name for
 
-⚠⚠⚠ **A NUMERAL is not this document's name for something.** Two
+ **A NUMERAL is not this document's name for something.** Two
 corpora may be about different kettles and are never about
 different 2s. `Machine.NUMERAL` already says so and `reserved`
 already seeds this table from it -- but `reserved` is a snapshot
@@ -277,7 +277,7 @@ The twin trap, seventh time, and the same answer as the other six.
 
 A bare name in an ARGUMENT position that resolves to a reserved node.
 
-        ⚠⚠⚠ **One node with two meanings, which is the twin trap inverted.**
+         **One node with two meanings, which is the twin trap inverted.**
         `reserved` binds `plus`/`minus` to the SIGN atoms and every corpus's
         table is seeded from it, so a domain author writing an arithmetic
         operator gets the sign: `calc(minus, 5, 2)` lands as `calc(-, 5, 2)`,
@@ -302,7 +302,7 @@ Resolve one term against this corpus's names, for asking questions.
         about what was loaded has to be asked through the loader that loaded it,
         which is the honest arrangement rather than an inconvenience.
 
-        ⚠⚠⚠ **It refuses leftovers, and until a foreign corpus reported it, it
+         **It refuses leftovers, and until a foreign corpus reported it, it
         did not.** `term("a b")` returned `a` and `term("a(b) junk here")`
         returned `a(b)`, silently -- one term parsed and the rest of the string
         dropped. The `fact` and `rule` paths refuse loudly; this one did not, and
@@ -336,7 +336,7 @@ useless, and a norm expressed as a rule is a competitor in recall.
 : Heads whose ARGUMENT is a description rather than a proposition, so a
 : variable inside one is a class and not an unbound conclusion.
 :
-: ⚠⚠⚠ **A tuple rather than a third scattered string comparison.** `_fact` read
+:  **A tuple rather than a third scattered string comparison.** `_fact` read
 : `term.head` against `DESCRIBES` in one place and the consequent check knew nothing
 : about it, and `docs/quest-feedback.md` §6 reported how sharp that edge is: a
 : foreign corpus declined the tidier parser refactor precisely because moving
@@ -353,7 +353,7 @@ useless, and a norm expressed as a rule is a competitor in recall.
 
 Every variable in a structure -- **including one in RELATION position.**
 
-    ⚠⚠⚠ It did not look at the relation, and `Graph.has_var` always has: `_mint`
+     It did not look at the relation, and `Graph.has_var` always has: `_mint`
     computes genericity as *the relation is generic, or any member is*. So the
     two disagreed about `$verb($a, $b)`, and the binding check is built from
     both -- `has_var` decides whether a consequent needs checking and this
@@ -384,7 +384,7 @@ Say when a rule reads a name nothing anywhere writes.
     never writes; refusing it would be wrong, and staying silent is the failure
     being repaired.
 
-    ⚠⚠⚠ **Called from the DOOR, not from `load`, and that is a measurement.**
+     **Called from the DOOR, not from `load`, and that is a measurement.**
     Wired into every `load` it fired **91 times across the suite** -- and every
     one was correct, because a suite is made of deliberately partial fixtures:
     a rule loaded to test something else, whose premise nobody ever supplies.
@@ -393,11 +393,11 @@ Say when a rule reads a name nothing anywhere writes.
     **zero**. So it is said where an author actually loads a corpus to run it,
     and `Machine.unwebbed` stays available to anything that wants to ask.
 
-    ⚠ Computed over the WHOLE machine rather than one document, because a corpus
+     Computed over the WHOLE machine rather than one document, because a corpus
     may span documents (§17's scopes) and the fact that satisfies a rule may
     arrive in the next one.
 
-    ⚠ A fact arriving on a CHANNEL does not count as written, and that is right:
+     A fact arriving on a CHANNEL does not count as written, and that is right:
     `say user: +heat(...)` deposits `arrived(user, heat(...), +)`, so `heat` is
     an argument and not a claim until some rule asserts it. A corpus that never
     writes that rule genuinely cannot fire, and the note says so.

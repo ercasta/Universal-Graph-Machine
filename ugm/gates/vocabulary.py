@@ -2,7 +2,7 @@
 
 The user's observation, and this module exists to test it rather than agree
 with it: > Working with an open class beats traditional programming because you
-do not > have to *implement* the meaning of everything. ⚠ The classification is
+do not > have to *implement* the meaning of everything.  The classification is
 a CLAIM, not a measurement, which is why it is written out name by name where
 it can be disagreed with, and why the partition is checked for being...
 
@@ -20,7 +20,7 @@ from ..core.machine import Machine
 ROLES: Dict[str, List[str]] = {
     # Not vocabulary at all: a numeral is an atom whose name reads as a number.
     "literals": list("0123456789"),
-    # The surface's own marks -- connectives and signs. ⚠ `at` was the member
+    # The surface's own marks -- connectives and signs.  `at` was the member
     # modifier and is gone with the locus; the parser refuses it by name rather
     # than dropping it, so it is a REFUSAL the surface knows about and not a
     # word it reserves.
@@ -29,11 +29,11 @@ ROLES: Dict[str, List[str]] = {
     # they are here: the surface's own marks, spoken of in argument position.
     "the surface": ["causes", "implies", "not", "plus", "minus", "unsure",
                     "absent"],
-    # §4-§11: the history, and how to walk it. ⚠ It arrived unclassified and
+    # §4-§11: the history, and how to walk it.  It arrived unclassified and
     # this census is what caught it -- see docs/observations.md §2.14, where
     # the invariant was written down one message before it fired.
     # → docs/design/vocabulary.md#4-11-the-history-and-how-to-walk-it
-    # ⚠⚠⚠ Five names went with the locus, and this census is what proved they
+    #  Five names went with the locus, and this census is what proved they
     # were gone rather than merely unused: `span` and `span_of` (a stretch was
     # a kind of locus), `reaches` (the bundle policy deciding whether a claim
     # about a stretch was visible from a moment), `holds_at` (the second index),
@@ -69,7 +69,7 @@ ROLES: Dict[str, List[str]] = {
         # `attention` is a claim about a NODE -- *think about this one* -- and it
         # is the agent's own deliberation rather than anything a world says.
         #
-        # ⚠ It used to sit beside `prefer`, which said the same thing about a
+        #  It used to sit beside `prefer`, which said the same thing about a
         # RULE. `prefer` is retired: a rule id goes stale the moment a rule is
         # adopted, composed or renamed, so a corpus of experience written in it
         # stops LOADING rather than going quietly wrong.
@@ -98,7 +98,7 @@ ROLES: Dict[str, List[str]] = {
         # up. `pushed`/`popped` are the record of a focus change; `frame_depth`
         # is its knob, beside `attention_span`.
         "pushed", "popped", "frame_depth",
-        # ...and which expert a frame belongs to. ⚠ `knows` is the SURFACE's
+        # ...and which expert a frame belongs to.  `knows` is the SURFACE's
         # word -- `expert geometry` has written it since experts existed -- and
         # it arrived in this census only when the engine started reading it,
         # because `push` picks an expert. It was a loader-scoped name before,
@@ -145,7 +145,7 @@ CORPORA = [
 
 
 def web(m: Machine, rules):
-    """Delegates to `Machine.web`. ⚠ It used to be a second copy of it, and the
+    """Delegates to `Machine.web`.  It used to be a second copy of it, and the
     copy is how a fix landed in one of them: a variable in relation position was
     excluded in the engine and still reported here. An index is a
     re-implementation of what it indexes -- `state` paid for that lesson, and
@@ -157,11 +157,11 @@ def unwebbed(m: Machine, rules, res: Set[str]) -> List[str]:
     """Names a corpus READS and nothing ever writes -- so no rule using one can
     ever be satisfied, and the corpus is silently smaller than it looks.
 
-    ⚠ The engine's own names are excluded because the **machinery** supplies
+     The engine's own names are excluded because the **machinery** supplies
     them: the bundle reads `arrived`, `emitted`, `taken` and `quiet` and writes
     none of them, correctly. Without the exclusion the bundle reports 11.
 
-    ⚠⚠ **The known false positive**: a corpus that expects a world to supply an
+     **The known false positive**: a corpus that expects a world to supply an
     open-class fact at run time -- from a channel rather than from its own text
     -- reads a name it never writes and is right to.
     """
@@ -173,7 +173,7 @@ def sweep() -> "tuple":
 
     ⭐⭐⭐ 91% of this repository's rules are invisible to every instrument above.
     51 rules live in ugm/rules/*.ugm; 506 are string literals inside Python,
-    360 of them in selftest.py. ⚠ What it does NOT justify is moving the
+    360 of them in selftest.py.  What it does NOT justify is moving the
     fixtures.
 
     See docs/design/vocabulary.md#sweep.
@@ -184,7 +184,7 @@ def sweep() -> "tuple":
     run = Machine.run
 
     def swept(self, limit=100):
-        # ⚠⚠ A flag on the machine, never a set of `id()` -- CPython reuses an
+        #  A flag on the machine, never a set of `id()` -- CPython reuses an
         # address the moment a machine is collected, which under-counted
         # the retired `ugm.harmony`'s census by 3.5× before it was found.
         if not getattr(self, "_swept", False):
@@ -226,7 +226,7 @@ def reserved() -> Set[str]:
 def relations(path: str) -> Set[str]:
     """The distinct relation names a corpus writes.
 
-    ⚠ Read off the TEXT rather than off a loaded machine, deliberately: loading
+     Read off the TEXT rather than off a loaded machine, deliberately: loading
     the bundle's own file into a machine that already has it is a redeclaration,
     and a census that can only count what loads cannot count a corpus at all.
     """
@@ -253,7 +253,7 @@ def main() -> int:
     print(f"  {'total':26} {len(classified):3}")
     print()
 
-    # ⚠ The partition must be TOTAL, or a name nobody classified disappears from
+    #  The partition must be TOTAL, or a name nobody classified disappears from
     # the count and flatters whichever bucket it should have been in. This is the
     # check that makes the table above evidence rather than decoration.
     checked += 1
@@ -292,7 +292,7 @@ def main() -> int:
         print(f"  {label:22} ({about:9}) {len(names):3} names, {own:3} its own, "
               f"{len(borrowed):2} borrowed")
         print(f"  {'':34}   borrowed: {borrowed}")
-        # ⚠⚠ **The first version of this check called the bundle a failure**, and
+        #  **The first version of this check called the bundle a failure**, and
         # the bundle is the CONTROL: it borrows 25 of 25 because it is the one
         # corpus that is about the agent's own reasoning rather than any world.
         # A check that fires on the case that proves the classification right is
@@ -307,7 +307,7 @@ def main() -> int:
                             f"to invent vocabulary for it -- the apparatus is "
                             f"not sayable in the names the engine reserves")
 
-    # ⚠⚠⚠ **A corpus that is only COUNTED is decoration.** `delay.ugm` exists to
+    #  **A corpus that is only COUNTED is decoration.** `delay.ugm` exists to
     # be a second world, and a census over a file nobody runs would happily
     # report a vocabulary for rules that do not work. So it is run, and its
     # answers are asserted -- including the one that carries the domain: the duty
@@ -359,7 +359,7 @@ def main() -> int:
             mm = Machine()          # it is already loaded; re-loading redeclares
             rules = list(mm.rules.rules)
         elif label == "a D&D fight":
-            # ⚠ It registers three computators, so it cannot be loaded from its
+            #  It registers three computators, so it cannot be loaded from its
             # text alone -- and it is the one corpus written by another session,
             # which makes it the false-positive test that actually counts.
             from ..probes.dungeon import fight
@@ -378,7 +378,7 @@ def main() -> int:
         if orphans:
             failures.append(f"{label} reads {orphans}, which nothing writes")
 
-    # ⚠⚠⚠ **The control, and the instrument is worth nothing without it.** Every
+    #  **The control, and the instrument is worth nothing without it.** Every
     # corpus above reports zero, which is the same output a detector that has
     # stopped being able to fire would give. This repo has recorded a check that
     # was guarded twice over by later improvements and could no longer fail; a
@@ -410,7 +410,7 @@ def main() -> int:
         print(f"  most common                 : "
               f"{sorted(flat.items(), key=lambda kv: -kv[1])[:8]}")
         checked += 1
-        # ⚠ Not a failure. Nearly every one is correct about a deliberately
+        #  Not a failure. Nearly every one is correct about a deliberately
         # partial fixture, which is the same answer the load-time note gave.
         # What this gate asserts is that no VARIABLE is reported as a name --
         # `+$kind($item)` was, and a working corpus was called broken.

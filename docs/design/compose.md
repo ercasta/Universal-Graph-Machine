@@ -22,7 +22,7 @@ Two things are measured and three are checked:
 * whether a rule that **defeats** a constituent still defeats the composition --
   §21's *a shortcut that has outlived its guards*, which here arrives at once
   rather than after a context change;
-* ⚠⚠⚠ whether composing **across a `causes`** is refused. It flattens two
+*  whether composing **across a `causes`** is refused. It flattens two
   moments into one antecedent, so the second rule's other premises are demanded
   a moment early -- measured, the derivation reaches its conclusion and the
   composite does not. *n steps become one* has to mean **with the same
@@ -32,7 +32,7 @@ Two things are measured and three are checked:
 
 Is the unsound composition refused, and is the refusal exact? (§4, §14)
 
-    ⚠⚠⚠ A `causes` consequent lands in a SUCCESSOR, so the second rule's other
+     A `causes` consequent lands in a SUCCESSOR, so the second rule's other
     premises are read where the first rule's effect holds -- one moment after
     the first rule's own premises. Flattening asks for all of them together,
     which is a stricter question, and the discriminating world is one where the

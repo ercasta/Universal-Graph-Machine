@@ -4,7 +4,7 @@
 
 [name ...] ugm.vocabulary says what the engine's names are for. This says which
 of them are doing anything -- and the two questions are not the same, which is
-the whole reason this file exists. ⚠ A suppression that makes the suite crash
+the whole reason this file exists.  A suppression that makes the suite crash
 counts as killed, not as an error of this instrument.
 
 See docs/design/necessity.md.
@@ -36,13 +36,13 @@ def _run_suite() -> Tuple[int, int]:
     ST._results.clear()
     buf = io.StringIO()
     try:
-        # ⚠ stderr too: the loader writes authoring notes there (`name reserved
+        #  stderr too: the loader writes authoring notes there (`name reserved
         # nodes...`), and a hundred runs of them buries the report this exists
         # to print.
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             ST.main()
     except BaseException:
-        # ⚠ A crash IS the suite noticing. Scored as killed rather than skipped,
+        #  A crash IS the suite noticing. Scored as killed rather than skipped,
         # for the reason in the module docstring.
         done = len(ST._results)
         return done, max(1, sum(1 for _, _, ok in ST._results if not ok))
@@ -56,7 +56,7 @@ def probe(names: List[str]) -> List[Tuple[str, int, int]]:
 
     for name in names:
         def patched(self, seat, locus, proposition, sign, *a, _n=name, **kw):
-            # ⚠⚠⚠ Guarded, and the null control is what forced it. A fixture
+            #  Guarded, and the null control is what forced it. A fixture
             # deposits a node built in a DIFFERENT machine's graph, so
             # `relation_of` raises `KeyError` -- and the crash handler below
             # then scored the probe's own failure as `killed 1`. Every name
@@ -90,7 +90,7 @@ def main() -> int:
     print(f"Suppressing each reserved name in turn, over the whole suite.")
     print(f"{len(names)} names.\n")
 
-    # ⚠⚠⚠ Which names this probe can even reach, measured rather than assumed.
+    #  Which names this probe can even reach, measured rather than assumed.
     # → docs/design/necessity.md#which-names-this-probe-can-even-reach-mea
     seen: set = set()
     real = Chain.deposit
@@ -111,7 +111,7 @@ def main() -> int:
         Chain.deposit = real
     print(f"  baseline         {base_total} checks, {base_failed} failing")
     if base_failed:
-        print("  ⚠ the suite is not green; every number below is against a moving target")
+        print("   the suite is not green; every number below is against a moving target")
 
     reachable = [n for n in names if n in seen]
     unreachable = [n for n in names if n not in seen]

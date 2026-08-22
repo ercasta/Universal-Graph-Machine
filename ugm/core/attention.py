@@ -542,7 +542,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 continue
             # ...and the backstop: the doubt already stands and nothing settled
             # it, so restating it changes nothing and the winner applies. A
-            # corpus with no settling rule loses a tick, not the loop. ⚠
+            # corpus with no settling rule loses a tick, not the loop. 
             # Something applied, so the shortlist is trusted again.
             # →
             # docs/design/attention.md#and-the-backstop-the-doubt-already-stands-an

@@ -2,7 +2,7 @@
 substrate. The design is `docs/rules-design.md`; every module here cites it.
 `docs/guide.md` is the practical one: how to write a corpus and run it.
 
-⚠ This docstring used to end *deliberately absent -- spans, shapes, backward
+ This docstring used to end *deliberately absent -- spans, shapes, backward
 reading, recall learning, suppositions*, which described a first slice and
 outlived it by a long way: all of those were built except spans, which were
 built and then REMOVED with the locus. A roadmap in a package docstring is a

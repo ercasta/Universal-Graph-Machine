@@ -3,7 +3,7 @@
     python -m ugm.learning.teaching
 
 > A human is the first, manual user of the KB. ⭐⭐⭐ AND IT PAYS, which is
-measured here for the first time. ⚠ It cannot be learned from the teacher, and
+measured here for the first time.  It cannot be learned from the teacher, and
 finding that out is half the result.
 
 See docs/design/teaching.md.
@@ -33,7 +33,7 @@ def teacher(m: Machine, table: Table, window, state: Situation):
     everything = m._materialise(m.rules.rules, state)
     if not everything:
         return window[0] if window else None
-    # ⚠ No priority key. `_rank` used to put `standing` rules first and then sort
+    #  No priority key. `_rank` used to put `standing` rules first and then sort
     # by the `prefer` table; both are retired, so the gold teacher chooses by
     # defeat and then authored order -- which is what `arbitrate` does with no
     # key at all, and is simpler than what it replaced.
@@ -59,7 +59,7 @@ class Lesson:
         # whenever the situation arises, which is what experience is.
         self.occasions: Dict[str, List[Tuple]] = {}
         # ⭐⭐⭐ What the move just bound, and whether the next move was about it
-        # too. ⚠ This signal comes from PLAY and not from the teacher, and it
+        # too.  This signal comes from PLAY and not from the teacher, and it
         # has to.
         # → docs/design/teaching.md#what-the-move-just-bound-and-whether-the
         self.carried: Dict[Tuple[str, str], int] = {}
@@ -131,7 +131,7 @@ class Lesson:
         """What to think ABOUT after each rule: one variable per rule, learned
 
         from what carried into the following move. ⭐⭐⭐ One per rule, and
-        choosing which is the whole design. ⚠ Two firings at least, for this
+        choosing which is the whole design.  Two firings at least, for this
         file's standing reason: one example generalises to itself.
 
         See docs/design/teaching.md#focuses.
@@ -169,7 +169,7 @@ class Lesson:
 def install_focuses(m: Machine, ldr, learned: dict) -> int:
     """The attention lessons, as postconditions.
 
-    ⚠⚠⚠ **`unattend` first, and it is what bounds the mechanism.** A buff has
+     **`unattend` first, and it is what bounds the mechanism.** A buff has
     `LIFE` and a saturation ceiling; a deposited claim has neither, so a lesson
     that only ever attends accumulates until everything is attended -- and
     `ugm.selftest` measures that attending to everything narrows nothing. Spent
@@ -177,7 +177,7 @@ def install_focuses(m: Machine, ldr, learned: dict) -> int:
     time the lesson fires, and the replacement is on the record as a denial
     rather than as a forgetting.
 
-    ⚠ Nothing here is `frozen`. These are exactly what a calibration process is
+     Nothing here is `frozen`. These are exactly what a calibration process is
     supposed to move, and marking learned experience unmovable would be the
     calibrator protecting its own output from the next demonstration.
     """
@@ -224,7 +224,7 @@ def emit(m: Machine, ldr, learned: dict, note: str = "") -> str:
 
     ⭐⭐⭐ This file has claimed since it was written that a lesson is a document
     -- *savable, diffable, arguable, and loadable into a corpus that was never
-    taught* -- and it had no open and no write in it. ⚠ It is the ORDINARY
+    taught* -- and it had no open and no write in it.  It is the ORDINARY
     SURFACE, so it round-trips by construction: Loader reads it back with no
     special path, a person can edit a line in place, and an edited...
 
@@ -314,7 +314,7 @@ def _query(m: Machine, examples: List[Tuple]):
 
 EXTRA_SEEDS = (11, 13, 17)
 
-# The trigger form, as text: a lesson is a document. ⚠ There were two more --
+# The trigger form, as text: a lesson is a document.  There were two more --
 # WHEN and AFTER, both writing boost(<R>, n).
 # → docs/design/teaching.md#the-trigger-form-as-text-a-lesson-is-a-documen
 FOCUS = "learned after <%s>%s=> attend(%s, %d)" + chr(10)
@@ -324,7 +324,7 @@ def _agree(mine: List[str], theirs: List[str]) -> int:
     """How much of the teacher's sequence the student reproduced, as the
     longest common subsequence.
 
-    ⚠ Positional comparison is wrong here and reported 5 of 149 before this,
+     Positional comparison is wrong here and reported 5 of 149 before this,
     which would have read as *situation-keyed lessons destroy the behaviour*
     and meant *the comparison cannot see them*. A learned recogniser and a
     settled doubt are moves the teacher never made; they SHIFT everything after
@@ -343,7 +343,7 @@ def _agree(mine: List[str], theirs: List[str]) -> int:
     return prev[-1]
 
 
-# ⭐⭐⭐ What a taught table is allowed to conclude differently. ⚠ attention is
+# ⭐⭐⭐ What a taught table is allowed to conclude differently.  attention is
 # here, and leaving it out flattered the mechanism.
 # → docs/design/teaching.md#what-a-taught-table-is-allowed-to-conclude
 BOOKKEEPING = frozenset({"close", "settled", "spent", "exercised", "attention"})
@@ -394,7 +394,7 @@ def measure(name: str, limit: int = 400) -> dict:
         # it is already high the corpus has nothing to teach.
         "teacher_took_the_top": lesson.agreed,
     }
-    # ⚠ none is the UNCALIBRATED arm, and it went missing.
+    #  none is the UNCALIBRATED arm, and it went missing.
     # → docs/design/teaching.md#none-is-the-uncalibrated-arm-and-it-went-mi
     for label in ("none", "focus"):
         m, ldr = _machine(name)
@@ -410,7 +410,7 @@ def measure(name: str, limit: int = 400) -> dict:
             declined, collided = learned["declined"], 0
             taught = {"unspeakable": learned.get("unspeakable", 0)}
         r = run(m, limit=limit)
-        # ⚠ The learned recognisers are moves the teacher never made, so they
+        #  The learned recognisers are moves the teacher never made, so they
         # SHIFT the sequence and a positional comparison counts every later
         # move as a disagreement. It reported 5 of 149 before this line, which
         # would have read as *situation-keyed lessons destroy the behaviour*

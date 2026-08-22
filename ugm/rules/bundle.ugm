@@ -176,7 +176,7 @@ rule <ask-check> = implies(
 # to a match request the backward reader made, and it is exactly the claim a
 # preference wants.
 #
-# ⚠⚠⚠ **`<relevant>` USED TO TRANSLATE IT INTO A SCORE, and that rule is gone
+#  **`<relevant>` USED TO TRANSLATE IT INTO A SCORE, and that rule is gone
 # with `prefer`.** It read `fits($r, $wanted)` and concluded
 # `prefer($r, $wanted, 1)` -- means-ends analysis as a rule-keyed buff. The
 # KNOWLEDGE is untouched: the backward reader still works out which rule serves
@@ -184,7 +184,7 @@ rule <ask-check> = implies(
 # a number attached to a rule id, which is what could not survive a rule being
 # adopted, composed or renamed.
 #
-# ⚠ Nothing replaced it, because nothing could: attention names a NODE and
+#  Nothing replaced it, because nothing could: attention names a NODE and
 # `fits` names a RULE, so *prefer the rules serving my goal* is not a sentence
 # attention can say. That is a real loss of a bundled behaviour and it is
 # recorded rather than papered over -- an agent wanting it back writes the rule
@@ -229,13 +229,13 @@ rule <give-up> = implies(
 # move before the read can answer would make a span claim invisible until it
 # did, which is the failure this design refuses.
 #
-# ⚠ A claim about an INSTANT is not a claim about a stretch, so nothing here
+#  A claim about an INSTANT is not a claim about a stretch, so nothing here
 # concludes `reaches(<span>, <moment>)`. That is the load-bearing one: letting a
 # moment's claim inherit into a span would answer *did it hold throughout* from
 # an entry that says only *it held then*, and a denial in the middle of the
 # stretch is exactly what `resolve` cannot see. Written as a missing rule rather
 # than as a returned False, so a corpus that disagrees adds a row.
-# ⚠⚠⚠ **The span rules went with the locus.** `<span-complete>` and
+#  **The span rules went with the locus.** `<span-complete>` and
 # `<span-itself>` concluded `reaches($m, $s)`, which was the policy `Moment
 # .at_or_after` consulted to decide whether a claim ABOUT A STRETCH was visible
 # from a moment. An entry has no locus now, so nothing can be about a stretch
@@ -259,12 +259,12 @@ rule <give-up> = implies(
 # they mean. Exercised by two domains that share nothing else -- `ugm.hanoi` and
 # the countdown beside it.
 #
-# ⚠ The stage ORDER is data, not rules: `advances($p, $q)` and `closes($p)` are
+#  The stage ORDER is data, not rules: `advances($p, $q)` and `closes($p)` are
 # facts a corpus deposits, because what differs between one recursive plan and
 # the next is exactly the order of its steps. The bundle supplies the stack; the
 # corpus supplies the strategy.
 #
-# ⚠⚠ And a stage cannot be read off the WORLD, which is why this exists at all.
+#  And a stage cannot be read off the WORLD, which is why this exists at all.
 # `ugm.hanoi` records four corpora that failed first, and the fourth is the
 # argument: Hanoi's recursion is depth-first and ordered, and `at(d1, x)` is
 # equally true on the way out and on the way back. A guard read off the state is

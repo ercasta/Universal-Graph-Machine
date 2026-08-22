@@ -180,7 +180,7 @@ rule <silent> = implies( { round_span($r, $a, $b), -heard($r, player) }, { silen
 rule <hero-acts> = implies( { silent($r, player), +turn(hero, $r) }, { +attacks(hero, $r) } )
 ```
 
-⚠ **`span_of` is gone with the locus, and so is `entry_of`'s locus argument.** A stretch is now two
+ **`span_of` is gone with the locus, and so is `entry_of`'s locus argument.** A stretch is now two
 moments the corpus carries itself — `round_span($r, $a, $b)` above — because nothing is dated to
 anything any more. The shape of the reading is unchanged; the stretch just lives in the
 proposition.
@@ -447,7 +447,7 @@ No precedence relation, no engine defeat, and the marker is an ordinary claim --
 so it is dated, attributable, deniable, and a rule can ask why the act was not
 assumed.
 
-⚠ **And it works exactly as far as your negatives are enumerable**, which is §1
+ **And it works exactly as far as your negatives are enumerable**, which is §1
 arriving where it decides a design rather than a rule. Two versions, measured:
 
 | the default | what happens |
@@ -520,7 +520,7 @@ session. You will reach for all of them in an RPG.
 |---|---|
 | *the goblin acts after the hero* — relating two moments | ✅ **BUILT**, by walking the chain: `in_delta`/`entry_of` bind the moments, `sanc`/`anc` relate them |
 | *the door was open and now is closed* — one fact's own history | ✅ **BUILT.** Two rules over the raw chain; see below |
-| *while poisoned*, *throughout the battle* — a claim about a stretch | ⚠ **CHANGED.** A stretch is no longer a *locus*; carry it as two moments in your own relation and put it in the proposition |
+| *while poisoned*, *throughout the battle* — a claim about a stretch |  **CHANGED.** A stretch is no longer a *locus*; carry it as two moments in your own relation and put it in the proposition |
 | §13's shapes — *taking turns*, recursive definitions over stretches | ✅ **BUILT.** They run; see below |
 | ~~`unless(<R>, +condition)`~~ | ✅ **BUILT** — it is a negated antecedent member, written inside the rule (§2) |
 
@@ -578,7 +578,7 @@ is an ordinary rule and concludes an ordinary claim. That is the whole bridge.
 | `anc($s, $a)` / `sanc($s, $a)` | ancestry, reflexive and strict |
 | `pred($s, $p)` | the immediate predecessor. This used to silently mean `anc` |
 | `in_delta($m, $e)` | the entries deposited at a moment |
-| `entry_of($e, $prop, $sign)` | an entry's two members. ⚠ It had a `$locus` argument and does not now |
+| `entry_of($e, $prop, $sign)` | an entry's two members.  It had a `$locus` argument and does not now |
 | `delta_next($e, $f)` | deposit order within one moment |
 | `rests_on($e, $c)` | what an entry was derived from — **the agent's own trail** |
 
@@ -600,7 +600,7 @@ rule <after> = implies( { asking($now), anc($now, $mp), in_delta($mp, $ep),
                        { +acted_after($q, $p) } )
 ```
 
-⚠ It used to read `+acts($p) at $mp` — binding the locus of the matched entry. `at $m` is **refused**
+ It used to read `+acts($p) at $mp` — binding the locus of the matched entry. `at $m` is **refused**
 now: an entry has no locus, so the moments come from the chain walk instead.
 
 `sanc($later, $earlier)` holds when the second moment is a strict ancestor of the first. It is

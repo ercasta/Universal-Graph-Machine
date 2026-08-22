@@ -31,7 +31,7 @@ else. Cooperation is not a feature here; it is what a blocked goal is FOR.
 ⭐ **The whole loop is driven by a goal nothing local could satisfy.** Delete p2
 and p1 stays blocked for ever, which is the control below.
 
-⚠⚠⚠ **AN ARRIVAL CANNOT BE SPENT, and this inverts `docs/authoring.md` §0.**
+ **AN ARRIVAL CANNOT BE SPENT, and this inverts `docs/authoring.md` §0.**
 §0 says an occasion is consumed and a rule must deny what it consumes. At a
 channel that is exactly wrong, and it cost two hangs to find out.
 
@@ -61,7 +61,7 @@ quiet with nothing retracted. So the two rules of thumb divide cleanly:
 
 > **Consume what you concluded. Never consume what you were told.**
 
-⚠⚠⚠ **`blocked` reports the rule's antecedent member AS WRITTEN, ungrounded**,
+ **`blocked` reports the rule's antecedent member AS WRITTEN, ungrounded**,
 and that decided how this corpus had to be shaped. Probed three ways:
 
     { +have($w, $k), +opens($k, $d) }   -> blocked(have($w, $k))

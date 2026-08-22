@@ -7,7 +7,7 @@ fact -holds(p1, key1)
 
 # Somebody wants a thing: tell whoever has it.
 #
-# ⚠⚠⚠ **In two rules, because a request has to be SPENT.** Written as one --
+#  **In two rules, because a request has to be SPENT.** Written as one --
 # `{ +says($who, want($who, $k), plus), +holds($keeper, $k) }` straight to the
 # telling -- the arrival never stops being true, so when the key changed hands
 # the rule matched again with the new keeper and the DM told p1 it had been

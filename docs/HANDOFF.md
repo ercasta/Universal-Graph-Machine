@@ -4,7 +4,7 @@
                                                              the suite never had
     python -m ugm.probes.collapse  10 checks, 0 failing   <- new
     python -m ugm.probes.anchors    8 checks, 0 failing   <- new
-    python -m ugm.probes.slots     26 checks, 0 failing   <- new
+    python -m ugm.probes.slots     29 checks, 0 failing   <- new
     ./tools_sweep.sh                1 failing, 33 run     <- 33 is three more than
                                                              any sweep has run,
                                                              and the 1 is
@@ -14,7 +14,7 @@
 
 Everything else is as the section below leaves it; nothing in the engine changed.
 
-⚠ One correction to the section below, and it is a correction to an
+ One correction to the section below, and it is a correction to an
 instrument reading rather than to a finding: `gates.bundle` does NOT run past
 200s without finishing. Given the sweep's own 900s it completes -- 18 bundled
 rules, 18 exercised, 10 answerers, 0 anomalies. It is slow, not hung, and it
@@ -162,7 +162,7 @@ derived, and `_attend_written` pushes without claiming, so queue
 is arithmetic rather than credit — one queue slot of a span of 7, however often it is written,
 because a repeat moves rather than adds.
 
-⚠ The bad citation is worth naming, because it is a shape that will recur: the first write-up
+ The bad citation is worth naming, because it is a shape that will recur: the first write-up
 quoted `_attend_written`'s *queue permanently full of undifferentiated nodes made the agent
 chase its own tail* — a docstring describing a queue that decided which rules were matched,
 which is precisely what the claimed-vs-derived split was built to repair. **Quoting the disease
@@ -279,7 +279,7 @@ attended is in play here; do not touch the order.* **An empty queue orders nothi
 limit is not pre-binding: it is that attention cannot rank what has not been attended yet, which
 is *only attention bridges ticks* read from the start of the run rather than from the middle.
 
-⚠ And *the anchor is an argument*, in the section above, was an unclear phrase for a small claim:
+ And *the anchor is an argument*, in the section above, was an unclear phrase for a small claim:
 `_attention` sits in an ordinary argument position, so `here(inst1, hall)` is the same
 proposition with a different first argument. It says nothing about cross-tick anchoring.
 
@@ -296,10 +296,105 @@ repair rather than a new privilege. The 367-fallback measurement is not evidence
 this: it says attention **orders and cannot gate**, and ordering is the whole of what is
 proposed.
 
+## LEARNING: the mutator, and what the author corrected. NOTHING BUILT
+
+A design conversation at the end of the session. **No code was written for any of this** and none
+of it is measured except where a number is given. It is recorded here because two of the author's
+corrections retired positions this handoff would otherwise have carried forward wrongly.
+
+### The proposal
+
+*The mutator should not pick changes randomly when creating or mutating rules. It should pick
+query terms from the graph, and RHS from existing rules' queries. And across episodes use
+unification / anti-unification.*
+
+### What it already is, in the literature and in this tree
+
+That is **mode-directed inverse entailment** — Progol and Aleph do exactly this, with `modeb`
+declaring what may appear in a body and `modeh` what may appear in a head. Those declarations are
+the largest source of hand-tuning in ILP, and **here they are derivable rather than written**:
+`Machine.web(rules)` already returns `(read, written)` counts per relation name.
+
+    LHS <- written      something writes it, so a read can succeed
+    RHS <- read         something reads it, so the conclusion connects
+
+The failure mode a random mutator produces already has its instrument: `unwebbed()`, *nothing
+writes this name and a rule reads it, so that rule can never apply.* The LHS bias makes those
+unconstructible. And `unwebbed`'s own measured asymmetry makes the **RHS** bias the stronger of
+the two — *written and never read* reports 11 to 17 names on healthy corpora, while this
+direction reports zero everywhere here and one on a corpus with a typo. So `read` is the tight
+set.
+
+Measured, on the bundle alone, and this is the only number in this section:
+
+    read = 19   written = 21   both = 7   unwebbed = 0
+
+Small enough to enumerate rather than sample, which is the difference between a search and a
+lottery.
+
+### The algorithm, proposed and not tested
+
+Two halves, duals of each other. **Plotkin's LGG** (anti-unification, Golem's engine) for the
+cross-episode step — `lifting.py` already tests that question and its recorded constraint is the
+one that decides it: **one mapping across premise and conclusion**, since LGG'ing head and body
+independently is noise. And **Progol-style refinement over the subsumption lattice** for the
+mutator, bounded below by a bottom clause.
+
+⭐ **The bottom clause may already be materialised.** `rests_on($e, $c)` is what an entry was
+derived from, so the most specific rule explaining a conclusion is its own trail, ground — which
+is the expensive part of MDIE, free. **Unverified**: the cheapest decisive check is to walk a
+real conclusion's trail and ask whether it is usable as a body (every premise present, nothing
+bookkeeping, nothing structural that cannot be re-matched). It was offered and declined; it is
+still the right first step.
+
+Genetic search earns a place only if the lattice turns out too big to walk, and 19x21 says it
+will not.
+
+### Two corrections from the author, both retiring something stated above
+
+**1. `adopt` is the wrong precedent — this is OFFLINE learning.** `adopt(<R>)` is the online door,
+a rule authoring a rule mid-run. The offline path already exists and is `Machine.learned()`, whose
+own docstring is the position: *offline learning crossing an episode boundary is a corpus being
+written, and a corpus is text — so what an agent learned is readable, editable and arguable rather
+than a weight somewhere.* `learning.py` runs it end to end and **nothing about the loop changes**.
+No new mechanism is needed for the frame.
+
+**2. Learned rules must freely produce `+p` and `-p`** — not `likely(p)`. The wrapper finding was
+about ONLINE acquisition, where it bought immunity: `likely(p)` cannot fight `-p`, so acquisition
+needed no precedence at all. Offline, a loaded rule is an ordinary rule and there is no reason it
+cannot assert.
+
+### What those two corrections open, and it is the useful part
+
+**`learned()` today emits rules that conclude ATTENTION**, in both its forms — flat
+`attention(node, weight)` rows, and the conditional form where a decision tree's root-to-leaf path
+is a rule and *what the leaf concludes is now attention*. So `+p`/`-p` is not a relaxation of the
+offline design, it is **the missing half of it**.
+
+ And the stake changes with it. Attention **orders and cannot gate**, so a wrong lesson costs
+ordering and never truth — which is why it was the safe thing to learn first. A rule concluding
+`+p` asserts, so a wrong one costs a false belief. Dropping the wrapper means **paying with
+precedence instead**, and that machinery is built and idle: the harmonization census found *not
+one unplanned conflict in the repo*, which is why a detector could not be gated at the time —
+there was nothing to detect. **Learned `+p`/`-p` rules would be the first real source of them**,
+so this supplies the fixture that arc has been missing rather than running into a wall.
+`defeated(<loser>, <winner>)` is the shipped place to make a learned rule losing to an authored
+one observable rather than silent.
+
+### Where this stands
+
+Nothing built, nothing measured beyond the `web()` counts. The next step, if it is taken, is the
+`rests_on`-as-bottom-clause check, because it is a READ rather than a learner and it decides
+whether the mutator is plumbing or research.
+
 ## Where to pick up
 
+**The author is reviewing the code next, and asked for no interference.** Nothing below is
+started; this is a list, not a queue.
+
 `context: believed` is settled, so the anchor build has nothing left in front of it except the
-leak above, which should go first. Otherwise unchanged from below, minus 9.4: the critical path is **anchors**, `context: believed` is
+ground-structural-pattern leak above, which should go first. The learning thread is open and
+unbuilt, and its first step is a read rather than a learner. Otherwise unchanged from below, minus 9.4: the critical path is **anchors**, `context: believed` is
 still unresolved (the argument for and against is in the section below and nothing here
 touches it), and 9.8, 9.3b and all of 12 wait on the build. What this session adds to that
 decision is one datum: the `expects` family shows that a sign carried as data is a
@@ -473,7 +568,7 @@ attention claims it made)`. The expert is picked from the pushed nodes by
 `pop` is a return, so the attention stack and the consultation stack are one
 construct.
 
-⚠⚠⚠ **The graph is untouched by both.** Not a transaction, no rollback, nothing
+ **The graph is untouched by both.** Not a transaction, no rollback, nothing
 derived inside a frame stops existing when it is popped. The one thing a pop
 takes back is the frame's own `attention` claims, and it DENIES them.
 
@@ -489,7 +584,7 @@ takes back is the frame's own `attention` claims, and it DENIES them.
 3. **Re-run vs resume: ZERO divergence, and that is the finding.** Same moves,
    same order, both ways. Structural: with the buffs retired a score is
    `STANDING` or `FLOOR` and only `absorb` moves it, so a rebuilt table and a
-   run one agree in `score` and `rank`. ⚠⚠⚠ **`tick`'s *measuring a different
+   run one agree in `score` and `rank`.  **`tick`'s *measuring a different
    agent each time* is currently INERT** -- it was written when a buff moved a
    score. The table in a frame is not what the frame buys today; the QUEUE and
    the ROUTING are.
@@ -498,7 +593,7 @@ takes back is the frame's own `attention` claims, and it DENIES them.
 column would be measuring its own conclusion: **+4% rules matched, same ticks.**
 The stack is not a speed-up.
 
-## ⚠⚠⚠ One defect found on the way, and it was not in the stack
+##  One defect found on the way, and it was not in the stack
 
 `_attention_asked` ordered standing `attention` claims **by iterating a Python
 set**, so which of several equally-claimed nodes lifted hardest was decided by
@@ -517,7 +612,7 @@ question and spends `push(area($r))`; the engine picks the callee by TF-IDF; one
 inherited `<replied>` rule spends `pop`. Two hops, **one `run()`**, no outer
 loop, no `answered` lift.
 
-⚠ The `twice(3)` hop routes to **geometry** rather than arithmetic and answers
+ The `twice(3)` hop routes to **geometry** rather than arithmetic and answers
 correctly anyway, because geometry inherits `<double>`. That is measurement 2's
 `area` tie showing up in the routing. Recorded, not tuned away.
 
@@ -561,18 +656,18 @@ current. All four are fixed:
                           something to compare against"* -- the design doc had
                           the correction (*"that comparison is deleted"*) and
                           the docstring had kept only the first half.
-    machine.py `run`      *"⚠⚠⚠ THE MIGRATION TO THE TABLE LOOP IS STAGED, AND
+    machine.py `run`      *" THE MIGRATION TO THE TABLE LOOP IS STAGED, AND
                           THIS IS THE SWITCH."* It is finished.
     README                listed `ugm.core.attention` under *"the comparisons,
                           which run two loops"*. Its `main()` is two worked
                           examples.
 
 `docs/design/attention.md` and `docs/design/machine.md` are updated to match --
-⚠ the superseded prose is KEPT and marked, not deleted, because the numbers in
+ the superseded prose is KEPT and marked, not deleted, because the numbers in
 this design were taken against it and a doc that drops the loser of a comparison
 has thrown away the argument.
 
-⚠⚠ **And the name is left alone, knowingly.** `attention.py` is called after the
+ **And the name is left alone, knowingly.** `attention.py` is called after the
 feature that distinguished it from the incumbent; most of attention proper --
 the queue, the stack, the claims -- is in `machine.py`. Renaming it to `loop.py`
 is a ~25-import mechanical diff and was declined for now; the module docstring
@@ -630,11 +725,11 @@ raises.
                    for a three-field tuple
     machine.py     `why()` still took a locus; `_contest` unpacked `_spent[key]`
                    as four values where `_spend` writes three
-    rules.py       ⚠⚠⚠ `_members_of` wanted a FOUR-argument `entry_of` and a
+    rules.py        `_members_of` wanted a FOUR-argument `entry_of` and a
                    THREE-member entry. An entry has two members now, so **every
                    rule that reads the chain matched nothing** -- the whole of
                    `gates/agreement.py`'s `READ` included. Nothing raised.
-    machine.py     ⚠⚠⚠ the answerer protocol was `(machine, frame, entry)` and
+    machine.py      the answerer protocol was `(machine, frame, entry)` and
                    the call site had ALREADY been cut to two arguments. All 13
                    registrations still declared three, so every tool in the tree
                    was broken. Now `(machine, entry)`.
@@ -642,7 +737,7 @@ raises.
                    name now, the way `@` is -- a notation that parses and is
                    ignored is a rule that means something other than it says.
 
-## 2. ⚠⚠ `current_state` was ordering by FIRST mention, and the order is semantics
+## 2.  `current_state` was ordering by FIRST mention, and the order is semantics
 
 `_claims` is keyed by first mention, so `[got[-1] for got in reversed(...)]`
 returns a proposition where its *first* claim put it. `Machine._state`'s
@@ -662,7 +757,7 @@ any bug they shared. It now walks the moments itself.
 > re-implementation of what it indexes*), applied to the gate. Worth checking of
 > the other three the next time a read is collapsed.
 
-## 3. ⚠⚠⚠ Two §20 floor gates had NEVER been in a sweep
+## 3.  Two §20 floor gates had NEVER been in a sweep
 
 `tools_sweep.sh` grepped `^def main`. `gates.agreement` and `gates.quiescence`
 name their entry point `run`. The file's own header records this bug twice
@@ -671,7 +766,7 @@ shape: **the question is not what the function is called, it is whether the
 module is a door.** Keyed on `if __name__ == "__main__"` now, and the sweep went
 from 24 modules to 26.
 
-⚠⚠⚠ **`quiescence` has been exiting 1 for as long as it has existed.** Its
+ **`quiescence` has been exiting 1 for as long as it has existed.** Its
 `<silent>` rule derives nothing in any of its 12 fixtures -- 5/6 of its own
 rules exercised -- and `run()` counts a blind rule as a failure, correctly.
 Checked against `6c370d2`, the last fully green commit, rather than assumed: it
@@ -682,7 +777,7 @@ fixed, as `gates.state` was left before it.
 Both were broken by the cut and both are converted. `agreement`'s `READ` lost
 `<beaten-locus>` and every remaining rule lost a key: the read was ordered by
 locus first with deposit order breaking ties *within* one locus, and there is
-one order left. ⚠ Its fixture forks on purpose, and the fork had to move OFF the
+one order left.  Its fixture forks on purpose, and the fork had to move OFF the
 chain's end -- `Chain.resolve` filters by no branch, so with the fork last the
 gate compared a native read that ignores branches against a rule-level one
 anchored on the other. They disagreed, correctly, and **the rule-level answer
@@ -711,13 +806,13 @@ assumed -- `asking`/`anc`/`in_delta`/`entry_of`/`sanc` derive
 with the one caveat that matters: such a rule is stratum 0, so its conclusion is
 minted structure and `_state()` will not show it.
 
-⚠⚠⚠ **The one thing the conversion does not recover, and it has no home:**
+ **The one thing the conversion does not recover, and it has no home:**
 dating a claim to a STRETCH. `silence_over_a_stretch_is_sayable` survives and
 deliberately does less -- a recogniser carries its own endpoints and deposits an
 ordinary claim. Telling *it held throughout* from *it held then* is gone, and
 under the scratchpad design it gets harder, not easier.
 
-## 5. ⚠⚠⚠ `close(<R1>, <R2>)` depends on where a chunk boundary falls
+## 5.  `close(<R1>, <R2>)` depends on where a chunk boundary falls
 
 `probes/walkers` was deleted for this, and the finding is why to keep reading.
 Two rules with identical antecedents contend for one position. The recall table
@@ -745,7 +840,7 @@ measured.
     18 bundled rules   intake, did, taken, assert-act, denial, four
                        deviation-*, the three call-stack rules, and backward
                        reading's ask-fit, ask-recall, plan, expand, ask-check,
-                       give-up. ⚠ `resuming` and `cross` went with situations.
+                       give-up.  `resuming` and `cross` went with situations.
     5 write-time hooks _adopt, _contest, _dispatch, _answer, _unafforded --
                        still Python callables, still §21's honest debt
     1 veto             `_forbid`, §19's carve-out, still before the deposit
@@ -768,7 +863,7 @@ of the converted groups had to be rewritten around.
     3. §5's chunk boundary, if doubt-noticing is to be trustworthy
     4. `<silent>`, if the quiescence gate is to be worth its 6 minutes (§3)
 
-⚠ **The habit that earned its keep again, twice.** Every gate must be able to
+ **The habit that earned its keep again, twice.** Every gate must be able to
 fail, and both times the check was *run it against something else and see*.
 `ugm.gates.state` was comparing an index against itself and reporting 0
 disagreements. The quiescence gate's 5/6 was going to be blamed on this branch
@@ -845,7 +940,7 @@ than a fixture:
 **The only safe deletion target is the ANCHOR.** Delete anchors; never
 propositions, never individuals. `docs/wanting.md` §7 is the argument.
 
-⚠⚠⚠ **And it was NOT true when first asked.** Erasing a proposition still named
+ **And it was NOT true when first asked.** Erasing a proposition still named
 by an entry raised `KeyError` twice over -- out of `Situation._keys` and again
 out of `Graph.show` -- because the state walk reads the relation of every entry
 it indexes. *Dangling references can stay* is only true if reading one ANSWERS
@@ -853,7 +948,7 @@ rather than raises, so `relation_of`, `members` and `show` are now tolerant and
 `show` prints `#n(erased)`. **That is the whole content of the author's call,
 and it needed two one-line changes to become true rather than none.**
 
-⚠ The probe also caught its own first draft: it asked for the erased node by
+ The probe also caught its own first draft: it asked for the erased node by
 name AFTER deleting it, and `kb.term(...)` re-mints -- so it compared against a
 different node. Take the id before the delete.
 
@@ -862,7 +957,7 @@ different node. Take the id before the delete.
     1. finish the suite conversion for (1)      ~12 groups, mechanical-ish
     2. then `believed(p)`                       signs, `Member.sign`, matching,
                                                 `_kept`, and the corpus syntax
-    ⚠ Not started: (2) is the big one and touches the surface notation.
+     Not started: (2) is the big one and touches the surface notation.
 
 # Handoff — 2026-08-20u (practice rewritten, `at_or_after`, `Frame`)
 
@@ -926,7 +1021,7 @@ and the old *rehearsals NEST -- the crossing runaway in a new place* finding is
 closed by construction, because a scene is a node somebody wrote down. That is
 what `hypotheses(n)` and `depth(n)` were bounding, and why both could go.
 
-## 2. `at_or_after` -- ⚠⚠⚠ the proposed collapse was UNSOUND
+## 2. `at_or_after` --  the proposed collapse was UNSOUND
 
 `docs/todo.md` proposed collapsing this to a depth comparison because *nothing
 forks now*. **That is false**, and the suite cannot see it:
@@ -959,7 +1054,7 @@ only by `suppose`, and **`parent` only ever by the check that tested `parent`**.
 ⭐ The engine builds exactly ONE frame: `gate.frame(self.chain.root)`. Every
 other call site in the tree is a test or a gate instrument.
 
-⚠ Checked before cutting, as `docs/todo.md` asked: **§18's call stack is FACTS**
+ Checked before cutting, as `docs/todo.md` asked: **§18's call stack is FACTS**
 -- `call`, `stage`, `spawn`, `awaits`, `returned` are reserved names a corpus
 writes, and none of them was ever a frame.
 
@@ -1003,7 +1098,7 @@ materialisation. Hypothetical reasoning is now the regular graph.
     corpora          `bundle.ugm`'s callback section (`<resuming>`),
                      `worked.ugm`'s `<cross>`.
 
-## ⚠⚠⚠ What it COST, recorded as checks rather than conceded in prose
+##  What it COST, recorded as checks rather than conceded in prose
 
 Every one of these is now a comment in the suite at the site of the check it
 replaced, so the loss is findable from the thing that used to prove it:
@@ -1037,14 +1132,14 @@ replaced, so the loss is findable from the thing that used to prove it:
 silence** -- eight groups went whole, and every check that survived in a changed
 form says at its own site what changed.
 
-## ⚠⚠ The sweep is 2 failing, and both are worth reading
+##  The sweep is 2 failing, and both are worth reading
 
 **`learning.practice` -- 8 of 14 checks, and it CRASHES.** The module's whole
 subject is *rehearse, review, carry forward -- and never act*, with the register
 left standing inside the rehearsal and cost charged to the frame. That is
 supposition, and there is no anchored rewrite of it in this commit.
 
-> ⚠⚠⚠ **`docs/todo.md`'s inventory said *No production module builds on
+>  **`docs/todo.md`'s inventory said *No production module builds on
 > suppositions*, and that is measurably false.** The measurement that found it
 > is in the same file: `learning.practice` ran 66% of its aggregate asks and 59%
 > of its index reads inside a hypothesis, more than any other module by an order
@@ -1066,7 +1161,7 @@ disagreement in the revision-at-an-earlier-locus case that no fixture had ever
 reached -- and `gates.state`'s standing *0 disagreements over 7,359 looks* was
 partly a statement about the fixtures.
 
-⚠ Not fixed here, deliberately: it is a different defect from this one, and the
+ Not fixed here, deliberately: it is a different defect from this one, and the
 brief was one thing at a time. It is the first thing to pick up.
 
 ## Two simplifications now AVAILABLE and not taken
@@ -1100,7 +1195,7 @@ On top of `d3d802e`. **-554 lines, +36.**
 0 disagreements over 7,359 looks. The keys column was `_in_play`'s only consumer
 outside the suite, and `_in_play` was the loop's last caller-less method.
 
-## ⚠ Un-reserving a name shifts node ids, and this time nothing moved
+##  Un-reserving a name shifts node ids, and this time nothing moved
 
 Third un-reserving this session (`prefer`, then `tolerance`). The first moved a
 fixture that had already been wrong in two other columns; this one moved
@@ -1110,7 +1205,7 @@ hazard is not real*.
 
 The suite went 646 -> 641 entirely from the five deleted `_in_play` checks.
 
-## ⚠⚠ Four places still described `tolerance` as LIVE
+##  Four places still described `tolerance` as LIVE
 
 Including `the_knobs_are_claims`, whose docstring OPENED by arguing why
 tolerance is a fact -- the check's own subject was the retired thing. Also
@@ -1184,14 +1279,14 @@ Two passes. First, comment runs of 8+ lines and docstrings of 15+; then module
 docstrings, which is what the complaint was actually about -- `probes/walkers.py`
 opened with **205 lines** and `core/attention.py` with **204**.
 
-## ⚠ What this changes at runtime, said out loud
+##  What this changes at runtime, said out loud
 
 **22 modules print their own `__doc__` as a report header.** Their console output
 is now short and points at the note. The findings are not lost -- they are in
 `docs/design/` and under version control -- but `python -m ugm.probes.walkers`
 prints a paragraph where it used to print an essay.
 
-## ⚠⚠ Two things the mechanical pass got wrong, both caught by looking
+##  Two things the mechanical pass got wrong, both caught by looking
 
     wrap()          dropped every space when the prefix was empty, so a
                     docstring came out as `Thisisthealternativetolifting.`
@@ -1242,7 +1337,7 @@ costing something: a settled probe (`ugm.modality`, which says so in its own
 header) sat in the same bucket as a floor gate, and nothing distinguished *this
 must pass to ship* from *this records what we learned*.
 
-## ⚠⚠⚠ The sweep globbed `ugm/*.py`, which is its own recorded bug one level up
+##  The sweep globbed `ugm/*.py`, which is its own recorded bug one level up
 
 Its header already says *a HAND-WRITTEN LIST HID TWO REGRESSIONS... Pick
 nothing: ask the filesystem.* The glob was flat, so the moment the tree grew
@@ -1263,7 +1358,7 @@ it. One accessor, next to the data.
 with one name, where Python resolves the module first and nothing says so. The
 rule engine is `ugm/core/rules.py`; the corpora keep the directory.
 
-## ⚠⚠ Two bugs I introduced, and only one instrument caught the worse one
+##  Two bugs I introduced, and only one instrument caught the worse one
 
     same-package `from . import X`   rewritten to `from  import X` -- SyntaxError,
                                      loud, fixed in a minute
@@ -1279,7 +1374,7 @@ found 0 further damaged docstrings.
 
 > **A regex anchored on `^from ` does not know what a docstring is.**
 
-## ⚠ One layering violation left, and it is free to remove
+##  One layering violation left, and it is free to remove
 
 `ugm/core/attention.py` reaches into `..probes.dungeon`, from `_fight()`. But
 `_fight`, `_load` and `_holds` are called nowhere -- `learning/teaching.py`
@@ -1312,7 +1407,7 @@ half-executed is complete: nothing rule-keyed is left in the loop.
 ## What went
 
     ugm/melee.py            251 lines   its whole corpus was boost/damp
-    ugm/acting.py           331 lines   ⚠ see below -- this one cost something
+    ugm/acting.py           331 lines    see below -- this one cost something
     melee-p1.ugm/-dm.ugm    298 lines
     PREFER, _priority, _rank, _close                        machine.py
     Buff, Spend, LIFE, MAX_LIFT, NORM, Table.age/clear/
@@ -1323,7 +1418,7 @@ half-executed is complete: nothing rule-keyed is left in the loop.
       install_recognisers, WHEN, AFTER, _collides           teaching.py
     the bigram / query / occasion / both arms               teaching.measure
 
-## ⚠⚠⚠ The penguin: this file has been WRONG about it, and the retirement is
+##  The penguin: this file has been WRONG about it, and the retirement is
 what found out
 
 `attention.py` said *the specificity has to come from a buff*, and rank "can
@@ -1348,7 +1443,7 @@ GRAIN. What works is stating `-penguin(tweety)` and letting `<flies>` read it --
 §9's positive tests with the negative WRITTEN rather than inferred from silence.
 `penguin()` is now that table, and tweety is why it can fail.
 
-## ⚠⚠ What `acting.py` cost, recorded because deleting it was a judgement call
+##  What `acting.py` cost, recorded because deleting it was a judgement call
 
 Its five-row lever table was buff-keyed, but its SIX marker gates were not, and
 they carried the module's actual subject: **an action is a rule, its bindings,
@@ -1361,7 +1456,7 @@ not. It fires (the claim is deposited) and is then clobbered back to weight 1 by
 auto-attention before the deciding tick. *Lasting and recent are different
 claims*, and the learnable one is the recent one.
 
-## ⚠⚠⚠ Four things that had stopped being able to fail
+##  Four things that had stopped being able to fail
 
 Found by walking into them, not by looking:
 
@@ -1382,7 +1477,7 @@ Found by walking into them, not by looking:
 The last is now a **ParseError** that says where to put the lesson instead. A
 lesson that silently does nothing is the worst outcome available here.
 
-## ⚠⚠⚠ `_recall` IS NOT ON THE TABLE LOOP'S PATH
+##  `_recall` IS NOT ON THE TABLE LOOP'S PATH
 
 Instrumented: a `Machine.run` calls `_recall` **zero** times. The loop shortlists
 through the attention table; the budget knob reaches it via `_widen`.
@@ -1390,7 +1485,7 @@ through the attention table; the budget knob reaches it via `_widen`.
 what the agent recalls when it moves. Recorded in `recall_is_narrowable` rather
 than repaired, because where narrowing belongs is a design question.
 
-## ⚠ `_in_play` now has NO production caller
+##  `_in_play` now has NO production caller
 
 Kept deliberately when the fork was taken, at which point `_recall`'s preference
 sort and `teaching.teacher` both read it. Both are gone. It is now defined, held
@@ -1440,7 +1535,7 @@ Landed as `eb24325 wip`, on top of `6680954`. 20m's costed plan, executed.
     attention.run       the `prefer` lift block -- `_priority` over `_in_play`
     bundle.ugm          <relevant>, which concluded prefer($r, $wanted, 1)
 
-⚠ `lift` is bound before the `asked` block now. Deleting the block took the
+ `lift` is bound before the `asked` block now. Deleting the block took the
 binding with it, exactly as 20m warned for `attended` — a `NameError` on the
 next statement rather than anything subtle, but the same shape twice.
 
@@ -1448,7 +1543,7 @@ Four comments in `attention.py` still compared live behaviour to *`prefer`'s
 lift*. Updated, because a comparison to a deleted mechanism reads as a
 description of a live one.
 
-## ⚠⚠⚠ The sharpest cost, and it is now a CHECK rather than a handoff line
+##  The sharpest cost, and it is now a CHECK rather than a handoff line
 
 `<relevant>` was means-ends analysis as a bundled rule: `fits($r, $wanted)` ->
 `prefer($r, $wanted, 1)`. 20m recorded that the KNOWLEDGE is untouched, and that
@@ -1470,7 +1565,7 @@ can say. An agent that wants it back writes the one-line rule into its own
 corpus, which is the same recourse it always had. The rule is left in the
 bundle's comment for exactly that.
 
-## ⚠⚠ A check that has now been wrong in TWO different columns
+##  A check that has now been wrong in TWO different columns
 
 `attention that names everything discriminates nothing`:
 
@@ -1485,7 +1580,7 @@ attend one thing and its rule goes first, attend three and the one you named
 does not. Something is still lifted — just not yours, which is worse than no
 lift for a lesson trying to teach something. Both halves are gated now.
 
-## ⚠⚠⚠ The bundle is not free, for the fourth and fifth time
+##  The bundle is not free, for the fourth and fifth time
 
 Removing a rule shifts declaration RANK in every corpus, and rank breaks the tie
 when scores are equal at the floor. Two fixtures moved, and neither is a bug:
@@ -1523,15 +1618,15 @@ which is still read by `selftest` and `ugm.tools`; only the row-WRITING went.
 `reflex`, and `teaching.py`'s bigram/query/occasion arms. Also `_priority`,
 `_rank` and `_in_play` in `machine.py`, and the `PREFER` atom itself.
 
-⚠ `_priority` and `_in_play` are NOT dead, which is worth checking before
+ `_priority` and `_in_play` are NOT dead, which is worth checking before
 deleting them: the lift was their loudest caller, but `Machine._recall` still
 narrows by `_priority` when a `budget` knob is set — and that defaults to off,
 so nothing in the suite exercises it. A path nothing executes is exactly what
 20l deleted three instruments for, so decide it deliberately rather than by
 grep.
-⚠ `_rank` is read by `teaching.teacher`; retiring it means the gold teacher
+ `_rank` is read by `teaching.teacher`; retiring it means the gold teacher
 ranks by authored order, which is simpler and probably right.
-⚠ `learning.a_lesson_outlives_its_rule` loads a `prefer` row on purpose and
+ `learning.a_lesson_outlives_its_rule` loads a `prefer` row on purpose and
 survives — the ParseError it gates on comes from `<use-tap>` being undeclared,
 not from `prefer` being unknown. But `credit_costs_nothing_here` would then pass
 for a trivial reason and should be re-read when the buffs go.
@@ -1579,7 +1674,7 @@ The row it replaces does not go quietly stale. **It fails to load**, because it
 refers to a statement that is not there — a corpus of experience made unreadable
 by an edit somewhere else. That is the argument for the whole thread in one run.
 
-## ⚠⚠⚠ And the price, measured rather than conceded
+##  And the price, measured rather than conceded
 
 > **Rule-keyed advice can always separate two routes. Node-keyed advice can
 > separate only routes that are ABOUT different things.**
@@ -1590,7 +1685,7 @@ routes and they are symmetric — `<use-vase>` wants `goal, holds, vase`,
 lifts BOTH and the walk decides as it always did. There is no other node to try;
 the vessel is the only thing either rule is about.
 
-⚠⚠⚠ **The first version of `_salient` scored candidates by a PROXY** — fewest of
+ **The first version of `_salient` scored candidates by a PROXY** — fewest of
 the harmed route's relations — and took the best available. It named `jug1`,
 wrote a well-formed lesson, loaded it without complaint, and moved nothing.
 Advice that cannot be obeyed is indistinguishable from advice that works until
@@ -1601,7 +1696,7 @@ What went with it: the magnitude result, the oscillation it repaired, and
 `possible(prefer(...))` with `<venture>`. `how sure is a WRAPPER` is untouched as
 a claim — `induce` still hedges an unobserved leaf — but nothing exercises it.
 
-## ⚠⚠⚠ CREDIT WAS LOAD-BEARING, and not where it looked
+##  CREDIT WAS LOAD-BEARING, and not where it looked
 
 `learned` also recommended the rules that HELPED. A rule that helped is a rule,
 so there is no node-keyed sentence for it and those rows are gone. Dropping them
@@ -1640,7 +1735,7 @@ world minus the authored goal, and everything structural survives untouched:
 the proposer, containment (nothing leaves the agent), forgoing inside a frame,
 the nesting result and both authoring orders, the mute-world gate.
 
-⚠⚠⚠ What did not survive: *exploration and oscillation are the same behaviour,
+ What did not survive: *exploration and oscillation are the same behaviour,
 and which one it is depends only on where the agent is standing.* That needed a
 lesson that could separate two routes about the same things. **The finding is
 not refuted; it is unsayable**, which is a different thing and is recorded as
@@ -1682,7 +1777,7 @@ the `prefer` lift block in `attention.run`, delete `<relevant>` from
 update the recorded numbers in `walkers` and `attention` that a bundle-rank shift
 moves. Then the buffs, which is the larger half and untouched.
 
-⚠ `learning.a_lesson_outlives_its_rule` loads a `prefer` row on purpose. It
+ `learning.a_lesson_outlives_its_rule` loads a `prefer` row on purpose. It
 survives retirement — the ParseError it gates on comes from `<use-tap>` being
 undeclared, not from `prefer` being unknown — but `credit_costs_nothing_here`
 would then pass for a trivial reason, and should be re-read when the buffs go.
@@ -1717,7 +1812,7 @@ than the 3 domain conclusions the uncalibrated arm loses:
     lift on CLAIMED     the whole queue orders BINDINGS; only what something
                         claimed attention of LIFTS rules
 
-⚠⚠⚠ The third is the piece three attempts were missing. Ordering a rule's own
+ The third is the piece three attempts were missing. Ordering a rule's own
 bindings costs nothing -- the applications are in hand. Lifting decides which
 rules are matched at all, so a queue full of whatever the last move wrote pushes
 the shortlist onto recently-touched rules and leaves work unreached: **48
@@ -1753,7 +1848,7 @@ The first two are the bundle-rank problem: **removing a rule renumbers every
 corpus**, and rank decides the shortlist when scores tie at the floor. Mechanical
 -- update the recorded numbers.
 
-## ⚠⚠⚠ THE OPEN DECISION, and it is not the `workload` case
+##  THE OPEN DECISION, and it is not the `workload` case
 
 `ugm/learning.py` (572 lines) and `ugm/practice.py` (424) fail because `prefer`
 is their MECHANISM. But unlike `ugm.workload`, which measured a code path that no
@@ -1778,12 +1873,12 @@ it, which is why it was not taken unilaterally.
 `_rerank`, `reflex`, and `teaching.py`'s bigram/query/occasion arms. Also
 `_priority`, `_rank` and `_in_play` in `machine.py`, and the `PREFER` atom.
 
-⚠ `stop` must survive. It is a postcondition but it is not scoring, and
+ `stop` must survive. It is a postcondition but it is not scoring, and
 `attention.py` argues it is what made *done is the output of a rule* mean
 anything.
-⚠ `arbitrate` and `_materialise` must survive: the gold teacher in `teaching.py`
+ `arbitrate` and `_materialise` must survive: the gold teacher in `teaching.py`
 and the chooser in `ugm.hanoi`.
-⚠ `_rank` is read by `teaching.teacher`; retiring it means the gold teacher
+ `_rank` is read by `teaching.teacher`; retiring it means the gold teacher
 ranks by authored order, which is simpler and probably right.
 
 ## Standing lessons from this session
@@ -1838,7 +1933,7 @@ is exactly what the deleted loop comparison turned out to be (20k). Two of these
 announced it themselves, in their own kill-probe language, the moment the path
 went cold.
 
-⚠ I said the `tick` callers only wanted *step once and look*. True of
+ I said the `tick` callers only wanted *step once and look*. True of
 `quiescence` and the selftest; **false of these three**, and the sweep is what
 said so. The claim was made before the measurement, which is the order this
 repository keeps recording as the mistake.
@@ -1905,7 +2000,7 @@ inspection that is not a defect. `<hero-holds>` reaches a shortlist 132 times an
 option-set loop materialises every application every tick and catches a moment a
 prefix scan never looks at. Both records are true.
 
-⚠ And `defeated` is **write-only**: no corpus rule and no Python reads it, only
+ And `defeated` is **write-only**: no corpus rule and no Python reads it, only
 checks asserting it was deposited. The gate was demanding parity on a fact
 nothing consumes.
 
@@ -1935,7 +2030,7 @@ On top of `5fbc4c8`.
 
 ## `tools_sweep.sh`
 
-Enumerates every module with a `main()` from the filesystem. ⚠⚠⚠ **A
+Enumerates every module with a `main()` from the filesystem.  **A
 hand-written list hid two regressions in one session** -- `ugm.practice` red for
 two commits, `ugm.attention` for six -- because every sweep used a dozen of the
 ~30. Pick nothing; ask the filesystem.
@@ -1947,9 +2042,9 @@ Fixed on its own merits: a rule beaten by two recorded only whichever
 defeated -- but *which of my rules actually fight* is the question the deposit
 exists to answer, and it was answering it partially.
 
-⚠ **It did not fix the gate**, and saying so is the point of writing it down.
+ **It did not fix the gate**, and saying so is the point of writing it down.
 
-## ⚠⚠⚠ `ugm.attention`: still red, and now understood
+##  `ugm.attention`: still red, and now understood
 
     FAIL  1 conclusion(s) lost: defeated(<hero-holds>, <hero-acts>)
 
@@ -1967,7 +2062,7 @@ about the moment it reached one. The recovery that took `defeated` off the
 accepted-losses list -- *ask the question the other way round* -- is real but
 PARTIAL, and this is where the partiality shows.
 
-⚠ Bisected to `c07b2b1 palette`, and the mechanism is the one the author named:
+ Bisected to `c07b2b1 palette`, and the mechanism is the one the author named:
 reserving an atom shifts every subsequent node id, and mint order is a tie-break
 by design (§3). The palette did not break defeat; it moved an ordering, and the
 partial recovery stopped covering this case.
@@ -1984,7 +2079,7 @@ On top of `a4b461f`.
 
     selftest    645/0
     practice    FIXED — was red since `5418cda`
-    ⚠ attention exit 1 — red since `c07b2b1 palette`, NOT fixed. See below.
+     attention exit 1 — red since `c07b2b1 palette`, NOT fixed. See below.
 
 ## `ugm.practice`: fixed
 
@@ -1997,7 +2092,7 @@ here* is what an entry says.
 the CHOICE — one route taken, one other named — so it counts `set(forgone)`.
 Counting deposits was measuring the length of the run.
 
-## ⚠⚠⚠ `ugm.attention`: red since `c07b2b1 palette`, and the cause is worth more
+##  `ugm.attention`: red since `c07b2b1 palette`, and the cause is worth more
 than the failure
 
     FAIL  1 conclusion(s) lost that is not an accepted loss:
@@ -2020,12 +2115,12 @@ That is the author's *global equilibrium*, one level below where it was first
 noticed, and it has now cost two fixtures in one session — `ugm.walkers` to the
 first and `ugm.attention` to the second.
 
-⚠ `defeated` was deliberately taken OFF the accepted-losses list once already
+ `defeated` was deliberately taken OFF the accepted-losses list once already
 (`attention.py`: *it was accepted as unreachable on the same grounds... That was
 wrong — the question can be asked the other way round*). Losing it again is a
 regression against work done on purpose, not a tolerance to widen.
 
-## ⚠ How both hid: the module sweep was a hand-written list
+##  How both hid: the module sweep was a hand-written list
 
 There are ~30 modules with a `main()`. Every sweep this session used a list of a
 dozen, and neither `practice` nor `attention` was in it. Enumerating from the
@@ -2035,7 +2130,7 @@ filesystem found both in one run:
 
 Something like it belongs in the repo rather than in a session's scratch.
 
-⚠⚠ And a bisect over a DIRTY tree is worthless: `git checkout <ref>` fails
+ And a bisect over a DIRTY tree is worthless: `git checkout <ref>` fails
 silently when a modified file differs, leaving the previous ref in place and
 reporting its result. The first bisect this session said `5c961f7` and was
 wrong; committing first and re-running said `c07b2b1`.
@@ -2046,7 +2141,7 @@ On top of `5418cda`.
 
     selftest    645/0
     teaching    exit 0, and the result below
-    ⚠ practice  exit 1 — a regression I introduced in `5418cda` and did not
+     practice  exit 1 — a regression I introduced in `5418cda` and did not
                 catch, because the module sweep was an ad-hoc list. See below.
 
 ## The result
@@ -2073,7 +2168,7 @@ relation atoms included — so a lesson's multiplier has something to stand out
 against. Everything one move writes arrives at the same depth, which is why the
 queue's own gradient could not separate them and why this failed twice before.
 
-**⚠⚠⚠ The lift keys on CLAIMED attention only; the whole queue orders bindings.**
+** The lift keys on CLAIMED attention only; the whole queue orders bindings.**
 This is the piece three attempts were missing. Ordering a rule's own bindings
 costs nothing — the applications are in hand. LIFTING decides which rules are
 matched at all, so a queue full of whatever the last move wrote pushes the
@@ -2085,7 +2180,7 @@ bring rules to mind; the machinery noticing *this just happened* is not.
 about the goblin `<spot>` bound. The machinery does what a focus lesson used to
 have to teach, so what a lesson teaches is now only the WEIGHT.
 
-## ⚠ The regression, and how it got through
+##  The regression, and how it got through
 
 `ugm.practice` has been failing since `5418cda` — the queue commit, already on
 `main`. Its `forgone` record shows one route twice where the check wants two
@@ -2096,7 +2191,7 @@ distinct ones, so a rehearsal no longer reads as a choice.
 session enumerated them from the filesystem instead; something like it belongs in
 the repo.
 
-⚠ `forgone` is a SAFETY property before it is a learning one (`attention.py`'s
+ `forgone` is a SAFETY property before it is a learning one (`attention.py`'s
 own note: *an act cannot be taken back*), so this is not a cosmetic failure and
 is the next thing to fix.
 
@@ -2151,7 +2246,7 @@ rule should not out-match a 2-node one by size) and **inverse frequency over the
 active pool** (`stage` and `on` should not lift everything). Both were named in
 20d and neither is built.
 
-⚠ And the honest possibility to keep open: that a bigram naming its successor is
+ And the honest possibility to keep open: that a bigram naming its successor is
 simply the right shape for *this rule, then that one*, and what should be
 retired is `prefer` alone — whose key is a relation, which attention can carry —
 while the sequence-shaped lesson stays. That is a smaller claim than the one
@@ -2168,7 +2263,7 @@ this session set out to test, and the numbers so far support it.
 mechanism — `workload`'s ideal table is `fact prefer(...)` and is its whole
 ceiling measurement), plus 42 mentions in `selftest.py`.
 
-⚠ `stop` must survive: it is a postcondition but it is not scoring.
+ `stop` must survive: it is a postcondition but it is not scoring.
 
 # Handoff — 2026-08-20g (attention is a bounded queue, and position is weight)
 
@@ -2214,10 +2309,10 @@ nothing.
 should not forget what you were doing, and ten busy ones should. `LIFE` could
 never say that.
 
-⚠ A standing `fact +attention(x)` is not lost -- it ranks BELOW the queue.
+ A standing `fact +attention(x)` is not lost -- it ranks BELOW the queue.
 Lasting and recent are different claims, and the queue is about the second.
 
-⚠ The rule lift takes the STRONGER of two reachable positions, not the sum;
+ The rule lift takes the STRONGER of two reachable positions, not the sum;
 `_attended_first` SUMS, because a binding is the whole move rather than a reason
 to look.
 
@@ -2267,7 +2362,7 @@ place. `python -m ugm.teaching` prints it.
 ⭐ **One renderer** for the document and for the installer (`focus_lines`), so
 the lesson that is inspectable is the lesson that ran. Two would drift.
 
-⚠ **Attention only**, deliberately. `prefer` and the score buffs are not
+ **Attention only**, deliberately. `prefer` and the score buffs are not
 emitted, because they name other rules and are on their way out for that reason.
 
 ## Learning ADJUSTS rather than replaces
@@ -2280,7 +2375,7 @@ exactly what is left; change the 5 to a 3 and the learned +2 still applies.
 For attention it is the ABSENCE of `unattend`: a focus lesson was
 `unattend, attend($v)` and is now `attend($v)` — *and also think about this*.
 
-⚠ The clearing was doing real work: a claim has no `LIFE`, so attention
+ The clearing was doing real work: a claim has no `LIFE`, so attention
 accumulates with nothing to take it back. What is meant to replace it is the
 automatic half, which is **not built** (20d). Measured on the dungeon: dropping
 it cost nothing — 141 moves, 34.8 matched/move, 3 conclusions lost, identical to
@@ -2293,7 +2388,7 @@ except that nothing much depends on it yet.
 attention only. They name other rules, which is the same *keyed on an identity*
 defect this whole thread has been about, one level up from bindings.
 
-⚠⚠⚠ **The dependency is measured and it is hard.** Attention cannot do their
+ **The dependency is measured and it is hard.** Attention cannot do their
 job yet: 20d records three attempts, 10/13/13 checks failing, and the counted
 variant cost the focus arm 44 domain conclusions against 3. So the order is
 forced — make attention-based scoring work first (length normalisation, inverse
@@ -2302,7 +2397,7 @@ frequency), then retire one mechanism at a time with the dungeon as the gate.
 What retirement touches, so it is not discovered piecemeal: `teaching.py`'s
 bigram/query/occasion arms entire, `<relevant>` in the bundle (and removing a
 bundle rule renumbers every corpus), `_priority`/`_rank`/`arbitrate`, `SETTLE`,
-and `reset` (meaningless without buffs). ⚠ `stop` must survive — it is a
+and `reset` (meaningless without buffs).  `stop` must survive — it is a
 postcondition but it is not scoring.
 
 # Handoff — 2026-08-20e (outstanding business, and the bundle is not free)
@@ -2329,7 +2424,7 @@ from both, and it vetoes the stop once so there is a tick to react in.
 That is death by silence closed: an agent that believed itself finished could
 drop a request it had made and nothing anywhere recorded it.
 
-## ⚠⚠⚠ Why it is the MACHINERY and not a bundled watchdog
+##  Why it is the MACHINERY and not a bundled watchdog
 
 It was built as a bundle rule first — `<unattended>`, keyed on `open($a)` — and
 that is the right shape in principle: low priority as a PREMISE rather than a
@@ -2353,7 +2448,7 @@ loop is ending* is a claim about the LOOP, which no rule can see. So it deposits
 its own event, exactly as it does for `unafforded`, and what it MEANS is still a
 rule's to decide.
 
-## ⚠⚠⚠ And a name was a twin for the fourth time this thread
+##  And a name was a twin for the fourth time this thread
 
 `<unattended>` fired, and a corpus asking `declined($a, unattended)` saw
 **nothing** — the bundle's `unattended` was not reserved, so the corpus built a
@@ -2407,7 +2502,7 @@ rule's 10 — attention deciding the whole order and the apparatus losing its
 authored place, which §19's carve-out forbids — but fixing that changed nothing
 about the count.
 
-⚠ **And the measurement it was built to move went the wrong way.** 20c recorded
+ **And the measurement it was built to move went the wrong way.** 20c recorded
 a decline arriving at tick ~101 and named this step as the fix. A pending
 `attempt` that no rule wrote is not in the last write set, so under the default
 it was never declined at all. *Attend what just happened* and *attend what is
@@ -2454,19 +2549,19 @@ pattern against the entry and here the entry is the generic one. Measured:
 literally cannot ask *is this attempt afforded*, and `_unafforded` is hooked at
 the write for `_forbid`'s reason and by the same route.
 
-⚠ **Deposited, not VETOED.** A vetoed attempt never existed, so the agent could
+ **Deposited, not VETOED.** A vetoed attempt never existed, so the agent could
 not learn it tried something that is not a thing — which is the entire reason to
 have a palette. The machinery notes the smallest unarguable fact and a rule
 decides what it means.
 
-⚠ `declined` is distinct from the gate's `refused` (arity 3, carrying the norm
+ `declined` is distinct from the gate's `refused` (arity 3, carrying the norm
 that forbade a write). *You may not* and *there is no such move* are different
 claims.
 
 Hanoi is rewired: `want(on($d,$p))` → `attempt(move($d,$t))`, still optimal at
 3..7 with identical sequences and identical tick counts.
 
-## ⚠⚠⚠ Three things the gate caught, all mine
+##  Three things the gate caught, all mine
 
 **1. `<covered>` was not load-bearing and the ablation said so.** Correct play
 never makes an illegal move, so SOLVING cannot kill a rule that only declines.
@@ -2479,7 +2574,7 @@ rule the fixture is not testing — §20 catching a fresh instance of its own ca
 nothing until something had denied it. `facts()` now states `-clear` for every
 covered disk, so the question is askable at tick 0.
 
-**3. ⚠ THE DECLINE IS LATE, and this is the next thing to fix.** The attempt
+**3.  THE DECLINE IS LATE, and this is the next thing to fix.** The attempt
 stands from tick 0 and is not declined until tick ~101, because `<covered>` sits
 at the floor and the shortlist is busy with the recursion. Correct, and slow: a
 refusal the agent learns about only after it has finished is a poor thing to
@@ -2515,7 +2610,7 @@ A SIGNATURE and nothing else. It says what the agent may ask to do; what happens
 when it asks is the world model's business, and one of those rules may REFUSE —
 which is step 2. Reified as `afforded(move($x, $y))`.
 
-⚠ **Mentioned, not claimed.** The signature is generic and the surface refuses
+ **Mentioned, not claimed.** The signature is generic and the surface refuses
 `fact +move($x, $y)` outright — *a fact may not contain a variable* — so what is
 deposited is a claim ABOUT a pattern, exactly as `reify` deposits
 `ant(<R>, heat($a, $w))`. Checked both ways.
@@ -2530,11 +2625,11 @@ declaration a corpus needs one hand-written fallback per action, and a new
 action is a fallback nobody remembers to add. Same property `adopt` has for
 rules.
 
-⚠ `conn($r, causes)` was the nearest thing to a palette and answers a different
+ `conn($r, causes)` was the nearest thing to a palette and answers a different
 question: how a rule relates to the world, not that the agent may deliberately
 do it. *Fire causes smoke* and *I may strike a match* are both `causes`.
 
-## ⚠⚠⚠ Spelled `afforded`, and the reason is a trap walked into for the third time
+##  Spelled `afforded`, and the reason is a trap walked into for the third time
 
 `ugm/modality.py` uses `action(replace, $p)` as a DOMAIN relation — the
 recommended repair for a blocked filter. Reserving `action` took the word from
@@ -2588,7 +2683,7 @@ disks in the optimal sequence, having seen only 3 and 4.** Nothing searches:
 The strategy comes off the demonstration as DATA — `advances(unstacking,
 placing)`, `closes(waiting)` — because the order of the steps is a fact.
 
-## ⚠⚠⚠ Two rules it does NOT recover, and that is the finding
+##  Two rules it does NOT recover, and that is the finding
 
 `<base>` and `<leaf>` keep `d1` where a person wrote `$d`. **No number of SIZES
 fixes it**: the smallest disk is called `d1` at every size, so varying `n` never
@@ -2602,7 +2697,7 @@ puzzle this generator makes, so the learned rules solve perfectly. It shows up
 only in the diff against what a person wrote, which is the argument for
 comparing against the authored rule and not only against the behaviour.
 
-## ⚠ One demonstration is not experience, and it is now pass/fail
+##  One demonstration is not experience, and it is now pass/fail
 
     taught on 3 alone   10 rules, 2 declined, solves 5 disks: False
     taught on 4 alone   11 rules, 1 declined, solves 5 disks: False
@@ -2663,7 +2758,7 @@ The stage ORDER is data — `advances(unstacking, placing)`, `closes(waiting)` �
 because the order of the steps is exactly what differs between one recursive
 plan and the next.
 
-⚠ **Not a second planner.** `<expand>` is a STRATEGY (means-ends, decompose a
+ **Not a second planner.** `<expand>` is a STRATEGY (means-ends, decompose a
 goal by a rule's antecedents) and is untouched. What is shared is what any
 strategy needs underneath it.
 
@@ -2672,7 +2767,7 @@ optimal at 3..7 with the identical move sequence; `COUNTDOWN` in the same file
 shares no relation with it at all and recurses to the bottom at 3, 5 and 8. All
 three bundled rules are load-bearing — `ugm.bundle` breaks 3 checks per rule.
 
-## ⚠⚠⚠ Three things this broke, and each is a finding
+##  Three things this broke, and each is a finding
 
 **1. The bundle could not MINT.** `_vocabulary_is_surface_nameable` requires
 every relation the bundle uses to be reserved, and `new` is deliberately not —
@@ -2737,7 +2832,7 @@ moves at population 1 to 94% at population 16**, with the rule count flat.
 Hanoi has one action. Every step is a choice of binding for it, and rule
 selection contributes nothing.
 
-## ⚠⚠⚠ Four corpora failed first, and each failure is the finding
+##  Four corpora failed first, and each failure is the finding
 
 | what was written | what happened |
 |---|---|
@@ -2756,7 +2851,7 @@ So a call is a NODE, minted per occasion, carrying its own pegs and its own
 PHASE. Which is this repo's own *a multi-tick plan is a NODE, not a string*
 (19c, item 3) — reached from the failing side rather than by agreement.
 
-⚠ **Minted per OCCASION, not per parameters**, and Hanoi is where that stops
+ **Minted per OCCASION, not per parameters**, and Hanoi is where that stops
 being a nicety: `solve(d1, x, z, y)` occurs TWICE in a three-disk solution, so a
 call node keyed on its arguments collides with itself and refraction blocks the
 second. `+call` mints one node per application, which is exactly right.
@@ -2843,22 +2938,22 @@ installed: in a one-move-per-tick loop, recognising competes with doing, and the
 rule that acts wins every time. A postcondition is evaluated for free after
 whatever applied.
 
-⚠ **The table does not run them.** `Table.spend` stays a pure account of scores;
+ **The table does not run them.** `Table.spend` stays a pure account of scores;
 `_spend_one` sends attends to the machine. A table that could write claims would
 be an interpreter with a memory.
 
-⚠⚠⚠ **`_rerank` refuses them, and that is the stronger case.** A ranking-time
+ **`_rerank` refuses them, and that is the stronger case.** A ranking-time
 trigger runs on rules that have not applied and may never apply, so a deposit
 from there is the agent claiming to think about what it *considered* thinking
 about. Ranking is not doing. Checked.
 
-⚠ **`unattend` is what bounds it.** A buff has `LIFE` and a ceiling; a claim has
+ **`unattend` is what bounds it.** A buff has `LIFE` and a ceiling; a claim has
 neither, so a lesson that only attends accumulates until everything is attended
 — which the suite already measures as the same thing as attending to nothing.
 Spent as a pair the lesson is a FOCUS, and the replacement is a denial rather
 than a forgetting.
 
-## ⚠⚠⚠ The negative result, and it is half the work
+##  The negative result, and it is half the work
 
 **The gold teacher cannot supervise a binding.** `arbitrate`'s key is
 `(score(rule), rules.index(rule))`, so two applications of ONE rule tie exactly
@@ -2891,7 +2986,7 @@ teacher is exactly the instrument that cannot show it — so the suite shows it 
 a constructed case: `after <spot> => attend($x)` makes the next move strike the
 goblin `<spot>` was about instead of the one the walk offers.
 
-⚠ **And it flattered itself until it was stopped.** The focus arm reached 538
+ **And it flattered itself until it was stopped.** The focus arm reached 538
 conclusions against 523 uncalibrated, which reads as *attention makes the agent
 conclude more*. Measured: all 15 were `attention` deposits and doubt
 bookkeeping, **not one about the world**. `attention` is now in `BOOKKEEPING` —
@@ -2952,7 +3047,7 @@ From the other end it is two lookups:
     goblin1 -> relations it is spoken of under   Situation.relations_of
             -> rules whose antecedent uses one   Table.by_relation
 
-⚠ Approximate on purpose: a rule reading `wounded($x)` is lifted because
+ Approximate on purpose: a rule reading `wounded($x)` is lifted because
 goblin1 is wounded, whether or not it would bind `$x` to goblin1. It decides who
 is MATCHED, not who wins.
 
@@ -2966,7 +3061,7 @@ are read by a pattern that already knows its relation; attention arrives with a
 node and no relation, so neither answers it. Counted, not a set, because `drop`
 has to be exact. Maintained off the same keys the argument index files under.
 
-⚠ **The index is free within noise**: 8.59/8.65/8.72s against 8.42/8.54/8.66s
+ **The index is free within noise**: 8.59/8.65/8.72s against 8.42/8.54/8.66s
 with maintenance short-circuited on the same tree — and that arm fails 5 checks,
 so the comparison is against something that is not doing the work.
 
@@ -2997,14 +3092,14 @@ and `teaching.py` still writes `prefer(<R>, ...)`. The learnable version — a
 postcondition concluding `+attention($x)` about what the move just bound — is the
 obvious next thing and is not built.
 
-⚠ **`did($a)` still means *the last action* only by walk order.** A rule reading
+ **`did($a)` still means *the last action* only by walk order.** A rule reading
 the recent past binds the newest match because buckets are read newest-first, and
 that is now a property attention can deliberately override. Nothing depends on it
 today; something will.
 
 # Handoff — 2026-08-19c (learning: the action space, settled in conversation)
 
-⚠⚠⚠ **NOTHING WAS BUILT IN THIS SESSION.** The suite is unchanged at **590/0**
+ **NOTHING WAS BUILT IN THIS SESSION.** The suite is unchanged at **590/0**
 and `HEAD` is still `ba11dfd`. Everything below was probed with throwaway
 scripts and none of it is in the repository. It is recorded because the
 conclusions are load-bearing for the learning work and would otherwise be lost.
@@ -3032,7 +3127,7 @@ newest-first, therefore authoring order.** `backward.py` already files this as
 §21's backtracking item. `prefer(<R>, key, n)`, `_rerank` and `teaching.py`'s
 learned reranker all key on CONTEXT, never on the binding.
 
-⚠ The measured tension: the loop is fast because it does *not* materialise the
+ The measured tension: the loop is fast because it does *not* materialise the
 option set (`_choose`: *60 facts weighed 1,950 candidates, 120 weighed 7,500*).
 Scoring bindings means seeing them.
 
@@ -3044,7 +3139,7 @@ chain is the carry, and the dungeon is the existence proof. Backward reading
 already materialises `plan(...)` with `expands` and **`binds(plan, $var,
 $value)`**, which is literally a parameter carried between steps.
 
-⚠ `compose.py` compiles a chain of `implies` into one rule but **refuses to
+ `compose.py` compiles a chain of `implies` into one rule but **refuses to
 compose across a `causes`** — measured, it would demand the second rule's
 premises a moment early. So an action sequence cannot be collapsed into one
 move; it stays multi-tick.
@@ -3097,7 +3192,7 @@ that BOTH apply on the same binding is better — that is item 2 above, and it i
 the same gap from a new direction.
 
 **RLHF has a trap already named in the code.** `attention.run(chooser=…)` is the
-manual-pilot seam and `teaching.py` drives it. ⚠ But its teacher deliberately
+manual-pilot seam and `teaching.py` drives it.  But its teacher deliberately
 ignores `window` and calls `_materialise` over the full rule set, *"so it is a
 genuine teacher and not a re-ranking of what the table already liked."* A human
 piloting from the shortlist only ranks what the current policy surfaced — the
@@ -3106,7 +3201,7 @@ signal is on-policy and circular. Off-policy piloting costs the full option set.
 **Minting is additive, not corrupting — but only until `merge` is
 rule-reachable.** A minted node has no name, no relation and no members: it is
 joined to nothing and cannot change what any existing proposition says. The
-failure mode is exhaustion, not corruption. ⚠⚠⚠ **The dangerous combination is
+failure mode is exhaustion, not corruption.  **The dangerous combination is
 minting + merge**, because merge repoints indices and is lossy — and merge is
 not rule-reachable today (debt item 2). **Wiring `same(a, b)` is what would
 create that risk**, so it should not be wired without deciding this first.
@@ -3143,7 +3238,7 @@ atoms ALONE; `Chain.materialise` replays a delta chain. Into a situation cut at
 `born=0`, 160 atoms replayed with every proposition's structure preserved, as
 different nodes, same atoms.
 
-⚠ **Measured, and the honest outcome is a materialisation POLICY, not a
+ **Measured, and the honest outcome is a materialisation POLICY, not a
 replacement.** Replay is linear in the deltas replayed at a flat ~10.6us/node;
 capped visibility stays flat and roughly an order of magnitude cheaper. So
 capped visibility remains the read path and replay is the reconstruction path —
@@ -3157,7 +3252,7 @@ repoints the upward closure; congruence cascades. Measured: merging two leaves
 unifies what was built on them two levels up, and a merge inside a branch is
 invisible outside it.
 
-⚠⚠⚠ **It took THREE layers to be true, and each was silent alone**: interning
+ **It took THREE layers to be true, and each was silent alone**: interning
 and the argument index (the candidate is filed), `unify` (it is not thrown away
 for having the wrong relation node), and the state index plus its cache (it is
 offered at all). With any one missing, the rule matches nothing, reports nothing
@@ -3168,11 +3263,11 @@ one node per mark per APPLICATION, so `+a(+p)` and `+b(+p)` are one thing and tw
 firings are two things. That is what keeps two people called Paul apart: the mint
 is per occasion, not per name, and it is the ANTECEDENT that individuates.
 
-⚠ **Refraction is what bounds it and already existed** — an instantiation fires
+ **Refraction is what bounds it and already existed** — an instantiation fires
 once per set of premises. Quiescence could never have caught it: a fresh node
 always changes something.
 
-⚠⚠ **Spelled `+kind`, and `NEW` is deliberately NOT in `reserved`.** A keyword
+ **Spelled `+kind`, and `NEW` is deliberately NOT in `reserved`.** A keyword
 would take the word `new` from every corpus. The parser builds the machine's node
 directly, so `new(car)` still means a corpus's own `new` — checked.
 
@@ -3192,7 +3287,7 @@ reads `owes` and sees `debt` facts after the merge.
 
 **A world model** is (a) what can happen — `causes`, and the denial is what makes
 a fact disappear; (b) what makes sense — ordinary rules concluding
-`impossible(...)`. ⚠ (b) is ADVISORY: the engine deposits the judgement and does
+`impossible(...)`.  (b) is ADVISORY: the engine deposits the judgement and does
 not enforce it. Whether it should become constitutive (a second `gate.veto`
 beside `forbidden`) is an open decision and needs its own carve-out argument.
 
@@ -3255,13 +3350,13 @@ the handoff below this one is still live.**
                 byte-identical to the branch point (verified by stashing and
                 re-running). `count`/`counted` were classified so as not to add.
     necessity   RUNS CLEAN on this branch — exit 0, "6 of 80 reachable names
-                unkillable". ⚠ That is not the open item below, which is a
+                unkillable".  That is not the open item below, which is a
                 BYTE COMPARISON against the branch point: the previous session
                 saw its output differ and could not triage it, and this session
                 did not run the other side either. So *it works* is now known
                 and *what moved* is still not.
 
-⚠⚠⚠ **STAGE 4 OF `situations.md` WAS NOT TOUCHED.** The handoff below this one
+ **STAGE 4 OF `situations.md` WAS NOT TOUCHED.** The handoff below this one
 names it as the next task and it still is. A feature request arrived
 (`docs/interpretation-feedback.md`, from the harness at `harneskills@a9b1e6d`)
 and was done instead. Nothing about stage 4 changed, was learned, or was
@@ -3348,7 +3443,7 @@ this may need no scope-carrier at all, just the shortlist widening depositing wh
 the global one already does. Not built, because choosing between those two is a
 design call that belongs to whoever is building the ladder.
 
-⚠ **One residual defect the measurement did find**, and it survives the
+ **One residual defect the measurement did find**, and it survives the
 correction: `<repair>` ran on tick 10, after upkeep exhausted itself. A score
 prefix cuts everything more than `TOLERANCE` (2) below the top match, and a
 corpus's two authorable tiers — `STANDING` 10 and `FLOOR` 1 — are 9 apart. So a
@@ -3396,7 +3491,7 @@ Branch `worktree-bridge-cse_01LVd7SsM3vjpDAF2sNDeBT6`, off `main` at `907e6c9`.
                 three print wall-clock timings, one prints pids, and
                 `attention`'s "only table" line was already set-ordered before
                 this branch (verified by running the branch point twice).
-                ⚠ `necessity` differs and was NOT triaged — the run takes >10
+                 `necessity` differs and was NOT triaged — the run takes >10
                 minutes a side and the session ended first. Check it.
     quiescence  still exits 1 — PRE-EXISTING, identical output to the branch
                 point, `<silent>` is still BLIND.
@@ -3475,7 +3570,7 @@ replay would produce, so the two must agree, and holding an index to a
 re-implementation of what it indexes is this repo's own rule (`_has_var` /
 `_has_var_slow`, `state`).
 
-⚠ **The number to get before committing to it** is the one the design named and
+ **The number to get before committing to it** is the one the design named and
 capped visibility made moot: rebuild is O(the deltas replayed), so it is cheap
 for a situation branched recently and expensive for one branched near the root
 and asked about late. Measure N walkers in N situations against N in one, and if
@@ -3945,7 +4040,7 @@ behaviour. All three fail in the same place: they say how much and never **when*
 `after { ... } => boost(...)` is not an elaboration of the design, it is the part that makes it
 work -- and anti-unification over the situations a choice was taught in is how a query gets written.
 
-⚠ `quest-p1` is not a teaching corpus: the uncalibrated table already reproduces the teacher's
+ `quest-p1` is not a teaching corpus: the uncalibrated table already reproduces the teacher's
 sequence exactly, and a fixture that cannot lose cannot measure. The dungeon is the one to work on.
 
 Two measurement bugs were found and fixed while building this, both of the recorded kind: agreement
@@ -3992,12 +4087,12 @@ premise mentioning one is a fact the graph holds and the surface cannot say. Cou
 worked around: a calibration nobody can read cannot be argued with or frozen, which is the whole
 reason it belongs in the corpus.
 
-⚠ And teaching a corpus that is already right makes it worse. On `quest-p1` the untaught table
+ And teaching a corpus that is already right makes it worse. On `quest-p1` the untaught table
 reproduces the teacher on all 21 moves; teaching costs 9 conclusions with bigrams and 12 with
 queries. Calibration should be gated on disagreement -- there is nothing to learn where there is no
 disagreement, and something to lose.
 
-⚠ The lesson crosses machines as an **utterance**: node ids mean nothing outside the graph that
+ The lesson crosses machines as an **utterance**: node ids mean nothing outside the graph that
 minted them, so a query is rendered as text on the teacher's machine and re-read in the student's own
 name scope. That is `ugm/table.py`'s rule for what may cross between agents, arriving from the
 learning side -- and it makes a lesson a document: savable, diffable, and loadable into a corpus that
@@ -4491,7 +4586,7 @@ deliberation.** `<no-fleeing>` spends the `considering` rather than arguing with
 there is nothing left for the default to be about. A rule that spends something must read the thing
 it spends; a prohibition spends the considering.
 
-⚠ Which means the presumption of lawfulness is still a default over an open domain, and still does
+ Which means the presumption of lawfulness is still a default over an open domain, and still does
 not work on its own. Two ways out, and they are the same two §2.6 already named: state lawfulness
 positively per act, or count -- `counted(unlawful($a), 0)`, §4's aggregate. Nothing here needs it
 today, because spending the consideration sidesteps it, and that is worth knowing before anyone

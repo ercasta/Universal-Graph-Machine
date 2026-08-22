@@ -4,7 +4,7 @@
 
 ugm/rules/intake.ugm is the corpus. This runs it and holds it to the claims it
 is here to make. ## Why this exists Identity in this engine has always been
-decided by CONSTRUCTION. ⚠ Asked at quiet, because a count is true of a moment
+decided by CONSTRUCTION.  Asked at quiet, because a count is true of a moment
 -- the same reason unsupported waits for it.
 
 See docs/design/intake.md.
@@ -73,7 +73,7 @@ def main() -> int:
     gate("⭐⭐⭐ ...and a description with no time in it is satisfied by BOTH "
          "goblins, so the corpus reports an ambiguity",
          "unclear(m3)" in _holding(m, kb, "unclear"))
-    gate("⚠⚠⚠ ...and NOTHING PICKS ONE. The engine deposits the number and the "
+    gate(" ...and NOTHING PICKS ONE. The engine deposits the number and the "
          "corpus says what it means; choosing a reading is a decision, and a "
          "silent choice here is how a front end acts on the wrong goblin",
          not any(x.startswith("resolved(m3") for x in resolved))
@@ -103,7 +103,7 @@ def main() -> int:
     # A corpus that denoted everything to one goblin would pass most of the
     # above. Three mentions, three different answers, is what says otherwise.
     answers = {x.split(", ", 1)[1].rstrip(")") for x in resolved}
-    gate("⚠ can this gate fail? -- the four mentions do not all resolve to one "
+    gate(" can this gate fail? -- the four mentions do not all resolve to one "
          "thing, so the reading is discriminating rather than constant",
          len(answers) > 1 and len(denotes) > len(resolved))
 

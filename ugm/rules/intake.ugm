@@ -15,7 +15,7 @@
 #     entity       what is being spoken about. Labelless -- see `ugm/intake.py`.
 #     denotes      the reading, and it is defeasible
 #
-# ⚠ **A name is a mention like any other.** `paul` is privileged today: it is
+#  **A name is a mention like any other.** `paul` is privileged today: it is
 # stamped on the node and it decides identity at intake, while every other way
 # of picking the same thing out -- *the man who walked in* -- is a claim. Here
 # both are mentions, and the check that this is real is that replacing every
@@ -88,12 +88,12 @@ rule <bare> = implies(
 # satisfies this description**, which is a claim about the SET of readings -- and
 # a rule sees one binding at a time, so only the machinery can answer it.
 #
-# ⚠ **Asked at `quiet`, and that is not a detail.** A count is true of a moment
+#  **Asked at `quiet`, and that is not a detail.** A count is true of a moment
 # and the next entry can falsify it, so counting a reading still being derived
 # answers about a half-finished search. `quiet` is the engine's own record that
 # nothing further applies -- the same occasion `unsupported` waits for.
 #
-# ⚠⚠⚠ **And `quiet` means NOTHING MORE APPLIES TO THE MIND I CURRENTLY HAVE,
+#  **And `quiet` means NOTHING MORE APPLIES TO THE MIND I CURRENTLY HAVE,
 # which is weaker than *the search is complete*.** Take a rule out of mind and
 # the count changes under you. Measured on THIS corpus, `<bare>` dormant:
 #
@@ -101,7 +101,7 @@ rule <bare> = implies(
 #     <bare> dormant        counted(count(denotes(m3, $g)), 0)   fits_nothing(m3)
 #
 # Here the narrowing is benign: with nothing left to read m3 with, the corpus
-# says so. ⚠ It is NOT benign when another rule still supplies ONE reading --
+# says so.  It is NOT benign when another rule still supplies ONE reading --
 # measured on a variant carrying a second denoting rule, `<bare>` dormant gives
 # `counted(..., 1)` and the agent RESOLVES m3 instead of reporting the
 # ambiguity. Not less certain: **confidently wrong**. Which of the two happens
@@ -137,7 +137,7 @@ rule <ambiguous> = implies(
 
 # None: the description fits nothing the agent knows about.
 #
-# ⚠ NOT called `unmet`: that is a name the engine reserves for backward
+#  NOT called `unmet`: that is a name the engine reserves for backward
 # reading, and a corpus relation sharing it would be the same node -- two
 # meanings on one name, which this repository has paid for repeatedly.
 rule <empty> = implies(
@@ -150,7 +150,7 @@ rule <empty> = implies(
 # merge, no repointing and nothing irreversible: the mentions stay two mentions,
 # which is right, because they are two events of speaking with their own times
 # and their own speakers. Retracting the reading is denying one fact.
-# ⚠ It concludes `corefer(m, m)` as well, because the surface has no inequality
+#  It concludes `corefer(m, m)` as well, because the surface has no inequality
 # and *two different mentions* is not a premise this corpus can state. Reported
 # rather than filtered: the reflexive pairs are noise an author has to know
 # about, and hiding them in the runner would be the instrument lying.

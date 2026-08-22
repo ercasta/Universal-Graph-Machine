@@ -21,7 +21,7 @@ that makes it smaller.
 | §1 the aggregate over bindings | **built** — `count` / `counted`, and it is the general case of `rooted`, `unsupported` and `blocked` rather than a fourth of them. Three design corrections found while building it, §1 below |
 | §2 widening is global | **measured, and it does not evaporate** — the window went empty **0 times in 10 ticks**. But the repair tiers *are* reached; what is missing is the record, not the reaching. See the correction in §2 |
 | §3 report the scans | **built**, plus the one number you did not ask for and need: the scan's SIZE |
-| §4 hand `watch` the `Step` | **built.** ⚠ Breaking change to the `watch` protocol — see §4 |
+| §4 hand `watch` the `Step` | **built.**  Breaking change to the `watch` protocol — see §4 |
 | §4 let a caller pass its table in | **built**, with the tick count continued rather than restarted |
 
 ---
@@ -48,7 +48,7 @@ rule <definite>  = implies( { +counted(<elves>, 1) },   { +definite(e) } )
 rule <untold>    = implies( { +counted(<trolls>, 0) },  { +untold(t) } )
 ```
 
-⚠ It caught us in our own checks before it could catch a corpus:
+ It caught us in our own checks before it could catch a corpus:
 `kb.term("count(goblin($x))")` mints a fresh `$x` and asks about a different
 description, so the first four checks failed while the three corpus rules above
 passed. That is the right way round — the corpus-facing route worked and the
@@ -104,7 +104,7 @@ counted(count(elf($x)),    1)     +      exactly one elf    -> definite
 counted(count(troll($x)),  0)     +      nothing was told   -> untold
 ```
 
-⚠ **Three numbers over one corpus, deliberately.** A count that always answered
+ **Three numbers over one corpus, deliberately.** A count that always answered
 `2` would have passed a check that asked only about the goblins, and this
 repository has shipped three checks that reported success while unable to fail.
 
@@ -163,7 +163,7 @@ already does. We have **not** built that, because it is your call whether a
 per-shortlist record is what a repair ladder wants or whether the scoped version
 is still the right shape.
 
-⚠ **One residual defect the measurement did find**, and it is not about the
+ **One residual defect the measurement did find**, and it is not about the
 record: `<repair>` ran on tick 10, after upkeep had exhausted itself. The floor
 tier is reached only once the other line of work runs out, so the agent answers
 the utterance *after the room has gone quiet* rather than while it is being
@@ -199,7 +199,7 @@ member that cannot be indexed over a relation with one instance costs nothing
 and is not worth an author's afternoon.** What was being discarded was the join
 that did not happen; what decides whether that matters is how big the scan was.
 
-⚠ The last line is the gate: the same content authored the way the engine
+ The last line is the gate: the same content authored the way the engine
 already reads it reports **0**. A counter that reported scans on any corpus would
 be noise rather than an instrument — this is `unwebbed`'s direction, quiet on
 healthy input.
@@ -214,7 +214,7 @@ was there all along and nothing was handing it over. Checked explicitly that
 `step.wrote` contains no `spent(...)` term, which is the thing that
 over-reported.
 
-> ⚠⚠⚠ **This is a breaking change to the `watch` protocol.** `step` is a sixth
+>  **This is a breaking change to the `watch` protocol.** `step` is a sixth
 > positional argument, so your current five-argument watcher will raise
 > `TypeError` until you add the parameter. We did not make it optional by
 > inspecting the callable's arity: this repository's standing test is that a
@@ -231,7 +231,7 @@ table is free *exactly* while nothing has moved it, and the day you supply real
 postconditions it silently discards every spend, on the day something else
 changes.
 
-⚠ **The ticks continue from `table.now` rather than restarting at 0.** A lift
+ **The ticks continue from `table.now` rather than restarting at 0.** A lift
 expires by `tick - born < LIFE` and the trace is walked in tick order, so
 restarting the count would make a lift born on tick 39 of one call younger than
 one born on tick 2 of the next. `Table.ticked` exists because `now == 0` cannot

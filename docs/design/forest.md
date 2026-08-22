@@ -28,7 +28,7 @@ rules, which gets a romanesque cathedral wrong for exactly the recorded reason.
 
 > **Rules ACCUMULATE. Only a function can take a vote.**
 
-⚠⚠⚠ **And what the tool buys is not accuracy -- it is the ability for a minority
+ **And what the tool buys is not accuracy -- it is the ability for a minority
 to LOSE.** Two attempts to explain the win were wrong and both are kept as
 sections rather than deleted. It is *not* the class overlap: on a fixture where
 one property separates the two kinds perfectly, the rules encoding still fails,
@@ -38,7 +38,7 @@ itself. The control that does isolate the mechanism is an ensemble that *cannot*
 disagree (no resampling, no feature subsampling, five copies of one tree), and
 there voting and accumulating tie exactly.
 
-⚠⚠⚠ **The first fixture could not measure any of it, and read as three passing
+ **The first fixture could not measure any of it, and read as three passing
 gates.** `pointed` was on every gothic and no romanesque, so every bag learned
 the same one-test tree and every vote was 5-0. A homogeneous fixture cannot
 measure a discriminator -- the third time here. The repair is the transitional
@@ -56,7 +56,7 @@ backwards -- so this answerer renders its deciding path as ordinary corpus text.
 Gated: load that text, **retire the forest**, and the verdict is reproduced by
 the rules alone. The model hands its work to the engine and leaves.
 
-⚠ **Positive tests only, and that is §9 rather than a simplification.** A tree
+ **Positive tests only, and that is §9 rather than a simplification.** A tree
 wants *not pointed*, and `-pointed($a)` does not mean it: §9's `-` is *an entry
 denies this*, never *there is no such entry*. So a path here is a monotone
 conjunction, and the two classes are learned as two positive concepts rather than
@@ -64,7 +64,7 @@ one predicate and its complement. What would otherwise be the negative branch is
 `is_romanesque`, learned the same way -- and *neither fired* stays a real third
 answer instead of collapsing into the majority class.
 
-⚠ **The seed is on the record, because §3 forbids reading a derived result out of
+ **The seed is on the record, because §3 forbids reading a derived result out of
 an unseeded source.** Bagging is where the *random* in random forest actually
 bites; inference is deterministic. `ugm.tools` closes on this caveat and this is
 it arriving: `fact +seeded(<forest>, 7)` is in the corpus, and two runs of this
@@ -72,7 +72,7 @@ file are the same run.
 
 ## NO single property separates these, and th
 
-⚠⚠⚠ **NO single property separates these, and the first version of this file
+ **NO single property separates these, and the first version of this file
 had one that did.** `pointed` was on every gothic and no romanesque, so every
 bag learned the identical one-test tree, every vote was 5-0, and three gates
 passed while measuring nothing -- a homogeneous fixture cannot measure a
@@ -95,7 +95,7 @@ One tree: the conjunction of tests that best isolates `label`.
     over-general member `machine.forest` failed on, and the comparison below
     depends on the fixture being able to produce one.
 
-    ⚠⚠⚠ **Per-split FEATURE subsampling, and leaving it out is what made the
+     **Per-split FEATURE subsampling, and leaving it out is what made the
     first fixture unmeasurable.** Bagging the examples alone was not enough:
     `flying` is perfectly pure here, so it won every split of every bag and all
     five trees came out identical. That is the *random* in random forest doing
@@ -106,7 +106,7 @@ One tree: the conjunction of tests that best isolates `label`.
 
 -- was it the OVERLAP? measured, and the answer was no ----------------
 
-⚠⚠⚠ This section was written to confirm that transitional buildings are
+ This section was written to confirm that transitional buildings are
 what break the rules encoding, on a fixture where `pointed` separates the
 classes perfectly. It refuted that: the rules still lose. A degenerate BAG
 -- one that happens to draw a single class -- grows an empty tree whatever
@@ -115,7 +115,7 @@ itself. Kept as the refutation rather than deleted as a failed control.
 
 ## What this corpus is willing to act on, in t
 
-⚠⚠ **What this corpus is willing to act on, in two lines.** The two
+ **What this corpus is willing to act on, in two lines.** The two
 encodings say the verdict differently -- a rules-as-ensemble member
 concludes `is_gothic($c)` flat, the tool's corpus concludes
 `possible(is_gothic($c))` -- so the corpus has to say which of those

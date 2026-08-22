@@ -24,11 +24,11 @@ What the probe is for is the part that is not free:
                      chosen: *rules have no notion of local, and global makes
                      nothing impossible where per-frame might.*
 
-⚠ The comparison against position is against `_push_frame`'s own gradient --
+ The comparison against position is against `_push_frame`'s own gradient --
 *`push($a, $b)` reads left to right and position is the gradient, so the
 leftmost has to lift hardest* -- and not against a straw one.
 
-⚠ **Joining the slot to an anchored member does not isolate** over a shared
+ **Joining the slot to an anchored member does not isolate** over a shared
 world (10): the foreign value has something to join to as well. It is the first
 thing anyone reaches for, so it is a check rather than a remark. What isolates
 between EXPERTS is the pool (11); what separates two instances of ONE expert is
@@ -40,7 +40,7 @@ values they BIND, and the loop takes the first survivor and breaks. So
 attention does choose the binding (14), and a slot WRITE is enough to choose
 it (16).
 
-⚠ **Nothing is pre-bound**, and it is worth saying because *the reader applied
+ **Nothing is pre-bound**, and it is worth saying because *the reader applied
 first* sounds like it might be. `match` runs INSIDE the per-tick loop and
 `_attended_first` reorders what it returns, every tick: the trace at 18 shows
 the same rule binding `chess/alice` on one tick and `go/bob` on the next, which
@@ -60,7 +60,7 @@ choose the first EXPERT: the engine's only `_push_frame` call is a rule spending
 named*. So a channel seeds attention for free and steers the first pick for one
 rule (20).
 
-⚠⚠⚠ **AND ORDERING IS SELECTION ONCE THE WORLD MOVES**, which the first version
+ **AND ORDERING IS SELECTION ONCE THE WORLD MOVES**, which the first version
 of this probe got backwards. On a frozen world run to quiescence both bindings
 are eventually taken (15), and *attention does not isolate a global cell* was
 concluded from exactly that -- a fixture that cannot move measuring a mechanism
@@ -467,7 +467,7 @@ def main() -> int:
          base[0] != attended_chess[0])
 
     # 15. It orders rather than excludes, so on a FROZEN world run to
-    #     quiescence both bindings are taken. ⚠⚠⚠ That is the fixture, not the
+    #     quiescence both bindings are taken.  That is the fixture, not the
     #     mechanism, and the first version of this probe drew the conclusion
     #     *attention does not isolate a global cell* from it. See 15b.
     gate("on a world that does not move, both bindings are taken by "
@@ -530,7 +530,7 @@ def main() -> int:
     #     push is invisible to what narrows rules and visible to what binds
     #     them.
     #
-    #     ⚠⚠⚠ BUT ONLY IF IT LANDS FIRST, and that is the caveat this check
+    #      BUT ONLY IF IT LANDS FIRST, and that is the caveat this check
     #     exists for. *The NEXT tick binds to the attended node* is exactly
     #     right, and the failure is when there is no next tick because the
     #     reader already applied. Below, the only difference between the two

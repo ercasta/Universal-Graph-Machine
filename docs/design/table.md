@@ -20,7 +20,7 @@ here. That is §13 read end to end, and both ends already existed:
 
 **So this module is only the wire.** It renders what one machine emitted, hands
 the text to another machine's channel, and decides whose turn it is. It does not
-decide what anyone believes. ⚠ Keep it that way: the moment this file decides
+decide what anyone believes.  Keep it that way: the moment this file decides
 which utterances are worth believing, §13's hard-wired intake is back and the
 corpus cannot argue with it.
 
@@ -63,7 +63,7 @@ So an agent cannot utter **a time, an act of claiming, or a rule**. No agent can
 teach another a rule, and none can say *this happened before that* -- which is
 `docs/authoring.md` §6's missing member kind, arriving from a second direction.
 
-⚠ **And never compare node ids across machines.** Two graphs built in the same
+ **And never compare node ids across machines.** Two graphs built in the same
 order assign the same integers, so a cross-machine identity test is accidentally
 right often enough to pass. Probed: equal in one case here, unequal in another.
 Compare rendered text.
@@ -72,7 +72,7 @@ Compare rendered text.
 
 Hear it, or say why it could not be heard.
 
-        ⚠⚠⚠ **An agent really will try to say the unsayable, and the wire must
+         **An agent really will try to say the unsayable, and the wire must
         not die of it.** `blocked($g)` reports the rule's antecedent member *as
         written*, so a blocked subgoal is generic far more often than not — and
         an arrival may not contain a variable. Left to raise, one over-eager
@@ -82,7 +82,7 @@ Hear it, or say why it could not be heard.
         table records it: §5's *a silence is the defect*, at the one boundary
         where the speaker cannot know whether it was understood.
 
-        ⚠⚠⚠ **And a refusal is not the only way to mishear.** `Loader.term`
+         **And a refusal is not the only way to mishear.** `Loader.term`
         parses ONE term and ignores whatever follows it, so `a(b)(c)` -- a node
         whose relation is itself a structure, which the substrate builds happily
         -- comes back as `a(b)` with the `(c)` dropped and **no exception at
@@ -91,7 +91,7 @@ Hear it, or say why it could not be heard.
 
         So the text is re-rendered from what was actually understood and compared
         with what was sent: an utterance that does not round-trip is refused.
-        ⚠ That makes `show` and the parser each other's check at the one place it
+         That makes `show` and the parser each other's check at the one place it
         matters, which is cheap here and would not be if the wire were hot.
 
 ## And the engine now refuses it at the sourc
@@ -103,7 +103,7 @@ this guard was the only thing between a mishearing and a clean delivery.
 `docs/quest-feedback.md` §5 reported that, and `term` now raises instead:
 what one agent says is what another believes, or the wire is a lie.
 
-⚠ So the assertion is *refused, and nothing was believed* rather than
+ So the assertion is *refused, and nothing was believed* rather than
 *refused by this particular layer* -- otherwise the check fails the moment
 the defect it was written against is fixed, which is the wrong way round.
 The guard stays: it is now defence in depth rather than the only line, and

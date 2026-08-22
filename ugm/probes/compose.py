@@ -51,7 +51,7 @@ def _guard_inherited(where: str) -> bool:
     `unless` was thought to be missing. It is not: a guard is a negated
     antecedent member, and composition takes the union of the antecedents.
 
-    ⚠ Checked as BEHAVIOUR rather than as structure. A member carried into the
+     Checked as BEHAVIOUR rather than as structure. A member carried into the
     composite's antecedent and not obeyed is `adopt`'s own defect -- a thing
     recorded and not acted on -- and it would read as success here.
     """
@@ -112,7 +112,7 @@ def _dormancy_survives() -> bool:
 def _causes_boundary() -> Tuple[bool, bool]:
     """Is the unsound composition refused, and is the refusal exact? (§4, §14)
 
-    ⚠⚠⚠ A causes consequent lands in a SUCCESSOR, so the second rule's other
+     A causes consequent lands in a SUCCESSOR, so the second rule's other
     premises are read where the first rule's effect holds -- one moment after
     the first rule's own premises.
 
@@ -192,7 +192,7 @@ def run() -> int:
     print()
     for f in failures:
         print(f"  FAIL  {f}")
-    # ⚠ The COUNT, not only the failures. `0 failing` is the same output
+    #  The COUNT, not only the failures. `0 failing` is the same output
     # whether this ran thirty checks or none -- which is how ten of them
     # were deleted by an edit and nothing noticed. `ugm.selftest` has
     # printed `291 checks` all along and is the only one that could have

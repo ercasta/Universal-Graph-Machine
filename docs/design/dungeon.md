@@ -30,7 +30,7 @@ things are not, and each becomes an answerer:
 not fastidiousness here either: `why(dead(goblin1))` walks back through the roll
 that killed it, because the roll is on the trail like any other premise.
 
-⚠⚠ **The two things the corpus had to work around**, and both are honest
+ **The two things the corpus had to work around**, and both are honest
 findings rather than defects of the demo:
 
   1. **A functional attribute retracts its own old value.** `hp(g1, 5)` and
@@ -49,7 +49,7 @@ findings rather than defects of the demo:
 
      `docs/dungeon-reply.md` proposed that `at $m` would collapse that, since a
      round integer is a moment ordinal re-implemented in the corpus.
-     ⚠⚠⚠ **Probed, and it does not**: the read INHERITS, so depositing the same
+      **Probed, and it does not**: the read INHERITS, so depositing the same
      request at a later moment changes nothing the chain answers and quiescence
      drops it -- correctly. Measured on a three-beat fixture: one ask, not three.
 
@@ -79,7 +79,7 @@ things rather than the same thing seven times:
 | `hp` asserted without denying the old | yes | 753 | 0 | 0 | **hero, goblin1** |
 | no `overrides(<gob-flees>, <gob-acts>)` | yes | 735 | 0 | 0 | -- |
 
-⚠ **Rows 2–5 and 8–9 were measured against the previous corpus**, the one with
+ **Rows 2–5 and 8–9 were measured against the previous corpus**, the one with
 the round counter, and are carried rather than re-run. The baseline and the two
 dice-request rows are today's.
 
@@ -93,19 +93,19 @@ death by one d20. The second is the more dangerous shape, and it is the same one
 this corpus already records for `-hits` -- a run that ends, with a verdict, and
 nothing about the outcome to say it is nonsense.
 
-⚠ **The last row is the honest one.** At seed 7 no goblin ever reaches 1 hp, so
+ **The last row is the honest one.** At seed 7 no goblin ever reaches 1 hp, so
 that fight cannot measure preemption at all and the mutation moves one entry.
 What catches it is the seven-seed census below -- *no rule in this corpus is
 dead* -- and nothing else here would have. A homogeneous fixture cannot measure
 a discriminator, recorded in this repo before and re-earned here.
 
-⚠⚠⚠ **And the row above `<halt>` is the one that justifies the clock check.**
+ **And the row above `<halt>` is the one that justifies the clock check.**
 With `+done` the fight is decided correctly, the verdict is right, every check
 about the outcome is green -- and the agent turns an empty room over to round
 417. Nothing that asserts what the agent concluded can see it still working
 afterwards.
 
-⚠ **And one judgement is inside a tool, where nothing can argue with it.** The
+ **And one judgement is inside a tool, where nothing can argue with it.** The
 clamp: `calc(minus, 3, 5)` answers `0`, because a numeral is an atom whose name
 reads as a number and `-2` is not a name the surface can write. So *hit points
 do not go negative* -- a rule of the game -- is stated in Python. It is the
@@ -133,7 +133,7 @@ One fight. Returns the machine, the corpus's name scope, and the log of
     `implies` and the corpus keeps `causes` as authored, because which connective
     is CORRECT is a separate question from which is affordable.
 
-    ⚠⚠⚠ **And the first version of this note said 660x, which was false.** That
+     **And the first version of this note said 660x, which was false.** That
     measurement was taken while the corpus still had a clock that never stopped
     -- `<skip>` and `<pass>` turning an empty room over for ever -- so what it
     compared was a runaway loop against a terminating one, and the connective
@@ -143,7 +143,7 @@ One fight. Returns the machine, the corpus's name scope, and the log of
 
 ## add/sub, and NOT plus/minus: Machine.
 
-⚠ `add`/`sub`, and NOT `plus`/`minus`: `Machine.reserved` binds those
+ `add`/`sub`, and NOT `plus`/`minus`: `Machine.reserved` binds those
 two names to the SIGN atoms, and the loader seeds every corpus's table
 from it -- so `calc(minus, 5, 2)` resolved its operator to the minus
 sign, printed as `calc(-, 5, 2)`, and the tool declined a request it
@@ -158,7 +158,7 @@ arithmetic the SCAFFOLD needed.
 
 ## Through the LOADER, never Machine.answerer
 
-⚠⚠⚠ Through the LOADER, never `Machine.answerer` with a bare string: a
+ Through the LOADER, never `Machine.answerer` with a bare string: a
 request relation minted beside the corpus's table is a request nobody can
 write, and an answer built with `g.atom` is a node no rule can name. Both
 are the twin trap and both are silent.
@@ -171,7 +171,7 @@ the genuinely external die.
 
 ## The clock, and this check exists because e
 
-⚠⚠⚠ **The clock, and this check exists because everything else missed it.**
+ **The clock, and this check exists because everything else missed it.**
 Give `<halt>` the obvious consequent -- `+done`, the same thing `<skip>`
 writes -- and the fight ends while the clock does not: `<pass>` moves the
 baton, `<wrap>` counts the round, and an empty room is turned over to round

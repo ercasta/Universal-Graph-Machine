@@ -128,7 +128,7 @@ class Term(NamedTuple):
     """A relation instance, an atom, a variable or a rule reference, still
 
     unresolved against a graph. ⭐ fn is the relation slot when it holds a whole
-    TERM rather than a name -- a(b)(c), the node whose relation is a(b). ⚠ Set
+    TERM rather than a name -- a(b)(c), the node whose relation is a(b).  Set
     only for a CHAINED application, so every term that parsed before this
     existed still parses to the identical shape.
 
@@ -149,7 +149,7 @@ class Term(NamedTuple):
 
 
 class RuleMember(NamedTuple):
-    """⚠ `at: Optional[Term]` was here, between `term` and `binds`. It went with
+    """ `at: Optional[Term]` was here, between `term` and `binds`. It went with
     the locus: an entry has no second time for a member to name."""
 
     sign: str
@@ -261,7 +261,7 @@ class Parser:
             return Statement("expert", name.text, "", (), (), None, "", t.line)
         if t.text == "action":
             # ⭐⭐⭐ The action palette, declared: action move($x, $y) A SIGNATURE
-            # and nothing else. ⚠ No angle brackets.
+            # and nothing else.  No angle brackets.
             # → docs/design/text.md#the-action-palette-declared
             return Statement("action", "", "", (), (), self.member(), "", t.line)
         if t.text in ("after", "frozen", "learned", "when"):
@@ -332,7 +332,7 @@ class Parser:
         """`after <A> { ... } => attend($x, 3)`.
 
         after fires when its rule applies and its query holds. frozen marks
-        what a calibration process may not touch. ⚠⚠⚠ when IS REFUSED, and that
+        what a calibration process may not touch.  when IS REFUSED, and that
         is a change from a silent no-op.
 
         See docs/design/text.md#trigger.
@@ -377,13 +377,13 @@ class Parser:
         """What a postcondition spends: `attend`, `unattend`, `stop`, `push`
         or `pop`.
 
-        ⚠⚠⚠ **`boost(<R>, n)` AND `damp(<R>, n)` ARE GONE, AND SO IS `reset`.**
+         **`boost(<R>, n)` AND `damp(<R>, n)` ARE GONE, AND SO IS `reset`.**
         They named a RULE, which is what the whole retirement is about: a rule
         id goes stale the moment a rule is adopted, composed or renamed, and a
         corpus of experience written in them stops loading rather than going
         quietly wrong. `attend($x, n)` names a NODE the move itself bound.
 
-        ⚠ The delta in the return type is now always 0 and is kept only so the
+         The delta in the return type is now always 0 and is kept only so the
         three surviving spends share one shape. Nothing reads it.
         """
         t = self.next()
@@ -429,7 +429,7 @@ class Parser:
             # sub-line evicts anything however well chosen. `push` suspends
             # instead: the outer frame is off the queue entirely.
             #
-            # ⚠ It names NODES, variadically, and the leftmost lifts hardest --
+            #  It names NODES, variadically, and the leftmost lifts hardest --
             # `attend($x)` is the precedent, and the variables are the HOST
             # rule's own, bound by the move that spent it. What it does NOT name
             # is an expert: that is computed from the nodes.
@@ -476,14 +476,14 @@ class Parser:
                 and self.toks[self.i + 1].kind in ("name", "var", "rulename")):
             # `no p($x)` -- there is NO p($x) -- the absence mode, in sign
             # position because it is one: a fourth way a member relates to the
-            # state, beside asserted, denied and unsure. ⚠ The lookahead is
+            # state, beside asserted, denied and unsure.  The lookahead is
             # what keeps `no` an ordinary word everywhere else: `no(...)` is a
             # term (next token is `(`), a bare `no` before `,` or `}` is the
             # atom, and only `no <term>` reads as the mode.
             self.next()
             sign = ABSENT
         term = self.term()
-        # ⚠ `@` is refused rather than ignored. It used to carry a GRADE, and
+        #  `@` is refused rather than ignored. It used to carry a GRADE, and
         # grades are gone: an uncertain conclusion is `+likely(p)`, an ordinary
         # proposition a rule can read. A corpus written against the old notation
         # is a corpus that means something this one no longer does, and §5 says
@@ -497,7 +497,7 @@ class Parser:
             )
         # `as $t` -- WHAT the member matched, named.
         #
-        # ⚠⚠⚠ `at $m` was the other half and it is REFUSED rather than ignored,
+        #  `at $m` was the other half and it is REFUSED rather than ignored,
         # for `@`'s reason directly above: a notation that parses and is dropped
         # is a rule that means something other than what it says, and nothing
         # raises. It said WHERE the entry sits, and an entry has no locus.
@@ -598,7 +598,7 @@ class Loader:
                  domain: Optional[str] = None) -> None:
         self.m = machine
         self.scope_name = scope
-        # ⭐⭐⭐ The name scope, and whether it is shared. ⚠ Note what this
+        # ⭐⭐⭐ The name scope, and whether it is shared.  Note what this
         # deliberately does NOT do: assert identity in the graph.
         # → docs/design/text.md#the-name-scope-and-whether-it-is-shared
         self.atoms: Dict[str, NodeId] = (
@@ -628,7 +628,7 @@ class Loader:
         # silently stopped matching what the surface wrote.
         self.atoms.update(self.m.reserved)
         # ⭐⭐ A domain is a channel, and that is the whole of what a domain
-        # needs to be. ⚠ Unscoped documents keep kb, which is what every corpus
+        # needs to be.  Unscoped documents keep kb, which is what every corpus
         # has had.
         # → docs/design/text.md#a-domain-is-a-channel-and-that-is-the-wh
         which = domain if domain is not None else scope
@@ -710,7 +710,7 @@ class Loader:
         Values in, a value out, and no access to anything -- so a corpus rule
         may use it inside an antecedent and the whole application stays atomic.
 
-        ⚠⚠⚠ **The result is resolved in THIS corpus's table**, which is the whole
+         **The result is resolved in THIS corpus's table**, which is the whole
         reason the marshalling lives here rather than in the matcher. A value
         turned into a node with `g.atom` is a fresh node, so `8` computed would
         be a twin of the `8` the corpus writes: the rule fires, the fact lands,
@@ -727,13 +727,13 @@ class Loader:
 
         which its request has a meaning. A tool answers a request, a request is
         a relation, and a relation is a name -- and names are not identity
-        here. ⚠ Said here as well as on Machine.answerer because this is the
+        here.  Said here as well as on Machine.answerer because this is the
         door the note above tells everyone to use, and a reader who never opens
         the other one has no...
 
         See docs/design/text.md#answerer.
         """
-        # ⚠⚠⚠ The apparatus must not be joined on its own requests, and this
+        #  The apparatus must not be joined on its own requests, and this
         # was found by the apparatus squatting on a name a fixture already
         # used.
         # → docs/design/text.md#the-apparatus-must-not-be-joined-on-its-ow
@@ -819,7 +819,7 @@ class Loader:
 
     def atom(self, name: str) -> NodeId:
         if name not in self.atoms:
-            # ⚠⚠⚠ A NUMERAL is not this document's name for something. Two
+            #  A NUMERAL is not this document's name for something. Two
             # corpora may be about different kettles and are never about
             # different 2s.
             # → docs/design/text.md#a-numeral-is-not-this-document-s-name-for
@@ -839,13 +839,13 @@ class Loader:
     def _note_shadow(self, t: Term) -> None:
         """A bare name in an ARGUMENT position that resolves to a reserved node.
 
-        ⚠⚠⚠ One node with two meanings, which is the twin trap inverted.
+         One node with two meanings, which is the twin trap inverted.
 
         See docs/design/text.md#note-shadow.
         """
         if t.is_rule or t.is_var or t.args or t.head.isdigit():
             return
-        # ⚠ Numerals are excluded deliberately, and the exclusion is the whole
+        #  Numerals are excluded deliberately, and the exclusion is the whole
         # difference between a diagnostic and noise. `cost(sword, 3)` SHOULD
         # resolve to the numeral the machinery uses -- that is sharing, not
         # shadowing. What traps a domain author is a reserved name that reads
@@ -856,7 +856,7 @@ class Loader:
 
     def build(self, t: Term, scope: Dict[str, NodeId]) -> NodeId:
         if t.mint:
-            # ⚠ Wrapped in the machine's OWN node, never one from the name
+            #  Wrapped in the machine's OWN node, never one from the name
             # table -- so `new` stays a word a corpus may mean something else
             # by. That is the whole reason this is a mark and not a keyword:
             # `ugm.vocabulary` counts every name the engine takes, and `new` is
@@ -892,7 +892,7 @@ class Loader:
         """Resolve one term against this corpus's names, for asking questions.
 
         Names are not identity (see graph.py) -- a node is identified by being
-        the node it is, and atom() mints a fresh one every call. ⚠ It refuses
+        the node it is, and atom() mints a fresh one every call.  It refuses
         leftovers, and until a foreign corpus reported it, it did not.
 
         See docs/design/text.md#term.
@@ -1106,7 +1106,7 @@ class Loader:
     def _action(self, s: Statement) -> None:
         """Declare an action, and put it in the graph where a rule can find it.
 
-        ⚠⚠⚠ **Mentioned, not claimed.** `move($x, $y)` is generic and the gate
+         **Mentioned, not claimed.** `move($x, $y)` is generic and the gate
         refuses to deposit a proposition with a variable in it -- correctly, and
         `a_rule_can_introduce_a_thing` is the same wall from the other side. So
         what is deposited is `action(move($x, $y))`, a claim ABOUT a pattern,
@@ -1354,7 +1354,7 @@ def _mentions_a_rule(t: Term) -> bool:
 def _vars_in(g, node: NodeId) -> set:
     """Every variable in a structure -- **including one in RELATION position.**
 
-    ⚠⚠⚠ It did not look at the relation, and Graph.has_var always has: _mint
+     It did not look at the relation, and Graph.has_var always has: _mint
     computes genericity as *the relation is generic, or any member is*.
 
     See docs/design/text.md#vars-in.
@@ -1400,7 +1400,7 @@ def _report_unwebbed(machine: Machine) -> None:
     """Say when a rule reads a name nothing anywhere writes.
 
     ⭐⭐⭐ The open class's own price, detected by the open class's own property.
-    ⚠ Called from the DOOR, not from load, and that is a measurement.
+     Called from the DOOR, not from load, and that is a measurement.
 
     See docs/design/text.md#report-unwebbed.
     """

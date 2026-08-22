@@ -1,6 +1,6 @@
 # A code walkthrough
 
-> ⚠⚠⚠ **STALE SNAPSHOT (noted 2026-08-21, release sweep).** Run at `907e6c9`,
+>  **STALE SNAPSHOT (noted 2026-08-21, release sweep).** Run at `907e6c9`,
 > before the module tree grew `core/`, `gates/`, `learning/` and `probes/`,
 > before the table loop shipped as *the* loop, and before `ugm.walkers`,
 > `ugm.arbitration`, `ugm.modality` and `ugm.workload` were deleted. Every
@@ -203,7 +203,7 @@ Two things about the loader that are load-bearing rather than incidental:
 **Reserved names are how the surface reaches the machinery.** `Machine.reserved` maps every name the
 engine coins to its node, and the loader seeds its table from it.
 
-> ⚠ `Graph.atom` **does not intern**. A relation the machinery uses that is missing from `reserved` is
+>  `Graph.atom` **does not intern**. A relation the machinery uses that is missing from `reserved` is
 > a node no corpus can reach: a rule written against it mints a second node with the same name,
 > `is_stratum0` quietly answers no, the member matches nothing, and **nothing raises**. Five
 > occurrences on record.
@@ -250,7 +250,7 @@ The engine's comments carry two marks, and they are worth grepping:
 
 ```
 ⭐ / ⭐⭐ / ⭐⭐⭐     the finding: why this line is this way, and what it buys
-⚠  / ⚠⚠ / ⚠⚠⚠      the trap: what breaks if you undo it, usually with the measurement
+  /  /       the trap: what breaks if you undo it, usually with the measurement
 ```
 
 125 / 31 / 168 of the first and hundreds of the second. `⭐⭐⭐` in `machine.py` and `rules.py` is

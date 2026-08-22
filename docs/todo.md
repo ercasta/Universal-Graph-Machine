@@ -78,7 +78,7 @@ reasons about a hypothesis by asserting it and letting the ordinary rules fire;
 it knows the conclusions are hypothetical because it RECORDED that, not because
 the engine hid them.
 
-⚠ Do not re-derive `mark()`/`revert()` from the queue entry above. It was
+ Do not re-derive `mark()`/`revert()` from the queue entry above. It was
 considered and rejected for a stated reason: a conclusion written during the
 hypothesis is inside the reverted region, so a revert throws away the answer it
 was called to get.
@@ -159,13 +159,13 @@ to the house*, answered without burning it down, with no machinery.
 
 ⭐ Reality is an unprivileged anchor (`actual`). No special case.
 
-⚠ **The lifting objection does not apply**, which was worth checking: the
+ **The lifting objection does not apply**, which was worth checking: the
 generic reified `<lift>` rule handles a ground pipeline (`likely(r(x))` -> `+`)
 and NOT a variable-carrying one (`likely(action(replace, pump7))` -> `None`).
 That kills a lifting-based replacement; it says nothing against binding, because
 `$w` is bound by ordinary matching.
 
-⚠ **The cost is on EVERY rule**: every premise and conclusion wrapped in
+ **The cost is on EVERY rule**: every premise and conclusion wrapped in
 `in($w, ...)`, on 51 of the 72 authored rules. This is what the swap shape
 below avoids, and why the swap shape supersedes it.
 
@@ -192,7 +192,7 @@ and take an anchored proposition as an ARGUMENT without needing anchoring.
 picked up exactly the four asserted facts and none of the rules' own MENTIONED
 antecedent patterns. Anchored rules reify identically to plain ones.
 
-⚠ But `<inherit>` copies eagerly, and measured it is DEARER than doing without:
+ But `<inherit>` copies eagerly, and measured it is DEARER than doing without:
 
                                      h1 concludes   entries   nodes
     no h1                                None         159      1600
@@ -204,7 +204,7 @@ antecedent patterns. Anchored rules reify identically to plain ones.
 > by hand beats blanket inheritance, because the agent copies only what the
 > hypothesis needs.
 
-⚠⚠⚠ And the failure is SILENT: under-assembled context (`None`) is
+ And the failure is SILENT: under-assembled context (`None`) is
 indistinguishable from a genuine negative. Gate it -- *a rule that would have
 applied but for premises absent here* is an ordinary aggregate, not machinery.
 
@@ -219,12 +219,12 @@ reality can be swapped back in. Marked by `(moment, index into its delta)`.
     after swapping back          boiling = -, heat = -, tap = + (untouched)
     4 deltas linked, 2 about the world
 
-⚠⚠⚠ **Refraction bookkeeping SURVIVED the swap-back** -- `exercised(<boil>)`
+ **Refraction bookkeeping SURVIVED the swap-back** -- `exercised(<boil>)`
 and `spent(<boil>, premises(...))`. The agent then believes it already used the
 rule on those premises, so **a hypothesis burns that rule's chance to act for
 real.** This is the defect to design against.
 
-⚠ **`boiling @peak` was not shown to survive as history.** Every write landed in
+ **`boiling @peak` was not shown to survive as history.** Every write landed in
 the same moment, so there was no past to read. Untested, not refuted -- it needs
 the seat to advance between supposing and swapping back.
 
@@ -242,7 +242,7 @@ reality must leave no scar. A proposition never considered and one considered
 and rejected are different claims, and experiment 4 produced the second where it
 owed the first -- `boiling` went `None` -> `+` -> `-`, and `-` is wrong.
 
-⚠ This is a deliberate departure from *deniable, not forgotten*, scoped to
+ This is a deliberate departure from *deniable, not forgotten*, scoped to
 supposition deltas. The RECORD of what was supposed lives in the chain's
 history; it must not live in current belief as a denial.
 
@@ -260,7 +260,7 @@ move it, do not leave it describing a mechanism that is gone.
 
 ## Two things to design rather than discover
 
-⚠⚠⚠ **Containment stops being structural and becomes a promise.** Today it is
+ **Containment stops being structural and becomes a promise.** Today it is
 by construction: 106 nodes minted inside the `supposing()` hypothesis, 0 visible
 to the caller. Under the proposal containment is whatever the revert actually
 does, and a botched revert leaves `burnt(house)` BELIEVED -- silent, and
@@ -271,7 +271,7 @@ belief-corrupting, which is the worst failure mode available here.
 > continue otherwise is a row, not a mechanism -- and it keeps the guarantee
 > while still deleting the machinery.
 
-⚠⚠⚠ **Negation-as-failure and counting are the sharp edge.** `situations.md` is
+ **Negation-as-failure and counting are the sharp edge.** `situations.md` is
 explicit that stratum-0 structure is where NAF, counting and the rules-as-facts
 interpreter all live, and that today BOTH indices are keyed by situation so
 aggregates are scoped for free. If a hypothesis mutates the real graph, every
@@ -280,7 +280,7 @@ world. That is CORRECT while the agent means to be hypothesising, and wrong the
 moment anything concurrent reads -- `ugm/experts.py`, `ugm/channels.py`. Decide
 it explicitly.
 
-⚠ And sibling hypotheses become a STACK rather than a tree. `Graph.branch(born=…)`
+ And sibling hypotheses become a STACK rather than a tree. `Graph.branch(born=…)`
 branches from an arbitrary past commit today, and `situations()` checks two
 siblings building `on(b, c)` independently. Comparing two scenarios becomes
 do-A, record, revert, do-B, record, compare-the-records. Probably fine, arguably
@@ -351,7 +351,7 @@ were named as suspects in the warning and neither reads across a boundary.
 That is ordinary matching, not aggregation -- it is what stops being scoped for
 free, and it is what the proposal INTENDS to stop scoping.
 
-⚠ Instrumented in-process, so the counters do not follow the probes that fork
+ Instrumented in-process, so the counters do not follow the probes that fork
 (`learning/forest`, `learning/practice`). The numbers above are the selftest's.
 
 ### ...and the same instrument over the sweep, which found one module the suite hides
@@ -372,7 +372,7 @@ are **0 inside, in every module**, over 1,596 asks.
     probes.intake                8        0              5,478        0
     probes.quest                 6        0              3,602        0
 
-⚠ `gates.state` and `probes.shapes` run the suite internally, so their 271/15 is
+ `gates.state` and `probes.shapes` run the suite internally, so their 271/15 is
 the selftest's number seen twice, not a third measurement.
 
 ⭐⭐⭐ **`learning.practice` is the one the suite hides**: 66% of its aggregate
@@ -380,7 +380,7 @@ asks and 59% of its index reads happen inside a hypothesis. Nothing else comes
 near it. It is the module to run first after the deletion, and the one place the
 *aggregates stop being scoped for free* warning has a real population behind it.
 
-⚠ The counters do not follow a probe that forks, so `learning/forest` and
+ The counters do not follow a probe that forks, so `learning/forest` and
 `learning/practice` are undercounted rather than exact.
 
 ---
@@ -429,7 +429,7 @@ the world-deltas, return.
 linked, 2 about the world* -- with the linking and the swapping-back done by
 staged rules instead of by Python.
 
-## ⚠⚠⚠ CORRECTED: there is no un-claim, and the anchored shape does not need one
+##  CORRECTED: there is no un-claim, and the anchored shape does not need one
 
 First written here as *the one thing that is missing*. Measured, the reasoning
 was wrong twice over.
@@ -469,7 +469,7 @@ A supposition-procedure stages over an ANCHOR: spawn a call, assert into scene
 is `-stage($c, $p)`, which the call stack already does and which is about the
 procedure's own bookkeeping rather than about the world.
 
-⚠ Whichever it is, it must be checkable: the queue entry above already says
+ Whichever it is, it must be checkable: the queue entry above already says
 **the revert must be CHECKED, not trusted** -- *are we back where we started* is
 computable, and one engine check that refuses to continue otherwise is a row,
 not a mechanism.
@@ -515,7 +515,7 @@ the graph and the second has a denial in it.
                                   ordinary relations. *What changed* is already
                                   readable by rules.
 
-⚠ **Presence cannot mean belief on its own**, and this is the trap to design
+ **Presence cannot mean belief on its own**, and this is the trap to design
 against: `boiling($w)` is in the graph as a rule's stored pattern and is not
 believed. That is §14's use/mention distinction, and it is why the ENTRY node --
 not the proposition node -- has to be the thing that is present or absent.
@@ -532,7 +532,7 @@ it must, because rules mention it.
     gates.state            compares kept-state against a walk; the walk is the
                            thing being retired
 
-⚠⚠⚠ **And the one real question to settle first: what does DELETE mean for
+ **And the one real question to settle first: what does DELETE mean for
 anything that pointed at the deleted node?** `merge` had to answer this and its
 answer was the repoint -- *without it, everything said before the merge is
 LOST*. Deletion has no repoint available. A rule that consumed an entry, a
@@ -549,7 +549,7 @@ position) filtered by two ancestry walks* to *the last claim*. The next step is
 that the last claim stops being a claim at all and becomes a node that is either
 there or not.
 
-⚠ The suite conversion for that cut is INCOMPLETE and the tree is red. Last
+ The suite conversion for that cut is INCOMPLETE and the tree is red. Last
 fully green commit: `6c370d2`.
 
 ## ...and belief is an ANCHOR, not a floating fact
@@ -606,7 +606,7 @@ that **no rule matches an incomplete subgraph**: a premise that needs the
 deleted node fails to bind, so the dangling half is unreachable rather than
 wrong.
 
-⚠ Worth ONE check rather than trust, and it is cheap: after a deletion, does any
+ Worth ONE check rather than trust, and it is cheap: after a deletion, does any
 rule still fire on a partially-present structure? That is the same shape as
 `merge`'s *without the repoint, everything said before the merge is LOST* --
 asked of the opposite operation.
@@ -632,7 +632,7 @@ erasure.** *Nothing has been said* and *this was believed and I erased it* are
 told apart by reading what changed, which is the half of the chain the author
 kept. So absence becomes readable, and `?` stops being the only way to say it.
 
-⚠ What to check when it is built, because this is where a dropped distinction
+ What to check when it is built, because this is where a dropped distinction
 usually comes back: the three-valued reads. `unsure` is reserved vocabulary, a
 `?` member is parseable (`? $p` appears in `bundle.ugm`'s `<deviation---
 invalidated>`), and §6's *a rule that reads ignorance* is a real pattern. Each
@@ -651,7 +651,7 @@ and deleting that rule does not save the reading, it moves the loss to the other
 expects-minus row. The distinction the merge eats, contradicted vs invalidated,
 moves into `not($p)` and comes back as rows.
 
-⚠ Two things this found on the way. The suite had a control for expects-plus and
+ Two things this found on the way. The suite had a control for expects-plus and
 **none for expects-minus**, so the one row the collapse breaks was the one row
 nothing asked -- both controls now run (558). And the migration is a header line
 only where a `-` is a consequent: in a MEMBER it is one of two different things,
@@ -681,7 +681,7 @@ is writable over the structural relations instead.
                            { acted_after($q, $p) } )
     → acted_after(goblin, hero)
 
-⚠ **What that version is NOT the same as.** It is stratum 0 -- every antecedent
+ **What that version is NOT the same as.** It is stratum 0 -- every antecedent
 member is structural -- so its conclusion is MINTED structure, not a deposited
 entry, and `_state()` will not show it. Every converted fixture has to read the
 graph or add an ordinary rule downstream of the recogniser. `<say>`/`<note>` in
@@ -696,7 +696,7 @@ What is waiting, and where the record of each is:
 | `a_span_is_a_locus` | **the design document's own worked example** -- *taking turns* over ten stretches | comment in `selftest.py` |
 | `probes/hindsight` | `holds_at` resolving at a named moment; unanchored and generic both decline | `docs/design/hindsight.md` |
 
-## ⚠⚠⚠ The one thing the conversion does NOT recover, and it has no home
+##  The one thing the conversion does NOT recover, and it has no home
 
 **Dating a claim to a stretch.** A span was a kind of LOCUS, and that is what
 made *it held throughout M1..M4* a different claim from *it held at M1*. Nothing
@@ -721,7 +721,7 @@ from an instant and nothing will say so.
 
 # FOUND while finishing the cut — three that were not part of it
 
-## ⚠⚠⚠ 1. `close(<R1>, <R2>)` depends on where the chunk boundary falls
+##  1. `close(<R1>, <R2>)` depends on where the chunk boundary falls
 
 `ugm.probes.walkers` was deleted for this and the finding is the reason to keep
 reading. Two rules with identical antecedents contend for one position. The
@@ -739,7 +739,7 @@ conditional on table position. **Not fixed, because the fix changes the loop
 every rule runs through**: keep widening while the next chunk's top score is
 within `TOLERANCE` of the window's, so a tie is finished before the loop stops.
 
-## ⚠⚠ 2. `current_state` was ordering by FIRST mention, and the order is semantics
+##  2. `current_state` was ordering by FIRST mention, and the order is semantics
 
 Introduced by the collapse to one time: `_claims` is keyed by first mention, so
 `[got[-1] for got in reversed(...)]` returns a proposition where its FIRST claim
@@ -755,7 +755,7 @@ is one line over `chain._claims` -- the very index the maintained state is built
 from. The gate now walks the moments itself. That is the lesson the gate exists
 to enforce, applied to the gate.
 
-## ⚠ 3. `entry_of` matched nothing, silently
+##  3. `entry_of` matched nothing, silently
 
 `_members_of` required a four-argument member and a three-member entry. An entry
 has two members now, so **every rule that reads the chain found zero** --
@@ -763,7 +763,7 @@ including the whole of `gates/agreement.py`'s `READ`. Nothing raised. The
 name-identity trap's shape with a different name: a member that is well formed,
 loads, and matches nothing.
 
-## ⚠⚠⚠ 4. Two §20 floor gates had NEVER been in a sweep
+##  4. Two §20 floor gates had NEVER been in a sweep
 
 `tools_sweep.sh` grepped `^def main`; `gates.agreement` and `gates.quiescence`
 call their entry point `run`. The file's own header already records this bug
@@ -778,14 +778,14 @@ Both gates were broken by the cut and both are converted here. `agreement`'s
 ordered by locus first, with deposit order breaking ties *within* a locus, and
 there is one order left.
 
-⚠ Its fixture forks on purpose, and the fork had to move OFF the chain's end.
+ Its fixture forks on purpose, and the fork had to move OFF the chain's end.
 `Chain.resolve` filters by no branch, so with the fork written last the gate
 compared a native read that ignores branches against a rule-level read anchored
 on the other one. **They disagreed, correctly, and the rule-level answer was the
 better of the two.** That is worth keeping in view: the native read's *nothing
 forks* precondition is now load-bearing and unchecked.
 
-⚠⚠⚠ **And `quiescence` still exits 1, for a reason older than this branch.**
+ **And `quiescence` still exits 1, for a reason older than this branch.**
 `<silent>` derives nothing in any of its 12 fixtures -- 5/6 of its own rules
 exercised -- and `run()` counts a blind rule as a failure, which is right.
 Checked against `6c370d2` rather than assumed: that commit prints the same 5/6
@@ -794,7 +794,7 @@ and the same `<-- BLIND`. **A gate nobody ran had been saying this all along.**
 `<silent>` needs a candidate that is `unbound` -- a conclusion still generic
 after substitution -- and NOT `mentioning`. `SHAPES`' `<attach>` was written to
 be exactly that shape (`+resume(hall, <echo>)`, generic only because `<echo>`'s
-patterns are) and it is not reaching the rule. ⚠ First thing to check: whether
+patterns are) and it is not reaching the rule.  First thing to check: whether
 a rule whose consequent NAMES a rule is marked `mentions`, which would make
 `unbound` and `mentioning` fire together and `<silent>` unreachable by
 construction. Left named rather than fixed, as `gates.state` was before it.
@@ -820,7 +820,7 @@ postcondition vocabulary gains two rows:
     push        start a fresh attention frame
     pop($x)     restore the previous frame, attending $x on it
 
-⚠⚠⚠ **The graph is untouched by both.** This is not a transaction, there is no
+ **The graph is untouched by both.** This is not a transaction, there is no
 rollback, and nothing derived inside a frame stops existing when it is popped.
 Popping a set of graph changes is a different feature, it does not exist, and it
 is not wanted. Attention management is the whole of this.
@@ -855,7 +855,7 @@ at span 7 a long enough sub-line evicts anything, however well chosen. **A stack
 does not filter -- it suspends.** The outer frame is off the queue entirely, so
 it cannot be evicted however long the inner line runs.
 
-⚠ And raising the span is not the answer, because the squeeze is from both
+ And raising the span is not the answer, because the squeeze is from both
 sides: `ugm.selftest` already measures the other end -- *attention that names
 everything narrows nothing*.
 
@@ -885,7 +885,7 @@ The author's, 2026-08-21. A frame is not only an attention queue:
 
 So `push` is how one expert CALLS another and `pop` is how it gets the result
 back -- the attention stack and the consultation stack are **one construct, not
-two**. ⚠ The expert is held by NAME, never as a frozen rule list: `pool_of` is
+two**.  The expert is held by NAME, never as a frozen rule list: `pool_of` is
 *read, never kept* (`probes/experts.py`), because a registry built at load could
 not see a `knows` that a rule concluded.
 
@@ -902,7 +902,7 @@ top once the callee finishes, because there is nothing to suspend into. And
 which `experts.py` never does, so the caller's scores are discarded on every
 consultation return.
 
-⚠⚠⚠ **The engine already knows what that costs**, in `tick`'s own docstring:
+ **The engine already knows what that costs**, in `tick`'s own docstring:
 
 > The table PERSISTS across calls, or a caller stepping by hand would lose every
 > buff between one tick and the next and be **measuring a different agent each
@@ -912,7 +912,7 @@ That is stated about stepping by hand. `experts.py` incurs it on every return,
 by construction. A frame that carries the table is what turns its re-run into a
 resume, and *wait for the result* into something literally true.
 
-⚠ Two things this adds to OPEN below rather than settles:
+ Two things this adds to OPEN below rather than settles:
 
     the cycle test    `experts.py` keys on the (expert, question) PAIR, not on
                       the expert -- `A -> B -> A` asking something NEW is
@@ -929,7 +929,7 @@ resume, and *wait for the result* into something literally true.
 The author's, 2026-08-21. `push` names the NODES to put in the new frame; the
 expert is chosen from them, automatically, by **TF-IDF over experts**.
 
-⚠⚠⚠ **This is not *propose, and someone else decides*.** The author's, and it
+ **This is not *propose, and someone else decides*.** The author's, and it
 settles a suggestion of mine that had the wrong shape:
 
 > Like attention, it's life or death. If wrong, nothing can save the system.
@@ -981,7 +981,7 @@ defence, which is what makes a weighted SUM safe here where a raw one was not.
                     (`_by_relation`, attention.py:319). Expert -> terms needs no
                     new structure.
 
-⚠ **Mine, and strike it if it is not wanted.** What an unarguable step cannot
+ **Mine, and strike it if it is not wanted.** What an unarguable step cannot
 buy back is vetoability; what it must not lose is LEGIBILITY. Every other engine
 decision nobody can override is deposited here -- `refused` (the gate's veto),
 `unafforded` (*an attempt at something the palette does not afford, on the
@@ -990,7 +990,7 @@ life-or-death step it will be wrong eventually, and `why()` should answer rather
 than shrug. That is `deposit-dont-decide.md` applied to a decision that genuinely
 cannot be delegated.
 
-⚠ **One interaction to know about, not to relitigate.** IDF is fixed at startup;
+ **One interaction to know about, not to relitigate.** IDF is fixed at startup;
 pools are *read, never kept*, and `knows($e, $r)` can be CONCLUDED mid-run --
 `<inherit>` derives more of them. So an expert's actual pool can grow after its
 scores were computed. Decided as stated; recorded so whoever implements it knows
@@ -1005,7 +1005,7 @@ the two facts are in tension by design rather than by oversight.
                     must not be polluted with an external mechanism, and engine
                     support for the frame is what lets pure rules compose.
     what pops       a RULE says so. A goal-management rule that checks whether
-                    the goal is reached spends `pop`. ⚠ NOT the loop detecting
+                    the goal is reached spends `pop`.  NOT the loop detecting
                     its own quiescence -- that would put the decision back in
                     the engine, and `stop` already settles which way this goes.
     pop carries     `pop($x)` attends $x on the restored frame: the
@@ -1021,7 +1021,7 @@ the two facts are in tension by design rather than by oversight.
 ## OPEN
 
 1. **A depth bound.** `probes/experts.py` sets `DEPTH = 8` with a cycle test
-   keyed on the `(expert, question)` PAIR. ⚠⚠⚠ Copy its caution and not only its
+   keyed on the `(expert, question)` PAIR.  Copy its caution and not only its
    constant: an earlier draft of that file returned to the outer loop instead of
    servicing nested consultations in place, so **the stack was never deeper than
    one, the cycle test could never fire, and a check asserting depth passed
@@ -1033,7 +1033,7 @@ the two facts are in tension by design rather than by oversight.
 4. **An unpopped frame.** Is a leak reclaimed, or is it a thing the agent can be
    asked about? The second is this design's usual answer.
 5. **What the cycle test keys on** once the stack is frames rather than
-   `(expert, question)` pairs. ⚠ `A -> B -> A` asking something NEW is ordinary
+   `(expert, question)` pairs.  `A -> B -> A` asking something NEW is ordinary
    recursion and must stay allowed.
 6. **Whose budget.** Every `run()` carries its own `limit`; a chain of
    consultations multiplies it silently, and a real stack makes that a question
@@ -1058,7 +1058,7 @@ Two things, and neither has a number yet.
    discounts, so the naive-collapse worry is answered by the choice of metric --
    but how much signal is LEFT after discounting is still a number nobody has,
    and it is the number that says whether the pick is a mechanism or a coin
-   flip. ⚠ `_salient` is the standing warning: it failed silently.
+   flip.  `_salient` is the standing warning: it failed silently.
 3. **How far does a re-run diverge from a resume?** `probes/experts.py` already
    re-runs the caller with a fresh table on every consultation return, so the
    comparison can be made against the code as it stands: run a consultation
@@ -1066,7 +1066,7 @@ Two things, and neither has a number yet.
    the agent chooses the same moves. If it does not, `tick`'s *measuring a
    different agent each time* has a number for the first time.
 
-⚠ A frame that fixes nothing measurable is a mechanism this design would refuse
+ A frame that fixes nothing measurable is a mechanism this design would refuse
 on its own terms.
 
 ## ⭐⭐⭐ BUILT 2026-08-21 — and the three measurements were taken FIRST
@@ -1089,7 +1089,7 @@ already knew it was doing. Over the probes as they ship, unchanged:
 Nobody had this number before. The queue's forgetting was argued from two
 back-outs and a constant; it is four figures per dungeon run.
 
-⚠ **And the loss is a DEMOTION, not an erasure** -- which nearly made the probe
+ **And the loss is a DEMOTION, not an erasure** -- which nearly made the probe
 pass on a technicality. `attend($g)` deposits a standing `attention(g)` claim
 and `_attended()` puts a standing claim at the BOTTOM rather than dropping it,
 so *was it forgotten* is the wrong question. What the queue loses is the node's
@@ -1110,7 +1110,7 @@ probe:
 every pool, score **zero**, and stop drowning the signal. `survey` separates
 cleanly.
 
-⚠⚠ **What is LEFT after discounting is a tie between the expert that ANSWERS and
+ **What is LEFT after discounting is a tie between the expert that ANSWERS and
 the expert that ASKS**, because both key on `area`. The tie falls to authored
 order. That is signal rather than separation, and it is the honest answer to the
 question the entry asked. The obvious next lever -- score the ANTECEDENT only,
@@ -1133,7 +1133,7 @@ score is `STANDING` or `FLOOR` and only `absorb` moves it, so a rebuilt table
 and a run-through one agree in `score` and `rank` -- the only two fields that
 decide a move. Asserted directly: they differ in `ticked` and in nothing else.
 
-⚠⚠⚠ **So `tick`'s *measuring a different agent each time* is currently INERT.**
+ **So `tick`'s *measuring a different agent each time* is currently INERT.**
 It was written when a buff moved a score. Nothing moves one. The table in a
 frame is therefore not what the frame buys today -- the QUEUE is (13,986
 readmits on dungeon) and the ROUTING is. It belongs in the frame for the day
@@ -1189,7 +1189,7 @@ Two hops, one `run()`, no outer loop, no Python stack, no `consult`, no
       geometry: replied
     surveyor: recorded
 
-⚠ **The `twice(3)` hop went to geometry rather than to arithmetic**, and the
+ **The `twice(3)` hop went to geometry rather than to arithmetic**, and the
 answer is right anyway because geometry inherits `<double>`. That is the `area`
 tie of measurement 2 showing up in the routing: a term shared by the asker and
 the answerer scores for both. Defensible, not what a human would have named, and
@@ -1250,7 +1250,7 @@ put, and pays a few percent of matching for it.
                     the frame BELOW and says so. Picking the first expert
                     declared would be a coin flip wearing a mechanism's clothes.
 
-### ⚠⚠⚠ FOUND while building, and it is not part of the stack
+###  FOUND while building, and it is not part of the stack
 
 `_attention_asked` ordered standing `attention` claims **by iterating a Python
 set** -- so which of several equally-claimed nodes lifted hardest was decided by
@@ -1269,7 +1269,7 @@ asserted "the order still moves" on the strength of the accident.
 # Measured 2026-08-21, and it belongs to SITUATION MANAGEMENT, not to the stack
 
 Kept separate on purpose -- these were probed while the stack was being argued
-and they are a different topic. **⚠ Measured on the CURRENT engine, before
+and they are a different topic. ** Measured on the CURRENT engine, before
 `believed(p)`**, so re-check anything that turns on entries once anchors are the
 state.
 
@@ -1283,12 +1283,12 @@ A variable in the relation slot and `as $t` (`Member.binds`) are both already
 supported, so the mechanism needs no engine support at all. Two limits, running
 in opposite directions:
 
-    ⚠⚠ arity 1 only     `$rel($p)` matches single-member instances. Measured:
+     arity 1 only     `$rel($p)` matches single-member instances. Measured:
                         `metal(kettle)` and `boiling(kettle)` reached;
                         `on(kettle, stove)` and `knows(bob, said(secret(a)))`
                         NOT. Containment stops at the first multi-ary relation,
                         and writing a row per (arity, position) is unbounded.
-    ⚠⚠⚠ it over-        `in(h1, kettle)` drags `metal(kettle)` and
+     it over-        `in(h1, kettle)` drags `metal(kettle)` and
     propagates          `boiling(kettle)` in -- world facts about a real kettle.
                         The rule cannot tell *minted inside the hypothesis* from
                         *already true and mentions the same thing*.
@@ -1301,7 +1301,7 @@ dict, and it collapses the arity problem to a single rule:
 
     { +in($h, $p), +member_of($t, $p) }  =>  { +in($h, $t) }
 
-⚠⚠⚠ **And the collision to settle before an expert is written:**
+ **And the collision to settle before an expert is written:**
 `learning/practice.py:60` already ships `<observe> = implies( { +world($s),
 +did($a) }, { +in($s, did($a)) } )` -- believed world facts are deliberately
 copied INTO a scene. So `in($s, p)` already means *p is part of scene s*, and it

@@ -275,6 +275,7 @@ class Chain:
     # -- reading (§4) -----------------------------------------------------
 
     def resolve(self, proposition: NodeId) -> Optional[Entry]:
+        # REVIEW NOTE: should go away in the scratchpad model
         """What the chain says about this proposition: the LAST claim made.
 
         What this cannot answer, said plainly: *did this hold THEN*. That is
@@ -287,6 +288,7 @@ class Chain:
         return got[-1] if got else None
 
     def holds(self, proposition: NodeId) -> Optional[str]:
+        # REVIEW NOTE: should go away in the scratchpad model
         """The sign, or None if the chain says nothing. `?` is not None: it stops
         the walk and reports ignorance, which is the one thing writing nothing
         could never say"""

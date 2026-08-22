@@ -37,7 +37,7 @@ learns to attend the tap, and round 1 onward fills the kettle -- all of it
 inside the frame. Then the agent goes into the world and gets it right the first
 time. Nobody wrote an explore rule and none is used.
 
-⚠⚠⚠ **This file used to make a bigger claim than that, and the claim went
+ **This file used to make a bigger claim than that, and the claim went
 with its world.** It ran in a world where BOTH routes harmed, one twice as
 badly, and the finding was that the oscillation `ugm.learning` files as a defect
 is exploration when it happens inside a supposition -- *the same behaviour, and
@@ -53,7 +53,7 @@ are about different things and the better one was there to be passed up. So
 what a rehearsal buys is not exploration; it is **regret, paid for in ticks
 instead of in jugs**, which is the smaller claim and the one that survives.
 
-⚠⚠⚠ **The proposer nests, and that is the one thing here that needs a guard
+ **The proposer nests, and that is the one thing here that needs a guard
 rather than a reading.** `<practise>` matches inside a practice frame as readily
 as outside one, so a corpus with two achievable relations opens
 `supposing(goal(water(kettle)))` *inside* `supposing(goal(lit(room)))`. Reading
@@ -62,7 +62,7 @@ damage. §4's two times are half a repair and cost no new bookkeeping -- an entr
 is this frame's doing iff its locus is at-or-after the frame's origin -- and
 measured, that does drop the parent's loss.
 
-⚠⚠⚠ **Only half, and the other half is why the guard is not optional.** Which
+ **Only half, and the other half is why the guard is not optional.** Which
 half you get is decided by where the proposer is authored. When the parent's
 damage predates the inner frame, the origin test excludes it. When it does not,
 the inner rehearsal **re-derives it** from inherited state -- `<light>` applies
@@ -75,7 +75,7 @@ are gated, because a single order would have reported a repair that works.
 That leaves the nesting bounded only by `_enacted` refusing to suppose one
 proposition twice -- an accident of identity, not a guard.
 
-⚠ **A rehearsal can only discover harms the corpus can state.** Delete the rule
+ **A rehearsal can only discover harms the corpus can state.** Delete the rule
 that says what breaking the jug costs and practice concludes the jug is free,
 confidently and from evidence. That is the third time a fixture has been unable
 to express the very thing it was checking, so it is a gate, not a caveat -- and

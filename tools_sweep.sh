@@ -1,18 +1,18 @@
 #!/bin/bash
 # Every module with a `main()`, enumerated from the filesystem.
 #
-# ⚠⚠⚠ A HAND-WRITTEN LIST HID TWO REGRESSIONS. There are ~30 modules with a
+#  A HAND-WRITTEN LIST HID TWO REGRESSIONS. There are ~30 modules with a
 # main() and every sweep in one session used a list of a dozen; `ugm.practice`
 # was red for two commits and `ugm.attention` for six before either was noticed.
 # Pick nothing: ask the filesystem.
 #
-# ⚠⚠⚠ AND THE GLOB WAS `ugm/*.py`, WHICH IS THE SAME BUG ONE LEVEL UP. The
+#  AND THE GLOB WAS `ugm/*.py`, WHICH IS THE SAME BUG ONE LEVEL UP. The
 # moment the tree grew `core/`, `learning/`, `gates/` and `probes/`, a flat glob
 # would have quietly stopped covering every module that moved -- reporting
 # green because it had stopped looking. `find` recurses; nothing here names a
 # directory either.
 #
-# ⚠⚠⚠ AND THE TEST WAS `^def main`, WHICH IS THE SAME BUG A THIRD TIME. Two of
+#  AND THE TEST WAS `^def main`, WHICH IS THE SAME BUG A THIRD TIME. Two of
 # the §20 floor gates -- `gates.agreement` and `gates.quiescence` -- name their
 # entry point `run`, so a grep for `main` walked past both. Neither has ever
 # been in a sweep, and `agreement` was broken by the locus cut with nothing to

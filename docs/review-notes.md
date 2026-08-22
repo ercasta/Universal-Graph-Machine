@@ -2,7 +2,7 @@
 
 Attention.py:
 - check if _forgo and rivals can be removed.
-- ⚠ Anchored at the SEAT rather than at every moment, which is the containment story as well as the cheap -> is this still true?
+-  Anchored at the SEAT rather than at every moment, which is the containment story as well as the cheap -> is this still true?
 - "Satisfaction, ported from the tick this loop replaces" -> can't we leverage our "compute delta" to evaluate "satisfaction"? This would mean ALWAYS setting a "goal" and checking vs that.
 - Is the following code section used? Moreover the second if repeats the "widened" instead of "recover"
 ```

@@ -4,7 +4,7 @@ python -m ugm <corpus.ugm> [--limit N] [--why TERM] [--save FILE]
 
 <corpus.ugm> [--limit N] [--why TERM] [--save FILE] --resume FILE [--limit N]
 [--why TERM] [--save FILE] §2's not-lossy criterion at the one boundary nobody
-had crossed. ⚠ A resumed session does not act again.
+had crossed.  A resumed session does not act again.
 
 See docs/design/__main__.md.
 """

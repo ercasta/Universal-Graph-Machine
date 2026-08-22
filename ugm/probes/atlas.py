@@ -4,7 +4,7 @@
 
 <corpus.ugm> [--mermaid] ugm.vocabulary asks whether a NAME has a web. This
 asks the same question of the whole corpus and one step further out: which
-relations can ever be established, and therefore which rules can ever apply. ⚠
+relations can ever be established, and therefore which rules can ever apply. 
 It is a static over-approximation, and saying which direction matters.
 
 See docs/design/atlas.md.
@@ -56,7 +56,7 @@ def reachable(m: Machine, rules) -> Tuple[Set[str], List]:
             if need <= have:
                 live.add(i)
                 for x in r.consequent:
-                    # ⚠⚠⚠ A bare-variable consequent concludes ANYTHING, and
+                    #  A bare-variable consequent concludes ANYTHING, and
                     # every corpus that believes what it is told has one.
                     # →
                     # docs/design/atlas.md#a-bare-variable-consequent-concludes-anyth
@@ -102,7 +102,7 @@ def chains(m: Machine, rules) -> Dict[str, List[Tuple[str, List[str]]]]:
 def mermaid(m: Machine, rules, have: Set[str]) -> str:
     """The map, as something that can be looked at.
 
-    ⚠ Rendered rather than printed because a corpus of any size is a graph and a
+     Rendered rather than printed because a corpus of any size is a graph and a
     list of edges is not a map -- the whole point of asking for one is to see
     which way the arrows run.
     """
@@ -129,7 +129,7 @@ def mermaid(m: Machine, rules, have: Set[str]) -> str:
 def links(m: Machine, rules) -> Set[frozenset]:
     """A rule joins every relation it READS to every relation it WRITES.
 
-    ⚠ A relation joined only to ITSELF is not joined: `{+p($x)} ⟹ {+p($y)}`
+     A relation joined only to ITSELF is not joined: `{+p($x)} ⟹ {+p($y)}`
     gives `p` no meaning it did not have, because meaning is being connected to
     something else. So self-links are dropped rather than counted.
     """
@@ -153,7 +153,7 @@ def islands(nodes: Set[str], es: Set[frozenset]) -> Tuple[List[Set[str]], Dict[s
     in **nine** islands. A domain's special terminology clusters; the common
     terminology is what holds the clusters together.
 
-    ⚠ `worked.ugm` reports **two** islands, and that is the measure being right
+     `worked.ugm` reports **two** islands, and that is the measure being right
     about something known independently: the file is two unrelated worked
     examples, a kettle and some rain.
     """
@@ -198,7 +198,7 @@ def bridges(nodes: Set[str], adj: Dict[str, Set[str]]) -> List[str]:
 def latent_conflicts(m: Machine, rules) -> List[Tuple[str, str]]:
     """Pairs of the corpus's own rules that could conclude opposite signs of one
 
-    thing -- the offline half of harmonization. ⚠⚠⚠ Filtered to a SPECIFIC
+    thing -- the offline half of harmonization.  Filtered to a SPECIFIC
     unifier, and that filter is the whole instrument.
 
     See docs/design/atlas.md#latent-conflicts.
@@ -277,14 +277,14 @@ def survey(m: Machine, rules, label: str = "", show_mermaid: bool = False) -> Li
           f"{sorted(len(c) for c in comps)}")
     alone = sorted(next(iter(c)) for c in comps if len(c) == 1)
     if alone:
-        # ⚠⚠⚠ **`not` will appear here and is a false positive**, which is the
+        #  **`not` will appear here and is a false positive**, which is the
         # bare variable distorting a measurement for the third time. `<denial>`
         # concludes `-$p` -- a bare variable, with no relation to draw a link to
         # -- so `not` looks joined to nothing while it is in fact joined to
         # everything the agent can deny.
         print(f"  joined to nothing else       : {alone}"
               f"{'   (undecidable -- see below)' if wild else ''}")
-        # ⚠ A rule concluding a bare variable draws no edge, because there is no
+        #  A rule concluding a bare variable draws no edge, because there is no
         # relation on its consequent to draw one to -- so the term it reads looks
         # isolated while it is in fact joined to everything the agent can be told.
         problems += [f"{n} is in the corpus and joined to nothing else"
@@ -292,7 +292,7 @@ def survey(m: Machine, rules, label: str = "", show_mermaid: bool = False) -> Li
     span = bridges(nodes, adj)
     print(f"  terms holding it together    : {span if span else 'none'}")
     if wild:
-        # ⚠ ASCII only in what is PRINTED -- this goes to a console whose
+        #  ASCII only in what is PRINTED -- this goes to a console whose
         # encoding is the platform's, and a mark it cannot encode turns the
         # whole report into a traceback. Second time today.
         print(f"  concludes ANYTHING           : {wild} -- a rule whose "
@@ -300,7 +300,7 @@ def survey(m: Machine, rules, label: str = "", show_mermaid: bool = False) -> Li
               f"nothing here can be shown unreachable. Every corpus that "
               f"believes what it is told has one.")
 
-    # ⚠ Printed apart from the problems above, and not counted as one: a latent
+    #  Printed apart from the problems above, and not counted as one: a latent
     # conflict is a QUESTION for an author -- the two antecedents may never hold
     # together -- where a dead rule is a defect whatever else is true.
     fights = latent_conflicts(m, rules)
@@ -321,7 +321,7 @@ def main(argv=None) -> int:
     want_mermaid = "--mermaid" in argv
     argv = [a for a in argv if a != "--mermaid"]
     if not argv:
-        # ⚠ A short line rather than the module docstring: this prints to a
+        #  A short line rather than the module docstring: this prints to a
         # console whose encoding is the platform's, and the docstring is full of
         # marks that a cp1252 terminal cannot encode -- so printing it turned
         # `--help` into a traceback.
@@ -336,7 +336,7 @@ def main(argv=None) -> int:
         try:
             load_file(m, path)
         except Exception as exc:
-            # ⚠ A corpus that registers TOOLS cannot be loaded from its text
+            #  A corpus that registers TOOLS cannot be loaded from its text
             # alone -- `ugm/rules/dungeon.ugm` names three answerers its host
             # installs -- so the map is available to a host that has built the
             # machine, and the command line reaches only self-contained corpora.

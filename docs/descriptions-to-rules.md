@@ -58,7 +58,7 @@ DESCRIBED one.** That is the whole of it, and both faults below are instances:
 `Loader._rule` already applies this check. It has to be applied where rules now
 also come from.
 
-⚠ It cannot fire per-write, because a description arrives over several ticks and
+ It cannot fire per-write, because a description arrives over several ticks and
 is legitimately incomplete in between. **Complete-but-unbindable is an aggregate
 over a finished search**, so it belongs at quiescence, beside `blocked` and
 `unsupported`.
@@ -140,7 +140,7 @@ decides it at intake ... **which is why coreference does not arise in authored
 knowledge at all***. ⭐⭐⭐ That premise is exactly what a COMPUTED description
 breaks: it is authored knowledge whose identity is not settled at intake.
 
-⚠ Against: `merge` is global and permanent, and variable identity is per-rule.
+ Against: `merge` is global and permanent, and variable identity is per-rule.
 And `<anchor>` -- sharing by BINDING -- already serves the computed case, with
 the parser enforcing it. **On the record as the answer to *why not*, which is
 not "the representation cannot express it".**
@@ -166,7 +166,7 @@ express that, which is one reason an explicit constructor is needed at all.
     a LOADED rule's node    <compile>   2 members, full structure
     an ADOPTED rule's node  #1554       relation None, 0 members
 
-⚠⚠⚠ And reusing a node leaves both readable forms describing the OLD rule:
+ And reusing a node leaves both readable forms describing the OLD rule:
 
     live members  p($y) => z($y)
     its subgraph  moment(entry(p($x), +)) => moment(entry(q($x), +))
@@ -204,7 +204,7 @@ rule can produce.**
 > constructor taking a relation and a *collection* of members. **Explicit
 > composition is the requirement, not a preference.**
 
-⚠ Nothing in the tree has a list or `cons` idiom to build such a collection from.
+ Nothing in the tree has a list or `cons` idiom to build such a collection from.
 This is upstream of everything else in this document.
 
 ---
@@ -220,7 +220,7 @@ existing `as` slot (§12's `binds`) names **what a whole member matched**, not a
 sub-term of it, and there is no way to attach a name to a node bound inside a
 pattern.
 
-⚠ Two readings, and they want different things -- **settle this before
+ Two readings, and they want different things -- **settle this before
 building**:
 
     (a) a TYPE on the binding: bind `$x`, and constrain it to be a person
@@ -240,4 +240,4 @@ surface notation, and would be an alternative to `<anchor>`.
     4. the runtime-arity constructor (`_rel`)   upstream of 5
     5. rule-as-subgraph, one representation     the point of the exercise
 
-⚠ 4 is the one with no design yet. 1-3 are measured and could be taken now.
+ 4 is the one with no design yet. 1-3 are measured and could be taken now.

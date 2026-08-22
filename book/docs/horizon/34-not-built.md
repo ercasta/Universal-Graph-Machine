@@ -102,7 +102,7 @@ is a denial (Chapter 24), but *do not go where you have been* asks about
 `−`, which means *denied* rather than *absent* — so a maze with a cycle spawned
 without limit.
 
-⚠ This one is **now buildable**: `no at($w, $room)` is exactly the missing
+ This one is **now buildable**: `no at($w, $room)` is exactly the missing
 question (Chapter 6). The item stays on the list because nothing in the tree
 demonstrates it — the probe that measured walkers was deleted — so *buildable*
 is not yet *built*.

@@ -43,7 +43,7 @@ jobs:
           echo "Built wheels:"
           ls -l book/docs/wheels
 
-      # ⚠⚠⚠ A wheel that EXISTS is not a wheel that IMPORTS, and `ls` cannot
+      #  A wheel that EXISTS is not a wheel that IMPORTS, and `ls` cannot
       # tell them apart. `packages = ["ugm"]` shipped four files and none of
       # `ugm/core`, so every wheel this job published for the playground raised
       # ModuleNotFoundError on `import ugm` -- for as long as the tree has had

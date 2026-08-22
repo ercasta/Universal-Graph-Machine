@@ -38,7 +38,7 @@ and carried one on **6 of 32,289 entries**. And `weaker` was called from exactly
 one place: the grade was carried, composed and printed, and **nothing ever
 decided on it** — this repo's own *read and not obeyed* defect at the floor.
 
-⚠ What was lost: weakest link was AUTOMATIC and TOTAL. A conclusion drawn from
+ What was lost: weakest link was AUTOMATIC and TOTAL. A conclusion drawn from
 an uncertain premise is now derived only if a corpus crossed, and what comes out
 is nested (`likely(possible(x))`) where `min` gave one ordinal. Collapsing that
 is a corpus's table and its ordering is a corpus's claim. The ordinal stops being
@@ -62,7 +62,7 @@ a hole in its watermarks that nothing reports.
 field names a node, and a node belongs to one situation, so a delta made of nodes
 can only be replayed into the situation it came from — which is not a replay.
 
-⚠ It is redundant with `g.atom_of(proposition)` **today**, and that is the point
+ It is redundant with `g.atom_of(proposition)` **today**, and that is the point
 rather than an objection: it stops being redundant the moment a materialisation
 is discarded, which is the leak that stage exists to close. `Chain.materialise`
 reads THIS and never `atom_of`, so the redundancy is under test rather than
@@ -80,7 +80,7 @@ and carry a number that was different last time. So the clock is inert until
 asked for, and off by default, because a source of nondeterminism should be
 requested rather than inherited.
 
-⚠ What it is NOT: a way to order moments. `pred` and `anc` already do that, and
+ What it is NOT: a way to order moments. `pred` and `anc` already do that, and
 they are exact where a clock is only monotone-ish. The stamp answers *how long
 ago*, which the chain could not answer at all — moments are ORDERED, not
 MEASURED, and `depth` is a position rather than a duration.
@@ -96,7 +96,7 @@ dated or attributed, and it says how the graph is being read rather than anythin
 about the world. The machinery seeds it; §6's price applies exactly as to `cand`
 and `best`.
 
-⚠ Without it the read's first member is unanchored, and the only way to bind a
+ Without it the read's first member is unanchored, and the only way to bind a
 seat is to enumerate every moment — which is what the second matcher did, and why
 it was *deliberately slow*: it derived the read for every seat in the history
 whether or not anything asked.

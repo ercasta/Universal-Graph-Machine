@@ -2,7 +2,7 @@
 
 From the harness side, at `harneskills@a9b1e6d`, against `ugm@907e6c9`.
 
-⚠ **Nothing below was measured.** `dungeon-feedback.md` opens with *everything
+ **Nothing below was measured.** `dungeon-feedback.md` opens with *everything
 below was run, not recalled*, and this file cannot make that claim: it is
 reasoned from `docs/observations.md` §2.18–§2.23, `ugm/attention.py`,
 `ugm/rules.py` and `ugm/interpret.py`, plus two standing asks from the harness's
@@ -78,7 +78,7 @@ Clean input never matches a repair rule, because the window is never empty.
 Broken input walks down one tier at a time and each step deposits its own
 record, so *how far I had to reach to understand you* needs no authoring at all.
 
-⚠ **And we think it does not work, for a reason that is not the ladder's
+ **And we think it does not work, for a reason that is not the ladder's
 fault.** The window is empty only when **nothing anywhere** applies. A dungeon
 has upkeep, monsters with turns, and standing policy; something is almost always
 applicable. So the parse can fail completely while the window stays full, no
@@ -90,7 +90,7 @@ rather than *the machine found nothing*.** We have no proposal for what carries
 the scope — `asking`/`asked` and the frame both look like candidates from here
 and we have not tested either.
 
-⚠ Checkable and unchecked. It is the **first** measurement the prototype would
+ Checkable and unchecked. It is the **first** measurement the prototype would
 make, and if it turns out the window does go empty often enough in practice,
 this request evaporates and only §1 remains.
 

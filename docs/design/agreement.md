@@ -43,7 +43,7 @@ operational rather than a new construct:
 The read, as rules. Written in the surface, so this is also the expressibility
 claim: nothing here is a notation the document invented for the engine.
 
-⚠ The order within a delta is walked back from a CANDIDATE, not closed over
+ The order within a delta is walked back from a CANDIDATE, not closed over
 every entry. Both give `<beaten-deposit>` the same answers -- it only ever
 asks about two entries that are already candidates for one proposition -- but
 the closure is the difference between one walk per candidate and one per pair
@@ -51,7 +51,7 @@ of entries in the history. It went unnoticed while §7 hid two thirds of the
 chain from the matcher: with the reified entries visible the same fixture
 stopped finishing at all (docs/observations.md Part 6.6).
 
-⚠ Every member is ANCHORED, and the order is what anchors it. `anc($seat, $d)`
+ Every member is ANCHORED, and the order is what anchors it. `anc($seat, $d)`
 walks upward from a bound seat; `in_delta($d, $e)` enumerates a bound moment's
 entries; `entry_of($e, ...)` reads a bound entry's own three members. A member
 whose turn comes before anything binds it finds nothing -- so the authored

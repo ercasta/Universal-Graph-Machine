@@ -3,7 +3,7 @@
     python -m ugm.probes.quest
 
 ugm.table is the wire; this is a corpus written on it, and it exists to answer
-the standing request in docs/dungeon-reply.md: author a goal. ⚠ AN ARRIVAL
+the standing request in docs/dungeon-reply.md: author a goal.  AN ARRIVAL
 CANNOT BE SPENT, and this inverts docs/authoring.md §0.
 
 See docs/design/quest.md.
@@ -85,7 +85,7 @@ def main() -> int:
          "by the agent having run out of its own ways to get there",
          any(u.text.startswith("want(p1,") for _, u in t.transcript))
 
-    # ⚠⚠⚠ This check exists because the transcript showed the bug and eight
+    #  This check exists because the transcript showed the bug and eight
     # checks did not. A request that is never spent is re-routed whenever the
     # world moves, and nothing about the OUTCOME can see it -- the goal is still
     # reached, every belief is still right, and the table still goes quiet.
@@ -99,7 +99,7 @@ def main() -> int:
     lone = Table(LONELY)
     lq = lone.play()
     lb = lone.beliefs()
-    gate("⚠ the control has something to measure: p1 asked here too",
+    gate(" the control has something to measure: p1 asked here too",
          any(u.text.startswith("want(p1,") for _, u in lone.transcript))
     gate("⭐⭐ delete the agent that holds the key and p1 stays blocked for "
          "ever -- the goal is not reached, the ask is not answered, and the "

@@ -91,7 +91,7 @@ def features(m: Machine, kb, x, lift: bool = False,
     kind the world model gives it -- `contains(_, :solid)` beside
     `contains(_, sand)`. One argument at a time, so nothing combinatorial.
 
-    ⚠ Module level rather than a closure inside `learn`, because the held-out
+     Module level rather than a closure inside `learn`, because the held-out
     test has to ask *does this lesson cover that case* with the SAME function
     that produced the lesson. A second copy would degrade with the first and
     agree with it while both were wrong.
@@ -181,7 +181,7 @@ def learn(m: Machine, kb, lift: bool = False) -> List[Found]:
         drop = lambda ks: {k for k in ks if not k.startswith(g.show(rel) + "(")}
         mine, theirs = drop(mine), drop(theirs)
 
-        # ⚠⚠⚠ **A difference against the empty set is not a difference.** With
+        #  **A difference against the empty set is not a difference.** With
         # no success to contrast against, `mine - theirs` is all of `mine`, so
         # every fact about the failure reads as an explanation of it -- which is
         # precisely the noise this is supposed to refuse. The one-case fixture

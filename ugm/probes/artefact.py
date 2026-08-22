@@ -1,6 +1,6 @@
 """Building something, noticing which half of the goal it already meets, and
 
-repairing the other half -- then rendering it. ⚠ And the honest half, which
+repairing the other half -- then rendering it.  And the honest half, which
 this file exists to pin: WITHOUT A RE-ASK THE SIGNAL IS STALE.
 
 See docs/design/artefact.md.
@@ -51,7 +51,7 @@ def episode(extra: List[str] = (), drop: str = "", tool: bool = True):
     def render(mach, e):
         """Compose the command from what is claimed about it.
 
-        ⚠ Everything it touches goes through `kb`, never `g.atom`. A tool that
+         Everything it touches goes through `kb`, never `g.atom`. A tool that
         mints its own nodes answers a request nobody made, with a term no rule
         can name -- measured twice in `ugm.tools`, silent both times.
         """
@@ -142,7 +142,7 @@ def main() -> int:
     def satisfied(m):
         return {a for a in _props(m, m.ACHIEVED) if "finds" in a}
 
-    gate("⚠⚠⚠ WITHOUT a re-ask the agent cannot say which half it has: nothing "
+    gate(" WITHOUT a re-ask the agent cannot say which half it has: nothing "
          "is ever recorded as an achieved half, though one held from the start",
          not satisfied(stale))
     gate("⭐ ...and ONE corpus line gives it back, using `again` and no machinery",
@@ -153,7 +153,7 @@ def main() -> int:
     gate("the artefact is rendered by a TOOL, asked for only once the claims "
          "say the command is right",
          asked == ["cmd"])
-    # ⚠⚠ Asked STRUCTURALLY, and finding out why is worth more than the check.
+    #  Asked STRUCTURALLY, and finding out why is worth more than the check.
     # → docs/design/artefact.md#asked-structurally-and-finding-out-why-is-wo
     def answers_of(m, kb):
         rel = m.g.relation_of(kb.term("answered(<render>, spell(cmd), x)"))
@@ -170,7 +170,7 @@ def main() -> int:
          and not [n for n in nobelief.g.instances_of(
              nobelief.g.relation_of(kb_n.term("spelled(cmd, x)")))
              if nobelief.holds(n) == "+"])
-    gate("⚠⚠ and a corpus CANNOT name that string: the surface has no syntax "
+    gate(" and a corpus CANNOT name that string: the surface has no syntax "
          "for it, so a rule reaches a rendered artefact by binding or not at all",
          _unspellable(kb_f, "ls *.py | xargs grep -l '^class '"))
     retired, kb_r, asked_r = episode(extra=[RECHECK, "fact -answers(<render>, spell)"])
@@ -180,7 +180,7 @@ def main() -> int:
 
     print(f"\n{ran} checks, {failing} failing")
     print("""
-  ⚠ WHAT THIS DOES NOT SHOW, stated so the demonstration is not read for more
+   WHAT THIS DOES NOT SHOW, stated so the demonstration is not read for more
   than it is.
 
   **Parsing is absent.** This is the generation direction only, and generation

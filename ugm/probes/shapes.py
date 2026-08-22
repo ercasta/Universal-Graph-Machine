@@ -2,7 +2,7 @@
 
 The question this answers is whether a corpus needs the rule language at all,
 or whether most knowledge could be facts filling a small set of bundled schema
-rules -- and, if rules are needed, how many distinct kinds. ⚠ DO NOT GATE
+rules -- and, if rules are needed, how many distinct kinds.  DO NOT GATE
 ANYTHING ON THE EXTERNAL CORPORA.
 
 See docs/design/shapes.md.
@@ -34,7 +34,7 @@ def _vars(g, node) -> frozenset:
 def _shapes(g, r):
     """Three granularities, because the answer depends on which you ask.
 
-    ⚠ The FINE key includes the join graph, which makes every large rule unique
+     The FINE key includes the join graph, which makes every large rule unique
     by construction -- that is what over-counted external shapes as novel. It is
     kept because the comparison between the three is the finding.
     """
@@ -76,7 +76,7 @@ def install() -> None:
     run = Machine.run
 
     def counted(self, limit=100):
-        # ⚠ A flag on the machine, never a set of id() -- the retired `ugm.harmony` recorded
+        #  A flag on the machine, never a set of id() -- the retired `ugm.harmony` recorded
         # why: an address is reused the moment a machine is collected, and that
         # census under-reported by 3.5x without anything looking wrong.
         if not getattr(self, "_shape_censused", False):
@@ -235,7 +235,7 @@ def _external() -> None:
         files.extend(sorted(glob.glob(os.path.join(here, pat))))
     print("2. EXTERNAL CORPORA (different authors, different domains)")
     if not files:
-        # ⚠ Absent is normal and is NOT a failure. These are sibling
+        #  Absent is normal and is NOT a failure. These are sibling
         # repositories tracking other refs; nothing here may gate on them.
         print("   none present -- skipped (this is not a failure)")
         return

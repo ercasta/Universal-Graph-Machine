@@ -53,7 +53,7 @@ on: a fixture that held out only the *relation* while reusing the training terms
 would let the memoriser recognise `contains(_, sand)` in a new room and score as
 a generalising learner. What is held out is what the rooms are FULL OF.
 
-⚠ The regions are authored (`in_region`), not derived from the doors. Connected
+ The regions are authored (`in_region`), not derived from the doors. Connected
 components would need a transitive closure, which is a corpus rule and not the
 thing being measured -- and reading the region off `features` means a case's
 region and a case's lesson are read by the same function, which is `features`'s

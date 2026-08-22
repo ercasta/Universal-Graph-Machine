@@ -2,7 +2,7 @@
 
 Goal expansion was the last interpreter phase. It is gone (nophases), and what
 replaced it ships in the bundle: <ask-fit>, <plan>, <expand>, <ask-check>,
-<give-up>, over three requests the machinery answers at the write. ⚠ The re-ask
+<give-up>, over three requests the machinery answers at the write.  The re-ask
 now exists (again(<request>, <occasion>), §13) and this run still does not use
 one, deliberately: what it measures is the replacement on its own, and a
 corpus...
@@ -151,7 +151,7 @@ def run() -> int:
             blind.append(name)
 
     print()
-    # ⚠ The COUNT, not only the failures: `0 failing` reads the same
+    #  The COUNT, not only the failures: `0 failing` reads the same
     # whether this ran every check or none. `ugm.selftest` has printed its
     # count all along and is the only instrument that could have said so
     # when ten of `ugm.learning`'s were deleted by an edit.

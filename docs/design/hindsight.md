@@ -1,6 +1,6 @@
 # `hindsight.py` — the argument
 
-> ⚠⚠⚠ **The module is DELETED (2026-08-20).** It went with the locus, and every
+>  **The module is DELETED (2026-08-20).** It went with the locus, and every
 > one of its eight checks was about the second index: `at $m`, which bound the
 > locus of the entry that satisfied a member, and `holds_at(p, $m, $sign)`,
 > which resolved a proposition at a named moment. An entry has no locus, so
@@ -11,7 +11,7 @@
 > ordinary structural relations, and a rule over them reads the raw chain
 > instead of the resolved state. `docs/todo.md` carries the conversion.
 >
-> ⚠ What that conversion must reproduce, because it is the whole point of the
+>  What that conversion must reproduce, because it is the whole point of the
 > file: an UNANCHORED moment finds nothing rather than walking the history, and
 > a GENERIC proposition finds nothing rather than inventing a subject.
 

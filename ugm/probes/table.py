@@ -3,7 +3,7 @@
     python -m ugm.probes.table
 
 An agent's beliefs are its own chain. Nothing is shared: two machines hold two
-graphs, and a node in one names nothing in the other. ⚠ Keep it that way: the
+graphs, and a node in one names nothing in the other.  Keep it that way: the
 moment this file decides which utterances are worth believing, §13's hard-wired
 intake is back and the corpus cannot argue with it.
 
@@ -31,7 +31,7 @@ class Utterance(NamedTuple):
 
 
 class Spec(NamedTuple):
-    """An agent, as data that survives a pickle. ⚠ `tools` names module-level
+    """An agent, as data that survives a pickle.  `tools` names module-level
     functions in `TOOLS`, never a closure: under spawn the child re-imports this
     module and a closure would not arrive."""
 
@@ -83,7 +83,7 @@ class Agent:
     def hear_or_refuse(self, u: Utterance) -> Optional[str]:
         """Hear it, or say why it could not be heard.
 
-        ⚠⚠⚠ An agent really will try to say the unsayable, and the wire must
+         An agent really will try to say the unsayable, and the wire must
         not die of it.
 
         See docs/design/table.md#hear-or-refuse.
@@ -101,7 +101,7 @@ class Agent:
     def hear(self, u: Utterance) -> None:
         """An arrival, on a channel named for the speaker.
 
-        ⚠ Through `Loader.say`, which is the SCOPED door: it resolves the text
+         Through `Loader.say`, which is the SCOPED door: it resolves the text
         against this agent's own table, so the same words become this agent's
         own nodes. A bare `channels.deliver` would mint a channel beside the one
         the corpus's trust rule names, and the rule would never match -- the twin
@@ -112,7 +112,7 @@ class Agent:
     def think(self) -> List[Utterance]:
         """Run to quiescence, then ship whatever was said.
 
-        ⚠ `m.emitted` is cumulative, so only the tail is new. Shipping the whole
+         `m.emitted` is cumulative, so only the tail is new. Shipping the whole
         list each round re-delivers everything ever said, which reads as an agent
         repeating itself for ever and is quiescence-proof, because each arrival
         is a fresh entry (§10's two indices).
@@ -211,7 +211,7 @@ def _worker(spec: Spec, inbox, outbox) -> None:
         elif kind == "beliefs":
             outbox.put(("beliefs", spec.name, agent.beliefs()))
         elif kind == "where":
-            # ⚠⚠⚠ Which process am I in? Without this the equivalence check
+            #  Which process am I in? Without this the equivalence check
             # below cannot fail: a `Processes` that quietly ran everything in
             # the parent would produce an identical transcript for the most
             # boring reason there is, and report it as a ⭐⭐⭐ result.
@@ -221,7 +221,7 @@ def _worker(spec: Spec, inbox, outbox) -> None:
 class Processes:
     """One OS process per agent, talking over queues.
 
-    ⚠ This exists to be MEASURED against `Local`, not because it is faster. A
+     This exists to be MEASURED against `Local`, not because it is faster. A
     round is a barrier, so the processes serialise anyway and buy no wall clock.
     What they buy is that disjointness stops being a promise: no instrument, and
     no mistake of mine, can reach across a process boundary into another agent's
@@ -245,7 +245,7 @@ class Processes:
     def _round_trip(self, kind: str, per_agent=None) -> Dict[str, object]:
         """Ask every agent, then collect every reply, keyed by NAME.
 
-        ⚠⚠⚠ **Keyed by name and re-sorted into the declared order**, never taken
+         **Keyed by name and re-sorted into the declared order**, never taken
         in arrival order. One queue serves every child, so replies arrive in
         whatever order the scheduler ran them -- which is the one place a process
         table could quietly stop being reproducible.
@@ -268,7 +268,7 @@ class Processes:
         """Replies, in the DECLARED agent order rather than the order they
         arrived in.
 
-        ⚠⚠⚠ **Extracted so it can be checked without a race.** One queue serves
+         **Extracted so it can be checked without a race.** One queue serves
         every child, so `got`'s insertion order is whatever the OS scheduler
         produced -- which means a transport that used arrival order agrees with
         `Local` on most runs and disagrees on some. A check that only notices
@@ -356,7 +356,7 @@ P2 = """
 rule <trust-p1> = implies( { +says(p1, $p, plus) }, { +$p } )
 """
 
-# The same agent with nothing that turns hearing into believing. ⚠ Written out
+# The same agent with nothing that turns hearing into believing.  Written out
 # rather than string-edited from `P1`: the first version replaced the rule's NAME
 # and left its body attached to the next declaration, so the trust rule was still
 # there under another name and the check passed for the wrong reason.
@@ -370,7 +370,7 @@ SCENARIO = (
     Spec("p2", P2),
 )
 
-# ⚠⚠⚠ **A second scenario, because the first cannot measure ordering.** In
+#  **A second scenario, because the first cannot measure ordering.** In
 # SCENARIO exactly one agent speaks per round, so arrival order and declared
 # order are the same sequence and a transport that collected replies in
 # whichever order the OS scheduler finished them would agree with `Local` every
@@ -427,7 +427,7 @@ def main() -> int:
     gate("the word travels two hops: dm -> p1 -> p2",
          all("locked(door1)" in b[n] for n in ("dm", "p1", "p2")))
 
-    # ⚠⚠⚠ **Two checks that exist because a kill-probe found nothing without
+    #  **Two checks that exist because a kill-probe found nothing without
     # them.** Comparing `Local` against `Processes` cannot see a bug in `Agent`,
     # which both transports share -- an A/B is blind to whatever is common to
     # both arms. Shipping the whole of `m.emitted` each round instead of the
@@ -479,11 +479,11 @@ def main() -> int:
             Table(SCENARIO).wire.agents[1].hear(Utterance("dm", "p1", txt))
         except Exception:
             refused.append(label)
-    gate("⚠ an agent cannot utter a time, a rule, or anything generic -- all "
+    gate(" an agent cannot utter a time, a rule, or anything generic -- all "
          f"three refused at the receiver's parser, not silently mangled: {refused}",
          len(refused) == 3)
 
-    # ⚠⚠⚠ **The mishearing that raises nothing.** `a(b)(c)` is a real structure
+    #  **The mishearing that raises nothing.** `a(b)(c)` is a real structure
     # -- a node whose relation is itself a node, which is how *a composed with b,
     # applied to c* differs from *a applied to b of c* -- and `Loader.term`
     # returns `a(b)` for it with no exception. Without the round-trip guard the
@@ -492,7 +492,7 @@ def main() -> int:
     lone = Table(SCENARIO)
     why = lone.wire.agents[1].hear_or_refuse(Utterance("dm", "p1", "a b"))
     # ⭐⭐⭐ And the engine now refuses it at the source, so this check changed
-    # what it is watching. ⚠ So the assertion is *refused, and nothing was
+    # what it is watching.  So the assertion is *refused, and nothing was
     # believed* rather than *refused by this particular layer* -- otherwise the
     # check fails the moment the defect it...
     # → docs/design/table.md#and-the-engine-now-refuses-it-at-the-sourc
@@ -530,7 +530,7 @@ def main() -> int:
         p.close()
     for r, u in ptrans:
         print(f"    round {r}  {u[0]} -> {u[1]}: {u[2]}")
-    gate("⚠⚠⚠ ...and they really ARE processes: three distinct pids, none of "
+    gate(" ...and they really ARE processes: three distinct pids, none of "
          "them the parent's -- without this the equivalence below passes for "
          "the most boring reason there is",
          len(set(where.values())) == 3 and os.getpid() not in set(where.values()))
@@ -556,7 +556,7 @@ def main() -> int:
     print("\n  crosstalk -- two speakers in one round:")
     for r, u in clt:
         print(f"    round {r}  {u[0]} -> {u[1]}: {u[2]}")
-    gate("⚠ the ordering check has something to measure: some round carries "
+    gate(" the ordering check has something to measure: some round carries "
          f"utterances from two different speakers (max speakers/round "
          f"{max(speakers.values(), default=0)}, max utterances/round {crowded})",
          max(speakers.values(), default=0) >= 2)
@@ -565,7 +565,7 @@ def main() -> int:
          "order, never taken in the order the scheduler happened to finish",
          cpt == clt)
 
-    # ⚠⚠⚠ The same claim, without a race. Handed a reply dict in exactly the
+    #  The same claim, without a race. Handed a reply dict in exactly the
     # wrong order, `collect` must still produce declared order -- and the probe
     # that made this necessary is recorded on `collect` itself: an arrival-order
     # transport passes the check above on most runs.

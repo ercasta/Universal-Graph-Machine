@@ -119,7 +119,7 @@ Why it looks unreachable by construction rather than merely unreached:
      the surface has no name for a moment -- `<root>` interns a FRESH node, which
      is the trap's sixth outing.
 
-⚠ This is recorded rather than acted on. Exempting `<silent>` from the blindness
+ This is recorded rather than acted on. Exempting `<silent>` from the blindness
 count would be a gate agreeing it cannot be tested, and deleting it and its
 native twin is a claim about reachability that wants the author, not a session.
 
@@ -180,7 +180,7 @@ neither changes a verdict:
     The order is the baseline pass's own measured cost, so it tunes itself
     to the corpora rather than to a constant somebody has to maintain.
 
-⚠ And the count it used to print is gone deliberately, because with an
+ And the count it used to print is gone deliberately, because with an
 early exit it would mean *how far we got*, not *how wrong it is*. What
 replaces it says more: WHERE a rule was noticed, and -- for one that was
 not -- whether the fixture ran and disagreed nowhere, or never gave the

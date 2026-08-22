@@ -50,14 +50,14 @@ than a branch, and the loop still knows nothing about
 goals -- only that a rule spent one. Measured on `stopping()` below: **62 moves
 to 5.**
 
-⚠⚠⚠ **And the obvious feature next door is worth nothing, which is why it is
+ **And the obvious feature next door is worth nothing, which is why it is
 checked rather than argued.** *Let a goal raise the priority of the rule that
 checks it* moves NOTHING -- a completion check is self-gating, so it cannot
 match until the thing is done, and the instant it can, widening reaches it in
 the same move. Score decides which of several MATCHING rules wins; a check that
 can only match at the finish line has nobody to go before.
 
-⚠⚠ **What `stop` costs**: the shipped loop refuses to stop quietly on something
+ **What `stop` costs**: the shipped loop refuses to stop quietly on something
 it was asked for, and this loop cannot make that refusal, because the veto is an
 aggregate a rule cannot state. `stopping()` measures the loss rather than
 asserting it is acceptable.
@@ -101,19 +101,19 @@ and the rules whose antecedent uses one (`Table.by_relation`). The same
 join-not-scan that recovered `forgone`, for the
 fourth time.
 
-⚠ **Approximate on purpose.** A rule reading `wounded($x)` is lifted because
+ **Approximate on purpose.** A rule reading `wounded($x)` is lifted because
 `goblin1` is wounded, whether or not it would bind `$x` to goblin1. That is the
 right amount of wrong: the lift decides who is MATCHED, and being roughly right
 about a shortlist costs a slot. Exactness arrives one layer up, for free.
 
-⚠ **Ranking-time and kept nowhere**, unlike a buff.
+ **Ranking-time and kept nowhere**, unlike a buff.
 This file's own line between the two kinds of attention is *what I was doing
 persists and fades, what is in front of me is recomputed* -- and a claim the
 agent is currently making about what it is thinking about is plainly the second.
 Making it a buff would give it a life and a ceiling on top of a claim that has
 both already: the claim is denied, and it is over.
 
-⚠ And `_attended_first` is STABLE, so attention overrides §18's tie-break where
+ And `_attended_first` is STABLE, so attention overrides §18's tie-break where
 it has an opinion and defers to it everywhere else. Measured on two goblins: the
 walk strikes the last-declared first, attention on the other flips it, and
 attention on the one already chosen changes nothing.
@@ -122,14 +122,14 @@ Measured, on a twelve-rule table of which three rules can match: a rule twelfth
 in the table applies FIRST when the thing it is about is attended, and the run
 costs **195 matches against 238** because the shortlist stopped widening past it.
 
-⚠ Attending to all three costs 193 -- indistinguishable. An earlier version of
+ Attending to all three costs 193 -- indistinguishable. An earlier version of
 this paragraph read a 157-against-143 gap as *attention that names everything
 narrows nothing*, and growing the bundle by three rules turned it into 193
 against 195, pointing the other way. The cost was the wrong column: what
 attention that names everything loses is DISCRIMINATION, and that is checkable
 -- it moves no rule ahead of any other, so the first move is the untaught one.
 
-## ⚠⚠⚠ Attending the last move's RIGHT-HAND SIDE by default: built, and BACKED OUT
+##  Attending the last move's RIGHT-HAND SIDE by default: built, and BACKED OUT
 
 The obvious next step, and it does not survive contact. *What I was just doing
 is part of my representation of the world* — so after a move, attend to every
@@ -155,7 +155,7 @@ more of anything. Wired on its own, counting cost the `focus` arm of
 `ugm.teaching` **44 domain conclusions against 3** on the dungeon — the one
 corpus with a real learned attention policy.
 
-⚠ And the thing it was built to fix got WORSE. `ugm.hanoi` records a decline
+ And the thing it was built to fix got WORSE. `ugm.hanoi` records a decline
 arriving at tick ~101; a pending `attempt` that no rule wrote is not in the last
 write set, so under the default it stopped being declined at all.
 
@@ -172,7 +172,7 @@ A postcondition can spend three things, and `attend` is the one that DEPOSITS:
     unattend        stop thinking about whatever it was
     stop            end the run
 
-⚠⚠⚠ **There were three more and they moved a SCORE**: `boost`, `damp` and
+ **There were three more and they moved a SCORE**: `boost`, `damp` and
 `reset`. They named a RULE, which is what retired them -- a rule id goes stale
 the moment a rule is adopted, composed or renamed, so a corpus of experience
 written in them stops LOADING rather than going quietly wrong. Everything that
@@ -188,19 +188,19 @@ recognises a situation loses to the rule that acts in it, every time. A
 postcondition is evaluated for free after whatever applied. The same sentence
 decided where the bigram lives; this is it applying to attention.
 
-⚠ **The table does not run these.** A deposit writes a claim the corpus can
+ **The table does not run these.** A deposit writes a claim the corpus can
 read, deny and reason about, and a table that could write claims would be an
 interpreter with a memory. So `_spend_one` splits them: attention to the machine,
 and only the stop recorded on the table.
 
-⚠⚠⚠ **And a ranking-time `when` trigger is REFUSED**, which used to be the
+ **And a ranking-time `when` trigger is REFUSED**, which used to be the
 stronger case and is now simply an error. Such a trigger ran on rules that had
 not applied and may never apply, so a deposit from there would be the agent
 claiming to think about something because it considered thinking about it.
 `_rerank` was the only thing that ran one and is retired, so the surface rejects
 it rather than accepting a lesson that silently does nothing.
 
-⚠ `unattend` is what bounds the mechanism. A buff had `LIFE` and a ceiling; a
+ `unattend` is what bounds the mechanism. A buff had `LIFE` and a ceiling; a
 claim has neither, so a lesson that only ever attends accumulates until
 everything is attended -- which is measurably the same as attending to nothing.
 Spent as a pair, attention becomes a FOCUS: one thing at a time, and the
@@ -257,7 +257,7 @@ resolved, because a settling rule fires. Depositing the doubt IS the move and
 this rule gets the next turn. A corpus replaces it with something better (ask
 the user, apply a domain criterion) by writing a rule that outscores it.
 
-⚠ It used to carry `frozen after <settle-doubt> => boost($a, 1)` -- the
+ It used to carry `frozen after <settle-doubt> => boost($a, 1)` -- the
 settlement was a buff, so it was calibratable. With the buffs retired it
 concludes and nothing more, and the loop's own backstop is what makes
 progress: the doubt already stands on the next tick, so `fresh` is false and
@@ -321,7 +321,7 @@ The other ways of getting what this move is getting.
     question for passing up: the same join-not-scan that recovered `forgone`,
     and the second time it has turned an apparent aggregate into an index.
 
-    ⚠ Only when the move serves a want at all, which is the common case being
+     Only when the move serves a want at all, which is the common case being
     cheap rather than an optimisation: most moves consume no goal and pay
     nothing.
 
@@ -339,14 +339,14 @@ Attention's rule-level lift: two dict reads and no matching.
         goblin1 -> the relations it is spoken of under   (`relations_of`)
                 -> the rules whose antecedent uses one   (`_by_relation`)
 
-    ⚠ **Approximate, and deliberately so.** A rule reading `wounded($x)` is
+     **Approximate, and deliberately so.** A rule reading `wounded($x)` is
     lifted because `goblin1` is wounded, whether or not it would bind `$x` to
     goblin1 rather than to someone else. That is the right amount of wrong: this
     decides who is MATCHED, not who wins, and being roughly right about a
     shortlist costs a slot. The exact answer arrives one layer up, in
     `_attended_first`, where the bindings are already in hand and free.
 
-    ⚠ Not summed over attended nodes. A rule reachable from two attended nodes
+     Not summed over attended nodes. A rule reachable from two attended nodes
     is not twice as relevant, and letting it be would make the lift a popularity
     count over whatever the corpus happened to attend to.
 
@@ -360,7 +360,7 @@ tick (20d), which reorders nothing inside that third -- and counting, then
 inverse frequency, were both attempts to buy back a differentiation the
 ordering gives away for nothing.
 
-⚠ A rule reachable from two attended nodes takes the STRONGER, not the
+ A rule reachable from two attended nodes takes the STRONGER, not the
 sum. Being about two things the agent is thinking of does not make a rule
 twice as relevant, and summing would make the lift a popularity count over
 whatever the corpus happened to attend to.
@@ -380,13 +380,13 @@ Order a rule's own applications by what the agent is thinking about.
     paid for it and threw everything past the first survivor away -- so ordering
     it is a sort over a list that is usually one or two long.
 
-    ⚠ **Stable, and that is what keeps the existing tie-break intact.** Among
+     **Stable, and that is what keeps the existing tie-break intact.** Among
     applications attention says nothing about, the order is exactly the order
     the matcher produced, which is §18's most-recent-first. So attention
     OVERRIDES the walk where it has an opinion and defers to it everywhere else
     -- rather than replacing an ordering the whole design rests on.
 
-    ⚠⚠ **And it counts, rather than testing.** An application binding two
+     **And it counts, rather than testing.** An application binding two
     attended nodes goes before one binding one, which is what makes attending to
     a pair mean *the move involving both* instead of *either, and the walk
     decides*.
@@ -397,7 +397,7 @@ Order a rule's own applications by what the agent is thinking about.
 chain, and a table over a SUBSET of the rules. The loop does not know what
 an expert is -- it is handed the rules it may consider, exactly as it is
 handed the corpus. `ugm.experts` reads the subset off the graph.
-⚠ Whether the pool was HANDED to us decides whether it may grow. An
+ Whether the pool was HANDED to us decides whether it may grow. An
 expert's pool is what `knows` says it is, and a rule the agent adopts is
 not that expert's until something says so. The default pool is *every
 rule*, and that is a set the agent can add to at run time.
@@ -415,7 +415,7 @@ real postconditions and the rebuild silently discards every spend -- what
 the agent learned *within* a run -- and nothing says so, because from
 here nothing went wrong.
 
-⚠ **The ticks continue from `table.now` rather than restarting at 0.**
+ **The ticks continue from `table.now` rather than restarting at 0.**
 Nothing in the table decays any more, so this no longer guards a lift's
 age; it is what lets a caller stepping one tick at a time see a monotone
 tick count rather than a saw-tooth.
@@ -456,11 +456,11 @@ own matches. `Machine._enough` already reads `enough(...)` at the
 focus and exercises the veto once per seat, so this calls it rather
 than growing a second copy.
 
-⚠ Inside a hypothesis, enough ends the BRANCH and not the run -- which
+ Inside a hypothesis, enough ends the BRANCH and not the run -- which
 is `_leave`, the door that already existed, and is how *is this plan
 settled* gets a local answer.
 
-⚠ And it deliberately writes no `quiet`. `quiet` continues the loop so
+ And it deliberately writes no `quiet`. `quiet` continues the loop so
 a watchdog can key on it, because *the search finished* leaves work
 worth doing and *nothing more is worth doing* does not.
 
@@ -473,7 +473,7 @@ the engine reads, so both are askable, defeasible and attributable, and
 *which rules is this hypothesis carrying* is a query rather than a
 field.
 
-⚠ Read every tick and at the register's own position, never once when
+ Read every tick and at the register's own position, never once when
 the pool is built: `due` can be concluded mid-run, and a callback
 attached inside a hypothesis must wake only there.
 ⭐⭐⭐ **THE `prefer` LIFT IS GONE, and what is left is the same lift
@@ -488,7 +488,7 @@ node-naming one, and `occasion` was worse than doing nothing.
 Attention keys on a NODE, is read at the same point in the move, and
 is what `learned` now writes. Nothing else about the lift changed.
 
-⚠ Ranking-time and kept nowhere: an attention claim is a fact the
+ Ranking-time and kept nowhere: an attention claim is a fact the
 corpus is currently making, so the lift
 is a function of the state and re-deriving it is the whole of keeping
 it current. Making it a buff would give it a life and a saturation
@@ -497,7 +497,7 @@ denied, and it is over.
 
 ## The queue has two uses and only one of the
 
-⚠⚠⚠ **The queue has two uses and only one of them can starve.**
+ **The queue has two uses and only one of them can starve.**
 Ordering a rule's own BINDINGS costs nothing -- the applications are
 already in hand. LIFTING rules changes which are matched at all, so a
 queue full of whatever the last move wrote can push the shortlist onto
@@ -533,7 +533,7 @@ is a search that never looked at what it had put out of mind. Both
 deposit -- `widened(<seat>)`, `reached(<seat>)` -- so *I had to go
 and get that* is a sentence a corpus can write.
 
-⚠ These are NOT ported logic. They are the loop reporting its own
+ These are NOT ported logic. They are the loop reporting its own
 event, which is the same shape as `quiet` and `arrived`: the
 smallest unarguable record of something only the loop can know.
 `Machine._widen` already reads the budget knob off the graph and
@@ -545,7 +545,7 @@ second copy that would drift.
 ...and the backstop: the doubt already stands and nothing settled
 it, so restating it changes nothing and the winner applies. A
 corpus with no settling rule loses a tick, not the loop.
-⚠⚠⚠ **Something applied, so the shortlist is trusted again.** The old
+ **Something applied, so the shortlist is trusted again.** The old
 tick resets this on every application -- *widening is a state the
 agent is in, not a mode it is switched into* -- and this loop did not,
 so after the first dry shortlist it never reached past one again for
@@ -561,7 +561,7 @@ where the option-set loop named every application it had materialised.
 That is the more honest record of the two: *what did you pass up* ought
 to mean *what did you consider and not take*, not *what existed*.
 
-⚠ `forgone` stays out of `ACCEPTED_LOSSES` for the corpus gate all the
+ `forgone` stays out of `ACCEPTED_LOSSES` for the corpus gate all the
 same: the two loops weigh different sets, so they legitimately pass up
 different things.
 
@@ -584,7 +584,7 @@ the answer was here all along and nothing was handing it over.
 
 ## The loop ran out of ITERATIONS, not out of w
 
-⚠ **The loop ran out of ITERATIONS, not out of work.** The first version of
+ **The loop ran out of ITERATIONS, not out of work.** The first version of
 this asked whether the last `Step` was `applied`, and the last step is
 never `applied` -- the loop appends a `quiescent` or `stopped` step when it
 finishes and appends nothing when the `for` simply runs out. So the test is
@@ -609,7 +609,7 @@ The author's example, and it found the mechanism's real boundary.
     the thing this design refuses on purpose. So the penguin comes out flying
     AND grounded whichever rule went first.
 
-    ⚠⚠⚠ **THE BUFF NEVER FIXED THE PENGUIN, AND RETIRING IT COSTS NOTHING
+     **THE BUFF NEVER FIXED THE PENGUIN, AND RETIRING IT COSTS NOTHING
     HERE.** This file used to say *the specificity has to come from a buff*, and
     that was wrong in the way that matters: `boost(<flightless>, 20)` reordered
     the two rules and `can_fly(pingu)` stayed true in both arms. Measured on the
@@ -626,7 +626,7 @@ The author's example, and it found the mechanism's real boundary.
         dormant(<flies>)       no            NO         removal, and TOO COARSE
         representation         no            yes        the only one that works
 
-    ⚠⚠⚠ **Taking the general rule out grounds tweety as well, and that was not
+     **Taking the general rule out grounds tweety as well, and that was not
     expected.** `dormant(<flies>)` is removal per RULE: `<flies>` is out for
     everybody, so the ordinary bird stops flying too. It solves the penguin by
     breaking flight, which is not solving it. Removal is the right KIND of
@@ -665,7 +665,7 @@ The author's example, and it found the mechanism's real boundary.
     buffed persistently in two places, and standing. The rows below keep that
     null result where the next person to propose it will find it.
 
-    ⚠⚠⚠ **TWO OF THE FIVE ROWS ARE GONE WITH THE BUFFS.** Both spent
+     **TWO OF THE FIVE ROWS ARE GONE WITH THE BUFFS.** Both spent
     `boost(<done>, 20)` from a `when` trigger, and a `when` trigger is now
     refused outright -- nothing runs one. What remains of *raise the check's
     priority* is the `standing` row, which is the strongest lever of the four
@@ -674,7 +674,7 @@ The author's example, and it found the mechanism's real boundary.
     score. The null result is therefore still gated, by the arm that had the
     best chance of breaking it.
 
-    ⚠ The check asserts the SHAPE of the null result rather than an equality:
+     The check asserts the SHAPE of the null result rather than an equality:
     at most a move either way, against the tens of moves `stop` itself is worth.
     Written with the numbers in it so a drift shows. Equality was the sharper
     test and stopped being available when retiring `<relevant>` shifted the

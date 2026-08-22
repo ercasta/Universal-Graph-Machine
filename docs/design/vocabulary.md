@@ -28,7 +28,7 @@ the engine's vocabulary is about **the chain, the surface, rules-as-data, the
 agent's own deliberation, and the seam where a world reaches it.** Not one of
 them is about any world.
 
-⚠ **The classification is a CLAIM, not a measurement**, which is why it is
+ **The classification is a CLAIM, not a measurement**, which is why it is
 written out name by name where it can be disagreed with, and why the partition
 is checked for being total: a name nobody classified would otherwise vanish from
 the count and flatter whichever bucket it belonged in.
@@ -38,7 +38,7 @@ the count and flatter whichever bucket it belonged in.
 §4-§11: the history, and how to walk it.
 `licensed_by` sits beside `rests_on` and is here for its reason: *what
 produced this entry* is a fact about the chain's own construction, not
-about any world. ⚠ It arrived unclassified and this census is what caught
+about any world.  It arrived unclassified and this census is what caught
 it -- see docs/observations.md §2.14, where the invariant was written down
 one message before it fired.
 `moved` sits here for `asking`'s reason rather than under deliberation:
@@ -64,7 +64,7 @@ Every machine the suite builds, asked the unwebbed question.
     position (`+$kind($item)`) was being reported as a relation nothing writes,
     so a corpus using §4's *class as data* was told a working rule was broken.
 
-    ⚠ **What it does NOT justify is moving the fixtures.** 62 of 239 machines
+     **What it does NOT justify is moving the fixtures.** 62 of 239 machines
     report an unwebbed name and nearly all are correct about a deliberately
     partial fixture -- a rule loaded to test something else, whose premise nobody
     supplies. That is the same result the load-time note gave (91 fires, all

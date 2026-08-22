@@ -18,7 +18,7 @@ from ..core.machine import Machine
 def _failures(mutate: Optional[Callable[[Machine], None]] = None) -> int:
     """Run the whole selftest against a mutated machine, and count failures.
 
-    ⚠ A count of -1 means the runner RAISED rather than failing, and it is
+     A count of -1 means the runner RAISED rather than failing, and it is
     reported as `raised` rather than folded into a number. The mutation is still
     load-bearing -- more so -- but the count would be a lie: the run stopped at
     the first check that could not survive the absence, and every check after it
@@ -62,7 +62,7 @@ def _remove_answerer(name: str) -> Callable[[Machine], None]:
 def _obeyed_when_denied(name: str) -> bool:
     """What a CORPUS can do: `fact -answers(<M>, ask)`. Was it obeyed?
 
-    ⚠ Measured LOCALLY, on one fixture, and the first version measured it by
+     Measured LOCALLY, on one fixture, and the first version measured it by
     running the whole selftest with the binding denied -- which reported every
     answerer as costly and meant nothing. The suite contains checks that merely
     *inspect* the bindings, so denying any of them fails those checks whether or
@@ -139,7 +139,7 @@ def run() -> int:
 
     print()
     for w in wrong:
-        print(f"  ⚠ {w}")
+        print(f"   {w}")
     print(f"{len(names)} bundled rules, {len(names) - len(blind)} exercised; "
           f"{len(answerers)} answerers, {len(wrong)} anomalies")
     return len(blind) + len(wrong)

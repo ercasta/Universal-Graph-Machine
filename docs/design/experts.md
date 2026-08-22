@@ -61,7 +61,7 @@ pointed at the other without touching a rule. That is the honest reading of what
 an expert is: a request answered by *a search* rather than by a function, where
 a tool is answered by a function rather than by a search.
 
-⚠⚠⚠ **An expert may consult an expert, so this is a STACK and it needs a cycle
+ **An expert may consult an expert, so this is a STACK and it needs a cycle
 test.** Depth alone is not enough: `A -> B -> A` is legitimate when the second
 question is a different one, and a loop when it is not. So what is refused is a
 repeated **(expert, question)** pair already on the stack, which is precise --

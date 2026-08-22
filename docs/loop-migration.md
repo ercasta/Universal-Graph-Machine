@@ -30,7 +30,7 @@ loop may conclude **more**, never **less**, except `ACCEPTED_LOSSES`.
 and excludes defeat by design (*defeat is per RULE*), so a prefix scan dropped
 `overrides` entirely.
 
->⚠⚠⚠ **The gate agreed anyway, and that is the finding.** It compares final
+> **The gate agreed anyway, and that is the finding.** It compares final
 >conclusions, and a loop that runs to quiescence applies the loser eventually —
 >*ordering is not defeasibility*, this design's own line, arriving as an
 >instrument defect. **Two loops can agree about every conclusion and disagree
@@ -41,7 +41,7 @@ matched, A's overriders are read off the graph and there are usually one or two,
 so `_is_defeated` matches **those** rather than the pool. A join, not a scan.
 That took `defeated` off the accepted-loss list, which is now `{close}` alone.
 
-⚠ It must test **matched, not survived**: once the winner applies, its
+ It must test **matched, not survived**: once the winner applies, its
 conclusion holds, it stops surviving, and the loser becomes undefeated and
 overwrites it.
 
@@ -69,7 +69,7 @@ Claims about a set the prefix scan deliberately never materialises.
 | | |
 |---|---|
 | `close` | already accepted, and the only entry in `ACCEPTED_LOSSES` |
-| **`forgone`** | ⚠ **decide before deleting.** *Taking one way passes up the others* is called a **safety** property in its own check — *an act cannot be taken back* — and 4 checks rest on it. It is the same shape as `close`, but the argument for keeping it is stronger |
+| **`forgone`** |  **decide before deleting.** *Taking one way passes up the others* is called a **safety** property in its own check — *an act cannot be taken back* — and 4 checks rest on it. It is the same shape as `close`, but the argument for keeping it is stronger |
 | and once one is clearly better, there is no doubt left | doubt over the whole option set |
 
 ### C. Port — the real work, ~20
@@ -89,7 +89,7 @@ is §1's deposit-the-record discipline.
 inside a hypothesis ending the branch rather than the run.
 
 **Recall (2).** Dormancy and callbacks — `dormant` until something claims `due`.
-⚠ Possibly subsumed: a dormant rule is a rule at the floor, and the table
+ Possibly subsumed: a dormant rule is a rule at the floor, and the table
 already expresses that. Decide whether this is one mechanism or two.
 
 ### D. Re-baseline — 2
@@ -99,7 +99,7 @@ re-matches on every widening, so the constants move.
 
 | | |
 |---|---|
-| a self-join is linear in the corpus | ⚠ and check it is still **linear** — 794 widenings is a lot of re-matching |
+| a self-join is linear in the corpus |  and check it is still **linear** — 794 widenings is a lot of re-matching |
 | ...and the delta half decides nothing here | recall-budget bookkeeping |
 
 ### E. Investigate — the rest
@@ -143,7 +143,7 @@ not the run -- and it deliberately writes no `quiet`.
 selection counter, the old `Step.state` taxonomy, two checks about weighing an
 option set, the old cardinal preference score, and the four `forgone` checks.
 
->⚠ `forgone` was the author's call and the reasoning is recorded at
+> `forgone` was the author's call and the reasoning is recorded at
 >`ACCEPTED_LOSSES`: its own check argued it is a **safety** property, so dropping
 >it means the agent no longer records which act it passed up.
 
@@ -191,7 +191,7 @@ its own doubt and its own widening, so these are one mechanism measured twice.
     FAIL  waking is once per seat, so the occasion cannot re-arm itself
     FAIL  an occasion the re-asking can itself CREATE warrants a re-ask forever
 
->⚠⚠⚠ These are not bookkeeping. They are the guards that stop the agent asking
+> These are not bookkeeping. They are the guards that stop the agent asking
 >the same question **100+ times**. Dropping them does not remove a record, it
 >removes a bound -- and `_wake` per seat is exactly the shape this repository
 >has recorded runaways in before.
@@ -252,7 +252,7 @@ something applies -- *widening is a state the agent is in, not a mode it is
 switched into* -- and this loop did not, so after the first dry shortlist it
 never reached past one again for the whole run.
 
->⚠ Neither was on the work list. Both were found by porting a **record** and
+> Neither was on the work list. Both were found by porting a **record** and
 >then asking why the record was still wrong, which is the argument for doing
 >these one at a time rather than in a batch.
 
@@ -318,13 +318,13 @@ the question is about a PAIR of applications, so match only the rules that
 supersede this one and ask whether any of their applications shares a consumed
 entry. A join where the old loop materialised everything it had.
 
->⚠ And a census point that argued for deleting it and does not: **no `.ugm`
+> And a census point that argued for deleting it and does not: **no `.ugm`
 >corpus uses `supersedes`.** Only its own tests. That is the shape that retired
 >the grade and the precedence table -- but the property here is one no other
 >construct can carry, so *unused* is an argument about corpora rather than about
 >the relation.
 
-⚠⚠ **A near-miss worth recording.** Both supersedes clusters were first reported
+ **A near-miss worth recording.** Both supersedes clusters were first reported
 green -- because the functions were run **without the flip applied**, so they
 exercised the old loop and passed as they always had. Re-run under the flip, one
 was genuinely fixed and the other was never about `supersedes` at all. *A check
@@ -362,7 +362,7 @@ Both are **ordinary facts**, not a field on the rule. The table loop was ignorin
 them -- it built its pool and never asked -- so it now reads them every tick, at
 the register's own position. **13 → 12.**
 
->⚠ **Why a claim and not a mark, since the behaviour is the same.** A mark
+> **Why a claim and not a mark, since the behaviour is the same.** A mark
 >authored once is relative to nothing: not to the situation, not to the goal, not
 >to who is asking. That is §12's *achievability is not a mark*, this design's
 >earliest instance of the error it generalises everywhere else -- and the same
@@ -374,7 +374,7 @@ the register's own position. **13 → 12.**
 And read **per tick**, never once when the pool is built: `due` can be concluded
 mid-run, and a callback attached inside a hypothesis must wake only there.
 
->⚠⚠ It is also not the answer to `supersedes`, and the difference is worth
+> It is also not the answer to `supersedes`, and the difference is worth
 >keeping straight. Dormancy is *this rule is not worth considering right now* --
 >an attention claim, recoverable, and safe to be wrong about. Defeat is *this
 >rule must not apply here* -- and being wrong about it means the loser
@@ -399,7 +399,7 @@ acquisition are different capabilities and only the first was doubled.
 `ugm.teaching` was failing its own gate on both corpora, so retiring `prefer`
 rows would have deleted a working mechanism for a worse one.
 
->⚠⚠⚠ **It was not failing. The gate was pointed at the wrong thing, and it read
+> **It was not failing. The gate was pointed at the wrong thing, and it read
 >the mechanism working as the mechanism failing.** It counted every proposition
 >a taught run did not reach -- and a calibrated table **hesitates less**, so it
 >deposits fewer `close`, `settled` and `spent(<settle-doubt>, ...)` records.
@@ -413,7 +413,7 @@ four relations that are the agent's account of **how** it decided, and the raw
 figure is printed beside the excluded one so the exclusion is visible rather
 than silently applied.
 
-⚠ The gate keeps its teeth: `intends` is a domain relation and **is** lost on the
+ The gate keeps its teeth: `intends` is a domain relation and **is** lost on the
 dungeon -- by the uncalibrated arm too, which is what says the loss is not
 calibration's doing. Kill-probed: empty `BOOKKEEPING` and 5 failures return.
 
@@ -476,7 +476,7 @@ untouched. It asserts the defect now.
 
 | | |
 |---|---|
-| `ugm.quiescence` | ⚠ **pre-existing** -- fails on the option-set loop too. Its `<silent>` rule is BLIND: suppressing it changes nothing, so the fixture does not exercise it |
+| `ugm.quiescence` |  **pre-existing** -- fails on the option-set loop too. Its `<silent>` rule is BLIND: suppressing it changes nothing, so the fixture does not exercise it |
 | `ugm.learning`, `ugm.practice` | **caused by this**, and by one thing: `forgone` |
 
 >**Complete forgoing is the option set, and that is the honest statement of it.**
@@ -509,7 +509,7 @@ So the prefix scan keeps its window for **choosing** and asks a second, narrow
 question for **passing up**. Same join-not-scan that recovered `overrides` and
 `supersedes`, and the third time an apparent aggregate has turned into an index.
 
-⚠ Paid only when the move serves a want at all -- most moves consume no goal and
+ Paid only when the move serves a want at all -- most moves consume no goal and
 cost nothing.
 
 | | before | after |
@@ -523,7 +523,7 @@ cost nothing.
 table loop with itself. It reported `dungeon 0 / 143` -- one arm not running at
 all -- and still exited 0.
 
->⚠⚠⚠ **A gate loses its other arm the moment the thing it gated becomes the
+> **A gate loses its other arm the moment the thing it gated becomes the
 >default.** Nothing announces it; the comparison goes on printing. The option-set
 >loop survives as `Machine.tick`, so the comparison drives that directly and the
 >gate is a gate again: 11/16, 12/11, 18/21, 141/143.

@@ -3,7 +3,7 @@
 ugm.learning closes with a cost it could not pay off: an agent learns the route
 that harms by TAKING it. It paid in a jug. This file asks whether it has to.
 
-⚠⚠⚠ **Rewritten 2026-08-20, when situations were retired.** A rehearsal used to
+ **Rewritten 2026-08-20, when situations were retired.** A rehearsal used to
 be a supposition: the register stood inside a frame, `_dispatch` wrote
 `taken(...)` instead of emitting, and the damage died with the frame. None of
 that exists now. A rehearsal is an ANCHOR -- an ordinary node the world's facts
@@ -22,7 +22,7 @@ from ..core.text import load
 # every scene and stay bare; `tap`, `jug`, `intact`, `water`, `doing` and `did`
 # are anchored, because a rehearsal is exactly a scene where those can differ.
 #
-# ⚠⚠ This is not a matter of taste, and blanket anchoring was measured and
+#  This is not a matter of taste, and blanket anchoring was measured and
 # rejected twice over:
 #
 #   every premise anchored   `_relations_required` collapses to {goal, in} for
@@ -98,7 +98,7 @@ WIDER = LOSSES + ("dark(room)",)
 
 def scene(s: str, extra: Sequence[str] = ()) -> List[str]:
     """The facts a scene needs of its own -- what it can disagree with another
-    scene about. ⚠ **Given by hand, not inherited.** `docs/todo.md` measured
+    scene about.  **Given by hand, not inherited.** `docs/todo.md` measured
     blanket inheritance as dearer than assembling a scene deliberately (177
     entries against 167), and it copies things a rehearsal has no business
     having."""
@@ -125,7 +125,7 @@ def rehearse(rows: Sequence[str] = (), order: Sequence[str] = BAD_START,
              scene_extra: Sequence[str] = ()) -> Tuple[Machine, List[str]]:
     """One practice run: the agent works out what it could want, and tries it.
 
-    ⚠ The register is left where it always is. The old version returned the
+     The register is left where it always is. The old version returned the
     machine *standing inside* the rehearsal, because `blame` and `leaves` read
     from where the reader stands and the reasoning had happened in a frame they
     could not otherwise see. An anchor is visible from everywhere, so there is
@@ -202,7 +202,7 @@ def main() -> int:
     # -- the proposer ------------------------------------------------------
     print("A goal nobody authored, raised from what the corpus says acts achieve:\n")
     m, lost = rehearse()
-    # ⚠ What was RAISED, not what still stands. A route spends the want it
+    #  What was RAISED, not what still stands. A route spends the want it
     # serves, so by the end of a rehearsal every goal the proposer raised has
     # been denied -- and reading the current state reports that the proposer
     # never ran. The claim here is about history, so it is asked of history.
@@ -283,7 +283,7 @@ def main() -> int:
          "was there to be passed up all along", len(set(seq[1:])) == 1)
     gate("no `<venture>` rule and no explore/exploit switch anywhere",
          not any("venture" in r or "exploring" in r for r in rows))
-    # ⚠ The lesson names the SINK -- the node that makes the cheaper route
+    #  The lesson names the SINK -- the node that makes the cheaper route
     # available -- and it now reaches it through `under(kettle, sink)` rather
     # than `tap(sink)`, because `tap` is anchored and `under` is not. The claim
     # was always about the NODE and never about which relation found it.
@@ -320,7 +320,7 @@ def main() -> int:
          "by ANCHOR, with no locus arithmetic",
          per["r1"] == ["intact(jug1)"] and per["r2"] == ["intact(jug1)"]
          and two.holds(two.kb.term("intact(jug1)")) is None)
-    # ⚠⚠⚠ The old fixture's last check was that `<practise>` matched INSIDE a
+    #  The old fixture's last check was that `<practise>` matched INSIDE a
     # practice frame, so rehearsals nested -- *the crossing runaway in a new
     # place*, reported as a finding. Anchors do not run away: `<practise>` needs
     # `+rehearsal($s)`, and a scene is a node somebody had to write down. That is
@@ -329,7 +329,7 @@ def main() -> int:
     scenes_declared = {two.g.show(two.g.member(n, 0))
                        for n in two.g.instances_of(two.kb.atom("rehearsal"))
                        if two.holds(n) == "+"}
-    gate("⚠⚠⚠ ...and rehearsals do NOT run away: a scene is a node somebody "
+    gate(" ...and rehearsals do NOT run away: a scene is a node somebody "
          "wrote down, so the crossing runaway the knobs used to bound cannot "
          "start", scenes_declared == {"r1", "r2"})
 

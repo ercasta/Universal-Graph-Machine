@@ -1,7 +1,7 @@
 """Where the `.ugm` corpora live, as one accessor rather than seven.
 
 from .corpora import path # inside ugm/ from ..corpora import path # inside
-ugm/core, ugm/probes, ... ⚠⚠⚠ Seven modules used to compute this themselves,
+ugm/core, ugm/probes, ...  Seven modules used to compute this themselves,
 each with its own os.path.join(os.path.dirname(__file__), "rules", name).
 
 See docs/design/corpora.md.

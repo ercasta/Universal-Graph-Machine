@@ -2,7 +2,7 @@
 
 machine.forest is a gated NEGATIVE result: bagging loses to one tree, because
 _priority SUMS, and summation is not VOTING -- an over-general member fires
-everywhere and no majority can overrule it. ⚠ And what the tool buys is not
+everywhere and no majority can overrule it.  And what the tool buys is not
 accuracy -- it is the ability for a minority to LOSE.
 
 See docs/design/forest.md.
@@ -23,7 +23,7 @@ PROPS = ("pointed", "ribbed", "flying", "tracery",
 
 GOTHIC, ROMAN = "gothic", "romanesque"
 
-# ⚠⚠⚠ NO single property separates these, and the first version of this file
+#  NO single property separates these, and the first version of this file
 # had one that did.
 # → docs/design/forest.md#no-single-property-separates-these-and-th
 CATHEDRALS: Sequence[Tuple[str, Tuple[str, ...], str]] = (
@@ -65,7 +65,7 @@ CLEAN_HELD: Sequence[Tuple[str, Tuple[str, ...], str]] = (
 
 SEED = 7
 TREES = 5
-# ⚠ Stated up front and not chosen afterwards: the comparison is run over every
+#  Stated up front and not chosen afterwards: the comparison is run over every
 # one of these and all of them are printed, because a claim about a combination
 # rule that holds on one seed is a claim about that seed.
 SEEDS = (1, 2, 3, 4, 5, 6, 7, 8)
@@ -81,7 +81,7 @@ def _rng(seed: int):
     def nxt(n: int) -> int:
         nonlocal state
         state = (state * 1103515245 + 12345) % (1 << 31)
-        # ⚠ The HIGH bits. An LCG's low bits have short periods -- taking
+        #  The HIGH bits. An LCG's low bits have short periods -- taking
         # `state % n` gave every bag the same composition and therefore every
         # tree the same shape, which read exactly like a fixture with nothing
         # to disagree about.
@@ -98,7 +98,7 @@ def _grow(examples, label: str, nxt=None, tries: int = 3) -> Tuple[str, ...]:
 
     Greedy and positive-only, and it stops when no test improves purity -- so a
     bag with nothing to separate returns the EMPTY conjunction, which matches
-    everything. ⚠ Per-split FEATURE subsampling, and leaving it out is what
+    everything.  Per-split FEATURE subsampling, and leaving it out is what
     made the first fixture unmeasurable.
 
     See docs/design/forest.md#grow.
@@ -245,12 +245,12 @@ def classify(examples, model: Optional[Forest] = None, rules: Sequence[str] = ()
 def verdicts(m, kb, examples) -> Dict[str, str]:
     """What the agent ended up believing about each cathedral, and how surely.
 
-    ⚠ BOTH concepts are read and both are reported. An earlier version kept only
+     BOTH concepts are read and both are reported. An earlier version kept only
     the last one it found, which quietly turned the rules-as-ensemble's real
     failure -- asserting gothic AND romanesque about one building -- into a
     tidy single verdict. A contradiction is a result; hiding it is not.
     """
-    # ⚠ The verdict is WRAPPED, where it used to be a bare claim with a grade
+    #  The verdict is WRAPPED, where it used to be a bare claim with a grade
     # on the entry. Grades are gone: how sure the corpus is about the tool's
     # count is said in the conclusion -- `likely(is_gothic(x))` -- which is a
     # proposition a rule can read and an entry's field never was.
@@ -258,7 +258,7 @@ def verdicts(m, kb, examples) -> Dict[str, str]:
     for name, _, _ in examples:
         held = []
         for concept in ("is_gothic", "is_romanesque"):
-            # ⚠ Bare AND wrapped, because the two encodings say it differently:
+            #  Bare AND wrapped, because the two encodings say it differently:
             # a rules-as-ensemble member concludes `is_gothic($c)` flat, and the
             # tool's corpus concludes `likely(is_gothic($c))`. An unqualified
             # claim is the strongest thing a corpus can say, so it reads as
@@ -317,7 +317,7 @@ def main() -> int:
     for t in model.trees:
         print(f"    {' & '.join(t) if t else '(empty -- matches everything)'}")
     print()
-    # ⚠ Not *is there an empty tree* -- that was the first version of this check
+    #  Not *is there an empty tree* -- that was the first version of this check
     # and it was measuring the wrong thing. Seeds 4, 5 and 18 grow no empty tree
     # and the rules still fail, because what breaks them is a member that fires
     # on the WRONG CLASS, of which an empty tree is only the extreme case.
@@ -325,7 +325,7 @@ def main() -> int:
     misfiring = [t for t in model.trees if _matches(t, con)]
     print(f"  members that fire on the held-out ROMANESQUE: {len(misfiring)}/{TREES}")
     print()
-    gate("⚠ some member is wrong about the transitional building, or there is "
+    gate(" some member is wrong about the transitional building, or there is "
          "no disagreement here to resolve", bool(misfiring))
     gate("...and it is a MINORITY, which is the only circumstance in which a "
          "vote and an accumulation can differ",
@@ -356,7 +356,7 @@ def main() -> int:
     gate("neither example was trained on", not any(
         h[0] == c[0] for h in HELD_OUT for c in CATHEDRALS))
 
-    # ⚠ One seed is an anecdote. The claim is about the COMBINATION RULE, so it
+    #  One seed is an anecdote. The claim is about the COMBINATION RULE, so it
     # is measured over seeds -- and reported even where the tool wins nothing.
     print("\n  the same comparison across seeds, both held-out right out of 2:\n")
     print(f"    {'seed':<6} {'as RULES':<10} as a TOOL")
@@ -390,7 +390,7 @@ def main() -> int:
         clean.append((seed, a, b))
         print(f"    {seed:<6} {a:<10} {b}")
     print()
-    gate("⚠⚠⚠ separability does NOT save the rules encoding -- a degenerate bag "
+    gate(" separability does NOT save the rules encoding -- a degenerate bag "
          "grows an over-general member out of clean data, so the failure is "
          "bagging's and not the fixture's",
          all(b >= a for _, a, b in clean) and any(b > a for _, a, b in clean))
@@ -461,7 +461,7 @@ def main() -> int:
          dv.get("ely", "").startswith("gothic"))
     gate("...and the forest really was retired, not merely unused",
          not asked_d)
-    gate("⚠ and it is the DECIDING path that carries it: the empty member "
+    gate(" and it is the DECIDING path that carries it: the empty member "
          "would have said gothic about everything",
          bool(path) and not _matches(path, dict(
              (n, p) for n, p, _ in HELD_OUT)["conques"]))
@@ -469,7 +469,7 @@ def main() -> int:
     # -- one credit walk ----------------------------------------------------
     print("\nA misclassification that costs a goal:\n")
     TREAT = [
-        # ⚠⚠ What this corpus is willing to act on, in two lines.
+        #  What this corpus is willing to act on, in two lines.
         # → docs/design/forest.md#what-this-corpus-is-willing-to-act-on-in-t
         "rule <believe> = implies( { +certain($p) }, { +$p } )",
         "rule <believe-maybe> = implies( { +possible($p) }, { +$p } )",
@@ -498,7 +498,7 @@ def main() -> int:
          "altogether -- the safety property is the same one as the accuracy",
          m_t.holds(kb_t.term("intact(conques)")) != "-")
 
-    # ⚠ The gate above cannot show that blame reaches the TOOL, because on this
+    #  The gate above cannot show that blame reaches the TOOL, because on this
     # seed the tool is right and a tool that is right is not blamed. So: a seed
     # where the vote itself goes wrong.
     wrong = Forest(seed=3)
@@ -532,7 +532,7 @@ def main() -> int:
   verdict. That is the ML seam running in the direction nobody builds it --
   the model shrinking as the corpus learns.
 
-  ⚠⚠⚠ AND IT IS NOT THE CLASS OVERLAP -- a section written to confirm that
+   AND IT IS NOT THE CLASS OVERLAP -- a section written to confirm that
   refuted it instead. The separable fixture, where `pointed` sorts the two
   kinds perfectly, still breaks the rules encoding: a bag that happens to draw
   one class grows an EMPTY tree, which fires on everything. **Bagging
@@ -544,28 +544,28 @@ def main() -> int:
   > **What the tool buys is not accuracy. It is the ability for a minority to
   > LOSE.**
 
-  ⚠ WHAT IS NOT SHOWN. Nothing here distils automatically or decides WHICH
+   WHAT IS NOT SHOWN. Nothing here distils automatically or decides WHICH
   paths are settled enough to hand over; the gate renders one path chosen by a
   test. The obvious policy -- hand over what the trees are unanimous about,
   keep the residue -- is untried, and it is the same *agreement is invisible,
   disagreement is the signal* that `machine.forest`'s note arrives at from the
   other side.
 
-  ⚠ AND THE FEATURE SUBSAMPLING WAS LOAD-BEARING, which was not expected.
+   AND THE FEATURE SUBSAMPLING WAS LOAD-BEARING, which was not expected.
   Bagging the rows alone left every tree identical, because one property here
   is perfectly pure and won every split of every bag. Withholding features per
   split is what produced an ensemble with anything to disagree about -- so the
   *random* in random forest is not a detail of the training loop here, it is
   the thing the whole comparison measures.
 
-  ⚠ POSITIVE TESTS ONLY (§9), so the two classes are two concepts and not a
+   POSITIVE TESTS ONLY (§9), so the two classes are two concepts and not a
   predicate and its complement. That is a representation decision the fixture
   cannot argue with, and it has a cost: a path can only ever say what a
   cathedral HAS. `round` is what distinguishes conques, and the tree can use it
   because somebody wrote it down -- in a corpus that named only gothic
   features, romanesque would be unlearnable and nothing here would say so.
 
-  ⚠ AND THE LABELS ARE AUTHORED. This is supervised, the eight training
+   AND THE LABELS ARE AUTHORED. This is supervised, the eight training
   examples are hand-labelled, and no part of this discovers that there are two
   styles. That gap is unchanged.""")
     return 1 if failing else 0

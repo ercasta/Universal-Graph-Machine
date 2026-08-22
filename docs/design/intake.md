@@ -54,10 +54,10 @@ the machinery answers it and the corpus decides what the number means: one is a
 reference, two is an ambiguity to report, zero is a description that fits
 nothing. No notion of a definite article anywhere in Python.
 
-⚠ **Asked at `quiet`**, because a count is true of a moment -- the same reason
+ **Asked at `quiet`**, because a count is true of a moment -- the same reason
 `unsupported` waits for it.
 
-⚠⚠ **But `quiet` means *nothing more applies to the mind I currently have*, not
+ **But `quiet` means *nothing more applies to the mind I currently have*, not
 *the search is complete*.** With `<bare>` dormant this corpus counts **0** where
 it counted 2, and says `fits_nothing(m3)` -- benign, because nothing is left to
 read m3 with. On a variant carrying a second denoting rule the same narrowing
