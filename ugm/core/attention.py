@@ -273,7 +273,10 @@ def _pull(m: Machine, table: "Table", state: Situation,
         weight = max(1, PULL - i) * weights.get(node, 1)
         for rel in state.relations_of(node):
             for r in table.by_relation.get(rel, ()):
-                if weight > lift.get(r, 0):
+                # By magnitude again, and for the same reason: a rule reachable
+                # from a damped node and an attended one takes the stronger
+                # signal, whichever way it points.
+                if abs(weight) > abs(lift.get(r, 0)):
                     lift[r] = weight
     return lift
 

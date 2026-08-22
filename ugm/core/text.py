@@ -532,6 +532,16 @@ class Parser:
             self.next()
             inner = self.primary()
             return inner._replace(mint=True)
+        if (self.at("-") and self.i + 1 < len(self.toks)
+                and self.toks[self.i + 1].kind == "name"
+                and self.toks[self.i + 1].text.isdigit()):
+            # A negative numeral, and only a numeral: `-` is the sign marker
+            # everywhere else, so `-3` is read here and `-x` is still refused.
+            # A numeral is an atom whose NAME reads as a number, so this mints
+            # the atom `-3` and nothing in the graph learns arithmetic.
+            self.next()
+            digits = self.next()
+            return Term("-" + digits.text, (), False)
         t = self.next()
         if t.kind == "var":
             # ⭐ `?p(?t)` -- a variable in the RELATION slot. The substrate has

@@ -6367,6 +6367,78 @@ def what_was_learned_is_a_document() -> None:
           added == doc.count("learned after"))
 
 
+def a_weight_may_be_NEGATIVE() -> None:
+    """A lesson can say *not this*, and that is an ordering and not a removal.
+
+    Attention only ever lifted: `attend(?x, n)` raised the rules reachable from
+    a node and there was no way to lower one. Damping went with the buffs, and
+    what replaced it for *take this rule out* is `dormant` -- which is per RULE
+    and far too coarse for *that object is a bad idea here*.
+
+    A signed weight is the missing half. It is read where the positive one is
+    read, it orders exactly as a lift orders, and it cannot remove -- so the
+    damped rule still applies once nothing else is left, which is this design's
+    standing answer about what a score can and cannot buy.
+
+    See docs/design/selftest.md#a-weight-may-be-negative.
+    """
+    from .core.text import load
+
+    src = chr(10).join([
+        "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },",
+        "                        { +doing(smash(?j)) } )",
+        "rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },",
+        "                        { +doing(fill(?w)) } )",
+        "fact +tap(sink)", "fact +under(kettle, sink)",
+        "fact +jug(jug1)", "fact +holds(jug1, kettle)",
+        "fact +goal(water(kettle))", ""])
+
+    def acts(extra=""):
+        m = Machine()
+        m.actuator("hands")
+        kb = load(m, src + extra)
+        m.run(limit=200)
+        return [m.g.show(x) for x in m.emitted], m, kb
+
+    plain, _, _ = acts()
+    damped, dm, kb_d = acts("fact +attention(jug1, -3)" + chr(10))
+    lifted, _, _ = acts("fact +attention(sink, 3)" + chr(10))
+
+    check("§19", "authored order takes the jug first, so the fixture has "
+          "something to reorder", plain[0] == "smash(jug1)")
+    check("§19", "a NEGATIVE weight on a thing pushes the rules about it down: "
+          "the agent reaches for the tap first, which is what a positive weight "
+          "on the tap does from the other side",
+          damped[0] == "fill(kettle)" and lifted[0] == "fill(kettle)")
+    check("§14", "...and it does not REMOVE it: the damped rule still applies "
+          "once nothing else is left, because a weight orders and only "
+          "`dormant` takes a rule out",
+          "smash(jug1)" in damped)
+    # ⚠ Through the LOADER's node, not `g.atom`: an unscoped load has its own
+    # name table, so `g.atom("jug1")` here is a different node from the one the
+    # corpus wrote, and the lookup silently misses. Caught by this check failing.
+    check("§19", "the weight is read as written, sign and all",
+          dm._attention_weights().get(kb_d.term("jug1")) == -3)
+
+    # Stronger by MAGNITUDE, not by value -- or any lift at all would bury a
+    # lesson that says *not this*.
+    two = Machine()
+    kb2 = load(two, "fact +attention(jug1, -5)" + chr(10)
+               + "fact +attention(jug1, 2)" + chr(10))
+    check("§19", "two claims about one thing take the stronger SIGNAL, not the "
+          "higher number", two._attention_weights().get(kb2.term("jug1")) == -5)
+
+    # ⚠ Only a numeral. `-` is the sign marker everywhere else in the surface,
+    # and a term that merely starts with it is still refused.
+    refused = False
+    try:
+        load(Machine(), "fact +attention(jug1, -x)" + chr(10))
+    except Exception:
+        refused = True
+    check("§3", "a minus is read as a negative numeral and as nothing else, so "
+          "the sign marker keeps its meaning", refused)
+
+
 def attention_is_a_bounded_queue() -> None:
     """§19: what the agent is thinking about is a QUEUE, and position is weight.
 
@@ -7322,6 +7394,7 @@ def main() -> int:
     a_bad_attempt_is_declined_rather_than_ignored()
     outstanding_business_is_not_dropped_in_silence()
     what_was_learned_is_a_document()
+    a_weight_may_be_NEGATIVE()
     attention_is_a_bounded_queue()
     attention_suspends_rather_than_filtering()
     an_expert_is_picked_from_what_the_frame_is_about()

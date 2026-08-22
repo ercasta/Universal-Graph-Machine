@@ -2593,8 +2593,13 @@ class Machine:
             weight = 1
             if len(members) == 2:
                 name = self.g.show(members[1])
-                if name.isdigit():
-                    weight = max(1, int(name))
+                # A weight may be NEGATIVE: a lesson can say *this is a reason
+                # not to think about that*, which is the only way a lesson can
+                # push a rule down. It cannot push it out -- a lift orders and
+                # never removes, and that is `dormant`'s job.
+                signed = name[1:] if name.startswith("-") else name
+                if signed.isdigit():
+                    weight = -int(signed) if name.startswith("-") else int(signed)
             out.append((members[0], weight))
         return out
 
@@ -2608,7 +2613,10 @@ class Machine:
         """
         out = {n: w for n, w in self._attention}
         for node, weight in self._claimed_attention():
-            if weight > out.get(node, 0):
+            # Stronger by MAGNITUDE, not by value: a claimed `-5` is a stronger
+            # signal than a spent `+1`, and comparing them by value would let
+            # any lift at all bury a lesson that says *not this*.
+            if abs(weight) > abs(out.get(node, 0)):
                 out[node] = weight
         return out
 
