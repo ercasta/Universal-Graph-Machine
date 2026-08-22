@@ -101,8 +101,8 @@ and the rules whose antecedent uses one (`Table.by_relation`). The same
 join-not-scan that recovered `forgone`, for the
 fourth time.
 
-⚠ **Approximate on purpose.** A rule reading `wounded(?x)` is lifted because
-`goblin1` is wounded, whether or not it would bind `?x` to goblin1. That is the
+⚠ **Approximate on purpose.** A rule reading `wounded($x)` is lifted because
+`goblin1` is wounded, whether or not it would bind `$x` to goblin1. That is the
 right amount of wrong: the lift decides who is MATCHED, and being roughly right
 about a shortlist costs a slot. Exactness arrives one layer up, for free.
 
@@ -168,7 +168,7 @@ this is what it looks like without them.
 
 A postcondition can spend three things, and `attend` is the one that DEPOSITS:
 
-    attend(?x, n)   think about what this move just bound, and how much
+    attend($x, n)   think about what this move just bound, and how much
     unattend        stop thinking about whatever it was
     stop            end the run
 
@@ -257,16 +257,16 @@ resolved, because a settling rule fires. Depositing the doubt IS the move and
 this rule gets the next turn. A corpus replaces it with something better (ask
 the user, apply a domain criterion) by writing a rule that outscores it.
 
-⚠ It used to carry `frozen after <settle-doubt> => boost(?a, 1)` -- the
+⚠ It used to carry `frozen after <settle-doubt> => boost($a, 1)` -- the
 settlement was a buff, so it was calibratable. With the buffs retired it
 concludes and nothing more, and the loop's own backstop is what makes
 progress: the doubt already stands on the next tick, so `fresh` is false and
 the winner applies. The boost was never what unblocked the run; it reinforced
 a winner the loop had already chosen.
 
-`?a` is the winner as the doubt named it. That is only writable because rules
+`$a` is the winner as the doubt named it. That is only writable because rules
 are subjects here -- `close(<A>, <B>)` names them -- and because `_note`
-deposits it as a MENTION, so a rule concluding about `?a` is not dropped by
+deposits it as a MENTION, so a rule concluding about `$a` is not dropped by
 quiescence as having nothing to deposit.
 
 ## There is no defeat
@@ -280,14 +280,14 @@ the loop that asks whether one applies.
 `overrides` and `supersedes` were both subtracted rather than replaced, and what
 each of them was actually saying turned out to be sayable already:
 
-    `overrides(<gob-flees>, <gob-acts>)`     `no hp(?x, 1)` -- a premise about
+    `overrides(<gob-flees>, <gob-acts>)`     `no hp($x, 1)` -- a premise about
                                              the state, not about a rule
     `overrides(<hero-acts>, <hero-holds>)`   nothing: acting spends `may(hero)`,
                                              so the loser has no right left to
                                              act on and authored order settles it
     `overrides(<halt>, ...)`                 nothing: each actor needs its
                                              combatants present
-    `supersedes(<outcome>, <assert-act>)`    `no substituted(?what)` in the
+    `supersedes(<outcome>, <assert-act>)`    `no substituted($what)` in the
                                              bundled rule, per ACT
     a rule settling a conflict between two   `dormant(<loser>)`, concluded by an
     of the agent's own rules                 ordinary rule and withdrawn by `due`
@@ -339,8 +339,8 @@ Attention's rule-level lift: two dict reads and no matching.
         goblin1 -> the relations it is spoken of under   (`relations_of`)
                 -> the rules whose antecedent uses one   (`_by_relation`)
 
-    ⚠ **Approximate, and deliberately so.** A rule reading `wounded(?x)` is
-    lifted because `goblin1` is wounded, whether or not it would bind `?x` to
+    ⚠ **Approximate, and deliberately so.** A rule reading `wounded($x)` is
+    lifted because `goblin1` is wounded, whether or not it would bind `$x` to
     goblin1 rather than to someone else. That is the right amount of wrong: this
     decides who is MATCHED, not who wins, and being roughly right about a
     shortlist costs a slot. The exact answer arrives one layer up, in
@@ -505,7 +505,7 @@ recently-touched rules and leave work unreached: measured, the dungeon
 quiesced 32 moves early and lost 48 conclusions.
 
 So the lift is driven by what a LESSON asked for -- a weighted
-`attend(?x, n)` -- and the whole queue orders bindings.
+`attend($x, n)` -- and the whole queue orders bindings.
 
 ## `_survives` is the per-candidate filter
 

@@ -14,8 +14,8 @@ delta *relative to* `<A>` without being a second kind of object.
 In the surface you write it like this:
 
 ```
-rule <boil> = causes( { +heat(?a, ?w), +water(?w) },
-                      { +boiling(?w), -liquid(?w) } )
+rule <boil> = causes( { +heat($a, $w), +water($w) },
+                      { +boiling($w), -liquid($w) } )
 ```
 
 And that is a **relation instance** — a node named `<boil>`, whose relation is
@@ -70,28 +70,28 @@ because a rule the agent authored has nothing to be authored *as*.
 Each member is an entry pattern: a sign and a proposition.
 
 ```
-{ +heat(?a, ?w), +water(?w), -altitude(?w, high) }
+{ +heat($a, $w), +water($w), -altitude($w, high) }
 ```
 
-`+on(?x, ?y)` means *an entry with this proposition and this sign*. A member can
+`+on($x, $y)` means *an entry with this proposition and this sign*. A member can
 also name **what it matched**, as a whole:
 
 ```
-rule <blame> = implies( { +broke(?p, ?thing) as ?what },
-                        { +regrets(?p, ?what) } )
+rule <blame> = implies( { +broke($p, $thing) as $what },
+                        { +regrets($p, $what) } )
 ```
 
 ```
 regrets(bo, broke(bo, jug))
 ```
 
-`as ?t` binds the proposition itself, so a rule can refer to the very thing it
+`as $t` binds the proposition itself, so a rule can refer to the very thing it
 matched rather than describing it again.
 
 !!! note "There used to be a second modifier, and it is gone"
-    `at ?m` bound the **locus** — where the matched entry sat. An entry has no
+    `at $m` bound the **locus** — where the matched entry sat. An entry has no
     locus any more (Chapter 19 tells that story), so the surface **refuses**
-    `at ?m` rather than ignoring it: a notation that parses and is dropped is a
+    `at $m` rather than ignoring it: a notation that parses and is dropped is a
     rule that means something other than what it says. Reading history is now
     done with the chain's own relations — Chapter 23.
 
@@ -117,8 +117,8 @@ is what the explanation and the tie-breaking see.
 There is a second kind of member, and it isn't a claim at all:
 
 ```
-skeleton   anc(?a, ?b),  in_delta(?m, ?e),  entry_of(?e, p, plus)
-claims     +on(?x, ?y),  +acts(?a)
+skeleton   anc($a, $b),  in_delta($m, $e),  entry_of($e, p, plus)
+claims     +on($x, $y),  +acts($a)
 ```
 
 The **skeleton** relates moments and entries to each other. `anc`, `sanc`,
@@ -133,7 +133,7 @@ rule you will meet again in Chapter 23.
 The two kinds don't merge, and Chapter 31 explains why that separation is what
 lets the machine boot at all.
 
-Distinctness lives in the skeleton for the same reason. `?a ≠ ?b` is a condition
+Distinctness lives in the skeleton for the same reason. `$a ≠ $b` is a condition
 on the binding, not a dated claim that two individuals differ.
 
 ## Reification: a rule read back out
@@ -164,7 +164,7 @@ about the other.
 A rule can **name** a rule. A rule cannot **match** one.
 
 ```
-con(<boil>, boiling(?w), +, 0)     what reification stores: a generic pattern
+con(<boil>, boiling($w), +, 0)     what reification stores: a generic pattern
 +goal(boiling(kettle))             what a goal is: ground
 ```
 

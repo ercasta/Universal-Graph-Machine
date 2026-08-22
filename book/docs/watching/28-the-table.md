@@ -41,7 +41,7 @@ start — and the loop had no way to **obey** one. A completion check concluded,
 and the agent carried straight on to quiescence anyway.
 
 ```
-rule <done> = implies( { +want(?w), +?w }, { +finished(?w) } )
+rule <done> = implies( { +want($w), +$w }, { +finished($w) } )
 after <done> => stop
 ```
 
@@ -96,7 +96,7 @@ surface — and something to spend. There are exactly five, and every one of the
 is a *deposit or a signal*, never a score:
 
 ```
-attend(?x, n)   think about what this move just bound, and how much
+attend($x, n)   think about what this move just bound, and how much
 unattend        stop thinking about whatever it was
 stop            end the run
 push(...)       suspend this line of work and open a frame
@@ -104,8 +104,8 @@ pop             return, carrying one node back
 ```
 
 ```
-rule <spot> = implies( { +enemy(?x), +wounded(?x) }, { +opening(?x) } )
-after <spot> => attend(?x, 3)
+rule <spot> = implies( { +enemy($x), +wounded($x) }, { +opening($x) } )
+after <spot> => attend($x, 3)
 ```
 
 Rows, not branches. Adding a new kind of attention-spending is a new
@@ -122,7 +122,7 @@ are retired — not because they didn't work, but because of what they *named*:
 > going quietly wrong.**
 
 A lesson has to survive the agent changing its own rules, and a lesson about a
-*thing* (`attend(?x)`) does, where a lesson about a *rule* (`boost(<R>)`)
+*thing* (`attend($x)`) does, where a lesson about a *rule* (`boost(<R>)`)
 cannot. Everything that existed to keep buffs healthy went with them: the decay
 that stopped a self-lifting pair running away, the saturation that kept the
 scale stable, the trace that rebuilt the table, the reranker. What is left
@@ -151,8 +151,8 @@ different prices:
 
 The lift is a **join**: the relations `goblin1` is currently spoken of under,
 against the rules whose antecedents use one. It is approximate on purpose — a
-rule reading `wounded(?x)` is lifted because *something* attended is wounded,
-whether or not it would bind `?x` to it — and that is the right amount of
+rule reading `wounded($x)` is lifted because *something* attended is wounded,
+whether or not it would bind `$x` to it — and that is the right amount of
 wrong, because the lift only decides who is *matched*. Exactness arrives one
 layer up, for free: among a rule's found applications, the one about the
 attended thing is taken, stably, so attention overrides the tie-break where it
@@ -198,7 +198,7 @@ and the difference that matters is the last column:
 | `standing(<R>)` | permanent height, marked by the bundle or the corpus | **yes** — it raises the floor |
 | `dormant(<R>)` | not ranking at all; it takes a rule **out** | it removes a rule instead |
 | `intercepts(<T>, after)` | not ranking either; it changes what a rule wrote | it does not choose, it rewrites |
-| `attention(x)` / `after <R> => attend(?x)` | a lift keyed on a **thing** | **yes** — sized to clear the apparatus |
+| `attention(x)` / `after <R> => attend($x)` | a lift keyed on a **thing** | **yes** — sized to clear the apparatus |
 
 The last row is the learnable one, and it is the whole learnable path working
 end to end: a move binds a node, a postcondition attends it, the lift decides
@@ -214,7 +214,7 @@ The loop does not hold a tick waiting for it to resolve.
 settling rule gets the next turn:
 
 ```
-rule <settle-doubt> = implies( { +close(?a, ?b) }, { +settled(?a, ?b) } )
+rule <settle-doubt> = implies( { +close($a, $b) }, { +settled($a, $b) } )
 ```
 
 A corpus replaces it with something better — ask the user, apply a domain
@@ -224,12 +224,12 @@ And the backstop needs no semantics: the doubt already stands on the next tick,
 so restating it changes nothing, and quiescence lets the winner apply. A corpus
 without a settling rule loses one tick rather than the loop.
 
-!!! note "Deep dive: why concluding about `?a` is writable at all"
-    `?a` is *the winner as the doubt named it* — two rules nobody knew when the
+!!! note "Deep dive: why concluding about `$a` is writable at all"
+    `$a` is *the winner as the doubt named it* — two rules nobody knew when the
     settling rule was authored.
 
     That works only because **rules are subjects** here: `close(<A>, <B>)`
-    names them, and a conclusion about `?a` is a **mention** (Chapter 10), so
+    names them, and a conclusion about `$a` is a **mention** (Chapter 10), so
     quiescence does not drop it as having nothing to deposit.
 
     Three separate features of the design have to be true at once for one

@@ -66,29 +66,29 @@ cannot hold one, let alone apply it. So the answer arrives already instantiated:
 
 And the last verdict cannot be a rule at all. The natural sixth rule is
 
-    implies( {+goal(?w), +unfit(?r, ?w)}, {+blocked(?w)} )
+    implies( {+goal($w), +unfit($r, $w)}, {+blocked($w)} )
 
 and it is wrong: it fires when **some** rule does not fit, while `blocked` claims
 that **no** rule does -- an aggregate over a *finished* search. A `-` member
-cannot say it either (§9's `-` is *an entry denies this*, never *for no `?r`*).
-So `blocked` is answered by the machinery, to a `+verdict(?w)` request that
+cannot say it either (§9's `-` is *an entry denies this*, never *for no `$r`*).
+So `blocked` is answered by the machinery, to a `+verdict($w)` request that
 `<give-up>` makes at `quiet` -- when the search that the aggregate is over has
 actually finished.
 
-## §18's silent failure, made reachable: tap(?t)
+## §18's silent failure, made reachable: tap($t)
 
-§18's silent failure, made reachable: `tap(?t)` is satisfiable by
-`sink`, `under(kettle, ?t)` only by `drain`. Checked independently both
+§18's silent failure, made reachable: `tap($t)` is satisfiable by
+`sink`, `under(kettle, $t)` only by `drain`. Checked independently both
 report achieved and the plan is wrong with nothing saying so.
 
 ⭐⭐⭐ **And the report now NAMES the tap the plan committed to.** This
-check wanted `blocked(under(kettle, ?t))` and gets
+check wanted `blocked(under(kettle, $t))` and gets
 `blocked(under(kettle, sink))`, which is the same finding with the
 reason in it: not *something about `under` failed* but *the plan chose
 `sink`, and the kettle is not under `sink`*. A foreign corpus
 (`docs/quest-feedback.md` §1) reported the generic form as unutterable
 -- §14 refuses to dispatch a generic intent -- so an agent could not say
 what it was stuck on. The binding was always known and recorded as
-`binds(plan, ?t, sink)`; it was simply not read back when the verdict
+`binds(plan, $t, sink)`; it was simply not read back when the verdict
 was written. Asserting the instantiated form makes this check stronger:
 it now fails if the reason disappears again.

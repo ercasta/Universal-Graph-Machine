@@ -31,8 +31,8 @@ is the hero's turn — a perfectly good fact — and that is exactly why acting 
 missing is not a denial but a **right that acting spends**:
 
 ```
-rule <swing> = causes( { +turn(?x, ?r), +may(?x, ?r), ... },
-                       { -may(?x, ?r), +attack(?x, ?d, ?r) } )
+rule <swing> = causes( { +turn($x, $r), +may($x, $r), ... },
+                       { -may($x, $r), +attack($x, $d, $r) } )
 ```
 
 **Quiescence cannot catch any of the three**, because each pass genuinely concludes something
@@ -53,7 +53,7 @@ A second corpus applied the rule above to an *arrival* and hung twice
 149  + wants(p1, key1)
 ```
 
-`<intake>` is a **bundled** rule — `arrived(?c, ?said, ?sign) ⟹ says(...)` — and `arrived` is the
+`<intake>` is a **bundled** rule — `arrived($c, $said, $sign) ⟹ says(...)` — and `arrived` is the
 unarguable record of a boundary event that nothing retracts. So denying `says` restores it on the
 next tick, along with everything derived from it, for ever.
 
@@ -61,7 +61,7 @@ What works at a boundary is not consumption but **a gate that legitimately close
 denial up front (§1 — *write your negatives*), and let the world's own change supersede it.
 
 ```
-rule <route> = implies( { +wants(?who, ?k), -holds(?who, ?k), +holds(?keeper, ?k) },
+rule <route> = implies( { +wants($who, $k), -holds($who, $k), +holds($keeper, $k) },
                         { ... } )
 fact -holds(p1, key1)
 ```
@@ -86,7 +86,7 @@ This is the one that will cost you the most, because it fails **silently** — t
 applies, and nothing anywhere says why.
 
 ```
-rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
+rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
 fact +wounded(b)                     -- and nothing ever mentions poisoned(b)
 
 heals(b) = None                      -- the rule does NOT fire
@@ -101,8 +101,8 @@ already open" rule you write will be inert. Two fixes, both measured working:
 
 ```
 fact -poisoned(b)                                              -- say it outright
-rule <clean> = implies( { +wounded(?x), -bitten(?x) },         -- or derive the default
-                        { -poisoned(?x) } )
+rule <clean> = implies( { +wounded($x), -bitten($x) },         -- or derive the default
+                        { -poisoned($x) } )
 ```
 
 >**Write your negatives.** An RPG state block that lists only what *is* true will not drive a rule
@@ -128,17 +128,17 @@ Neither relation expresses *this creature is the exception*. **A negated member 
 row four of that table — it is what `unless` means, and it has always been in the surface:
 
 ```
-rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
+rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
 ```
 
-Write it **inside the rule**, not beside it. `fact unless(<regen>, poisoned(?x))` parses and does
-nothing at all: §8 scopes a rule's variables to its own statement, so that `?x` is a *different
+Write it **inside the rule**, not beside it. `fact unless(<regen>, poisoned($x))` parses and does
+nothing at all: §8 scopes a rule's variables to its own statement, so that `$x` is a *different
 variable* from the rule's, and nothing reads the relation anyway. The guard has to be where the
 rule's variables are.
 
 And it stays **askable**, which is the only thing writing it separately would have bought: `reify`
 deposits every member with its sign, so *what would cancel this rule* is a query over
-`ant(<regen>, poisoned(?x), -, 1)`.
+`ant(<regen>, poisoned($x), -, 1)`.
 
 >**Precedence orders rules. It does not carve out cases.** Put the case in the antecedent — that
 >*is* `unless`.
@@ -155,7 +155,7 @@ other's attack for a step, then the goblin is gone and *arbitration is schedulin
 
 **Unless your negatives are not enumerable, and then precedence really is the only answer.**
 `docs/dungeon-feedback.md` §4 found the case: *the hero attacks by default when the player has
-declared nothing this round.* You cannot write `-declares(hero, ?what)`, because absence is not
+declared nothing this round.* You cannot write `-declares(hero, $what)`, because absence is not
 denial and you do not know what might have been said. Measured:
 
 | | the rule fires |
@@ -169,19 +169,19 @@ this channel over this stretch** — it is bounded, checkable, and sayable today
 **structural** member already means *not derived*:
 
 ```
-rule <round>  = implies( { asking(?q), anc(?q, ?m), in_delta(?m, ?e),
-                           entry_of(?e, turn(hero, ?r), plus) },
-                         { round_span(?r, ?m, ?q) } )
-rule <heard>  = implies( { round_span(?r, ?a, ?b), anc(?b, ?m), anc(?m, ?a),
-                           in_delta(?m, ?e), entry_of(?e, arrived(?c, ?w, ?g), plus) },
-                         { heard(?r, ?c) } )
-rule <silent> = implies( { round_span(?r, ?a, ?b), -heard(?r, player) }, { silent(?r, player) } )
+rule <round>  = implies( { asking($q), anc($q, $m), in_delta($m, $e),
+                           entry_of($e, turn(hero, $r), plus) },
+                         { round_span($r, $m, $q) } )
+rule <heard>  = implies( { round_span($r, $a, $b), anc($b, $m), anc($m, $a),
+                           in_delta($m, $e), entry_of($e, arrived($c, $w, $g), plus) },
+                         { heard($r, $c) } )
+rule <silent> = implies( { round_span($r, $a, $b), -heard($r, player) }, { silent($r, player) } )
 
-rule <hero-acts> = implies( { silent(?r, player), +turn(hero, ?r) }, { +attacks(hero, ?r) } )
+rule <hero-acts> = implies( { silent($r, player), +turn(hero, $r) }, { +attacks(hero, $r) } )
 ```
 
 ⚠ **`span_of` is gone with the locus, and so is `entry_of`'s locus argument.** A stretch is now two
-moments the corpus carries itself — `round_span(?r, ?a, ?b)` above — because nothing is dated to
+moments the corpus carries itself — `round_span($r, $a, $b)` above — because nothing is dated to
 anything any more. The shape of the reading is unchanged; the stretch just lives in the
 proposition.
 
@@ -193,10 +193,10 @@ Two warnings, both of which cost me time. **A round is a stretch, so it must hav
 conclude the stretch even when nothing happened, or there is no stretch for nothing to have happened
 in. (Carrying it as an ordinary relation makes this easier than it was: there is no minting site to
 miss.) And
-**anchoring order is everything**: `in_delta(?m, ?e)` before anything binds `?m` finds nothing,
+**anchoring order is everything**: `in_delta($m, $e)` before anything binds `$m` finds nothing,
 silently.
 
-**The residue**: the channel must be a ground atom. `listens(?c)` stops the rule being stratum 0,
+**The residue**: the channel must be a ground atom. `listens($c)` stops the rule being stratum 0,
 because a corpus relation cannot be structural — so silence about a **named** channel is sayable and
 silence about *any* channel is not.
 
@@ -205,8 +205,8 @@ silence about *any* channel is not.
 ## 3. The connective decides whether your turn loop terminates
 
 ```
-rule <tick> = implies( { +quiet(?m) }, { +turn(?m) } )   ->   3 ticks, 1 turn, ends
-rule <tick> = causes(  { +quiet(?m) }, { +turn(?m) } )   -> 200 ticks, 100 turns, runs to the limit
+rule <tick> = implies( { +quiet($m) }, { +turn($m) } )   ->   3 ticks, 1 turn, ends
+rule <tick> = causes(  { +quiet($m) }, { +turn($m) } )   -> 200 ticks, 100 turns, runs to the limit
 ```
 
 `implies` deposits into the same moment; `causes` moves the seat, which mints a fresh `quiet`, which
@@ -225,18 +225,18 @@ occasion the machinery deposits — `quiet`, `left`, `stopped` — reach for `im
 ### Define the verb once; declare the world in facts
 
 This is the pattern to build an RPG on, and it is the reason the engine grew a feature this week. A
-class can be named by a variable — `+?kind(?item)` — so *the smith sells weapons* is a **fact**, and
+class can be named by a variable — `+$kind($item)` — so *the smith sells weapons* is a **fact**, and
 applying that class to a particular sword is the rule's job:
 
 ```
 rule <can-buy> = implies(
-    { +wants(?b, ?item), +sells(?s, ?kind), +?kind(?item),
-      +stocks(?s, ?item), +purse(?b, ?coin) },
-    { +offer(?b, ?s, ?item) } )
+    { +wants($b, $item), +sells($s, $kind), +$kind($item),
+      +stocks($s, $item), +purse($b, $coin) },
+    { +offer($b, $s, $item) } )
 
 rule <buy> = causes(
-    { +offer(?b, ?s, ?item), +purse(?b, ?coin) },
-    { +owns(?b, ?item), -stocks(?s, ?item), ? purse(?b, ?coin), +falls(purse(?b)) } )
+    { +offer($b, $s, $item), +purse($b, $coin) },
+    { +owns($b, $item), -stocks($s, $item), ? purse($b, $coin), +falls(purse($b)) } )
 ```
 
 ...and then the world is **declared**, not coded:
@@ -252,20 +252,20 @@ Three things measured about that, and the last two are what make it pay:
 |---|---|
 | the trade goes through | `owns(hero, sword)` `+`, `stocks(smith, sword)` `−` |
 | **a whole new trade is facts** | armourer / armour / shield: **5 facts, 0 new rules** |
-| **a second verb reuses the declarations** | `<steal>` keys on the same `sells` and `?kind`, untouched |
-| **a class hierarchy is one ordinary rule** | `{+blade(?x)} ⟹ {+weapon(?x)}` and the smith sells daggers, though nothing ever said so |
+| **a second verb reuses the declarations** | `<steal>` keys on the same `sells` and `$kind`, untouched |
+| **a class hierarchy is one ordinary rule** | `{+blade($x)} ⟹ {+weapon($x)}` and the smith sells daggers, though nothing ever said so |
 
->**`sells(smith, weapon)` names a class, and `?kind(?item)` is what applies it.** Without a variable
+>**`sells(smith, weapon)` names a class, and `$kind($item)` is what applies it.** Without a variable
 >in the relation slot, `sells` could only ever name a particular item and every merchant would need
 >its own rule.
 
 **The cost, so you place it deliberately.** A variable relation in a **consequent** is free at match
 time and cheaper overall, because one rule replaces N. In an **antecedent member** it loses §3's index
 — the pattern has no bucket, so it scans — measured at **14× the unifications** on a small world with
-200 unrelated facts. Above, `?kind(?item)` sits in an antecedent and is affordable because `sells` and
+200 unrelated facts. Above, `$kind($item)` sits in an antecedent and is affordable because `sells` and
 `stocks` narrow it first. Do not lead with the unindexed member.
 
-**Arity slips are silent here.** The first version of that `<buy>` rule wrote `? purse(?b)` against
+**Arity slips are silent here.** The first version of that `<buy>` rule wrote `? purse($b)` against
 a `purse(hero, 20)` fact — a different proposition — so it invalidated something nobody had asserted
 and the old amount went on reading `+`. Nothing complains.
 
@@ -275,28 +275,28 @@ If you are not using the class trick, an ability catalogue is a rule per ability
 rather than a fact for a reason worth understanding before you commit a design to it:
 
 ```
-rule <fireball> = implies( { +did(fireball(?t)) }, { +burned(?t) } )      -- parameterised 
+rule <fireball> = implies( { +did(fireball($t)) }, { +burned($t) } )      -- parameterised 
 ```
 
 **The `achieves` idiom is ground-only, and this is the correction to make before you lean on it.**
 The catalogue-as-data shape does work:
 
 ```
-rule <resolve> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )
+rule <resolve> = implies( { +did($a), +achieves($a, $y) }, { +$y } )
 fact achieves(fireball_goblin, burned(goblin))        -- one fact per (spell, TARGET) pair
 ```
 
-but it does not parameterise. `fact achieves(fireball(?t), burned(?t))` is refused outright — a fact
+but it does not parameterise. `fact achieves(fireball($t), burned($t))` is refused outright — a fact
 may not contain a variable. Written as a **named** fact, where variables are allowed, it parses and
-then **never fires**: `?a` binds to the stored pattern `fireball(?t)`, and matching that against a
+then **never fires**: `$a` binds to the stored pattern `fireball($t)`, and matching that against a
 ground `did(fireball(goblin))` is `match`, which is floor and which no rule may call (§5).
 
 | | `burned(goblin)` |
 |---|---|
-| `fact achieves(fireball(?t), burned(?t))` | refused at load |
+| `fact achieves(fireball($t), burned($t))` | refused at load |
 | the same as a **named** fact | parses, `None` — never fires |
 | `fact achieves(fireball_goblin, burned(goblin))` | `+` — but one fact per pair |
-| `rule <fireball> = implies( { +did(fireball(?t)) }, { +burned(?t) } )` | `+` ✅ |
+| `rule <fireball> = implies( { +did(fireball($t)) }, { +burned($t) } )` | `+` ✅ |
 
 >**Ability catalogues are rules, not data.** A fact can carry a whole ground proposition as an
 >argument; it cannot carry a pattern that anything will apply.
@@ -309,7 +309,7 @@ corpora parameterise, so real corpora are rules.
 value:
 
 ```
-rule <hit> = causes( { +strike(?a, ?t) }, { ? hp(?t), +falls(hp(?t)) } )
+rule <hit> = causes( { +strike($a, $t) }, { ? hp($t), +falls(hp($t)) } )
 ```
 
 Measured: **without** the `?`, `hp(goblin, 10)` still reads `10` after the hit, because silence means
@@ -326,10 +326,10 @@ knows about numbers; you register one answerer and write two ordinary rules:
 ```
 kb.answerer("calc", "minus", fn)          -- fn returns purse(who, n - c)
 
-rule <spend>    = implies( { +purse(?b, ?n), +buying(?b, ?i), +cost(?i, ?c) },
-                           { +minus(?b, ?n, ?c) } )
-rule <apply-it> = implies( { +answered(<calc>, minus(?b, ?n, ?c), ?r) },
-                           { +?r, ? purse(?b, ?n), -buying(?b, sword) } )
+rule <spend>    = implies( { +purse($b, $n), +buying($b, $i), +cost($i, $c) },
+                           { +minus($b, $n, $c) } )
+rule <apply-it> = implies( { +answered(<calc>, minus($b, $n, $c), $r) },
+                           { +$r, ? purse($b, $n), -buying($b, sword) } )
 ```
 
 Measured: the purse goes 20 → 17, and the old value reads `?`.
@@ -343,9 +343,9 @@ match*:
 kb.computator("minus", lambda a, b: int(a) - int(b))
 
 rule <pay> = causes(
-    { +pays(?a, ?b, ?n), +purse(?a, ?x), +purse(?b, ?y),
-      minus(?x, ?n) as ?x2, plus(?y, ?n) as ?y2 },
-    { ? purse(?a, ?x), +purse(?a, ?x2), ? purse(?b, ?y), +purse(?b, ?y2), -pays(?a, ?b, ?n) } )
+    { +pays($a, $b, $n), +purse($a, $x), +purse($b, $y),
+      minus($x, $n) as $x2, plus($y, $n) as $y2 },
+    { ? purse($a, $x), +purse($a, $x2), ? purse($b, $y), +purse($b, $y2), -pays($a, $b, $n) } )
 ```
 
 Measured: a standing observer sees `total(10, 5)` then `total(7, 8)` and **never the 12 in between**.
@@ -356,11 +356,11 @@ If your transfer waits on a die roll, a player, or anything outside, then part-w
 know* what the purses hold — so say `?` and assert the numbers only on settlement:
 
 ```
-rule <start>    = causes( { +pays(?a, ?b, ?n), +purse(?a, ?x), +purse(?b, ?y) },
-                          { ? purse(?a, ?x), ? purse(?b, ?y), +pending(...) } )
-rule <complete> = causes( { +pending(...), +confirmed(?a, ?b),
-                            minus(?x, ?n) as ?x2, plus(?y, ?n) as ?y2 },
-                          { +purse(?a, ?x2), +purse(?b, ?y2), -pending(...) } )
+rule <start>    = causes( { +pays($a, $b, $n), +purse($a, $x), +purse($b, $y) },
+                          { ? purse($a, $x), ? purse($b, $y), +pending(...) } )
+rule <complete> = causes( { +pending(...), +confirmed($a, $b),
+                            minus($x, $n) as $x2, plus($y, $n) as $y2 },
+                          { +purse($a, $x2), +purse($b, $y2), -pending(...) } )
 ```
 
 Measured: mid-transfer the purses read `?`, an observer **cannot form a total at all**, and on
@@ -379,23 +379,23 @@ criterion as §3's turn loop, arriving in a corpus instead of the machinery.
 **quantity**, and say what is known of it:
 
 ```
-rule <pour> = causes( { +level(?g, ?v), +poured(?g) },
-                      { ? level(?g, ?v), +greater(after(?g), ?v), +rises(level(?g)) } )
+rule <pour> = causes( { +level($g, $v), +poured($g) },
+                      { ? level($g, $v), +greater(after($g), $v), +rises(level($g)) } )
 ```
 
 ...and it is genuinely reasoned with, not just recorded — a downstream rule reads it:
 
 ```
-rule <spill> = implies( { +greater(after(?g), ?v), +brim(?g, ?v) }, { +overflows(?g) } )
+rule <spill> = implies( { +greater(after($g), $v), +brim($g, $v) }, { +overflows($g) } )
    -> overflows(glass) = +
 ```
 
 This is §13's move for plurality — *mint one node for the group, and its size is a fact about that
 node* — applied to a scalar. The direct form is still refused, at **load**, with a message: a
-consequent naming `level(?g, ?w)` where nothing binds `?w` is an existential, not a slot.
+consequent naming `level($g, $w)` where nothing binds `$w` is an existential, not a slot.
 
 **The real limit is repetition.** Once the level reads `?`, a second change has nothing to compare
-against, so the quantity has to be **chained** — `after1`, `after2`, `above(after2(?g), after1(?g))`
+against, so the quantity has to be **chained** — `after1`, `after2`, `above(after2($g), after1($g))`
 — each step its own node. That works, and it is *ordinal* tracking: the agent can come to know the
 level is above the brim and can never again know that it is 5. For an RPG, prefer the **tool** wherever
 the number is known, and keep the node idiom for things that are genuinely vague.
@@ -404,12 +404,12 @@ the number is known, and keep the node idiom for things that are genuinely vague
 lands on the record:
 
 ```
-fact <ally-safe> = forbidden(doing(harm(?x)))
-   -> refused(doing(harm(ally1)), +, forbidden(doing(harm(?x))))
+fact <ally-safe> = forbidden(doing(harm($x)))
+   -> refused(doing(harm(ally1)), +, forbidden(doing(harm($x))))
 ```
 
-**A universal must be a rule.** `fact +hostile(?x)` is refused — a fact may not contain a variable.
-(A **named** fact may: `fact <n> = forbidden(doing(harm(?x)))`. But a named fact carrying an
+**A universal must be a rule.** `fact +hostile($x)` is refused — a fact may not contain a variable.
+(A **named** fact may: `fact <n> = forbidden(doing(harm($x)))`. But a named fact carrying an
 implication parses and then **never fires**, because applying its stored pattern is `match`, and match
 is floor. Do not try to put your rulebook in a fact.)
 
@@ -428,10 +428,10 @@ the rule that should lose **require** it:
 ```
 fact +dormant(<assert-act>)                        retire the bundled default
 
-rule <outcome> = implies( { +did(?a), +achieves(?a, ?y) },
-                          { +?y, -assume(?a) } )   the winner DENIES the marker
-rule <assert>  = implies( { +did(?a), +assume(?a) },
-                          { +?a } )                the loser REQUIRES it
+rule <outcome> = implies( { +did($a), +achieves($a, $y) },
+                          { +$y, -assume($a) } )   the winner DENIES the marker
+rule <assert>  = implies( { +did($a), +assume($a) },
+                          { +$a } )                the loser REQUIRES it
 fact +assume(greet(bo))                            ...and the negative, written
 ```
 
@@ -452,8 +452,8 @@ arriving where it decides a design rather than a rule. Two versions, measured:
 
 | the default | what happens |
 |---|---|
-| `{ +did(?a) } => { +assume(?a) }` | **fails** -- it re-derives the marker the winner just denied, and they alternate |
-| `{ +did(?a), -achieves(?a, ?y) } => { +assume(?a) }` | **inert** -- `-` means *denied*, never *absent*, so it never fires for anything |
+| `{ +did($a) } => { +assume($a) }` | **fails** -- it re-derives the marker the winner just denied, and they alternate |
+| `{ +did($a), -achieves($a, $y) } => { +assume($a) }` | **inert** -- `-` means *denied*, never *absent*, so it never fires for anything |
 | `fact +assume(greet(bo))`, or a default guarded on a denial you wrote | ✅ |
 
 So: **closed act catalogue, use this.** Open domain -- where you genuinely cannot
@@ -479,8 +479,8 @@ wall. Probed at `f250528`:
 | *while poisoned* — a span as a locus | an entry's locus is typed as a moment; no span is ever built as one | **unbuilt** |
 | shapes (§13) | needs both of the above | **unbuilt** |
 | `unless(<R>, +cond)` — **half** | *if not* over a nameable proposition ✅ is a negated member (§2). *If nothing was said* over an **open domain** ❌ needs negation as failure and is absent — your §4. **Amendment at a distance** is a third thing wearing the same name, refused by decision | **one of three is missing** |
-| ~~*apply the effect named by this spell* — `?p(?x)`~~ | ✅ **built, after this note first said it was a wall.** The substrate could always construct one; three separate things refused it and none was an argument — the parser would not read it, `unify` compared the relation slot by identity, `substitute` would not rebuild one | **was never a wall** |
-| *my rulebook, as facts* | §8 scopes a statement's variables to it — measured, `?x` in two named facts are **different nodes**, so a rule assembled from them concludes about something nothing binds | **deliberate, and load-bearing** |
+| ~~*apply the effect named by this spell* — `$p($x)`~~ | ✅ **built, after this note first said it was a wall.** The substrate could always construct one; three separate things refused it and none was an argument — the parser would not read it, `unify` compared the relation slot by identity, `substitute` would not rebuild one | **was never a wall** |
+| *my rulebook, as facts* | §8 scopes a statement's variables to it — measured, `$x` in two named facts are **different nodes**, so a rule assembled from them concludes about something nothing binds | **deliberate, and load-bearing** |
 | ~~*it falls by 3*~~ | ✅ **also not a wall.** A known amount is a **tool** (arithmetic is a function); an unknown one is a **node**, per §13's move for plurality. What stays open is only *recovering a readable value after an unquantified change*, which is arguably honest ignorance | **was two questions, both answered** |
 | `−` matching *nothing was said* | open-world semantics: silence inherits, it does not deny | **deliberate, and correct** |
 
@@ -492,10 +492,10 @@ resists them — `rules.py` says so in its own first paragraph, *slice one carri
 only*. That is better news than the list looks.
 
 **The last two are the reason this section exists.** The first draft of this note listed both
-`?p(?x)` and *falls by 3* as unsayable, straight off the design's open-questions list. Probed, neither
+`$p($x)` and *falls by 3* as unsayable, straight off the design's open-questions list. Probed, neither
 was a limit anybody had argued:
 
-* `?p(?x)` was **three independent refusals** — the parser would not read it, `unify` compared the
+* `$p($x)` was **three independent refusals** — the parser would not read it, `unify` compared the
   relation slot by identity, `substitute` would not rebuild one — and the substrate had been able to
   construct the node all along. About an hour to allow. It is now the pattern §4 recommends you build
   on.
@@ -558,12 +558,12 @@ It takes **two rules** — one to see it, one to say it:
 
 ```
 rule <flip> = implies(
-  { asking(?s), anc(?s, ?d1), in_delta(?d1, ?e1), entry_of(?e1, ?l1, ?p, plus),
-    anc(?s, ?d2), in_delta(?d2, ?e2), entry_of(?e2, ?l2, ?p, minus),
-    sanc(?l2, ?l1) },
-  { flipped(?p) } )
+  { asking($s), anc($s, $d1), in_delta($d1, $e1), entry_of($e1, $l1, $p, plus),
+    anc($s, $d2), in_delta($d2, $e2), entry_of($e2, $l2, $p, minus),
+    sanc($l2, $l1) },
+  { flipped($p) } )
 
-rule <note> = implies( { flipped(?p), +watching(x) }, { +changed(?p) } )
+rule <note> = implies( { flipped($p), +watching(x) }, { +changed($p) } )
 ```
 
 `<flip>` mentions only skeleton, so it concludes into the skeleton: `flipped(open(door))` is a plain
@@ -574,16 +574,16 @@ is an ordinary rule and concludes an ordinary claim. That is the whole bridge.
 
 | | |
 |---|---|
-| `asking(?s)` | the seat the agent is standing at — **what anchors everything else** |
-| `anc(?s, ?a)` / `sanc(?s, ?a)` | ancestry, reflexive and strict |
-| `pred(?s, ?p)` | the immediate predecessor. This used to silently mean `anc` |
-| `in_delta(?m, ?e)` | the entries deposited at a moment |
-| `entry_of(?e, ?prop, ?sign)` | an entry's two members. ⚠ It had a `?locus` argument and does not now |
-| `delta_next(?e, ?f)` | deposit order within one moment |
-| `rests_on(?e, ?c)` | what an entry was derived from — **the agent's own trail** |
+| `asking($s)` | the seat the agent is standing at — **what anchors everything else** |
+| `anc($s, $a)` / `sanc($s, $a)` | ancestry, reflexive and strict |
+| `pred($s, $p)` | the immediate predecessor. This used to silently mean `anc` |
+| `in_delta($m, $e)` | the entries deposited at a moment |
+| `entry_of($e, $prop, $sign)` | an entry's two members. ⚠ It had a `$locus` argument and does not now |
+| `delta_next($e, $f)` | deposit order within one moment |
+| `rests_on($e, $c)` | what an entry was derived from — **the agent's own trail** |
 
 **Every one of them must be anchored, and the authored order is what anchors it.** Start from
-`asking(?s)` and walk outward; a member whose turn comes before anything binds it finds **nothing**,
+`asking($s)` and walk outward; a member whose turn comes before anything binds it finds **nothing**,
 silently. That is the single trap in this whole area, and it is why `<flip>` above reads in the order
 it does.
 
@@ -593,28 +593,28 @@ There are no entries here for a sign to be about.
 **And ordering landed too — as an ordinary member, not a request:**
 
 ```
-rule <after> = implies( { asking(?now), anc(?now, ?mp), in_delta(?mp, ?ep),
-                         entry_of(?ep, acts(?p), plus),
-                         anc(?now, ?mq), in_delta(?mq, ?eq),
-                         entry_of(?eq, acts(?q), plus), sanc(?mq, ?mp) },
-                       { +acted_after(?q, ?p) } )
+rule <after> = implies( { asking($now), anc($now, $mp), in_delta($mp, $ep),
+                         entry_of($ep, acts($p), plus),
+                         anc($now, $mq), in_delta($mq, $eq),
+                         entry_of($eq, acts($q), plus), sanc($mq, $mp) },
+                       { +acted_after($q, $p) } )
 ```
 
-⚠ It used to read `+acts(?p) at ?mp` — binding the locus of the matched entry. `at ?m` is **refused**
+⚠ It used to read `+acts($p) at $mp` — binding the locus of the matched entry. `at $m` is **refused**
 now: an entry has no locus, so the moments come from the chain walk instead.
 
-`sanc(?later, ?earlier)` holds when the second moment is a strict ancestor of the first. It is
+`sanc($later, $earlier)` holds when the second moment is a strict ancestor of the first. It is
 **ancestry, not a depth comparison**, so it stays correct once anything forks.
 
 **The first argument must already be bound.** A structural member walks from an anchored moment
 *toward the root*, and that direction is single-valued — which is exactly why it can never reach into
-a sibling hypothesis. Written the other way round (`sanc(?anything, ?m)`) it loads fine and finds
+a sibling hypothesis. Written the other way round (`sanc($anything, $m)`) it loads fine and finds
 nothing; nothing is refused, there is simply nowhere to go. Between `at` and this, your initiative and
 round-order scaffold should go.
 
-**And a member can name what it matched:** `+on(?x, ?y) as ?t`, then use `?t`. It binds the *same
-node*, so it is reference rather than a copy. Two members hoping to co-refer — `+tagged(?t),
-+on(?x, ?y)` — do **not** link, and look like they work while there is only one candidate.
+**And a member can name what it matched:** `+on($x, $y) as $t`, then use `$t`. It binds the *same
+node*, so it is reference rather than a copy. Two members hoping to co-refer — `+tagged($t),
++on($x, $y)` — do **not** link, and look like they work while there is only one candidate.
 
 Please distinguish the two when you write your list. They look identical when you hit them and they
 cost completely different amounts.
@@ -625,13 +625,13 @@ Some claims are not about a moment at all. *They took turns*, *it rained through
 for three rounds* — none is true of any instant. Those take a **span** as their locus:
 
 ```
-rule <r> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp),
-                      span_of(?s, ?mp, ?mq) },
-                   { +took_turns(?p, ?q) at ?s } )
+rule <r> = implies( { +acts($p) at $mp, +acts($q) at $mq, sanc($mq, $mp),
+                      span_of($s, $mp, $mq) },
+                   { +took_turns($p, $q) at $s } )
 ```
 
-`span_of(?s, ?start, ?end)` **mints** the stretch when both endpoints are bound — that is what a
-recogniser does — and **decomposes** one when the span is bound instead. `at ?s` on the consequent is
+`span_of($s, $start, $end)` **mints** the stretch when both endpoints are bound — that is what a
+recogniser does — and **decomposes** one when the span is bound instead. `at $s` on the consequent is
 what puts the claim there. No new notation: `at` is the member locus you already have, on the other
 side of the rule.
 
@@ -647,13 +647,13 @@ not answer *did it rain throughout M7..M12* — deliberately, because the read r
 than scanning an interval, so a denial in the middle would be invisible and you would get a confident
 wrong answer. If your corpus wants *it held at the start, so it held throughout*, **write that rule**;
 then it is yours, and it is dated and deniable like everything else. The same goes for one span
-answering about a shorter one inside it: `during(?s2, ?s1)` is an ordinary fact about endpoints.
+answering about a shorter one inside it: `during($s2, $s1)` is an ordinary fact about endpoints.
 
 **What does hold: a recognition is an ordinary fact once the stretch is over.** From the end moment
 onward any ordinary rule reads `+took_turns(anna, bo)` without knowing a span was involved. That is
 what makes a shape worth recognising.
 
-An **inverted** span (`span_of(?s, ?later, ?earlier)`) and a **degenerate** one (start = end) are
+An **inverted** span (`span_of($s, $later, $earlier)`) and a **degenerate** one (start = end) are
 both refused. The second is deliberate: a one-moment span would be a second name for a moment, and two
 ways to say one locus is exactly the ambiguity the read cannot afford.
 
@@ -669,25 +669,25 @@ one ordinary rule to say it.**
 
 ```
 rule <tt-base> = implies(
-  { asking(?q), anc(?q, ?p),
-    in_delta(?p, ?ep), entry_of(?ep, ?p, acts(?b), plus),
-    pred(?p, ?n),
-    in_delta(?n, ?en), entry_of(?en, ?n, acts(?a), plus),
-    pred(?n, ?m), span_of(?s, ?m, ?p) },
-  { turns(?s, ?a, ?b) } )
+  { asking($q), anc($q, $p),
+    in_delta($p, $ep), entry_of($ep, $p, acts($b), plus),
+    pred($p, $n),
+    in_delta($n, $en), entry_of($en, $n, acts($a), plus),
+    pred($n, $m), span_of($s, $m, $p) },
+  { turns($s, $a, $b) } )
 
 rule <tt-step> = implies(
-  { turns(?s2, ?b, ?a), span_of(?s2, ?n, ?e),
-    in_delta(?n, ?en), entry_of(?en, ?n, acts(?a), plus),
-    pred(?n, ?m), span_of(?s, ?m, ?e) },
-  { turns(?s, ?a, ?b) } )
+  { turns($s2, $b, $a), span_of($s2, $n, $e),
+    in_delta($n, $en), entry_of($en, $n, acts($a), plus),
+    pred($n, $m), span_of($s, $m, $e) },
+  { turns($s, $a, $b) } )
 
-rule <say> = implies( { turns(?s, ?a, ?b), +watching(x) },
-                     { +taking_turns(?a, ?b) at ?s } )
+rule <say> = implies( { turns($s, $a, $b), +watching(x) },
+                     { +taking_turns($a, $b) at $s } )
 ```
 
 Over five alternating moments that recognises the pattern over **every stretch it holds over** — ten
-of them. The **argument swap** (`?a, ?b` in the head, `?b, ?a` in the recursive member) is the whole
+of them. The **argument swap** (`$a, $b` in the head, `$b, $a` in the recursive member) is the whole
 of it: remove it and the definition says *someone acts repeatedly*.
 
 You must call for the structural layer to settle (`ask_read`, then the stratum-0 fixpoint) before
@@ -707,11 +707,11 @@ python -m ugm.atlas <corpus.ugm> --mermaid    # ...as a diagram
 
 **The one that will save you the most: a rule that can never apply.** §1
 above is this document's most expensive trap because it fails *silently* — you
-write `-poisoned(?x)`, nothing ever denies poison, and the rule is simply inert.
+write `-poisoned($x)`, nothing ever denies poison, and the rule is simply inert.
 `ugm.atlas` says so without you running anything:
 
 ```
-rule <keep> = implies( { +held(?x), -gone(?x) }, { +kept(?x) } )
+rule <keep> = implies( { +held($x), -gone($x) }, { +kept($x) } )
 fact +held(thing)
 
   rules that can NEVER apply   : ['keep']
@@ -724,14 +724,14 @@ that itself can never apply* is not, and that is the shape a corpus acquires as
 it grows, because every link looks fine on its own:
 
 ```
-rule <a> = implies( { +p(?x) }, { +q(?x) } )   # nothing asserts p
-rule <b> = implies( { +q(?x) }, { +r(?x) } )   # so <b> is dead too
+rule <a> = implies( { +p($x) }, { +q($x) } )   # nothing asserts p
+rule <b> = implies( { +q($x) }, { +r($x) } )   # so <b> is dead too
 
   rules that can NEVER apply   : ['a', 'b']
 ```
 
 **What it will not tell you.** It ignores arguments: `owns(smith, sword)`
-grounds `owns` for any rule reading `owns(?a, ?b)`. So a rule it calls live may
+grounds `owns` for any rule reading `owns($a, $b)`. So a rule it calls live may
 still never fire — but a rule it calls **dead genuinely cannot**. The false
 direction is the safe one, and silence is not a guarantee.
 
@@ -762,7 +762,7 @@ that is mostly your corpus working correctly.
 * **A reserved name in an argument position is now reported at load.** `reserved` binds `plus` and
   `minus` to the **sign atoms**, so a corpus writing an arithmetic operator got the sign —
   `calc(minus, 5, 2)` landed as `calc(-, 5, 2)` and the tool declined a request it should have
-  answered. It is a *report*, not a refusal: `+expects(?p, plus)` is legitimate and the loader cannot
+  answered. It is a *report*, not a refusal: `+expects($p, plus)` is legitimate and the loader cannot
   tell an operator from a sign. Numerals are excluded, because `cost(sword, 3)` sharing the numeral
   the machinery uses is correct.
 * **A corpus tool may not share a request relation with the apparatus.** `_answer` calls *every*

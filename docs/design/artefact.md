@@ -22,7 +22,7 @@ score of how nearly done something is. A half either holds or it does not, and
 the repair is an ordinary rule keyed on `unmet`.
 
 ⭐⭐ **The artefact is a node; what it DOES is claims about it.** The goal
-decomposes over `finds(?c, py_files)`, never over shell syntax. That is what
+decomposes over `finds($c, py_files)`, never over shell syntax. That is what
 makes the repair a rule rather than a string edit, and it is why the rendering
 below is a TOOL and not a parser: composing the text is a function, and §17 says
 a request answered by a function is exactly what a tool is.
@@ -38,7 +38,7 @@ the occasion, not the reaction).
 ⚠ What is NOT here, and it is the design's last open hat: nothing revises a
 BINDING. *Fix it* therefore means *derive a better candidate*, never *amend the
 one you have*. This corpus works because the command is one node accumulating
-properties; a repair that had to REPLACE `ls_py` would leave `binds(plan, ?c, cmd)`
+properties; a repair that had to REPLACE `ls_py` would leave `binds(plan, $c, cmd)`
 pointing at the old one with nothing able to reconsider it.
 
 ## Asked STRUCTURALLY, and finding out why is wo
@@ -50,7 +50,7 @@ spaces and quotes are not term syntax.
 
 > **A tool may return something no corpus can name.**
 
-Not a defect, and not nothing. A rule reaches it by BINDING (`?s` in
+Not a defect, and not nothing. A rule reaches it by BINDING (`$s` in
 `<believe>`), which is all any rule here needs; what is impossible is a
 rule that mentions one particular rendered string literally. That is the
 same wall as `forbidden(...)` not being revisable from the surface -- a

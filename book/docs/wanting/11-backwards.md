@@ -6,7 +6,7 @@ follows*.
 A rule can be read the other way. *I want this. What would bring it about?*
 
 ```
-rule <boil> = causes( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )
+rule <boil> = causes( { +heat($a, $w), +water($w) }, { +boiling($w) } )
 
 fact +water(kettle)
 fact +goal(boiling(kettle))
@@ -16,12 +16,12 @@ fact +goal(boiling(kettle))
 asked for:
   boiling(kettle)  [open]  via <boil>
     water(kettle)  [held]
-    heat(?a, kettle)  [BLOCKED]
+    heat($a, kettle)  [BLOCKED]
 ```
 
 The machine found the rule that could produce what you wanted, unified the goal
 against its consequent, and turned the antecedent members into subgoals — with
-the binding carried through, so it's `heat(?a, kettle)`, not `heat(?a, ?w)`.
+the binding carried through, so it's `heat($a, kettle)`, not `heat($a, $w)`.
 Then it reported honestly on each: the water it already has; heating it does
 not, and cannot obtain.
 
@@ -52,7 +52,7 @@ both are informative, and one shape makes that sharp — a consequent that's a
 bare variable:
 
 ```
-rule <trust> = implies( { +says(?c, ?p, plus) }, { +?p } )
+rule <trust> = implies( { +says($c, $p, plus) }, { +$p } )
 ```
 
 Forwards this is exact: whatever the channel said, believe it (Chapter 21).

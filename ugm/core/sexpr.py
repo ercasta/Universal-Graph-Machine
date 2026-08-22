@@ -25,7 +25,7 @@ class Reader:
     """One token stream, read as s-expressions.
 
     ⚠ The TOKENISER is shared with the default notation, not reimplemented.
-    `?x`, `<r>`, numerals, signs and parentheses already tokenise correctly, and
+    `$x`, `<r>`, numerals, signs and parentheses already tokenise correctly, and
     a second tokeniser would be a second place for `?` to stop meaning what it
     means -- which is how this repo has lost four nodes to one name.
     """
@@ -133,7 +133,7 @@ class Reader:
         return tuple(out)
 
     def member(self) -> RuleMember:
-        # `(+ (heat ?a ?w))` is a signed member; anything else is a bare term and
+        # `(+ (heat $a $w))` is a signed member; anything else is a bare term and
         # means `+`. Told apart by looking one token past the paren, which is the
         # only place this grammar needs two-token lookahead.
         if self.at("(") and self.peek(1) is not None and \
@@ -211,11 +211,11 @@ def read_one(toks: Sequence[Tok], i: int) -> Tuple[Statement, int]:
 
 DEFAULT = """
 rule <boil> = causes(
-    { +heat(?a, ?w), +water(?w) },
-    { +boiling(?w), -liquid(?w) } )
-rule <weather> = implies( { +cloudy(?day, morning) },
-                          { +likely(rain(?day, afternoon)) } )
-fact <how-many> = count(harm(?x))
+    { +heat($a, $w), +water($w) },
+    { +boiling($w), -liquid($w) } )
+rule <weather> = implies( { +cloudy($day, morning) },
+                          { +likely(rain($day, afternoon)) } )
+fact <how-many> = count(harm($x))
 fact +heat(anna, kettle)
 fact +water(kettle)
 fact -liquid(ice)
@@ -225,11 +225,11 @@ say user: +raining(here)
 
 LISP = """
 syntax: lisp
-(rule <boil> causes ((+ (heat ?a ?w)) (+ (water ?w)))
-                    ((+ (boiling ?w)) (- (liquid ?w))))
-(rule <weather> implies ((+ (cloudy ?day morning)))
-                        ((+ (likely (rain ?day afternoon)))))
-(fact <how-many> (count (harm ?x)))
+(rule <boil> causes ((+ (heat $a $w)) (+ (water $w)))
+                    ((+ (boiling $w)) (- (liquid $w))))
+(rule <weather> implies ((+ (cloudy $day morning)))
+                        ((+ (likely (rain $day afternoon)))))
+(fact <how-many> (count (harm $x)))
 (fact + (heat anna kettle))
 (fact + (water kettle))
 (fact - (liquid ice))

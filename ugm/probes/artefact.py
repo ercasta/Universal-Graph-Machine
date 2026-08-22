@@ -13,23 +13,23 @@ from ..core.text import Loader
 
 WORLD = [
     # What each piece of the command does. Claims about a node, not text.
-    "rule <lists> = implies( { +uses(?c, ls_py) },    { +finds(?c, py_files) } )",
-    "rule <greps> = implies( { +uses(?c, grep_cls) }, { +finds(?c, class_defs) } )",
+    "rule <lists> = implies( { +uses($c, ls_py) },    { +finds($c, py_files) } )",
+    "rule <greps> = implies( { +uses($c, grep_cls) }, { +finds($c, class_defs) } )",
     # What was asked for -- a conjunction, so it splits into two subgoals.
     "rule <good> = implies(",
-    "    { +finds(?c, py_files), +finds(?c, class_defs) },",
-    "    { +good(?c) } )",
+    "    { +finds($c, py_files), +finds($c, class_defs) },",
+    "    { +good($c) } )",
     # The repair, keyed on the machinery's own answer to *is this half already
     # satisfied*.
     "rule <repair> = implies(",
-    "    { +unmet(?p, finds(?c, class_defs)) },",
-    "    { +uses(?c, grep_cls) } )",
+    "    { +unmet($p, finds($c, class_defs)) },",
+    "    { +uses($c, grep_cls) } )",
     # Render it -- but only once the claims say it is right. The request is a
     # rule's to make; what answers it is outside the agent.
-    "rule <ask-spell> = implies( { +good(?c) }, { +spell(?c) } )",
+    "rule <ask-spell> = implies( { +good($c) }, { +spell($c) } )",
     # One line, so that dropping it for the control drops the whole rule -- a
     # `drop` that cuts a rule in half is a ParseError, not a control.
-    "rule <believe> = implies( { +answered(<render>, spell(?c), ?s) }, { +spelled(?c, ?s) } )",
+    "rule <believe> = implies( { +answered(<render>, spell($c), $s) }, { +spelled($c, $s) } )",
     "fact +uses(cmd, ls_py)",
     "fact +goal(good(cmd))",
     "",
@@ -38,8 +38,8 @@ WORLD = [
 # One corpus line, and it is the difference between an agent that knows which
 # half it has and one that only looks as though it does.
 RECHECK = (
-    "rule <recheck> = implies( { +unmet(?p, ?sub), +?sub },"
-    " { +again(check(?p, ?sub), ?sub) } )"
+    "rule <recheck> = implies( { +unmet($p, $sub), +$sub },"
+    " { +again(check($p, $sub), $sub) } )"
 )
 
 

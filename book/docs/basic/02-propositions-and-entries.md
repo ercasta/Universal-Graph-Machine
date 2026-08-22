@@ -153,7 +153,7 @@ still two rules, with different authors, provenance and standing.
 
 One more rule, small-looking and load-bearing.
 
-`?x` in one line you write and `?x` in the next line are **different nodes**.
+`$x` in one line you write and `$x` in the next line are **different nodes**.
 A statement's variables belong to it.
 
 This is what makes a rule a self-contained claim rather than a fragment of a

@@ -88,7 +88,7 @@ that had to be measured to find out which.
 | **token level** | **entries** (25) | `rests_on` (23) | what *did* connect |
 
 The first is terminology joined by rules, and it's blind to arguments:
-`owns(smith, sword)` grounds `owns` for every rule reading `owns(?a, ?b)`.
+`owns(smith, sword)` grounds `owns` for every rule reading `owns($a, $b)`.
 
 The second is the **trail** — ground, argument-exact, per-run. It long predates
 this analysis, because explaining a conclusion needs it. Of those 25 entries, 14
@@ -160,7 +160,7 @@ Two things here are worth recording.
 **The surface already refuses tonk-introduction**, for an unrelated reason:
 
 ```
-rule <tonk-in> = implies( { +?a }, { +tonk(?a, ?b) } )
+rule <tonk-in> = implies( { +$a }, { +tonk($a, $b) } )
    REFUSED — concludes about a variable its antecedent never binds
 ```
 
@@ -168,8 +168,8 @@ That refusal exists so the write never deposits a generic proposition.
 *Conclude something arbitrary* turns out to be unsayable — a harmony constraint
 arriving through the side door.
 
-**But a bound variable smuggles it back in.** With `{+holds(?a), +claim(?b)} ⟹
-{+tonk(?a, ?b)}` and `{+tonk(?a, ?b)} ⟹ {+?b}`, the agent concludes
+**But a bound variable smuggles it back in.** With `{+holds($a), +claim($b)} ⟹
+{+tonk($a, $b)}` and `{+tonk($a, $b)} ⟹ {+$b}`, the agent concludes
 `slippery(moon)` and `bankrupt(alice)` from nothing but someone having uttered
 them — and every structural check above reports **0 problems**, because they all
 hunt for too *little* meaning and tonk has too much.

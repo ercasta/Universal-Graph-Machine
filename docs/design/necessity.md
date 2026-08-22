@@ -46,7 +46,7 @@ Instead every deposit **about** that relation is re-pointed at a dead one:
 
 The entry still exists, so no caller gets a `None` it did not expect, and the
 chain's own bookkeeping is untouched. What changes is the only thing that should:
-`quiet(?m)` in a rule now matches nothing, and `relation_of(e.proposition) is
+`quiet($m)` in a rule now matches nothing, and `relation_of(e.proposition) is
 self.QUIET` in Python is now false. **The occasion stops being sayable**, which
 is exactly the thing under test.
 

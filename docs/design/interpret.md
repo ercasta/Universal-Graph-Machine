@@ -38,7 +38,7 @@ sign is.
 
 `<said>` is the whole trick. The interpreter needs *this premise was never
 claimed*, and over ENTRIES a `-` member says only *something denies it*, never
-*for no `?x`* -- open-world, deliberate, and correct. `<said>` is stratum 0
+*for no `$x`* -- open-world, deliberate, and correct. `<said>` is stratum 0
 (every antecedent member is structural), so §6's test lands its conclusion in
 the SKELETON, and a `-` on a structural member can only mean *not derived*.
 That is the same line `agreement`'s `<best>` and `quiescence`'s `<quiet>` both
@@ -48,7 +48,7 @@ So `<unmet>` and `<met>` are stratum 0 too, and the derived strata are
 `said(0) -> unmet(1) -> met(2)` -- computed, not assigned, and `strata()` would
 refuse the set aloud if it were not stratifiable.
 
-`<fire>` and `<deny>` each carry ONE entry-level member (`+implies(?a, ?c)`),
+`<fire>` and `<deny>` each carry ONE entry-level member (`+implies($a, $c)`),
 and that is not decoration. A rule whose antecedent is entirely structural
 concludes structure, and structure has no sign and cannot be taken back -- so an
 interpreter written wholly in stratum 0 could not deposit a belief at all. The
@@ -77,8 +77,8 @@ adopting, and this file is the measurement of what it costs, not a refutation.
 
 `_narrowed` picks an index pivot from any argument that is "a value already --
 an atom or a structure written in the pattern". A structure that still carries a
-VARIABLE is not a value: `said(implies(?a, ?c))` asked the argument index for
-the bucket of the pattern node `implies(?a, ?c)` itself, which nothing is ever
+VARIABLE is not a value: `said(implies($a, $c))` asked the argument index for
+the bucket of the pattern node `implies($a, $c)` itself, which nothing is ever
 an instance against, so the bucket was empty and the member matched **nothing**.
 No error and no scan -- the rule is well formed, every other member is fine, and
 it silently never applies.

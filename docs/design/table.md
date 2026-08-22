@@ -73,7 +73,7 @@ Compare rendered text.
 Hear it, or say why it could not be heard.
 
         ⚠⚠⚠ **An agent really will try to say the unsayable, and the wire must
-        not die of it.** `blocked(?g)` reports the rule's antecedent member *as
+        not die of it.** `blocked($g)` reports the rule's antecedent member *as
         written*, so a blocked subgoal is generic far more often than not — and
         an arrival may not contain a variable. Left to raise, one over-eager
         rule in one corpus takes the whole table down.

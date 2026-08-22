@@ -29,7 +29,7 @@ from ..core.text import load
 #                            EVERY route, so `_salient` cannot tell two routes
 #                            apart and `leaves` returns nothing.
 #   `doing`/`did` anchored   `_circumstances` skips DOING and DID BY RELATION,
-#   with no anchored premise and `in(?s, did(...))` is not either of them -- so
+#   with no anchored premise and `in($s, did(...))` is not either of them -- so
 #   in the chooser          the lesson gets conditioned on what happened AFTER
 #                            the choice, and can never fire before it.
 #
@@ -41,30 +41,30 @@ from ..core.text import load
 # routes run, the agent fills the kettle AND smashes the jug, and a rehearsal
 # has no choice in it to be measured.
 ROUTES = [
-    "rule <use-jug> = implies( { +goal(in(?s, water(?v))), +in(?s, jug(?j)),"
-    "                           +holds(?j, ?v) },"
-    "                         { -goal(in(?s, water(?v))), +in(?s, doing(smash(?j))) } )",
-    "rule <use-tap> = implies( { +goal(in(?s, water(?v))), +in(?s, tap(?t)),"
-    "                           +under(?v, ?t) },"
-    "                         { -goal(in(?s, water(?v))), +in(?s, doing(fill(?v))) } )",
+    "rule <use-jug> = implies( { +goal(in($s, water($v))), +in($s, jug($j)),"
+    "                           +holds($j, $v) },"
+    "                         { -goal(in($s, water($v))), +in($s, doing(smash($j))) } )",
+    "rule <use-tap> = implies( { +goal(in($s, water($v))), +in($s, tap($t)),"
+    "                           +under($v, $t) },"
+    "                         { -goal(in($s, water($v))), +in($s, doing(fill($v))) } )",
 ]
 PHYSICS = [
-    "rule <eff>  = implies( { +in(?s, did(?a)), +achieves(?a, ?y) }, { +in(?s, ?y) } )",
-    "rule <cost> = implies( { +in(?s, did(smash(?j))) }, { -in(?s, intact(?j)) } )",
-    "rule <squeeze> = implies( { +fruit(?f), +in(?s, jug(?j)), +in(?s, intact(?j)) },"
-    "                         { +in(?s, juice(?j)) } )",
+    "rule <eff>  = implies( { +in($s, did($a)), +achieves($a, $y) }, { +in($s, $y) } )",
+    "rule <cost> = implies( { +in($s, did(smash($j))) }, { -in($s, intact($j)) } )",
+    "rule <squeeze> = implies( { +fruit($f), +in($s, jug($j)), +in($s, intact($j)) },"
+    "                         { +in($s, juice($j)) } )",
 ]
 # ⭐⭐⭐ The three bridges, and they are the whole of what `suppose`/`discharge`
 # used to be. A scene the agent calls its WORLD acts; a scene it calls a
-# REHEARSAL assumes instead. **Containment is `+world(?s)` -- an ordinary
+# REHEARSAL assumes instead. **Containment is `+world($s)` -- an ordinary
 # premise a rule fails to match**, which is what `docs/todo.md` measured when it
 # said *what would happen if we set fire to the house*, answered without burning
 # it down, with no machinery.
 BRIDGE = [
-    "rule <act>     = implies( { +world(?s), +in(?s, doing(?a)) }, { +doing(?a) } )",
-    "rule <assume>  = implies( { +rehearsal(?s), +in(?s, doing(?a)) },"
-    "                         { +in(?s, did(?a)) } )",
-    "rule <observe> = implies( { +world(?s), +did(?a) }, { +in(?s, did(?a)) } )",
+    "rule <act>     = implies( { +world($s), +in($s, doing($a)) }, { +doing($a) } )",
+    "rule <assume>  = implies( { +rehearsal($s), +in($s, doing($a)) },"
+    "                         { +in($s, did($a)) } )",
+    "rule <observe> = implies( { +world($s), +did($a) }, { +in($s, did($a)) } )",
 ]
 STANDING = [
     "fact +achieves(fill(kettle), water(kettle))",
@@ -76,20 +76,20 @@ BAD_START = ROUTES              # the jug route first: the costly one wins on or
 GOOD_START = list(reversed(ROUTES))
 LOSSES = ("intact(jug1)",)
 
-# The proposer. `suppose(goal(?y), certain)` became `goal(in(?s, ?y))` -- the
+# The proposer. `suppose(goal($y), certain)` became `goal(in($s, $y))` -- the
 # agent wants a thing IN a scene, which is what supposing a goal always meant.
-PRACTISE = ("rule <practise> = implies( { +rehearsal(?s), +achieves(?a, ?y) },"
-            " { +goal(in(?s, ?y)) } )")
+PRACTISE = ("rule <practise> = implies( { +rehearsal($s), +achieves($a, $y) },"
+            " { +goal(in($s, $y)) } )")
 # The kill-probe for containment: the same proposer raising the same goal in the
 # WORLD instead. Everything else is identical, so what it measures is the anchor.
-BARE = ("rule <practise> = implies( { +world(?s), +achieves(?a, ?y) },"
-        " { +goal(in(?s, ?y)) } )")
+BARE = ("rule <practise> = implies( { +world($s), +achieves($a, $y) },"
+        " { +goal(in($s, $y)) } )")
 
 # A second achievable relation, so the proposer can be shown raising more than
 # one goal.
-SECOND = ["rule <use-match> = implies( { +goal(in(?s, lit(?r))), +in(?s, match(?m)) },"
-          "                           { +in(?s, doing(strike(?m))) } )",
-          "rule <light> = implies( { +in(?s, did(strike(?m))) }, { -in(?s, dark(room)) } )",
+SECOND = ["rule <use-match> = implies( { +goal(in($s, lit($r))), +in($s, match($m)) },"
+          "                           { +in($s, doing(strike($m))) } )",
+          "rule <light> = implies( { +in($s, did(strike($m))) }, { -in($s, dark(room)) } )",
           "fact +achieves(strike(match), lit(room))"]
 SECOND_SCENE = ["fact +in({s}, match(match))", "fact +in({s}, dark(room))",
                 "fact +goal(in({s}, dark(room)))"]
@@ -246,7 +246,7 @@ def main() -> int:
     gate("⭐⭐⭐ a rehearsal costs the agent NOTHING -- it takes a route, breaks "
          "what the route breaks, and nothing leaves", not m.emitted and bool(lost))
     gate("⭐ ...and the containment is an ordinary PREMISE, not a mechanism: "
-         "`<act>` wants `+world(?s)` and a rehearsal is not one",
+         "`<act>` wants `+world($s)` and a rehearsal is not one",
          any(r.name == "act" for r in m.rules.rules))
     gate("...and the kill-probe shows the anchor is what does it: raise the same "
          "goal in the world and the jug really breaks",
@@ -323,7 +323,7 @@ def main() -> int:
     # ⚠⚠⚠ The old fixture's last check was that `<practise>` matched INSIDE a
     # practice frame, so rehearsals nested -- *the crossing runaway in a new
     # place*, reported as a finding. Anchors do not run away: `<practise>` needs
-    # `+rehearsal(?s)`, and a scene is a node somebody had to write down. That is
+    # `+rehearsal($s)`, and a scene is a node somebody had to write down. That is
     # the runaway closed by construction rather than bounded by a knob, which is
     # what `hypotheses(n)` and `depth(n)` were for and why both could go.
     scenes_declared = {two.g.show(two.g.member(n, 0))

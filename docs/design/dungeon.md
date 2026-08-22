@@ -47,7 +47,7 @@ findings rather than defects of the demo:
      the fight. The corpus's first answer was to put the ROUND in every request,
      which worked and cost a round counter threaded through 65 member positions.
 
-     `docs/dungeon-reply.md` proposed that `at ?m` would collapse that, since a
+     `docs/dungeon-reply.md` proposed that `at $m` would collapse that, since a
      round integer is a moment ordinal re-implemented in the corpus.
      ⚠⚠⚠ **Probed, and it does not**: the read INHERITS, so depositing the same
      request at a later moment changes nothing the chain answers and quiescence
@@ -60,7 +60,7 @@ findings rather than defects of the demo:
      asks, no round argument and no locus.
 
      So the round was never carrying the occasion -- the DENIAL was missing --
-     and what is left of `?r` is a label the player utters, because an agent
+     and what is left of `$r` is a label the player utters, because an agent
      cannot utter a moment.
 
 **Kill-probed seven ways, one mutation at a time against one seed-7 fight.** Each

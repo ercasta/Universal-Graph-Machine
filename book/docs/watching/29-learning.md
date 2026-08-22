@@ -72,7 +72,7 @@ adopt(<R>)
 
 **A door, not a question.** It belongs with entering a supposition and
 dispatching an intent, rather than with the answerers. What decides that a rule
-is worth having is a corpus concluding `adopt(?r)`; what happens then is not a
+is worth having is a corpus concluding `adopt($r)`; what happens then is not a
 judgement, and there's no verdict for a rule to reach.
 
 Two constraints, both found by building:
@@ -137,7 +137,7 @@ clean rather than silent:
 - a `fact` may not contain a variable at all, so a corpus cannot write a rule's
   patterns;
 - a statement's variables are scoped to it, so parts written on separate lines
-  could not share a `?x` even if it could;
+  could not share a `$x` even if it could;
 - a rule's consequent may carry only variables its antecedent binds — and a rule
   being *built* has no antecedent yet.
 
@@ -163,7 +163,7 @@ world where the model *is* wrong:
 ```
 fact +heating(k1)     fact +contains(k1, water)
 fact +heating(k2)     fact +contains(k2, sand)
-rule <boils> = causes( { +heating(?k) }, { +boiling(?k) } )
+rule <boils> = causes( { +heating($k) }, { +boiling($k) } )
 say world: -boiling(k2)
 ```
 
@@ -303,7 +303,7 @@ What broke:
 
 And one thing worked that shouldn't have been obvious: **a standing policy about
 a rule that did not exist when the policy was written**. `<trust-what-i-was-told>`
-concludes `dormant(?r)` about whatever the agent adopts, and it was written long
+concludes `dormant($r)` about whatever the agent adopts, and it was written long
 before there was anything to adopt. That's what `reference is binding` and
 *claims about rules are read from the graph* buy together.
 
@@ -367,7 +367,7 @@ outlives the episode, which is what settled the *form* a lesson takes: it
 attends a **thing**, under a condition, hung off the rule that just ran —
 
 ```
-learned after <move> { +covered(?d) } => attend(?d, 3)
+learned after <move> { +covered($d) } => attend($d, 3)
 ```
 
 — rather than nudging a rule's score. A lesson written against a rule id goes
@@ -414,7 +414,7 @@ cost. It paid in a broken vase.
 The proposal is **one rule and no machinery**:
 
 ```
-rule <practise> = implies( { +achieves(?a, ?y) }, { +suppose(goal(?y), certain) } )
+rule <practise> = implies( { +achieves($a, $y) }, { +suppose(goal($y), certain) } )
 ```
 
 A corpus already says what its acts bring about. Read that fact the other way

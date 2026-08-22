@@ -29,8 +29,8 @@ from ..core.machine import Machine
 from ..core.text import load
 
 # The world: what follows from an act. It never mentions a want.
-WORLD = """rule <eff>  = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )
-rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )
+WORLD = """rule <eff>  = implies( { +did($a), +achieves($a, $y) }, { +$y } )
+rule <cost> = implies( { +did(smash($j)) }, { -intact($j) } )
 fact +tap(sink)
 fact +under(kettle, sink)
 fact +jug(jug1)
@@ -41,16 +41,16 @@ fact +achieves(smash(jug1), water(kettle))
 WORKS = "fact +achieves(fill(kettle), water(kettle))\n"
 
 # The agent: what to do about an open gap. It never mentions `did` or `achieves`.
-GAP_KEYED = """rule <use-jug> = implies( { +missing(gap, water(?w)), +jug(?j), +holds(?j, ?w) },
-                        { +doing(smash(?j)) } )
-rule <use-tap> = implies( { +missing(gap, water(?w)), +tap(?t), +under(?w, ?t) },
-                        { +doing(fill(?w)) } )
+GAP_KEYED = """rule <use-jug> = implies( { +missing(gap, water($w)), +jug($j), +holds($j, $w) },
+                        { +doing(smash($j)) } )
+rule <use-tap> = implies( { +missing(gap, water($w)), +tap($t), +under($w, $t) },
+                        { +doing(fill($w)) } )
 """
 # ...and the control: the same agent, wanting by `goal` instead of by gap.
-GOAL_KEYED = """rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },
-                        { +doing(smash(?j)) } )
-rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },
-                        { +doing(fill(?w)) } )
+GOAL_KEYED = """rule <use-jug> = implies( { +goal(water($w)), +jug($j), +holds($j, $w) },
+                        { +doing(smash($j)) } )
+rule <use-tap> = implies( { +goal(water($w)), +tap($t), +under($w, $t) },
+                        { +doing(fill($w)) } )
 fact +goal(water(kettle))
 """
 
@@ -167,8 +167,8 @@ def main() -> int:
     # -- 5. and the failing route is not retried -----------------------------
     only = WORLD.replace("fact +achieves(smash(jug1), water(kettle))\n", "")
     lone, kb_l, trace_l = alternate(only + """rule <use-tap> = implies(
-        { +missing(gap, water(?w)), +tap(?t), +under(?w, ?t) },
-        { +doing(fill(?w)) } )
+        { +missing(gap, water($w)), +tap($t), +under($w, $t) },
+        { +doing(fill($w)) } )
 """)
     gate("with one route and no delivery the agent tries it ONCE and stops: "
          "refraction already says *not again on these grounds*, so nothing has "

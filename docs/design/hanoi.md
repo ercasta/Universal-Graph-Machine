@@ -50,7 +50,7 @@ the second. `+call` mints one node per application, which is exactly right.
 
 ⭐⭐⭐ **The plumbing is three bundled rules and mentions no domain at all**:
 `<call-spawn>`, `<call-advance>`, `<call-return>`. What makes them shareable is
-that a call carries its parameters as ONE node -- `call(?c, tower(?d,?f,?t,?s))`
+that a call carries its parameters as ONE node -- `call($c, tower($d,$f,$t,$s))`
 rather than five arguments -- so the arity is the domain's business and the
 stack never sees it. The stage ORDER is data a corpus deposits
 (`advances(unstacking, placing)`, `closes(waiting)`), because the order of the
@@ -86,8 +86,8 @@ Watching the authored solve on 3 and 4 disks and anti-unifying each rule's own
 firings recovers **10 of the 12 rules exactly**, modulo what a person called a
 variable -- including the two that matter:
 
-    <descend>  parent tower(?d,?f,?t,?s)  spawns  tower(?e,?f,?s,?t)
-    <ascend>   parent tower(?d,?f,?t,?s)  spawns  tower(?e,?s,?t,?f)
+    <descend>  parent tower($d,$f,$t,$s)  spawns  tower($e,$f,$s,$t)
+    <ascend>   parent tower($d,$f,$t,$s)  spawns  tower($e,$s,$t,$f)
 
 That permutation IS Hanoi. Nothing here searches: `generalise` is the dual of
 `unify` and it reads the mapping straight off two examples.
@@ -102,7 +102,7 @@ Taught on 3 and 4, nothing is declined. The repo already had this as *experience
 means more than one fight*; here it is a pass/fail rather than a degradation.
 
 ⚠ **The two rules it does NOT recover are the sharp finding.** `<base>` and
-`<leaf>` keep `d1` where a person wrote `?d`, and no number of SIZES fixes it:
+`<leaf>` keep `d1` where a person wrote `$d`, and no number of SIZES fixes it:
 the smallest disk is called `d1` at every size, so varying `n` never varies that
 argument. Varying the size does not vary everything, and what a demonstration
 holds constant is what a learner will believe is necessary. They still solve --
@@ -131,8 +131,8 @@ have, it answered 0 times in 148 dungeon moves.
 -- learning the recursion from watching it -------------------------------
 
 ⭐⭐⭐ **What is learned is the PERMUTATION**, and it is the whole insight of
-Hanoi: a parent call `tower(?d, ?f, ?t, ?s)` spawns `tower(?e, ?f, ?s, ?t)` on
-the way down and `tower(?e, ?s, ?t, ?f)` on the way back. Anti-unification --
+Hanoi: a parent call `tower($d, $f, $t, $s)` spawns `tower($e, $f, $s, $t)` on
+the way down and `tower($e, $s, $t, $f)` on the way back. Anti-unification --
 `generalise`, the dual of `unify`, which this repository already had -- reads
 both straight off two demonstrations.
 
@@ -142,9 +142,9 @@ the repo's own rule for what may cross (`ugm/table.py`) arriving on the
 learning side.
 
 ⚠⚠⚠ **A minted node has no name, and the whole call stack is minted**, so
-every example about `stage(?c, ...)` was unsayable -- which is every example
+every example about `stage($c, ...)` was unsayable -- which is every example
 about the recursion. `_sayable` gives one a placeholder, and the placeholder
-has to be UNIQUE PER EXAMPLE: the same within an example so `?c` co-refers,
+has to be UNIQUE PER EXAMPLE: the same within an example so `$c` co-refers,
 and different across them, or two unrelated calls anti-unify to a constant and
 the rule is about one call for ever.
 

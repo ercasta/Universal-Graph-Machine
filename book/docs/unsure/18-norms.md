@@ -6,11 +6,11 @@ claims are superseded, a rule can be put to sleep by another rule.
 There is one thing that is not arranged that way, and the reason is precise.
 
 ```
-rule <no-harm> = implies( { +producing(?r, doing(harm(?x))) },
-                         { +drop(doing(harm(?x))) } )
+rule <no-harm> = implies( { +producing($r, doing(harm($x))) },
+                         { +drop(doing(harm($x))) } )
 fact intercepts(<no-harm>, after)
 
-rule <angry> = implies( { +threatens(?x, me) }, { +doing(harm(?x)) } )
+rule <angry> = implies( { +threatens($x, me) }, { +doing(harm($x)) } )
 
 fact +threatens(bo, me)
 ```
@@ -135,7 +135,7 @@ control** — the corpus above is essentially it — and the check asserts that 
 refusal happens, not merely that nothing bad did.
 
 !!! note "Deep dive: what a norm used to be"
-    A norm used to be a different kind of thing: `forbidden(doing(harm(?x)))`,
+    A norm used to be a different kind of thing: `forbidden(doing(harm($x)))`,
     a stored pattern consulted by the machinery at every write and indexed by
     the relation about to be written. It was fast, and it was off the recall
     path, which was the property that mattered.

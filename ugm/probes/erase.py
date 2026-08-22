@@ -52,12 +52,12 @@ def main() -> int:
     # 2. A rule needing two premises, with one of them deleted underneath it.
     m = Machine()
     kb = load(m, "\n".join([
-        "rule <both> = implies( { +p(?x), +q(?x) }, { +r(?x) } )",
+        "rule <both> = implies( { +p($x), +q($x) }, { +r($x) } )",
         "fact +p(one)", "fact +q(one)", ""]))
     before = m.run(limit=60) and m.holds(kb.term("r(one)"))
     m2 = Machine()
     kb2 = load(m2, "\n".join([
-        "rule <both> = implies( { +p(?x), +q(?x) }, { +r(?x) } )",
+        "rule <both> = implies( { +p($x), +q($x) }, { +r($x) } )",
         "fact +p(one)", "fact +q(one)", ""]))
     # erase one premise's PROPOSITION out from under the entry that claims it.
     # ⚠ The id is taken BEFORE the delete: `kb2.term(...)` re-mints, so asking
@@ -90,8 +90,8 @@ def main() -> int:
     #    mention it, so everything said about it is still matched.
     m4 = Machine()
     kb4 = load(m4, "\n".join([
-        "rule <see> = implies( { +is(?d, want), +about(?d, ?x) }, "
-        "{ +chasing(?x) } )",
+        "rule <see> = implies( { +is($d, want), +about($d, $x) }, "
+        "{ +chasing($x) } )",
         "fact +is(d1, want)",
         "fact +about(d1, restaurant)", ""]))
     d1 = kb4.term("d1")          # the id BEFORE the delete, per check 1

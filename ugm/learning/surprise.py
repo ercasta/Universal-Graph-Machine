@@ -19,8 +19,8 @@ fact +contains(k1, water)
 fact +heating(k2)
 fact +contains(k2, sand)
 
-rule <boils> = causes( { +heating(?k) }, { +boiling(?k) } )
-rule <trust> = implies( { +says(world, ?p, minus) }, { -?p } )
+rule <boils> = causes( { +heating($k) }, { +boiling($k) } )
+rule <trust> = implies( { +says(world, $p, minus) }, { -$p } )
 """
 
 TOLD = "say world: -boiling(k2)\n"
@@ -30,8 +30,8 @@ LONELY = """
 fact +heating(k2)
 fact +contains(k2, sand)
 
-rule <boils> = causes( { +heating(?k) }, { +boiling(?k) } )
-rule <trust> = implies( { +says(world, ?p, minus) }, { -?p } )
+rule <boils> = causes( { +heating($k) }, { +boiling($k) } )
+rule <trust> = implies( { +says(world, $p, minus) }, { -$p } )
 say world: -boiling(k2)
 """
 
@@ -43,8 +43,8 @@ fact +contains(k1, sand)
 fact +heating(k2)
 fact +contains(k2, sand)
 
-rule <boils> = causes( { +heating(?k) }, { +boiling(?k) } )
-rule <trust> = implies( { +says(world, ?p, minus) }, { -?p } )
+rule <boils> = causes( { +heating($k) }, { +boiling($k) } )
+rule <trust> = implies( { +says(world, $p, minus) }, { -$p } )
 say world: -boiling(k2)
 """
 

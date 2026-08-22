@@ -48,7 +48,7 @@ frame, no register and no engine change: its whole state is a fact.
     at(<walker>, <node>)        where it stands
     child(<walker>, <node>)     a walker it spawned, minted from bound variables
 
-Both are ordinary. `child(?w, ?y)` is a compound term over BOUND variables, so
+Both are ordinary. `child($w, $y)` is a compound term over BOUND variables, so
 the gate accepts it -- what a rule may not do is conclude about a variable
 nothing binds, and this binds both. That is the whole of spawning.
 
@@ -57,8 +57,8 @@ nothing binds, and this binds both. That is the whole of spawning.
 The obvious design has a walker step from node to node, denying its old
 position. It loses branches, silently:
 
-    <step> = causes( { +at(?w,?x), +door(?x,?y) }, { -at(?w,?x), +at(?w,?y) } )
-    <fork> = causes( { +at(?w,?x), +door(?x,?y) }, { +at(child(?w,?y), ?y) } )
+    <step> = causes( { +at($w,$x), +door($x,$y) }, { -at($w,$x), +at($w,$y) } )
+    <fork> = causes( { +at($w,$x), +door($x,$y) }, { +at(child($w,$y), $y) } )
 
 Both want `at(w, r2)`. Whichever applies first denies it, and the other is not
 refused -- it is DEFERRED until its premise no longer exists. Arbitration
@@ -114,7 +114,7 @@ from bound variables, and nothing records it.
 
 ## What goes in the identity term is the deduplication policy
 
-Two routes into one room. `child(?w, ?y)` names a walker by the PATH it took, so
+Two routes into one room. `child($w, $y)` names a walker by the PATH it took, so
 two arrivals at the same node are two walkers -- and each explores the subtree
 below it again. Chained diamonds, measured:
 
@@ -126,7 +126,7 @@ below it again. Chained diamonds, measured:
 the run simply does exponentially more of the same work: the third case for
 running out of everything before anything says so.
 
-`walker(?y)` fixes it in one word, and the fix is INTERNING rather than a guard:
+`walker($y)` fixes it in one word, and the fix is INTERNING rather than a guard:
 `g.rel` returns the same node for the same relation and members, so two arrivals
 at `r4` mint one walker and the second is not a new fact at all. No visited set,
 no negation -- which matters, because the negation a visited set wants is over
@@ -157,25 +157,25 @@ Scoping by PREMISE can, and costs nothing:
     fact +knows(scout, moving)         fact +extends(raider, scout)
     fact +knows(looter, grabbing)      fact +extends(raider, looter)
 
-    rule <extend> = implies( { +extends(?e,?f), +knows(?f,?c) }, { +knows(?e,?c) } )
-    rule <equip>  = implies( { +runs(?w,?e),    +knows(?e,?c) }, { +can(?w,?c)   } )
+    rule <extend> = implies( { +extends($e,$f), +knows($f,$c) }, { +knows($e,$c) } )
+    rule <equip>  = implies( { +runs($w,$e),    +knows($e,$c) }, { +can($w,$c)   } )
 
-    rule <grab>   = implies( { +at(?w,?x), +can(?w, grabbing), +treasure(?x) },
-                             { +found(?w,?x) } )
+    rule <grab>   = implies( { +at($w,$x), +can($w, grabbing), +treasure($x) },
+                             { +found($w,$x) } )
 
 Multiple inheritance falls out: two `extends` facts both match, so `raider` has
 `moving` from one parent and `grabbing` from the other, through one rule and no
 resolution order. And a SPAWNING rule chooses the child's expert, which is what
-*spawn an expert at a node* means here -- pass `?e` down and the child inherits
+*spawn an expert at a node* means here -- pass `$e` down and the child inherits
 the role, name another and it does not. Measured: with children spawned as
 `scout`, the treasure is never taken, because a scout cannot loot.
 
 ## Termination is a DENIAL, and it is not retroactive
 
-Every walker-relative rule needs `at(?w, ?x)`, so denying that one fact removes
+Every walker-relative rule needs `at($w, $x)`, so denying that one fact removes
 the walker from all of them at once:
 
-    rule <done> = implies( { +found(?w,?x) }, { -at(?w,?x) } )
+    rule <done> = implies( { +found($w,$x) }, { -at($w,$x) } )
 
 No scheduler, no registry, no removal step -- there is nothing holding the walker
 except the fact that it is somewhere.
@@ -219,7 +219,7 @@ design.
 **Cycles are unbounded.** `child(child(child(...)))` grows without limit on a
 maze with a loop, and the guard a corpus would reach for -- *do not go where you
 have been* -- is a negation over entries, where `-` means DENIED rather than
-absent. The first version of this file was written with `-seen(?w, ?y)` and
+absent. The first version of this file was written with `-seen($w, $y)` and
 matched nothing at all. The honest fix is the stratum-0 bridge `ugm.interpret`
 uses, and it is deliberately not done here: this file is about position, and
 that is about negation.

@@ -15,7 +15,7 @@ to.
 
 The proposal is one rule and no machinery:
 
-    rule <practise> = implies( { +achieves(?a, ?y) }, { +suppose(goal(?y), certain) } )
+    rule <practise> = implies( { +achieves($a, $y) }, { +suppose(goal($y), certain) } )
 
 A corpus already says what its acts bring about, because `<outcome>` needs
 `achieves` to substitute an action with its effect. Read that fact the other way

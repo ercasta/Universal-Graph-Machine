@@ -1,5 +1,5 @@
  I have two changes to propose, let's decide whether to do this now or later. One is syntactical: instead of rule <something>:, could we use rule(something,implies(...)) and rule(something,causes(...))? Same
-  for actions: action(move(?x,?y)) where in this case ?x and ?y mean they will be bound at runtime. This would make everything be "facts". The second change is more significative. Right now we have some
+  for actions: action(move($x,$y)) where in this case $x and $y mean they will be bound at runtime. This would make everything be "facts". The second change is more significative. Right now we have some
   things automatically done by the engine like saving short term memory. What if we have multiple experts active in parallel, where "parallel" actually means there is an "outer loop" that make them act in a
   specific order; in particular we could have an "expert" dedicated to memorizing things, or do "accessory" work, with a separate "attention" table 
 
@@ -38,7 +38,7 @@ and the buffs on exactly that argument.
     ugm/modality.py     one probe, and its own header says the question it was
                         built to answer has already been ANSWERED and acted on
     ugm/selftest.py     ~16 fixtures
-    worked.ugm          one rule concluding `suppose(?p, likely)`
+    worked.ugm          one rule concluding `suppose($p, likely)`
     bundle.ugm          the re-entry rules (`resume`)
 
 No production module builds on suppositions.
@@ -146,14 +146,14 @@ engine support, which is the point.
 
 ### 1. Anchors as ordinary nodes — WORKS, but costs every rule
 
-Rules written relative to an anchor by binding: `{ +in(?w, reading(?p, low)) }
-=> { +in(?w, symptom(?p, restricted)) }`.
+Rules written relative to an anchor by binding: `{ +in($w, reading($p, low)) }
+=> { +in($w, symptom($p, restricted)) }`.
 
     in(h1, action(replace, pump7))       +       the hypothesis concludes
     in(actual, action(replace, pump7))   None    <- containment, BY BINDING
     action(replace, pump7)               None    the bare form never appears
 
-⭐ The containment CHECK is an ordinary premise. A rule gated on `+world(?w)`
+⭐ The containment CHECK is an ordinary premise. A rule gated on `+world($w)`
 acts in reality and declines in a hypothesis -- *what would happen if we set fire
 to the house*, answered without burning it down, with no machinery.
 
@@ -163,10 +163,10 @@ to the house*, answered without burning it down, with no machinery.
 generic reified `<lift>` rule handles a ground pipeline (`likely(r(x))` -> `+`)
 and NOT a variable-carrying one (`likely(action(replace, pump7))` -> `None`).
 That kills a lifting-based replacement; it says nothing against binding, because
-`?w` is bound by ordinary matching.
+`$w` is bound by ordinary matching.
 
 ⚠ **The cost is on EVERY rule**: every premise and conclusion wrapped in
-`in(?w, ...)`, on 51 of the 72 authored rules. This is what the swap shape
+`in($w, ...)`, on 51 of the 72 authored rules. This is what the swap shape
 below avoids, and why the swap shape supersedes it.
 
 ### 2. The bundle needs NO anchor — 21 of 72 rules unchanged
@@ -185,10 +185,10 @@ and take an anchored proposition as an ARGUMENT without needing anchoring.
     flat `within(h2, h1)` + one generic <inherit> rule    WORKS
     nested term `in(h1, in(h2, p))`                       produces nothing
 
-⭐ Nesting is ONE rule: `{ +within(?c,?p), +in(?p,?f) } => { +in(?c,?f) }`, and
-`?f` binding a whole proposition is handled by the matcher.
+⭐ Nesting is ONE rule: `{ +within($c,$p), +in($p,$f) } => { +in($c,$f) }`, and
+`$f` binding a whole proposition is handled by the matcher.
 
-⭐⭐⭐ **And use did not leak into mention.** `<inherit>`'s unconstrained `?f`
+⭐⭐⭐ **And use did not leak into mention.** `<inherit>`'s unconstrained `$f`
 picked up exactly the four asserted facts and none of the rules' own MENTIONED
 antecedent patterns. Anchored rules reify identically to plain ones.
 
@@ -248,7 +248,7 @@ history; it must not live in current belief as a denial.
 
 **3. No special `@` markers -- if everything is in the graph, reads are ordinary
 graph readings.** The locus/`at`/`holds_at` apparatus stops being a second way
-of asking. Check what this costs before cutting: §12's `at ?m`, `hindsight`, and
+of asking. Check what this costs before cutting: §12's `at $m`, `hindsight`, and
 `chain`'s two-times (locus vs deposit) are the things it touches.
 
 ### What is GAINED, so it is not only a loss
@@ -411,13 +411,13 @@ built**, and this is the brief for it.
 
 `bundle.ugm`'s call stack (§18) is three rules and no engine:
 
-    <call-spawn>   { +spawn(?c, ?args, ?stage) }
-                => { +call(+k, ?args), +stage(+k, ?stage),
-                     +awaits(?c, +k), -spawn(?c, ?args, ?stage) }
-    <call-advance> { +stage(?c,?p), +awaits(?c,?k), +returned(?k), +advances(?p,?q) }
-                => { -stage(?c, ?p), +stage(?c, ?q), -awaits(?c, ?k) }
-    <call-return>  { +stage(?c,?p), +awaits(?c,?k), +returned(?k), +closes(?p) }
-                => { -stage(?c, ?p), +returned(?c) }
+    <call-spawn>   { +spawn($c, $args, $stage) }
+                => { +call(+k, $args), +stage(+k, $stage),
+                     +awaits($c, +k), -spawn($c, $args, $stage) }
+    <call-advance> { +stage($c,$p), +awaits($c,$k), +returned($k), +advances($p,$q) }
+                => { -stage($c, $p), +stage($c, $q), -awaits($c, $k) }
+    <call-return>  { +stage($c,$p), +awaits($c,$k), +returned($k), +closes($p) }
+                => { -stage($c, $p), +returned($c) }
 
 ⭐⭐⭐ **This is already explicit node manipulation.** `+k` mints a fresh call
 node per application; `+stage`/`-stage` step it; `advances`/`closes` are facts a
@@ -448,7 +448,7 @@ which is worse.
 **And the sign was never the reason.** `None` means *no entry about this
 proposition*. The chain is append-only, so once something has been spoken about,
 nothing that can be ADDED makes the chain say nothing about it. `-p`,
-`+not(p)`, a `withdraw(?e)` claim -- every one of them is another claim.
+`+not(p)`, a `withdraw($e)` claim -- every one of them is another claim.
 Return-to-`None` is unreachable by construction, for any design.
 
 ⭐⭐⭐ **So the requirement dissolves rather than being met: the un-claim is only
@@ -465,8 +465,8 @@ and the practised agent runs clean with no retraction primitive anywhere.
 ## What the procedure story therefore needs: nothing new
 
 A supposition-procedure stages over an ANCHOR: spawn a call, assert into scene
-`?s`, run, record the conclusions OUT of the scene, close. The only retraction
-is `-stage(?c, ?p)`, which the call stack already does and which is about the
+`$s`, run, record the conclusions OUT of the scene, close. The only retraction
+is `-stage($c, $p)`, which the call stack already does and which is about the
 procedure's own bookkeeping rather than about the world.
 
 ⚠ Whichever it is, it must be checkable: the queue entry above already says
@@ -516,7 +516,7 @@ the graph and the second has a denial in it.
                                   readable by rules.
 
 ⚠ **Presence cannot mean belief on its own**, and this is the trap to design
-against: `boiling(?w)` is in the graph as a rule's stored pattern and is not
+against: `boiling($w)` is in the graph as a rule's stored pattern and is not
 believed. That is §14's use/mention distinction, and it is why the ENTRY node --
 not the proposition node -- has to be the thing that is present or absent.
 Deleting the entry retracts the belief; the proposition stays as structure, as
@@ -564,10 +564,10 @@ The author's, immediately after, and it settles both open questions above:
 ### This dissolves the use/mention trap rather than guarding against it
 
 The warning written above -- *presence cannot mean belief on its own, because
-`boiling(?w)` is in the graph as a rule's stored pattern* -- assumed a bare
+`boiling($w)` is in the graph as a rule's stored pattern* -- assumed a bare
 proposition was the thing to look for. Anchor it and the problem is gone:
 
-    boiling(?w)              structure. A rule's stored pattern. Never believed.
+    boiling($w)              structure. A rule's stored pattern. Never believed.
     believed(boiling(k))     a node. Present = believed. Absent = not.
 
 ⭐⭐⭐ **The entry becomes an ordinary anchored proposition.** `entry(p, +)` was
@@ -618,7 +618,7 @@ The author's, 2026-08-20: *dropped. Anything unstated is unsure / unknown.*
     +p    believed(p)          a node. Present = believed.
     -p    believed(not(p))     a DIFFERENT node. §9 already had denial as a
                                term; the sign was the redundant one all along.
-    ?p    nothing.             Absence IS unknown.
+    $p    nothing.             Absence IS unknown.
 
 ⭐⭐⭐ **This dissolves the reason `?` was introduced rather than overriding it.**
 `Chain.holds` states it: *`?` is not None: it stops the walk and reports
@@ -634,7 +634,7 @@ kept. So absence becomes readable, and `?` stops being the only way to say it.
 
 ⚠ What to check when it is built, because this is where a dropped distinction
 usually comes back: the three-valued reads. `unsure` is reserved vocabulary, a
-`?` member is parseable (`? ?p` appears in `bundle.ugm`'s `<deviation---
+`?` member is parseable (`? $p` appears in `bundle.ugm`'s `<deviation---
 invalidated>`), and §6's *a rule that reads ignorance* is a real pattern. Each
 becomes *no `believed(...)` node matches*, which is negation-as-failure -- so
 the honest question is whether the three deviation rules still say what they say
@@ -650,18 +650,18 @@ a follow-up*. This is the follow-up, and it is **one conversion, not six**:
 every one of them bound a moment from an ordinary member, and every one of them
 is writable over the structural relations instead.
 
-    at ?m                 the locus of the entry that satisfied the member
-    in_delta(?m, ?e),     the same claim, over the raw chain -- and `anc`/`sanc`
-    entry_of(?e, p, +)    order the moments
+    at $m                 the locus of the entry that satisfied the member
+    in_delta($m, $e),     the same claim, over the raw chain -- and `anc`/`sanc`
+    entry_of($e, p, +)    order the moments
 
 ⭐ **PROVED REACHABLE before anything was deleted**, not assumed:
 
-    rule <after> = implies( { asking(?s), anc(?s, ?mq), in_delta(?mq, ?eq),
-                              entry_of(?eq, acts(?q), plus),
-                              anc(?s, ?mp), in_delta(?mp, ?ep),
-                              entry_of(?ep, acts(?p), plus),
-                              sanc(?mq, ?mp) },
-                           { acted_after(?q, ?p) } )
+    rule <after> = implies( { asking($s), anc($s, $mq), in_delta($mq, $eq),
+                              entry_of($eq, acts($q), plus),
+                              anc($s, $mp), in_delta($mp, $ep),
+                              entry_of($ep, acts($p), plus),
+                              sanc($mq, $mp) },
+                           { acted_after($q, $p) } )
     → acted_after(goblin, hero)
 
 ⚠ **What that version is NOT the same as.** It is stratum 0 -- every antecedent
@@ -792,7 +792,7 @@ the one measurement still unclaimed. Everything between here and there is the
 argument as it stood before, kept because the numbers were taken against it.
 
 ⭐ **The author's call: this is the FIRST thing to implement**, ahead of
-`believed(p)` and the queued `at ?m` conversion -- and probably in a fresh
+`believed(p)` and the queued `at $m` conversion -- and probably in a fresh
 session, because nothing above it in this file is a prerequisite.
 
 ## The proposal, and it is one thing
@@ -801,7 +801,7 @@ session, because nothing above it in this file is a prerequisite.
 postcondition vocabulary gains two rows:
 
     push        start a fresh attention frame
-    pop(?x)     restore the previous frame, attending ?x on it
+    pop($x)     restore the previous frame, attending $x on it
 
 ⚠⚠⚠ **The graph is untouched by both.** This is not a transaction, there is no
 rollback, and nothing derived inside a frame stops existing when it is popped.
@@ -831,7 +831,7 @@ Three fixes have been tried and all three are **filters on a flat queue**:
 
     _attention_asked   claimed vs derived
     _bookkeeping       exclude the machinery's own relations
-    weight             a learned `attend(?x, 3)` outranks a weight-1 push
+    weight             a learned `attend($x, 3)` outranks a weight-1 push
 
 Each makes the queue's *contents* more selective. None of them can help, because
 at span 7 a long enough sub-line evicts anything, however well chosen. **A stack
@@ -959,7 +959,7 @@ defence, which is what makes a weighted SUM safe here where a raw one was not.
     adding an       ...re-scores every other one, and changes which expert is
     expert          picked for unrelated frames. **A FEATURE, not a bug** --
                     written down here so nobody debugs it as nondeterminism.
-    the data        FREE. An expert is already a set of rules (`knows(?e, ?r)`,
+    the data        FREE. An expert is already a set of rules (`knows($e, $r)`,
     it needs        read off the graph) and rule -> relation is already indexed
                     (`_by_relation`, attention.py:319). Expert -> terms needs no
                     new structure.
@@ -974,7 +974,7 @@ than shrug. That is `deposit-dont-decide.md` applied to a decision that genuinel
 cannot be delegated.
 
 ⚠ **One interaction to know about, not to relitigate.** IDF is fixed at startup;
-pools are *read, never kept*, and `knows(?e, ?r)` can be CONCLUDED mid-run --
+pools are *read, never kept*, and `knows($e, $r)` can be CONCLUDED mid-run --
 `<inherit>` derives more of them. So an expert's actual pool can grow after its
 scores were computed. Decided as stated; recorded so whoever implements it knows
 the two facts are in tension by design rather than by oversight.
@@ -991,7 +991,7 @@ the two facts are in tension by design rather than by oversight.
                     the goal is reached spends `pop`. ⚠ NOT the loop detecting
                     its own quiescence -- that would put the decision back in
                     the engine, and `stop` already settles which way this goes.
-    pop carries     `pop(?x)` attends ?x on the restored frame: the
+    pop carries     `pop($x)` attends $x on the restored frame: the
     one node back   attention-level analogue of a return value. Without it the
                     agent returns from a sub-line with no idea it concluded
                     anything, and has to rediscover it by ordinary matching.
@@ -1027,7 +1027,7 @@ the two facts are in tension by design rather than by oversight.
    accepts for a life-or-death step.
 8. **How `push` names its nodes.** The selection is computed FROM them, so the
    notation for saying which they are is the one part of `push` still unwritten.
-   `attend(?x)` is the precedent -- a host rule's own variable, bound by the
+   `attend($x)` is the precedent -- a host rule's own variable, bound by the
    move that spent it.
 
 ## What to measure FIRST, before building
@@ -1073,7 +1073,7 @@ Nobody had this number before. The queue's forgetting was argued from two
 back-outs and a constant; it is four figures per dungeon run.
 
 ⚠ **And the loss is a DEMOTION, not an erasure** -- which nearly made the probe
-pass on a technicality. `attend(?g)` deposits a standing `attention(g)` claim
+pass on a technicality. `attend($g)` deposits a standing `attention(g)` claim
 and `_attended()` puts a standing claim at the BOTTOM rather than dropping it,
 so *was it forgotten* is the wrong question. What the queue loses is the node's
 PLACE, and position is the strength: `_pull` weighs depth 0 at 6 and the bottom
@@ -1148,14 +1148,14 @@ table.
 `probes/experts.py` ships a second corpus, `PORTED`, in which **nothing names a
 callee**:
 
-    rule <ask-area>  = implies( { +survey(?r) }, { +question(area(?r)) } )
-    after <ask-area> => push(area(?r))
+    rule <ask-area>  = implies( { +survey($r) }, { +question(area($r)) } )
+    after <ask-area> => push(area($r))
 
 ...and one inherited rule returns, because *what pops is a rule saying so*:
 
     expert responder
-    rule <replied> = implies( { +question(?q), +reply(?q, ?a) }, { +answered(?q) } )
-    after <replied> => pop(?a)
+    rule <replied> = implies( { +question($q), +reply($q, $a) }, { +answered($q) } )
+    after <replied> => pop($a)
 
 Two hops, one `run()`, no outer loop, no Python stack, no `consult`, no
 `answered` lift:
@@ -1184,10 +1184,10 @@ is a comparison, and a file with only the new way has nothing to compare against
 ### Two more found in the engine while porting
 
     `Table._target` answered for a bare variable and handed a COMPOUND back
-    unchanged -- so `push(area(?r))` came back generic and was dropped as
+    unchanged -- so `push(area($r))` came back generic and was dropped as
     *ground only*, one layer from the mistake. Spends now substitute the move's
     bindings the way a postcondition's query does, which also makes
-    `attend(p(?x))` mean something for the first time.
+    `attend(p($x))` mean something for the first time.
 
     `run()` set the root frame's table only `if served.table is None`, so a
     second run over a different pool RESUMED the first run's table -- the
@@ -1214,12 +1214,12 @@ put, and pays a few percent of matching for it.
     the cycle key   `(expert, frozenset(nodes))` over the whole stack. `A -> B
                     -> A` about something NEW is ordinary recursion and is
                     allowed; the same expert on the same nodes is refused, on
-                    the record, as `declined(pushed, ?n, already_open)`.
-    a depth bound   `FRAME_DEPTH = 8`, a knob (`frame_depth(?n)`) beside
+                    the record, as `declined(pushed, $n, already_open)`.
+    a depth bound   `FRAME_DEPTH = 8`, a knob (`frame_depth($n)`) beside
                     `attention_span`. Asserted directly in two places, never
                     read off the stack's own output.
     stop vs pop     `stop` still ends the run; a pop with nothing to return to
-                    is `declined(popped, ?n, at_root)`. *Does `stop` become pop
+                    is `declined(popped, $n, at_root)`. *Does `stop` become pop
                     the root* stays open and stays not required.
     what a frame    queue, expert, table, the nodes it was opened on, and the
     holds           `attention` claims it made. `_widened` was a candidate and
@@ -1258,15 +1258,15 @@ state.
 
 Containment spreading along structure, as one ordinary rule, works today:
 
-    rule <spread> = implies( { +in(?h, ?p), +?rel(?p) as ?t }, { +in(?h, ?t) } )
+    rule <spread> = implies( { +in($h, $p), +$rel($p) as $t }, { +in($h, $t) } )
 
     in(h1, secret(a)) + said(secret(a))   ->  in(h1, said(secret(a)))    yes
 
-A variable in the relation slot and `as ?t` (`Member.binds`) are both already
+A variable in the relation slot and `as $t` (`Member.binds`) are both already
 supported, so the mechanism needs no engine support at all. Two limits, running
 in opposite directions:
 
-    ⚠⚠ arity 1 only     `?rel(?p)` matches single-member instances. Measured:
+    ⚠⚠ arity 1 only     `$rel($p)` matches single-member instances. Measured:
                         `metal(kettle)` and `boiling(kettle)` reached;
                         `on(kettle, stove)` and `knows(bob, said(secret(a)))`
                         NOT. Containment stops at the first multi-ary relation,
@@ -1282,12 +1282,12 @@ _members_of` -- *not stored and not walked, but read off the node's own
 members*. A generic member relation is that same kind, one more row in that
 dict, and it collapses the arity problem to a single rule:
 
-    { +in(?h, ?p), +member_of(?t, ?p) }  =>  { +in(?h, ?t) }
+    { +in($h, $p), +member_of($t, $p) }  =>  { +in($h, $t) }
 
 ⚠⚠⚠ **And the collision to settle before an expert is written:**
-`learning/practice.py:60` already ships `<observe> = implies( { +world(?s),
-+did(?a) }, { +in(?s, did(?a)) } )` -- believed world facts are deliberately
-copied INTO a scene. So `in(?s, p)` already means *p is part of scene s*, and it
+`learning/practice.py:60` already ships `<observe> = implies( { +world($s),
++did($a) }, { +in($s, did($a)) } )` -- believed world facts are deliberately
+copied INTO a scene. So `in($s, p)` already means *p is part of scene s*, and it
 cannot also mean *not believed*. Under the anchored shape it does not need to:
 **not-believed is the default**, because minting structure believes nothing and
 nothing mints a `believed(...)` anchor by accident. The marking job shrinks from

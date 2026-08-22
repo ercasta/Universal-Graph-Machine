@@ -80,7 +80,7 @@ Move a frame to a later seat, and SAY SO. What it is for: the agent's
 
         ⭐⭐⭐ **`+moved(<from>, <to>)`, which is §17's *every seat move is a
         write* and was §21's oldest owed item.** Position is where, and it was
-        always recorded -- `at(?w, ?x)` is an ordinary fact, which is the whole
+        always recorded -- `at($w, $x)` is an ordinary fact, which is the whole
         reason walkers needed no engine support. The seat is WHEN, and it was
         not recorded at all: the register advanced on every `causes` application
         and the only trace was a frame node being re-minted, which no rule can

@@ -36,20 +36,20 @@ nobody had written down turned out to be load-bearing.
 
 **The answer is keyed on the ASK, not on the pattern.** §4 writes
 `counted(<pattern>, 2)`, and that is unreadable. A statement's variables are
-scoped to it (§8), so the `?x` in one rule's `goblin(?x)` is not the `?x` in
+scoped to it (§8), so the `$x` in one rule's `goblin($x)` is not the `$x` in
 another's: two rules writing the same description build two nodes, and a corpus
 had no way to name the thing it had just asked about. Keyed on the ask it does,
 by the route the surface already gives a description — name the statement:
 
 ```
-fact <goblins> = count(goblin(?x))
+fact <goblins> = count(goblin($x))
 rule <ambiguous> = implies( { +counted(<goblins>, 2) }, { +ambiguous(g) } )
 rule <definite>  = implies( { +counted(<elves>, 1) },   { +definite(e) } )
 rule <untold>    = implies( { +counted(<trolls>, 0) },  { +untold(t) } )
 ```
 
 ⚠ It caught us in our own checks before it could catch a corpus:
-`kb.term("count(goblin(?x))")` mints a fresh `?x` and asks about a different
+`kb.term("count(goblin($x))")` mints a fresh `$x` and asks about a different
 description, so the first four checks failed while the three corpus rules above
 passed. That is the right way round — the corpus-facing route worked and the
 back door did not.
@@ -99,9 +99,9 @@ has not learned a second way to enumerate.
 What a corpus gets, measured on one corpus with three descriptions in it:
 
 ```
-counted(count(goblin(?x)), 2)     +      two goblins        -> ambiguous
-counted(count(elf(?x)),    1)     +      exactly one elf    -> definite
-counted(count(troll(?x)),  0)     +      nothing was told   -> untold
+counted(count(goblin($x)), 2)     +      two goblins        -> ambiguous
+counted(count(elf($x)),    1)     +      exactly one elf    -> definite
+counted(count(troll($x)),  0)     +      nothing was told   -> untold
 ```
 
 ⚠ **Three numbers over one corpus, deliberately.** A count that always answered
@@ -187,12 +187,12 @@ defect in the first place:
 
 ```
 interpreted    186 scans     398 nodes walked
-    170 x     340 nodes   asking(?s)
-     16 x      58 nodes   met(?a)
+    170 x     340 nodes   asking($s)
+     16 x      58 nodes   met($a)
 native           0 scans       0 nodes walked
 ```
 
-Read the counts alone and `asking(?s)` is the problem and `met(?a)` is a
+Read the counts alone and `asking($s)` is the problem and `met($a)` is a
 footnote. `asking` has almost nothing in it, so those 170 fallbacks walk 340
 nodes between them, while the 16 walk a bucket that grows with the run. **A
 member that cannot be indexed over a relation with one instance costs nothing

@@ -18,9 +18,9 @@ What is written down is **that the channel said so**. Not that it's raining.
 Whether you believe it is a **rule's** business:
 
 ```
-rule <trust_user>  = implies( { +says(user, ?p, plus) },  { +likely(?p) } )
-rule <gauge-yes>   = implies( { +says(gauge, ?p, plus) }, { +?p } )
-rule <gauge-no>    = implies( { +says(gauge, ?p, minus) },{ -?p } )
+rule <trust_user>  = implies( { +says(user, $p, plus) },  { +likely($p) } )
+rule <gauge-yes>   = implies( { +says(gauge, $p, plus) }, { +$p } )
+rule <gauge-no>    = implies( { +says(gauge, $p, minus) },{ -$p } )
 ```
 
 ```
@@ -55,7 +55,7 @@ As a rule, it is:
 That last one is checkable and checked: the trail from a belief goes all the way
 back to `utterance(user, ...)`, not merely to "some external source".
 
-The bare-variable consequent `{ +?p }` is what makes *whatever the channel said,
+The bare-variable consequent `{ +$p }` is what makes *whatever the channel said,
 believe it* one rule rather than one rule per proposition. It's also, read
 backwards, completely vacuous (Chapter 11) — which is why the backward reader
 declines it.
@@ -101,7 +101,7 @@ an argument rather than a member, a rule can bind it with a variable and then
 **ignore it**:
 
 ```
-rule <careless> = implies( { +says(gauge, ?p, ?s) }, { +?p } )
+rule <careless> = implies( { +says(gauge, $p, $s) }, { +$p } )
 ```
 
 That believes `boiling(kettle)` when the gauge said it was *not* boiling. It

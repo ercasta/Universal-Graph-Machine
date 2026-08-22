@@ -18,13 +18,13 @@ from ..core.text import load
 
 def _corpus(taps: Tuple[str, ...]) -> str:
     return chr(10).join([
-        "rule <boil>  = implies( { +heat(?w), +water(?w) },  { +boiling(?w) } )",
-        "rule <heat>  = implies( { +on(?s), +over(?w, ?s) }, { +heat(?w) } )",
-        "rule <tea>   = implies( { +boiling(?w), +leaf(?l) }, { +tea(?w, ?l) } )",
+        "rule <boil>  = implies( { +heat($w), +water($w) },  { +boiling($w) } )",
+        "rule <heat>  = implies( { +on($s), +over($w, $s) }, { +heat($w) } )",
+        "rule <tea>   = implies( { +boiling($w), +leaf($l) }, { +tea($w, $l) } )",
         # Two subgoals sharing a variable, and a world where checking them
-        # independently gets it wrong: `tap(?t)` is satisfiable by either tap,
-        # and `under(kettle, ?t)` only by `drain`. §18's failure, made reachable.
-        "rule <fill>  = implies( { +tap(?t), +under(kettle, ?t) }, { +water(kettle) } )",
+        # independently gets it wrong: `tap($t)` is satisfiable by either tap,
+        # and `under(kettle, $t)` only by `drain`. §18's failure, made reachable.
+        "rule <fill>  = implies( { +tap($t), +under(kettle, $t) }, { +water(kettle) } )",
     ] + [f"fact +tap({t})" for t in taps] + [
         "fact +under(kettle, drain)",
         "fact +leaf(green)",
@@ -91,19 +91,19 @@ def run() -> int:
         print(f"    {x[:88]}")
     print()
 
-    # The plan itself, and the sibling-agreement case §18 warns about: `tap(?t)`
-    # must be satisfied by the tap that `under(kettle, ?t)` agrees with.
+    # The plan itself, and the sibling-agreement case §18 warns about: `tap($t)`
+    # must be satisfied by the tap that `under(kettle, $t)` agrees with.
     wanted = [
         ("the goal is expanded by a rule that fits it", "expands(plan(", "tea(kettle, green)"),
         ("its antecedent becomes subgoals, instantiated", "goal(boiling(kettle))", ""),
-        ("recursion reaches the second rule", "goal(over(kettle, ?s))", ""),
+        ("recursion reaches the second rule", "goal(over(kettle, $s))", ""),
         ("satisfaction is checked inside the plan's bindings", "binds(plan(", "water(kettle)"),
-        # §18's silent failure, made reachable: tap(?t) is satisfiable by sink,
-        # under(kettle, ?t) only by drain.
+        # §18's silent failure, made reachable: tap($t) is satisfiable by sink,
+        # under(kettle, $t) only by drain.
         # → docs/design/backward.md#18-s-silent-failure-made-reachable-tap-t
         ("and siblings must agree, so the second is blocked -- naming the tap "
          "the plan chose", "blocked(under(kettle, sink))", ""),
-        ("nothing fits it, and the verdict says so after the loop stopped", "blocked(on(?s))", ""),
+        ("nothing fits it, and the verdict says so after the loop stopped", "blocked(on($s))", ""),
     ]
     failures = 0
     checked = 0
@@ -117,7 +117,7 @@ def run() -> int:
     # -- it is the measurement of what the sibling check does and does not buy.
     other, _, _ = _read(corpus=AGREES)
     agreed_ok = (
-        "achieved(under(kettle, ?t))" in other and "blocked(under(kettle, ?t))" not in other
+        "achieved(under(kettle, $t))" in other and "blocked(under(kettle, $t))" not in other
     )
     print(f"  {'ok  ' if agreed_ok else 'FAIL'}  "
           f"...and with the taps authored the other way round, the SAME world plans")

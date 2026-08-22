@@ -25,7 +25,7 @@ Three different things carry the name.
 
     want(...)   an ordinary corpus relation with no engine support. The dungeon and
                 `probes/attention` use it precisely BECAUSE `goal` is reserved: a
-                completion rule written over `goal(?w)` is applied to the backward
+                completion rule written over `goal($w)` is applied to the backward
                 reader's own subgoals and reports the thing finished before it is built.
 
     the gap     `delta(<have>, <want>, <gap>)`, a tool, answering `missing(<gap>, p)` and
@@ -58,9 +58,9 @@ The idea was a standing want-span compared against the world at each settling. T
 must be a description, because you do not know in advance what will arrive.
 
     standard              held                     result
-    want(served(?r))      request(r7)              extra(gap, request(r7))
-    want(served(?r))      nothing                  matched(gap)
-    want(served(?r))      request(r7), served(r7)  extra x2
+    want(served($r))      request(r7)              extra(gap, request(r7))
+    want(served($r))      nothing                  matched(gap)
+    want(served($r))      request(r7), served(r7)  extra x2
     want(served(r7))      request(r7)              missing(gap, served(r7))   [control]
     want(served(r7))      request(r7), served(r7)  no missing                 [control]
 
@@ -72,8 +72,8 @@ cannot see instantiation in either direction.
 
 ### 2.2 A span that grows. Measured: it works, and it is the wrong shape
 
-A rule can conclude a ground demand — `implies({ +request(?r) }, { +wants(served(?r)) })`
-binds `?r` from the world — but the conclusion lands in the state, not in a compound whose
+A rule can conclude a ground demand — `implies({ +request($r) }, { +wants(served($r)) })`
+binds `$r` from the world — but the conclusion lands in the state, not in a compound whose
 members are fixed at construction. Extending `_contents` with a third kind of span, the
 extension of a relation, makes it work:
 
@@ -204,15 +204,15 @@ reasons coincide.
 The obvious reading of inheritance is a question asked upward — *is there a live root above
 me* — and it is the wrong direction. Propagating life **down** from the roots is one rule:
 
-    implies( { +because(?c, ?p), +live(?p) }, { +live(?c) } )
+    implies( { +because($c, $p), +live($p) }, { +live($c) } )
 
 Three things fall out that the upward reading had to be given:
 
 - **the DAG needs no special handling.** Any live parent gives life, so *does any uncut path
   reach a live root* stops being a question anything has to ask.
-- **`dead` is `no live(?w)`**, one step, answered by the machinery §5 is about. There is no
+- **`dead` is `no live($w)`**, one step, answered by the machinery §5 is about. There is no
   negative existential over paths anywhere.
-- **the cut is one member on the propagation rule** — `no no_more(because(?c, ?p))` — so it
+- **the cut is one member on the propagation rule** — `no no_more(because($c, $p))` — so it
   bites per link, which is where a cut means anything.
 
 The root case is the same rule with nothing above it: `live(<root>)` while its condition
@@ -245,27 +245,96 @@ says an absence is asked, never deposited — the gate has no entry sign for it,
 
 So satisfaction is a **match condition**:
 
-    alias active_want(?p) = { +want(?p), no ?p }
+    alias active_want($p) = { +want($p), no $p }
 
 Measured:
 
     want unsatisfied            emitted ['fill(kettle)']   want still + : True
-      <chase> expanded to       ['+want(?p)', 'no?p', '+route(?p, ?a)']
+      <chase> expanded to       ['+want($p)', 'no$p', '+route($p, $a)']
     want already satisfied      emitted []                 want still + : True
     control -- guard removed    emitted ['fill(kettle)']   want still + : True
 
-Aliases expand at load and in place, so `?p` is bound by `+want(?p)` before `no ?p` is asked
+Aliases expand at load and in place, so `$p` is bound by `+want($p)` before `no $p` is asked
 — binding order is safe by construction rather than by care. The want stays `+` in every
 row, nothing is denied anywhere, and the control fails correctly.
 
 Nothing needs maintaining, because nothing is materialised.
 
-### What this deletes
+### What this does not delete, and what does
 
-`_root` gives its own reason for being Python: *a root goal is a `goal(?w)` with no
-`subgoal(?p, ?w)`, and a `-` member says an entry denies this, never for no ?p.* That is
-exactly the limitation `no` removes. `implies({ +want(?w), no because(?w, ?p) },
-{ +root(?w) })` looks like the whole of it — worth checking rather than assuming.
+`_root` gives its own reason for being Python: *a root goal is a `goal($w)` with no
+`subgoal($p, $w)`, and a `-` member says an entry denies this, never for no $p.* This
+section originally read that as exactly the limitation `no` removes, and proposed
+`implies({ +want($w), no because($w, $p) }, { +root($w) })` as the whole of it — worth
+checking rather than assuming.
+
+Checked. **`no` does not remove that limitation; it reproduces it, deliberately.** Both
+forms are refused at load, in the loader's own words:
+
+    rule <r> = implies( { +want($w), no because($w, $p) }, { +root($w) } )
+    rule <r> = implies( { +goal($w), no subgoal($p, $w) }, { +rooted($w) } )
+
+    line 1: rule 'r' asks `no subgoal($p, $w)` with a variable no earlier member
+    binds -- an absence is a check on things already picked out, never a way of
+    picking them out
+
+`text.py`'s `_rule` checks every `no` member whose pattern still has a variable and
+requires an earlier non-`no` member to bind it, and the comment there says why in the same
+words §12 used: *`no p($x)` with $x free is `for no $x` — the negative existential §9 says a
+member cannot mean.* So `no` is a third member mode — *require this ground proposition
+absent* — and not a quantifier.
+
+The one place a member does carry an unbound negation is the structural branch of `match`,
+and its licence does not transfer: *structure has no denying entry, so absent and denied
+collapse into one question the walker already answers.* `subgoal` and `because` are ordinary
+corpus relations — the skeleton is `anc`, `arrived_on`, `asked`, `asking`, `delta_next`,
+`entry_of`, `in_delta`, `licensed_by`, `mentioned`, `pred`, `rests_on`, `sanc`, `time` — and
+a `subgoal` entry can be denied, which is precisely the case the collapse assumes away.
+`_root` reads the chain and skips a `-` subgoal; a walker could not.
+
+**But `_count` reaches it, and that is the deletion the item was after.**
+`docs/design/machine.md` already calls `_count` the general case the three
+negative-existential asks are thresholds on. Two corpus rules replace the answerer:
+
+    rule <ask-count> = implies( { +goal($w) }, { +count(subgoal($p, $w)) } )
+    rule <myrooted>  = implies( { +goal($w),
+                                  +counted(count(subgoal($p, $w)), 0) },
+                                { +myrooted($w) } )
+
+The asymmetry that makes this work is worth stating, because it is what a member cannot do
+and a *consequent* can: **a consequent may carry a variable no antecedent binds.** That is
+how a rule authors the description *subgoal of anything, for this `$w`* without quantifying
+over `$p` itself. The aggregate then does the quantifying — which is its whole job, since a
+rule cannot speak about the set of its matches — and hands back a number keyed on the ask.
+Reading it back is an ordinary member, variables and all.
+
+Measured on §6's own fixture, `_root`'s verdict beside the corpus rule's, over every ground
+goal in the run:
+
+    goal                       rooted   myrooted
+    boiling(kettle)            +        +
+    water(kettle)              None     None
+
+    denial control -- goal g1, with -subgoal(s1, g1) as the only subgoal entry:
+    counted(count(subgoal($p, g1)), 0)  +      rooted(g1)  +
+
+They agree, denial included, and the stop rule written over `myrooted` instead of `rooted`
+ends the run `stopped` with `boiling(kettle)` `+` — which is §15's check, unchanged.
+
+So the finding inverts the item:
+
+> **`no` is not the thing that deletes `_root`; the aggregate is.** Rootedness is a question
+> about a description with a free variable in it. No member can hold one variable and
+> quantify another — that is what the loader refuses, in both `no` and the ordinary case.
+> But a rule can *author* such a description, because a consequent may carry an unbound
+> variable, and `_count` is exactly the machinery that quantifies over one. `_root` is
+> Python for a reason that stopped applying when `_count` shipped.
+
+What deleting it costs, and why it is not done here: `rooted` is in `gates/vocabulary.py`,
+`bundle.py` ships `<ask-root>`, and three selftest checks are written about the answerer
+rather than about rootedness. That is a rewrite of the checks, not a deletion, and it wants
+its own commit. The cost side is also unmeasured — `_root` scans `instances_of(SUBGOAL)`,
+where `_count` runs a full match per ask.
 
 ### Depth costs nothing, because the loop is the closure
 
@@ -280,7 +349,7 @@ and forward chaining supplies the depth. Nothing has to say *transitively*.
 Two consequences for the two things that looked like requirements:
 
 - **Arbitrary depth in one query is not available and is not needed.** A rule's antecedent
-  is a fixed set of members, so `because(?a,?b), because(?b,?c)` reaches depth two and depth
+  is a fixed set of members, so `because($a,$b), because($b,$c)` reaches depth two and depth
   *n* needs *n* members. A bounded query is a fallback for when a bounded answer is what you
   want, never the mechanism.
 - **A walk that has to find something out is split over the agent's own cycles**, which is
@@ -423,7 +492,7 @@ mention and must keep.*
 
     before delete    chasing(restaurant)     the rule was applied
     entity deleted   chasing(restaurant)     applied anyway
-    is(...) indexed  ['is(?d, want)', 'is(x, want)', 'is(#1292(erased), want)']
+    is(...) indexed  ['is($d, want)', 'is(x, want)', 'is(#1292(erased), want)']
 
 `delete` only touches indexes inside `if rel is not None`, and an entity has no relation, so
 for an entity it pops six dicts and de-indexes nothing. Nothing anywhere removes a node from
@@ -464,11 +533,11 @@ though it were belief — and the entity measurement above is what that failure 
 rule applied to a want nobody holds, with nothing anywhere to say so.
 
 A per-member wrapper can be forgotten on one member out of five. A document-level context
-applied to every component cannot, which is why it is preferred over `B(?p) = believed(?p)`
+applied to every component cannot, which is why it is preferred over `B($p) = believed($p)`
 and why it makes the load-time gate unnecessary rather than merely cheap.
 
 Because the wrapping happens at load, exactly as aliases do, what is stored in a rule is
-already `believed(want(?p))` and the matcher never learns what an anchor is. That may take
+already `believed(want($p))` and the matcher never learns what an anchor is. That may take
 **matching** off the todo's list of what `believed(p)` touches, leaving the loader and
 `Graph`.
 
@@ -505,13 +574,13 @@ Four constraints, three of them already precedented:
   out, so termination needs no marker.
 - The want chain is materialised and is a DAG. Life is **pushed down** from the roots by one
   one-step rule, and the loop supplies the depth — so nothing expresses transitivity, the DAG
-  needs no special handling, and `dead` is `no live(?w)`. No walkers, no `at`, no walk
+  needs no special handling, and `dead` is `no live($w)`. No walkers, no `at`, no walk
   identity: all of that was a workaround for an append-only chain.
 - Node-keyed, never path-keyed. That measurement is about the closure, not about walkers, so
   it survives them.
 - Removing a mark the world invalidated is licensed per link, not swept. It waits on the
   gate-level erase.
-- Satisfaction is `no ?p`, asked at match time. Nothing is maintained.
+- Satisfaction is `no $p`, asked at match time. Nothing is maintained.
 - Only the anchor is ever deleted. The log names the entity.
 - Belief-wrapping is `context: believed`, applied to every component at load.
 
@@ -523,7 +592,14 @@ Four constraints, three of them already precedented:
    its own docstring that the only safe deletion target is the anchor.
 2. A licensed erase through the gate, depositing `erased(<entity>, <licence>)` on the log. A
    precondition for deciding whether `no_more` survives.
-3. `_root` looks deletable now that `no` exists.
+3. ~~`_root` looks deletable now that `no` exists.~~ **Half right, and not the half
+   stated.** `no` is a member mode requiring a ground proposition absent, not an
+   existential: both forms of the proposed rule are refused at load, by a check written
+   in §12's own words. What does reach it is `_count` — two corpus rules that agree with
+   `_root` on §6's fixture and on the denial control, because a *consequent* may carry an
+   unbound variable and the aggregate does the quantifying. Still open: `rooted` is in the
+   vocabulary gate, `<ask-root>` is in `bundle.ugm`, three selftest checks are about the
+   answerer, and the cost is unmeasured. See *What this does not delete, and what does*.
 3b. **Erasure is not local, and nothing measures that yet.** The walkers finding — moving
    denies the position both rules needed, and the branch is lost silently in fewer ticks
    than the run that succeeds — is the same shape as erase-then-create. Under anchors it
@@ -548,12 +624,97 @@ Four constraints, three of them already precedented:
    required-present member fails both when the proposition is absent and when it is denied,
    so the finding would blur two cases that anchors collapse into one.
 
+9. **A wildcard member, and the third route to deleting `_root`.** `no subgoal(*, $w)` — one
+   member, no request round-trip, no aggregate. This is the object §9.3 was reaching for and
+   did not have a name for; it is not a quantifier, which is why it is admissible where a
+   free-variable `no` is not.
+
+   The proposal arrived as *represent subgoals as `subgoal(parent, child)`, then a root is a
+   goal that is never the second member.* Two things about that, and the second is the
+   useful one. The representation is **already** that shape —
+   `subgoal(plan(<boil>, boiling(kettle)), water(kettle))`, parent first, child second — so
+   adopting it changes nothing. And *never the second member of any subgoal* is still a
+   negative existential, over the first slot instead of over `$p`. What it does supply is the
+   missing idea: the thing a member cannot say is not *for no `$p`*, it is **this slot, I am
+   not picking anything out of.**
+
+   ### Why `*` and not a variable used nowhere else
+
+   `no subgoal($anything, $w)` with `$anything` occurring exactly once could be *inferred* to
+   be a wildcard, which is Prolog's singleton rule and adds no notation at all. That is the
+   real alternative and it should be rejected, for a reason that is not taste:
+
+   **Singleton inference makes a member's meaning depend on the rest of the rule.** Add a
+   member elsewhere that mentions `$anything`, and the first member silently changes from
+   *for no `$anything`* to *for this `$anything`* — a different question, with no edit to the
+   member itself and no error anywhere. You cannot read a member and know what it does. That
+   is the same property that made free-variable `no` unacceptable in the first place
+   (*an absence is a check on things already picked out, never a way of picking them out*),
+   so admitting it through singleton inference readmits the objection under a new mechanism.
+   The loader's rule would have to become *every variable in a `no` member must be bound by
+   an earlier member, unless it appears nowhere else in the rule* — which is a worse rule to
+   state than the one it replaces, and the tell is that it cannot be stated locally.
+
+   `*` is a hole rather than a term, and everything follows from that without a further rule:
+   it cannot bind, cannot be substituted, cannot appear in a consequent, and cannot collide
+   with the occurs-check hazard `_SAFE` guards, because it never becomes a binding. Two of
+   them in one member need no names — `no r(*, $w, *)` — where two singleton variables would
+   need two invented ones and two separate confirmations that each is singleton.
+
+   ### It is rows, not branches
+
+   The `ABSENT` branch of `match` already grounds the pattern and asks `chain.resolve`. The
+   wildcard case is one more row in that branch: if any position is a hole, ask the argument
+   index instead of resolving a ground proposition. That index already exists on the graph
+   and already covers **structures**, which is what a goal is — measured on §6's fixture:
+
+       boiling(kettle)   instances_with(SUBGOAL, 1, ·) = []                      root
+       water(kettle)     instances_with(SUBGOAL, 1, ·) = [subgoal(plan(...))]    not root
+
+   One lookup. `_root` scans every `instances_of(SUBGOAL)` and filters, which is the shape
+   *a join is not a scan* names. Note the index that is atoms-only is `Situation`'s, over
+   entries; `Graph._by_arg` has no such restriction.
+
+   ### The trap that has to be closed with it
+
+   `no subgoal(_, $w)` **loads today, and is silently wrong.** `_` lexes as a name, so the
+   member asks about the ground proposition `subgoal(_, water(kettle))` where `_` is an atom
+   nothing ever wrote — trivially absent, so the rule concludes rootedness for every goal:
+
+       boiling(kettle)   rooted=+     wildroot=+
+       water(kettle)     rooted=None  wildroot=+     <- wrong, and in the direction
+                                                        that looks like success
+
+   `*` does not lex at all today (`unexpected character '*'`), so it fails loudly, which is
+   the property `_` lacks. Whatever marker is chosen, `_` must stop being a plain name in
+   argument position or the obvious spelling stays a trap. One naming note: `Situation.ANY`
+   is already the string `"*"` for the bare-variable bucket — a different layer and no
+   collision, but the word is spoken for.
+
+   ### What it does not settle
+
+   Three routes to deleting `_root` now exist and they are not equivalent. `_count` works
+   today with no engine change and costs a full match per ask; the wildcard costs lexer,
+   loader and matcher rows and buys one index lookup; `_root` stays. None of them has been
+   costed against the others on a real corpus, and `rooted` is still in the vocabulary gate,
+   `<ask-root>` still in `bundle.ugm`, and three selftest checks still written about the
+   answerer rather than about rootedness.
+
 ## 10. Instrument traps met on the way
 
 - **`g.atom("x")` does not intern.** Each call mints a new node; the loader's name table
   decides identity when a name is read. A probe that builds terms in Python compares
   disconnected nodes and reports a plausible wrong answer. Build through `load` and
   `kb.term`.
+  - **And the trap is on the READ side too, which is where it actually bit.** A probe that
+    loads its corpus correctly and then reads results with
+    `g.instances_of(g.atom("myrooted"))` is asking about a relation node nothing ever wrote
+    under, so every answer is the empty list. It does not look like an instrument fault: it
+    looks exactly like the feature not working, and it reported *the count route cannot be
+    read* — the opposite of the truth — through three rounds of narrowing before the tell
+    appeared, which was a control that had passed a moment earlier going empty for no
+    reason. `m.holds(kb.term(...))` on both sides, always. `m.COUNTED`, `m.ROOTED` and the
+    other Machine attributes are safe, because the Machine interned them itself.
 - **`asked` is a structural relation.** A fixture rule using it was classified stratum 0,
   applied, and wrote nothing. The only symptom was `wrote=()` on an applied step.
 - **A borrowed word collides.** `answered` is the apparatus's own relation for tool answers
@@ -637,7 +798,7 @@ It does not have to. It has to recognise an **occasion** worth remembering, whic
 easier judgement and one the corpus already makes with vocabulary that exists — `deviates`,
 `arrived`, `quiet`, `declined`, `unsupported`:
 
-    implies( { +deviates(?p, ?r) }, { +snapshot(<here>) } )
+    implies( { +deviates($p, $r) }, { +snapshot(<here>) } )
 
 The rule names *when*. It never names the set.
 
@@ -703,7 +864,7 @@ threshold has to be written down, no partiality marker is needed, and — the pr
 makes the whole scheme work — **soundness is independent of the filter.** Raise the
 threshold and the memory gets sparser; it never gets wrong.
 
-One thing not to record: **computators**. `minus(?x, ?c) as ?new` is a condition on the
+One thing not to record: **computators**. `minus($x, $c) as $new` is a condition on the
 binding that claims nothing, so writing it into a record of what was true is a category
 error. That is the same skip list `context: believed` needs, which is an argument for
 building the list once.

@@ -84,8 +84,8 @@ Modality is a **proposition**. `likely(p)` is a wrapping node — the same
 construction as `on(a, b)`, with one arm rather than two.
 
 ```
-rule <weather> = implies( { +cloudy(?d, morning) },
-                          { +likely(rain(?d, afternoon)) } )
+rule <weather> = implies( { +cloudy($d, morning) },
+                          { +likely(rain($d, afternoon)) } )
 ```
 
 Three things this buys that a grade cannot, none of them arguments:
@@ -98,7 +98,7 @@ Three things this buys that a grade cannot, none of them arguments:
 
 The second row is the one with teeth. An agent acting on a merely-possible
 classification used to be indistinguishable from one acting on a certain one,
-because a rule matching `is_gothic(?c)` matched whatever grade the entry carried
+because a rule matching `is_gothic($c)` matched whatever grade the entry carried
 — nothing could read a grade, so nothing could decline.
 
 Now declining is one line, and *what this corpus is willing to act on* is a
@@ -118,7 +118,7 @@ from an uncertain premise unless a corpus deliberately crosses it (Chapter 16),
 and what comes back is nested. Collapsing the nest —
 
 ```
-rule <collapse> = implies( { +likely(possible(?x)) }, { +possible(?x) } )
+rule <collapse> = implies( { +likely(possible($x)) }, { +possible($x) } )
 ```
 
 — is a corpus's table, and its ordering is a corpus's claim.

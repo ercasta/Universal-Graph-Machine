@@ -15,7 +15,7 @@ needed. Nothing was recomputed to print it.
 
 ## Plans need no minting
 
-`plan(?r, ?w)` is built by substituting into a consequent — and substitution
+`plan($r, $w)` is built by substituting into a consequent — and substitution
 *interns*, so the same rule expanding the same goal names the same node.
 
 Which is what a plan is: not an object someone allocated, but a name for the
@@ -37,8 +37,8 @@ question pointed in two directions:
 They are different services, deliberately.
 
 *Is this goal already met?* must be computed **inside the plan's bindings**.
-Otherwise a subgoal `tap(?t)` gets satisfied by *some* tap — say `sink` — while
-`under(kettle, ?t)` gets satisfied by a *different* one — say `drain` — and the
+Otherwise a subgoal `tap($t)` gets satisfied by *some* tap — say `sink` — while
+`under(kettle, $t)` gets satisfied by a *different* one — say `drain` — and the
 plan is wrong with nothing saying so.
 
 The plan's bindings are what tie the two subgoals to the same tap. Ask the
@@ -91,7 +91,7 @@ planning for* is asked of the agent, not read off the rule.
 price:
 
 ```
-+tuesday(?d)                                   an ordinary requirement
++tuesday($d)                                   an ordinary requirement
 timing(<WAIT>, start(<A>), end(<B>))           what discharging it costs
 bound(<WAIT>, 0, 7days)
 ```
@@ -133,7 +133,7 @@ ordinary member. What the torch shows is that a difference is only what differs
 Turning that into a plan needs no plan machinery:
 
 ```
-rule <want-what-is-missing> = implies( { +missing(gap1, ?p) }, { +goal(?p) } )
+rule <want-what-is-missing> = implies( { +missing(gap1, $p) }, { +goal($p) } )
 ```
 
 The tool proposes the gap; a rule decides what is worth wanting. Which is the
@@ -152,7 +152,7 @@ there were none. *No missing* is a claim about the whole set. Try to write it
 and the loader refuses:
 
 ```
-no missing(gap1, ?p)
+no missing(gap1, $p)
   -> a variable no earlier member binds; an absence is a check on things
      already picked out, never a way of picking them out
 ```
@@ -161,7 +161,7 @@ The tool is the only party that has seen the whole set, so the tool says it.
 Which makes *am I there yet* an ordinary rule:
 
 ```
-rule <done> = implies( { +matched(?g) }, { +enough(?g) } )
+rule <done> = implies( { +matched($g) }, { +enough($g) } )
 ```
 
 Set a goal, compute the gap against where you are, and stop when it closes.

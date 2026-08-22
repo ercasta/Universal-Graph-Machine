@@ -87,9 +87,9 @@ ever and the table goes quiet rather than spinning.
 shaped the corpus.** Probed three ways:
 
 ```
-{ +have(?w, ?k), +opens(?k, ?d) }                    -> blocked(have(?w, ?k))
-{ +opens(?k, ?d), +have(?w, ?k) }                    -> blocked(have(?w, ?k))
-{ +opens(?k, ?d), +me(?w), +have(?w, ?k) } + `+me(p1)` -> blocked(have(?w, ?k))
+{ +have($w, $k), +opens($k, $d) }                    -> blocked(have($w, $k))
+{ +opens($k, $d), +have($w, $k) }                    -> blocked(have($w, $k))
+{ +opens($k, $d), +me($w), +have($w, $k) } + `+me(p1)` -> blocked(have($w, $k))
 ```
 
 `achieved(opens(key1, door1))` is written in **every** one of those runs — so the
@@ -159,7 +159,7 @@ text.
 | anything generic | refused |
 
 **An agent cannot utter a time, and that is a second and different argument for
-the missing member kind.** `at ?m` shipped and solves the intra-agent half. Between
+the missing member kind.** `at $m` shipped and solves the intra-agent half. Between
 agents a moment cannot cross at all, so **two agents can never refer to the same
 time**. We are not asking for it yet — flagging that the two halves will look like
 one requirement to whoever hits them.
@@ -184,15 +184,15 @@ trace:
 149  + wants(p1, key1)
 ```
 
-`<intake>` is a **bundled** rule — `arrived(?c, ?said, ?sign) ⟹ says(...)` — and
+`<intake>` is a **bundled** rule — `arrived($c, $said, $sign) ⟹ says(...)` — and
 `arrived` is the unarguable record of a boundary event that nothing retracts. So
 `says` is restored the moment it is denied, and so is anything derived from it.
 
 What works is not consumption but **a gate that legitimately closes**:
 
 ```
-rule <route> = implies( { +wants(?who, ?k), -holds(?who, ?k),
-                          +holds(?keeper, ?k) }, { ... } )
+rule <route> = implies( { +wants($who, $k), -holds($who, $k),
+                          +holds($keeper, $k) }, { ... } )
 fact -holds(p1, key1)
 ```
 
@@ -234,7 +234,7 @@ were editing `text.py` daily; we would rather you took them apart than found the
 
 **`bde3833` — chained application.** `a(b)(c)` now parses: a primary, then any
 number of further argument groups. The substrate always built a composite
-relation, `show` always printed it, `unify` learned to compare one when `?p(?t)`
+relation, `show` always printed it, `unify` learned to compare one when `$p($t)`
 landed — the parser was the last component that could not read what the printer
 writes. The loop fires **only** on a chained application, so every term that
 parsed before produces a byte-identical AST. The tidier refactor — primary parses

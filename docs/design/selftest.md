@@ -56,8 +56,8 @@ There is no grade, and `@` is refused. (§10, §12)
 
 A rule's consequent can MENTION, and §14 said it could not.
 
-    `+con(?r, ?pat, +)` binds `?pat` to a stored pattern, so anything concluded
-    about `?pat` is a ground claim that happens to contain variables. §14 settles
+    `+con($r, $pat, +)` binds `$pat` to a stored pattern, so anything concluded
+    about `$pat` is a ground claim that happens to contain variables. §14 settles
     use against mention by *who is writing* -- machinery mentions, a rule uses --
     and that turned out to be too strong.
 
@@ -92,9 +92,9 @@ The bundle is authored in the surface, so a corpus can argue with it.
 *What am I stuck on?* -- answerable out loud. (§14, §19)
 
     `docs/quest-feedback.md` §1. Fitting `open(door1)` against
-    `{ +have(?w, ?k), +opens(?k, ?d) }` subgoals `opens(?k, door1)`; the world
+    `{ +have($w, $k), +opens($k, $d) }` subgoals `opens($k, door1)`; the world
     satisfies it with `opens(key1, door1)`; the machinery **records
-    `binds(plan, ?k, key1)`** -- and then reported `blocked(have(?w, ?k))`.
+    `binds(plan, $k, key1)`** -- and then reported `blocked(have($w, $k))`.
 
     ⭐⭐⭐ **The binding was never missing. It was known, written down, and not
     read back**, which is this repository's *read and not obeyed* defect arriving
@@ -133,7 +133,7 @@ The bundle is authored in the surface, so a corpus can argue with it.
 
     `docs/dungeon-feedback.md` §4 asked for negation as failure over an open
     domain: *the hero attacks by default when the player has declared nothing
-    this round*, which no corpus can write as `-declares(hero, ?what)`, because
+    this round*, which no corpus can write as `-declares(hero, $what)`, because
     §9's `-` needs an entry that DENIES and absence is not denial. They expressed
     the default as `overrides(<hero-acts>, <hero-holds>)` instead, and named the
     cost exactly: **the default becomes a precedence rather than a condition, so
@@ -154,7 +154,7 @@ The bundle is authored in the surface, so a corpus can argue with it.
     open item was waiting on spans as loci and nobody knew.
 
     ⚠ The channel is a ground atom here. Quantifying over channels does not work,
-    because a corpus relation cannot be structural: `listens(?c)` stops the rule
+    because a corpus relation cannot be structural: `listens($c)` stops the rule
     being stratum 0, and then its structural members match nothing. Silence about
     a NAMED channel is sayable; silence about *any* channel is not.
 
@@ -168,11 +168,11 @@ The bundle is authored in the surface, so a corpus can argue with it.
     be carried*; Appendix C listed it; and `docs/authoring.md` called it the last
     unbuilt row. All of it was one sentence away from being false:
 
-        rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
+        rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
 
-    That is `unless(<regen>, +poisoned(?x))`, written where §8 says a rule's
+    That is `unless(<regen>, +poisoned($x))`, written where §8 says a rule's
     variables live -- **inside its own statement**. Everything that made this look
-    hard came from writing the guard somewhere ELSE, where `?x` is a different
+    hard came from writing the guard somewhere ELSE, where `$x` is a different
     variable and the machinery would have to re-unite them.
 
     ⚠ **What is genuinely absent is not `unless`, it is AMENDMENT AT A DISTANCE**
@@ -276,13 +276,13 @@ be fixed from a corpus; this one can. §21 carries the re-ask.
 ## And it NAMES the tap the plan committed to
 
 ⭐⭐⭐ **And it NAMES the tap the plan committed to.** This asserted
-`blocked(under(kettle, ?t))` and now asserts `blocked(under(kettle, sink))`
+`blocked(under(kettle, $t))` and now asserts `blocked(under(kettle, sink))`
 -- the same finding with the reason in it: not *something about `under`
 failed* but *the plan chose `sink`, and the kettle is not under `sink`*.
 A foreign corpus reported the generic form as unutterable, since §14
 refuses to dispatch a generic intent, so an agent could not say what it
 was stuck on. The binding was known all along and written down as
-`binds(plan, ?t, sink)`; the verdict simply never read it back.
+`binds(plan, $t, sink)`; the verdict simply never read it back.
 
 ## `rival_hypotheses_are_comparable`
 
@@ -413,7 +413,7 @@ Given several applicable rules, choose the best one -- and *best* has to
     Two limits it had, kept because they are what any replacement must respect:
 
     **Preference orders; it must not exclude.** Used to filter recall it starved
-    `{+blocked(heat(?a, ?w))} => {+doing(heat(anna, ?w))}` -- the most useful rule
+    `{+blocked(heat($a, $w))} => {+doing(heat(anna, $w))}` -- the most useful rule
     in that corpus, which does not fit the goal at all. Relevance to a goal is
     silent about everything it is not about.
 
@@ -460,7 +460,7 @@ Given several applicable rules, choose the best one -- and *best* has to
     ⚠⚠ **And the two halves accumulate differently, which is what maintaining
     them found.** *A goal is never denied* was written here as the reason the
     goal half is monotone, and it is a claim about the fixtures rather than about
-    the design: `{+nearer(?x)} ⟹ {-goal(nearer(?x))}` is an ordinary rule and
+    the design: `{+nearer($x)} ⟹ {-goal(nearer($x))}` is an ordinary rule and
     denies one. So the delta half is a running union -- a moment's delta only
     grows -- and the goal half is a COUNT, because two goals can put one relation
     in play and one of them going away must not take the other's key with it.
@@ -571,8 +571,8 @@ with a cost in it, and this one keeps only the claim it can still make.
 -- and what `rooted` does NOT unblock, which is the finding ----------
 
 ⚠⚠⚠ Checking a root goal for SATISFACTION needs one more thing, and it is
-not rootedness. With `rooted` in hand a corpus can ask -- `{+goal(?w),
-+rooted(?w)} => {+check(?w, ?w)}`, the goal as its own plan, which needs no
+not rootedness. With `rooted` in hand a corpus can ask -- `{+goal($w),
++rooted($w)} => {+check($w, $w)}`, the goal as its own plan, which needs no
 engine change because a root goal binds nothing -- and the whole chain
 fires: `root`, `rooted`, `check`. `achieved` still does not appear.
 
@@ -782,7 +782,7 @@ Arithmetic in the antecedent, and the transfer becomes atomic. (§12, §22)
 ## The arguments must be ground when it runs, so a
 
 The arguments must be ground when it runs, so a computator member only
-computes once earlier members have bound them -- here `n(?x)` is DERIVED,
+computes once earlier members have bound them -- here `n($x)` is DERIVED,
 so the rule matches from a delta rather than on the opening pass.
 
 ⚠ The engine also skips pivoting on a computator, and that is an
@@ -795,21 +795,21 @@ today a check's stated reason was wrong while its verdict was right.
 
 ## `a_member_can_name_what_it_matched`
 
-`+on(?x, ?y) as ?t` -- reference, not description. (§8, §12)
+`+on($x, $y) as $t` -- reference, not description. (§8, §12)
 
-    `at ?m` says WHERE an entry sits; `as ?t` says WHAT it says, under a name.
+    `at $m` says WHERE an entry sits; `as $t` says WHAT it says, under a name.
     Same one-line mechanism, and it answers a question that had two unsatisfying
     answers before it.
 
     A whole proposition could always be bound when it arrived as an **argument**
-    -- `+tagged(?p)` binds `?p` -- and §12's `?t = on(?x, ?y)` notation, which
+    -- `+tagged($p)` binds `$p` -- and §12's `$t = on($x, $y)` notation, which
     binds the whole *and* its parts, is not in the surface. What a corpus did
-    instead was **reconstruct**: match `+?r(?x, ?y)` and rebuild `?r(?x, ?y)`,
+    instead was **reconstruct**: match `+$r($x, $y)` and rebuild `$r($x, $y)`,
     which interning makes the same node, so it is genuine reference and not a
     copy. That works and costs §3's index, because a variable relation has no
     bucket (§4). This says the thing directly and keeps the index.
 
-    ⚠ And two members hoping to co-refer -- `+tagged(?t), +on(?x, ?y)` -- is
+    ⚠ And two members hoping to co-refer -- `+tagged($t), +on($x, $y)` -- is
     coincidence, not reference: nothing links them, and it appears to work only
     while there is one candidate.
 
@@ -919,7 +919,7 @@ only see it when the two disagree, and a pure predicate is the property.
 ## The DISCRIMINATING case, and the check was v
 
 ⚠⚠⚠ The DISCRIMINATING case, and the check was vacuous without it.
-`<mine>` binds `?d` from the walk before `in_delta` is reached, so
+`<mine>` binds `$d` from the walk before `in_delta` is reached, so
 removing the anchoring requirement altogether changes nothing about it
 -- the kill-probe broke zero checks. The requirement only ever bites on
 a member nothing has bound, and that is the member that would
@@ -969,8 +969,8 @@ One node with two meanings. (§5, Appendix C)
     `calc(minus, 5, 2)` lands as `calc(-, 5, 2)`, the tool declines a request it
     should have answered, and the run stalls with nothing saying why.
 
-    ⚠ **A report and not a refusal, and that is forced.** `+expects(?p, plus)`
-    and `+says(user, ?p, plus)` are legitimate and there are twenty-odd of them,
+    ⚠ **A report and not a refusal, and that is forced.** `+expects($p, plus)`
+    and `+says(user, $p, plus)` are legitimate and there are twenty-odd of them,
     so the loader genuinely cannot tell an operator from a sign. What it can do
     is stop being silent -- §5's rule about places the machinery declines
     without saying so, arriving where a name changes meaning under the author.
@@ -982,7 +982,7 @@ One node with two meanings. (§5, Appendix C)
 
 ## `a_relation_can_be_named_by_a_variable`
 
-`?p(?t)` -- the effect named by data. (§3, §5, §12)
+`$p($t)` -- the effect named by data. (§3, §5, §12)
 
     The substrate could always BUILD a relation instance whose relation slot is
     a variable; it is an ordinary generic node. Three separate things refused
@@ -992,8 +992,8 @@ One node with two meanings. (§5, Appendix C)
     a wall.
 
     ⭐ What it buys is *one rule instead of one fact per pair*. A catalogue
-    carried as facts is otherwise **ground only**: `achieves(fireball(?t),
-    burned(?t))` is refused (a fact may not hold a variable) and the named
+    carried as facts is otherwise **ground only**: `achieves(fireball($t),
+    burned($t))` is refused (a fact may not hold a variable) and the named
     version parses and never fires (applying a stored pattern is `match`, which
     is floor). So an ability catalogue had to be a rule per ability.
 
@@ -1014,7 +1014,7 @@ learn about this, which is the sign it was the right place for it.
 said the gate was the right place for it. It was half right: the gate is
 the right place to REFUSE, and the load is the right place to SAY SO --
 which is what an unbound *argument* has always got. The two disagreed
-because `_vars_in` did not look at a relation, so `?p` was never *wanted*
+because `_vars_in` did not look at a relation, so `$p` was never *wanted*
 and the check passed vacuously. Now both are caught where the mistake is
 still attributable, which is `Chain.span`'s argument for its own position.
 
@@ -1026,7 +1026,7 @@ Define *buying*; then declare a world in facts. (§3, §12, §20)
     an author can feel: can a generic interaction be written once, in no domain
     vocabulary at all, and then a world be *declared* rather than coded?
 
-    ⭐ The hinge is `+?kind(?item)` -- a class named by a variable. *The smith
+    ⭐ The hinge is `+$kind($item)` -- a class named by a variable. *The smith
     sells weapons* is `sells(smith, weapon)`, and applying that class to an item
     is what a relation-slot variable makes possible. Without it, `sells` could
     only ever name a particular item and every merchant would need a rule.
@@ -1079,13 +1079,13 @@ Two cases in, one rule out, and it applies to a third. (§17, §14)
     ⭐⭐⭐ **One mapping across the premise and the conclusion.** Generalised
     separately they share no variable, so the rule concludes about something
     nothing binds and the gate refuses it. Generalised together, `door`/`window`
-    becomes one `?g0` on both sides and the rule is exactly the one a person
+    becomes one `$g0` on both sides and the rule is exactly the one a person
     would have written. That single dictionary is the difference between
     learning and noise, and it is what the kill-probe removes.
 
     ⚠ **The tool DECLINES rather than generalising anything.** Two examples
     about different relations have a bare variable as their least general
-    generalisation -- `{+?g0} => {+?g1}`, a rule that fires on everything and
+    generalisation -- `{+$g0} => {+$g1}`, a rule that fires on everything and
     concludes nothing anyone asked for. Returning `None` is a real answer (§17),
     and the check is that nothing is adopted.
 
@@ -1105,7 +1105,7 @@ The reverse of `reify`, and the door the whole acquisition family needs.
     * a `fact` may not contain a variable at all, so a corpus cannot write a
       rule's patterns;
     * §8 scopes a statement's variables to it, so parts written on separate
-      lines could not share a `?x` even if it could;
+      lines could not share a `$x` even if it could;
     * a rule's consequent may only carry variables its antecedent binds, or the
       variables of an existing `<...>`-named rule -- and a rule being *built*
       is not one.
@@ -1115,12 +1115,12 @@ The reverse of `reify`, and the door the whole acquisition family needs.
     is a function, and §17 says a request answered by a function is a tool.
 
     ⚠ The tool PROPOSES. What lands is `answered(<builder>, ..., <R>)`, and the
-    rule becomes live only because a corpus concluded `adopt(?r)` -- so an
+    rule becomes live only because a corpus concluded `adopt($r)` -- so an
     agent that adopts everything a tool offers is an agent whose corpus said to.
 
 ## `compose`
 
-Builds `{+seen(?x)} => {+known(?x)}` and returns its node.
+Builds `{+seen($x)} => {+known($x)}` and returns its node.
 
             The variable is minted here, once, and used in **both** patterns --
             which is exactly what no corpus can do, and the whole reason this
@@ -1149,7 +1149,7 @@ Do the four pieces compose? (§2, §14, §19)
     arbitrator never read it -- §14's precedence table was Python state seeded
     by the LOADER, once, from the surface. So:
 
-    * an agent that reads `defeated(?l, ?w)` and wants to fix it by raising a
+    * an agent that reads `defeated($l, $w)` and wants to fix it by raising a
       precedence could not;
     * and a rule adopted at runtime could never be ordered against anything,
       because the loader's table is keyed on names a corpus declared and an
@@ -1184,8 +1184,8 @@ that a stopped loop does not become a silent contradiction.
 
 A learned rule that concludes WRAPPED cannot fight what it was told.
 
-    Acquisition's normal case: the agent generalises `{+hinged(?x)} ⟹ open(?x)`
-    from two examples, and it already knows `{+sealed(?x)} ⟹ -open(?x)`. A
+    Acquisition's normal case: the agent generalises `{+hinged($x)} ⟹ open($x)`
+    from two examples, and it already knows `{+sealed($x)} ⟹ -open($x)`. A
     sealed hinged vault is a conflict; an unsealed hinged gate is not. What
     should the corpus do about it?
 
@@ -1210,7 +1210,7 @@ A learned rule that concludes WRAPPED cannot fight what it was told.
     forever.
 
     ⭐⭐⭐ **So the vocabulary that looked missing is not needed.** A learned rule
-    concluding `likely(open(?x))` never contradicts `-open(?x)`, because they
+    concluding `likely(open($x))` never contradicts `-open($x)`, because they
     are different propositions -- the agent holds a generalisation and a
     specific fact at once, which is what it should do. The conflict exists only
     if a corpus **crosses**, and then the corpus is the one asserting it and can
@@ -1240,7 +1240,7 @@ narrowness was untouched.
     | | |
     |---|---|
     | rule pairs whose consequents unify under opposite signs | 3,551 |
-    | ...where the unifier is a **bare variable** (`denial`'s `-?p`) | 3,545 |
+    | ...where the unifier is a **bare variable** (`denial`'s `-$p`) | 3,545 |
     | ...genuinely specific | **6** |
     | ...ungoverned by an authored precedence | **1**, and it is a fixture |
     | `_defeated` asked / returning True | 19,341 / **22** |
@@ -1277,7 +1277,7 @@ representation decision to be scored, not slipped in.
 
 A rule joined against itself over one relation -- **what recognition is**.
 
-        rule <s1> = implies( { +child(?p, ?x), +child(?x, ?y) }, { +grand(?p, ?y) } )
+        rule <s1> = implies( { +child($p, $x), +child($x, $y) }, { +grand($p, $y) } )
 
     Reported by `pystrider`, who read the index and predicted the cause before
     measuring it, and it was a SECOND quadratic: `quiet`, `weigh`, `heap` and
@@ -1317,7 +1317,7 @@ A rule joined against itself over one relation -- **what recognition is**.
     *dying is searching for a rule and finding none* -- means the machinery for
     noticing a dead rule already exists, and the only addition is being able to
     die on it. `ugm.bundle` has caught two dead rules offline this arc
-    (`<relevant>` shipping blind, `+open(?w) => +verdict(?w)`); this is the same
+    (`<relevant>` shipping blind, `+open($w) => +verdict($w)`); this is the same
     question asked from inside.
 
     ⚠⚠ **The reaction half is NOT here, and the blocker is §6's, not a new one.**
@@ -1325,7 +1325,7 @@ A rule joined against itself over one relation -- **what recognition is**.
     `blocked` means *no RULE fits this* -- true either way, since what concludes
     `exercised` is the machinery. The discriminator would be `achieved`, and §6
     already records that **a root goal is never checked for satisfaction**:
-    `<ask-check>` keys on `subgoal(plan, ?w)`, and a goal with no plan is not
+    `<ask-check>` keys on `subgoal(plan, $w)`, and a goal with no plan is not
     expressible. So this ships the half that is sound and leaves the half that
     needs the root-goal check, which was already §21's.
 
@@ -1492,7 +1492,7 @@ The last of the four hats: *when may a binding be reconsidered?*
     re-unifies and picks the same first candidate. What was missing was never a
     way to withdraw a choice; it was **a way to say what has already been tried**.
 
-        excluded(<plan>, ?v, x)     not that one, for this plan's variable
+        excluded(<plan>, $v, x)     not that one, for this plan's variable
 
     ⭐ A separate relation rather than a denied `binds`, deliberately. Everywhere
     else in this design a denial says *an entry denies this* and steers nothing;
@@ -1509,9 +1509,9 @@ The last of the four hats: *when may a binding be reconsidered?*
     the re-ask itself recreates.
 
     ⚠⚠ The exclusion cannot be written as a corpus FACT, and finding that out
-    was the turn's surprise. §8 scopes a statement's variables to it, so the `?t`
-    in `fact +excluded(plan(<pour>, water(kettle)), ?t, butt)` is a different node
-    from the `?t` inside `<pour>`, and the fact excludes nothing. It has to be
+    was the turn's surprise. §8 scopes a statement's variables to it, so the `$t`
+    in `fact +excluded(plan(<pour>, water(kettle)), $t, butt)` is a different node
+    from the `$t` inside `<pour>`, and the fact excludes nothing. It has to be
     CONCLUDED by a rule, which binds the plan's own variable through `binds`.
     Same wall as a norm not being revisable from the surface, arriving from the
     binding side.
@@ -1546,7 +1546,7 @@ A norm is a belief, and it is consulted as one -- resolved at the writer's
 own position, so a hypothesis can carry one. But it CANNOT yet be revised
 from the surface, and the reason is worth pinning rather than discovering:
 a norm's argument is a description, a description is an authored statement,
-and §8 scopes a statement's variables to it. So `-forbidden(doing(harm(?x)))`
+and §8 scopes a statement's variables to it. So `-forbidden(doing(harm($x)))`
 written a second time is a different node saying a similar thing, and the
 denial lands on nothing.
 
@@ -1559,7 +1559,7 @@ new. Revising a norm needs a way to NAME one, the way `<...>` names a rule.
 ...and it never needed the name, which is worth pinning because the
 opposite is easy to assume. Matching a rule's generic antecedent against a
 stored DESCRIPTION treats the description's variables as ordinary nodes, so
-`?y` binds to the stored `?x` and substitution rebuilds exactly the node
+`$y` binds to the stored `$x` and substitution rebuilds exactly the node
 that was written. A rule refers to a norm the way it refers to a plan or a
 frame: by BINDING it, not by naming it.
 
@@ -1572,7 +1572,7 @@ So naming buys authoring -- a second surface statement about a description
 as it has existed. This fixture is the one that found the move; these are
 the record of it.
 
-⭐ **Position was always readable and the seat never was.** `at(?w, ?x)`
+⭐ **Position was always readable and the seat never was.** `at($w, $x)`
 is an ordinary fact, which is the whole reason walkers needed no engine
 support -- while the register advanced on every `causes` application and
 left nothing behind but a re-minted frame node, which no rule can read.
@@ -1741,15 +1741,15 @@ refuses it and says where to put it instead.
 
 §4: what the agent may DO, as data.
 
-    ⭐⭐⭐ `conn(?r, causes)` was the nearest thing to an action palette and it
+    ⭐⭐⭐ `conn($r, causes)` was the nearest thing to an action palette and it
     answers a different question: how a rule relates to the world, not that the
     agent may deliberately do it. *Fire causes smoke* and *I may strike a match*
     are both `causes`.
 
     ⚠ The signature is generic, so it is MENTIONED rather than claimed -- the
     gate refuses to deposit a proposition with a variable in it, and rightly.
-    `afforded(move(?x, ?y))` is a claim ABOUT a pattern, exactly as `reify`
-    deposits `ant(<R>, heat(?a, ?w))`.
+    `afforded(move($x, $y))` is a claim ABOUT a pattern, exactly as `reify`
+    deposits `ant(<R>, heat($a, $w))`.
 
     ⭐ What the reification buys is the ROUND TRIP: one fallback rule ranges
     over every action, including ones declared after it was written. Without it
@@ -1771,7 +1771,7 @@ refuses it and says where to put it instead.
 
     ⚠ The machinery has to, because a rule cannot: subsumption runs the pattern
     against the entry, and here the entry is the generic one. Measured --
-    `unify(move(?x,?y), move(d1,z))` is True and the reverse is False.
+    `unify(move($x,$y), move(d1,z))` is True and the reverse is False.
 
 ## `outstanding_business_is_not_dropped_in_silence`
 
@@ -1929,7 +1929,7 @@ bug -- which is exactly how it was found.
 
     Everything a consequent could name came from a binding or was written
     literally, so *there is some new person here* was unsayable. The binding
-    check refuses `+named(?p, ?x)` with `?p` unbound, and refuses it correctly --
+    check refuses `+named($p, $x)` with `$p` unbound, and refuses it correctly --
     the gate cannot deposit a variable. `+person` says it instead: the same mark that
     already signals a node coming to be, one level down.
 
@@ -1995,7 +1995,7 @@ The engine consults a corpus's rules on another rule's conclusions.
 
     ⭐ The wrapper case is the one that pays for it. A supposition used to be
     written by every rule carrying its own wrapper -- `worked.ugm`'s `<weather>`
-    concludes `+likely(rain(?day, afternoon))` -- so *everything concluded under
+    concludes `+likely(rain($day, afternoon))` -- so *everything concluded under
     this hypothesis is uncertain* had to be said once per rule and could not be
     turned on. As a trigger it is said once, and no rule's consequent mentions
     the wrapper at all.

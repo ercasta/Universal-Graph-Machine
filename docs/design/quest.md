@@ -44,15 +44,15 @@ deny what it consumed. **Both attempts ran for ever**, and the trace says why:
     149  - says(p1, want(p1, key1), +)
     149  + wants(p1, key1)
 
-`<intake>` is a BUNDLED rule -- `arrived(?c, ?said, ?sign) ⟹ says(...)` -- and
+`<intake>` is a BUNDLED rule -- `arrived($c, $said, $sign) ⟹ says(...)` -- and
 `arrived` is the unarguable record of a boundary event, which nothing retracts.
 So `says` is re-derived the moment it is denied, and so is anything derived from
 it. **Deny something an arrival implies and the bundle restores it, for ever.**
 
 What works instead is not consumption but a **gate that legitimately closes**:
 
-    rule <route> = implies( { +wants(?who, ?k), -holds(?who, ?k),
-                              +holds(?keeper, ?k) }, { ... } )
+    rule <route> = implies( { +wants($who, $k), -holds($who, $k),
+                              +holds($keeper, $k) }, { ... } )
     fact -holds(p1, key1)
 
 The DM asserts the denial up front (§1, *write your negatives*); the transfer's
@@ -64,10 +64,10 @@ quiet with nothing retracted. So the two rules of thumb divide cleanly:
 ⚠⚠⚠ **`blocked` reports the rule's antecedent member AS WRITTEN, ungrounded**,
 and that decided how this corpus had to be shaped. Probed three ways:
 
-    { +have(?w, ?k), +opens(?k, ?d) }   -> blocked(have(?w, ?k))
-    { +opens(?k, ?d), +have(?w, ?k) }   -> blocked(have(?w, ?k))   (order is not it)
-    { +opens(?k, ?d), +me(?w), +have(?w, ?k) } with `fact +me(p1)`
-                                        -> blocked(have(?w, ?k))   (nor a ground sibling)
+    { +have($w, $k), +opens($k, $d) }   -> blocked(have($w, $k))
+    { +opens($k, $d), +have($w, $k) }   -> blocked(have($w, $k))   (order is not it)
+    { +opens($k, $d), +me($w), +have($w, $k) } with `fact +me(p1)`
+                                        -> blocked(have($w, $k))   (nor a ground sibling)
 
 `achieved(opens(key1, door1))` is written in every one of those runs, so the
 sibling premise *was* satisfied and its binding did **not** reach `have`. So a

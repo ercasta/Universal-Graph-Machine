@@ -24,72 +24,72 @@ RULES = """
 # has a top disk, and onto an empty one -- which is the point of separating the
 # declaration from the resolution: what the agent may ask for is one thing, and
 # what happens when it asks is several.
-action move(?d, ?p)
+action move($d, $p)
 
 fact +advances(unstacking, placing)
 fact +closes(waiting)
 
-rule <bigger> = implies( { +smaller(?a,?b), +smaller(?b,?c) }, { +smaller(?a,?c) } )
-rule <fits-peg>  = implies( { +disk(?d), +peg(?p) }, { +fits(?d, ?p) } )
-rule <fits-disk> = implies( { +smaller(?d, ?e) }, { +fits(?d, ?e) } )
+rule <bigger> = implies( { +smaller($a,$b), +smaller($b,$c) }, { +smaller($a,$c) } )
+rule <fits-peg>  = implies( { +disk($d), +peg($p) }, { +fits($d, $p) } )
+rule <fits-disk> = implies( { +smaller($d, $e) }, { +fits($d, $e) } )
 
 # -- the strategy. The STACK is the bundle's; this is what is Hanoi's ---------
 
 # A call on the smallest disk has nothing to unstack: place it.
-rule <base> = implies( { +stage(?c, start), +call(?c, tower(?d, ?f, ?t, ?s)),
-                         +smallest(?d) },
-                       { -stage(?c, start), +stage(?c, placing) } )
+rule <base> = implies( { +stage($c, start), +call($c, tower($d, $f, $t, $s)),
+                         +smallest($d) },
+                       { -stage($c, start), +stage($c, placing) } )
 
 # Otherwise a sub-call moves the sub-tower to the spare peg, and the pegs
 # rotate exactly as the recursive definition rotates them.
-rule <descend> = implies( { +stage(?c, start), +call(?c, tower(?d, ?f, ?t, ?s)),
-                            +next(?e, ?d) },
-                          { -stage(?c, start), +stage(?c, unstacking),
-                            +spawn(?c, tower(?e, ?f, ?s, ?t), start) } )
+rule <descend> = implies( { +stage($c, start), +call($c, tower($d, $f, $t, $s)),
+                            +next($e, $d) },
+                          { -stage($c, start), +stage($c, unstacking),
+                            +spawn($c, tower($e, $f, $s, $t), start) } )
 
 # Placing is the only stage that asks for an action.
-rule <ask> = implies( { +stage(?c, placing), +call(?c, tower(?d, ?f, ?t, ?s)) },
-                      { +attempt(move(?d, ?t)) } )
+rule <ask> = implies( { +stage($c, placing), +call($c, tower($d, $f, $t, $s)) },
+                      { +attempt(move($d, $t)) } )
 
-rule <placed> = implies( { +stage(?c, placing), +call(?c, tower(?d, ?f, ?t, ?s)),
-                           +at(?d, ?t) },
-                         { -stage(?c, placing), +stage(?c, restacking) } )
+rule <placed> = implies( { +stage($c, placing), +call($c, tower($d, $f, $t, $s)),
+                           +at($d, $t) },
+                         { -stage($c, placing), +stage($c, restacking) } )
 
-rule <ascend> = implies( { +stage(?c, restacking), +call(?c, tower(?d, ?f, ?t, ?s)),
-                           +next(?e, ?d) },
-                         { -stage(?c, restacking), +stage(?c, waiting),
-                           +spawn(?c, tower(?e, ?s, ?t, ?f), start) } )
+rule <ascend> = implies( { +stage($c, restacking), +call($c, tower($d, $f, $t, $s)),
+                           +next($e, $d) },
+                         { -stage($c, restacking), +stage($c, waiting),
+                           +spawn($c, tower($e, $s, $t, $f), start) } )
 
-rule <leaf> = implies( { +stage(?c, restacking), +call(?c, tower(?d, ?f, ?t, ?s)),
-                          +smallest(?d) },
-                        { -stage(?c, restacking), +returned(?c) } )
+rule <leaf> = implies( { +stage($c, restacking), +call($c, tower($d, $f, $t, $s)),
+                          +smallest($d) },
+                        { -stage($c, restacking), +returned($c) } )
 
 # -- the action. Licensed by a want, never free-standing, and it keeps `at`
 # true -- which is cheap because only a CLEAR disk ever moves, so nothing
 # above it has to be updated.
 
-rule <move> = causes( { +attempt(move(?d, ?p)), +peg(?p), +on(?d, ?from),
-                         +at(?d, ?was), +clear(?d), +clear(?to),
-                         +fits(?d, ?to), +at(?to, ?p) },
-                       { +on(?d, ?to), -on(?d, ?from), +clear(?from),
-                         -clear(?to), -attempt(move(?d, ?p)),
-                         +at(?d, ?p), -at(?d, ?was) } )
+rule <move> = causes( { +attempt(move($d, $p)), +peg($p), +on($d, $from),
+                         +at($d, $was), +clear($d), +clear($to),
+                         +fits($d, $to), +at($to, $p) },
+                       { +on($d, $to), -on($d, $from), +clear($from),
+                         -clear($to), -attempt(move($d, $p)),
+                         +at($d, $p), -at($d, $was) } )
 
-rule <move-bare> = causes( { +attempt(move(?d, ?p)), +peg(?p), +clear(?p),
-                              +on(?d, ?from), +at(?d, ?was), +clear(?d),
-                              +fits(?d, ?p) },
-                            { +on(?d, ?p), -on(?d, ?from), +clear(?from),
-                              -clear(?p), -attempt(move(?d, ?p)),
-                              +at(?d, ?p), -at(?d, ?was) } )
+rule <move-bare> = causes( { +attempt(move($d, $p)), +peg($p), +clear($p),
+                              +on($d, $from), +at($d, $was), +clear($d),
+                              +fits($d, $p) },
+                            { +on($d, $p), -on($d, $from), +clear($from),
+                              -clear($p), -attempt(move($d, $p)),
+                              +at($d, $p), -at($d, $was) } )
 
 # ⭐⭐⭐ ...and the world model DECLINES an illegal one, out loud. Before this,
 # an attempt to move a covered disk simply matched nothing, and *nothing
 # happened* is indistinguishable from *nothing was wrong* -- the silence this
-# whole design is against. `-clear(?d)` is sayable here because a move DENIES
+# whole design is against. `-clear($d)` is sayable here because a move DENIES
 # what it lands on, so *an entry denies this* is exactly the case (§9).
-rule <covered> = implies( { +attempt(move(?d, ?p)), -clear(?d) },
-                         { +declined(move(?d, ?p), covered),
-                           -attempt(move(?d, ?p)) } )
+rule <covered> = implies( { +attempt(move($d, $p)), -clear($d) },
+                         { +declined(move($d, $p), covered),
+                           -attempt(move($d, $p)) } )
 
 rule <finished> = implies( { +returned(whole) }, { +enough(solved) } )
 """
@@ -106,13 +106,13 @@ COUNTDOWN = """
 fact +advances(waiting, resuming)
 fact +closes(resuming)
 
-rule <bottom> = implies( { +stage(?c, start), +call(?c, count(0)) },
-                        { -stage(?c, start), +returned(?c) } )
-rule <step> = implies( { +stage(?c, start), +call(?c, count(?n)), +pred(?n, ?m) },
-                      { -stage(?c, start), +stage(?c, waiting),
-                        +spawn(?c, count(?m), start) } )
-rule <resumed> = implies( { +stage(?c, resuming) },
-                         { -stage(?c, resuming), +returned(?c) } )
+rule <bottom> = implies( { +stage($c, start), +call($c, count(0)) },
+                        { -stage($c, start), +returned($c) } )
+rule <step> = implies( { +stage($c, start), +call($c, count($n)), +pred($n, $m) },
+                      { -stage($c, start), +stage($c, waiting),
+                        +spawn($c, count($m), start) } )
+rule <resumed> = implies( { +stage($c, resuming) },
+                         { -stage($c, resuming), +returned($c) } )
 rule <counted-down> = implies( { +returned(whole) }, { +enough(counted) } )
 """
 
@@ -164,7 +164,7 @@ def facts(n: int, pegs: Tuple[str, ...] = PEGS, target: str = "z") -> str:
     L.append("fact +on(d%d, %s)" % (n, pegs[0]))
     L.append("fact +clear(d1)")
     L.append("fact +smallest(d1)")
-    # ⚠⚠⚠ **Stated, not left absent.** `-clear(?d)` means *an entry denies
+    # ⚠⚠⚠ **Stated, not left absent.** `-clear($d)` means *an entry denies
     # this*, never *there is no entry* (§9) -- so a world model that merely
     # omits `clear(d2)` cannot be asked whether d2 is covered, and the rule that
     # declines a move onto a covered disk matches nothing until something has
@@ -219,7 +219,7 @@ def solve(n: int, without: str = "", limit: int = 20000) -> dict:
     def watch(mm, table, window, chosen, tick, step=None):
         if chosen.rule.name in ("move", "move-bare"):
             b = {mm.g.show(k): mm.g.show(v) for k, v in chosen.bindings.items()}
-            moves.append((b["?d"], b["?p"]))
+            moves.append((b["$d"], b["$p"]))
 
     report = run(m, limit=limit, watch=watch)
     return {
@@ -234,8 +234,8 @@ def solve(n: int, without: str = "", limit: int = 20000) -> dict:
 
 # -- learning the recursion from watching it -------------------------------
 # ⭐⭐⭐ What is learned is the PERMUTATION, and it is the whole insight of Hanoi:
-# a parent call tower(?d, ?f, ?t, ?s) spawns tower(?e, ?f, ?s, ?t) on the way
-# down and tower(?e, ?s, ?t, ?f) on the way back. ⚠ Examples cross as TEXT.
+# a parent call tower($d, $f, $t, $s) spawns tower($e, $f, $s, $t) on the way
+# down and tower($e, $s, $t, $f) on the way back. ⚠ Examples cross as TEXT.
 # → docs/design/hanoi.md#learning-the-recursion-from-watching-it
 
 # What is not the corpus's own: the apparatus, and the stack the bundle now
@@ -375,8 +375,8 @@ def solve_learned(n: int, learned: dict, data: List[str],
 
     def watch(mm, table, window, chosen, tick, step=None):
         # ⚠ Read off what the move DEPOSITED, never off its bindings: a learned
-        # rule's variables are `?g47`, so nothing outside it can name them.
-        # `at(?d, ?p)` says the same thing in the corpus's own vocabulary, which
+        # rule's variables are `$g47`, so nothing outside it can name them.
+        # `at($d, $p)` says the same thing in the corpus's own vocabulary, which
         # is the only part that survives being learned.
         for e in (step.wrote or ()):
             if e.sign == PLUS and mm.g.show(mm.g.relation_of(e.proposition)) == "at":
@@ -396,15 +396,15 @@ def _canonical(text: str) -> str:
     def sub(mo):
         v = mo.group(0)
         if v not in seen:
-            seen[v] = "?v%d" % len(seen)
+            seen[v] = "$v%d" % len(seen)
         return seen[v]
     flat = " ".join(text.split())
-    # ⚠ Spacing is not a difference. A person writes `?a,?b` and the renderer
-    # writes `?g6, ?g7`; comparing those as strings reported two rules as
+    # ⚠ Spacing is not a difference. A person writes `$a,$b` and the renderer
+    # writes `$g6, $g7`; comparing those as strings reported two rules as
     # DIFFERING from themselves.
     for ch in ",(){}":
         flat = flat.replace(" " + ch, ch).replace(ch + " ", ch)
-    return re.sub(r"\?[A-Za-z_][A-Za-z0-9_]*", sub, flat)
+    return re.sub(r"\$[A-Za-z_][A-Za-z0-9_]*", sub, flat)
 
 
 def misbehave(n: int = 3, without: str = "", limit: int = 400) -> dict:

@@ -79,8 +79,8 @@ def _obeyed_when_denied(name: str) -> bool:
     m = Machine()
     a = next(x for x in m.answerers if x.name == name)
     load(m, chr(10).join([
-        "rule <boil> = implies( { +heat(?x, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
+        "rule <boil> = implies( { +heat($x, $w), +water($w) }, { +boiling($w) } )",
+        "rule <ask-root> = implies( { +goal($w) }, { +root($w) } )",
         "fact standing(<ask-root>)",
         f"fact -answers(<{name}>, {m.g.show(a.request)})",
         "fact +water(kettle)", "fact +goal(boiling(kettle))", ""]))

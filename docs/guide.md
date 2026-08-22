@@ -112,15 +112,15 @@ The distinction that costs two levels of structure and buys the most: `-` means
 stays honest because of it. Absence has its own notation — §3.4.
 
 !!! warning "`? p(x)` needs the space"
-    `?maybe` tokenises as a **variable**, so `fact ?maybe(rain)` is read as a
+    `$maybe` tokenises as a **variable**, so `fact $maybe(rain)` is read as a
     variable applied to `rain` and refused (*a fact may not contain a
     variable*). Write `fact ? maybe(rain)`. `+` and `-` need no space.
 
 ### 3.2 Rules
 
 ```
-rule <cancel>     = implies( { +cancelled(?f) }, { +disrupted(?f) } )
-rule <boil>       = causes(  { +heat(?a, ?w), +water(?w) }, { +boiled(?w) } )
+rule <cancel>     = implies( { +cancelled($f) }, { +disrupted($f) } )
+rule <boil>       = causes(  { +heat($a, $w), +water($w) }, { +boiled($w) } )
 ```
 
 A rule is `connective( { antecedent }, { consequent } )`, each side a
@@ -139,13 +139,13 @@ Water you have stopped heating stays boiled, which is why a zero-delay cause is
 still not an implication. If you write `implies` where you meant `causes`, your
 world will quietly un-happen things.
 
-A consequent may deny: `{ +served(?p), -wants(?p, ale) }` concludes one thing
+A consequent may deny: `{ +served($p), -wants($p, ale) }` concludes one thing
 and retracts another in the same move.
 
 ### 3.3 Variables
 
-`?x` is a variable, scoped to its statement — `?w` in two rules is two
-variables. A variable may sit in **relation** position too (`?p(?t)`), which is
+`$x` is a variable, scoped to its statement — `$w` in two rules is two
+variables. A variable may sit in **relation** position too (`$p($t)`), which is
 what makes *apply the effect named by this ability* one rule instead of one
 rule per ability.
 
@@ -153,14 +153,14 @@ Everything a consequent concludes about must be bound by the antecedent. A rule
 that concludes about a free variable is refused at load, because the gate could
 not deposit it anyway.
 
-### 3.4 Absence — `no p(?x)`
+### 3.4 Absence — `no p($x)`
 
 `-p` means *someone denied p*. To ask whether anything *asserts* p — including
 the case where nothing has ever spoken about it — use `no`:
 
 ```
-rule <thirsty> = implies( { +is(?p, traveller), no served(?p) },
-                          { +wants(?p, ale) } )
+rule <thirsty> = implies( { +is($p, traveller), no served($p) },
+                          { +wants($p, ale) } )
 ```
 
 This is a distinct mode, not a spelling of `-`, and the reason is exact: a rule
@@ -168,14 +168,14 @@ that *materialises* a denial has to ask about absence first, so `-` could never
 bootstrap it. The classic case:
 
 ```
-rule <dark> = implies( { +lamp(?l), no lit(?l) }, { -lit(?l) } )
+rule <dark> = implies( { +lamp($l), no lit($l) }, { -lit($l) } )
 ```
 
 Three rules about `no`, all enforced at load with a message:
 
 - **It checks; it does not bind.** Every variable in a `no` member must be
-  bound by an earlier member. `no p(?x)` with `?x` free would mean *for no
-  ?x* — a claim about a set that a member cannot make.
+  bound by an earlier member. `no p($x)` with `$x` free would mean *for no
+  $x* — a claim about a set that a member cannot make.
 - **It cannot be concluded.** `no` in a consequent is an error: absence is
   asked, never asserted. To say something is not so, conclude `-p(...)`.
 - **It cannot be a fact.** A fact states; `no` asks.
@@ -189,12 +189,12 @@ an ordinary claim about it, so a name is deniable like anything else. Rules
 create entities with the `+` mint marker, one fresh node per firing:
 
 ```
-rule <intro> = implies( { +said(?m, ?x) },
-                        { +named(+person, ?x), +denotes(?m, +person) } )
+rule <intro> = implies( { +said($m, $x) },
+                        { +named(+person, $x), +denotes($m, +person) } )
 ```
 
 `+person` is a marker, not a name — one node per marker per application, so
-`+named(+person, ?x)` and `+denotes(?m, +person)` are about the *same* new
+`+named(+person, $x)` and `+denotes($m, +person)` are about the *same* new
 thing, and two firings are about two things.
 
 A **relationship** reified this way has an id of its own, so it can be placed
@@ -220,10 +220,10 @@ Reified structure is several lines where a flat fact was one. Name the shape
 once:
 
 ```
-alias sale(?seller, ?buyer, ?item) = { +is(+e, sale),
-                                       +seller(+e, ?seller),
-                                       +buyer(+e, ?buyer),
-                                       +item(+e, ?item) }
+alias sale($seller, $buyer, $item) = { +is(+e, sale),
+                                       +seller(+e, $seller),
+                                       +buyer(+e, $buyer),
+                                       +item(+e, $item) }
 
 fact +sale(elara, brin, ale)
 ```
@@ -238,7 +238,7 @@ becomes depends on where you use it:
 | an antecedent | a fresh variable joining the members — a **query** over the structure |
 | a consequent | a mint marker still — one entity per firing |
 
-So `rule <threat> = implies( { +sale(?s, ?b, ale) }, { +barkeep(?s) } )` reads
+So `rule <threat> = implies( { +sale($s, $b, ale) }, { +barkeep($s) } )` reads
 the structure however it was deposited.
 
 **A nested occurrence is not expanded.** `mention(m9, sale(elara, brin, ale))`
@@ -255,7 +255,7 @@ A fact may be named, in the same brackets a rule uses, because it is the same
 namespace — names of *statements*:
 
 ```
-fact <no-smashing> = +forbidden(smash(?x))
+fact <no-smashing> = +forbidden(smash($x))
 ```
 
 A rule is a node, so rules are ordinary subjects. Two claims you will reach for
@@ -274,14 +274,14 @@ about which rule won can bypass it:
 
 ```
 fact +fragile(jug)
-rule <tempted> = implies( { +fragile(?x) }, { +smash(?x) } )
+rule <tempted> = implies( { +fragile($x) }, { +smash($x) } )
 ```
 
 With `<no-smashing>` above loaded, the rule applies and the write is refused,
 once, on the record:
 
 ```
-refused(smash(jug), +, forbidden(smash(?x)))
+refused(smash(jug), +, forbidden(smash($x)))
 ```
 
 Deny the prohibition later and the rule applies on its own — a refusal is a
@@ -290,11 +290,11 @@ deferral, not a rejection.
 ### 3.8 Actions
 
 ```
-action pour(?vessel)
+action pour($vessel)
 ```
 
 A signature and nothing else — no brackets. It declares that the agent *may
-deliberately do* this, which makes the palette **discoverable**: `+action(?a)`
+deliberately do* this, which makes the palette **discoverable**: `+action($a)`
 is an ordinary premise, so one fallback rule can range over every action,
 including ones declared after it was written.
 
@@ -308,7 +308,7 @@ An arrival is not a belief. What is written is *the channel said so*; a rule is
 what turns it into a claim about the world:
 
 ```
-rule <trust> = implies( { +says(user, ?p, plus) }, { +likely(?p) } )
+rule <trust> = implies( { +says(user, $p, plus) }, { +likely($p) } )
 ```
 
 That rule's consequent is a bare variable — *whatever the channel says, believe
@@ -335,7 +335,7 @@ direction — and `--why` will show the plan alongside the trail:
 asked for:
   boiled(kettle)  [held]  via <boil>
     water(kettle)  [held]
-    heat(?a, kettle)  [open]
+    heat($a, kettle)  [open]
 ```
 
 `[open]` is a subgoal nothing has satisfied. If no rule fits at all, the
@@ -346,10 +346,10 @@ stuck, do this*.
 
 ```
 expert kitchen
-rule <k1> = implies( { +tap(?t) }, { +source(?t) } )
+rule <k1> = implies( { +tap($t) }, { +source($t) } )
 
 expert bar extends kitchen
-rule <b1> = implies( { +source(?s) }, { +usable(?s) } )
+rule <b1> = implies( { +source($s) }, { +usable($s) } )
 ```
 
 Rules following a declaration belong to that expert. One graph, one history,
@@ -362,16 +362,16 @@ A trigger hangs a postcondition off a rule: when that rule applies and the
 query holds, spend something.
 
 ```
-after <serve> => attend(?p, 3)
+after <serve> => attend($p, 3)
 after <done> => stop
-after <spot> { +dangerous(?x) } => attend(?x, 5)
+after <spot> { +dangerous($x) } => attend($x, 5)
 ```
 
 There are five things to spend, and none of them is a score:
 
 | | |
 |---|---|
-| `attend(?x, n)` | think about this node — one the move itself bound |
+| `attend($x, n)` | think about this node — one the move itself bound |
 | `unattend` | stop thinking about whatever it was |
 | `stop` | end the run |
 | `push(...)` / `pop` | suspend this line of work for another, and return |
@@ -406,14 +406,14 @@ m = Machine()
 kb = Loader(m)
 kb.computator("plus", lambda a, b: int(a) + int(b))
 kb.load("""
-rule <total> = implies( { +hits(?a, ?n), plus(?n, 2) as ?t }, { +score(?a, ?t) } )
+rule <total> = implies( { +hits($a, $n), plus($n, 2) as $t }, { +score($a, $t) } )
 fact +hits(bo, 5)
 """)
 m.run(limit=40)
 # score(bo, 7)
 ```
 
-Note `as ?t` — that is how a computed value is bound.
+Note `as $t` — that is how a computed value is bound.
 
 **An answerer** is a request answered by a function, and it may **decline**,
 which is a real answer:
@@ -422,7 +422,7 @@ which is a real answer:
 kb = Loader(m)
 kb.answerer("oracle", "advice", lambda mach, e: kb.term("route(north)"))
 kb.load("""
-rule <ask> = implies( { +lost(?w) }, { +advice(?w) } )
+rule <ask> = implies( { +lost($w) }, { +advice($w) } )
 fact +lost(hero)
 """)
 m.run(limit=60)

@@ -5,23 +5,23 @@ because the domain is deliberately far from toys — entitlements, exceptions an
 duties rather than blocks on a table.
 
 ```
-rule <cancel>  = implies( { +cancelled(?f) },     { +disrupted(?f) } )
-rule <late>    = implies( { +delayed(?f, long) }, { +disrupted(?f) } )
+rule <cancel>  = implies( { +cancelled($f) },     { +disrupted($f) } )
+rule <late>    = implies( { +delayed($f, long) }, { +disrupted($f) } )
 
 # the duty of care is owed whatever the cause
-rule <care> = implies( { +disrupted(?f), +booked(?p, ?f) },
-                       { +owed(?p, meals), +owed(?p, lodging) } )
+rule <care> = implies( { +disrupted($f), +booked($p, $f) },
+                       { +owed($p, meals), +owed($p, lodging) } )
 
 # ...but compensation is not, if the cause was outside the carrier's control
 rule <compensate> = implies(
-    { +disrupted(?f), +booked(?p, ?f), -extraordinary(?f) },
-    { +owed(?p, money) } )
+    { +disrupted($f), +booked($p, $f), -extraordinary($f) },
+    { +owed($p, money) } )
 
-rule <weather> = implies( { +cause(?f, storm) }, { +extraordinary(?f) } )
-rule <crewing> = implies( { +cause(?f, crew) },  { -extraordinary(?f) } )
+rule <weather> = implies( { +cause($f, storm) }, { +extraordinary($f) } )
+rule <crewing> = implies( { +cause($f, crew) },  { -extraordinary($f) } )
 
-rule <far>  = implies( { +owed(?p, money), +flying(?p, ?f), +distance(?f, long) },
-                       { +amount(?p, 600) } )
+rule <far>  = implies( { +owed($p, money), +flying($p, $f), +distance($f, long) },
+                       { +amount($p, 600) } )
 ```
 
 Ana's flight was cancelled because of a crew shortage. Raj's was delayed by a

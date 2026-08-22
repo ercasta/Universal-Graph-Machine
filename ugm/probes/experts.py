@@ -9,8 +9,8 @@ so this is a STACK and it needs a cycle test.
 doing the same thing on purpose:
 
     Consultation    the Python stack, keyed on `(expert, question)`, driven by
-                    `consult(<expert>, ?q)` in the corpus. The CONTROL.
-    PORTED          nothing names a callee. A rule spends `push(?q)`, the
+                    `consult(<expert>, $q)` in the corpus. The CONTROL.
+    PORTED          nothing names a callee. A rule spends `push($q)`, the
                     engine picks the expert by TF-IDF, and a rule spends `pop`.
                     `consult`, `answered` and the whole Python stack are gone.
 
@@ -39,8 +39,8 @@ DEPTH = 8
 # the whole of what `extends` means and a corpus that forgot it would silently
 # have an expert with no inherited rules.
 INHERIT = """
-rule <inherit> = implies( { +extends(?e, ?f), +knows(?f, ?r) },
-                          { +knows(?e, ?r) } )
+rule <inherit> = implies( { +extends($e, $f), +knows($f, $r) },
+                          { +knows($e, $r) } )
 """
 
 
@@ -115,7 +115,7 @@ class Consultation:
 
     # -- reading the request off the graph
     def pending(self) -> Optional[Tuple[str, NodeId]]:
-        """The first unanswered `consult(<expert>, ?q)`, if any."""
+        """The first unanswered `consult(<expert>, $q)`, if any."""
         for inst in self.m.g.instances_of(self.kb.atom("consult")):
             if self.m.holds(inst) != PLUS:
                 continue
@@ -247,34 +247,34 @@ CORPUS = """
 # everything, because there is nothing else to share.
 
 expert arithmetic
-rule <double> = implies( { +question(twice(?n)), +num(?n, ?v), +plus(?v, ?v, ?s) },
-                         { +reply(twice(?n), ?s) } )
+rule <double> = implies( { +question(twice($n)), +num($n, $v), +plus($v, $v, $s) },
+                         { +reply(twice($n), $s) } )
 
 # `geometry` inherits arithmetic's rules and adds its own. It cannot do the
 # addition itself and does not need to: `extends` is one fact.
 expert geometry extends arithmetic
-rule <area> = implies( { +question(area(?r)), +wide(?r, ?w), +tall(?r, ?h),
-                         +times(?w, ?h, ?a) },
-                       { +reply(area(?r), ?a) } )
+rule <area> = implies( { +question(area($r)), +wide($r, $w), +tall($r, $h),
+                         +times($w, $h, $a) },
+                       { +reply(area($r), $a) } )
 
 # The surveyor knows no geometry at all. It ASKS.
 expert surveyor
-rule <ask-area>  = implies( { +survey(?r) },
-                            { +consult(geometry, area(?r)) } )
-rule <record>    = implies( { +answered(geometry, area(?r), ?a) },
-                            { +plot(?r, ?a) } )
-rule <ask-perim> = implies( { +fence(?r) },
-                            { +consult(geometry, perim(?r)) } )
-rule <recorded>  = implies( { +answered(geometry, perim(?r), ?p) },
-                            { +fencing(?r, ?p) } )
+rule <ask-area>  = implies( { +survey($r) },
+                            { +consult(geometry, area($r)) } )
+rule <record>    = implies( { +answered(geometry, area($r), $a) },
+                            { +plot($r, $a) } )
+rule <ask-perim> = implies( { +fence($r) },
+                            { +consult(geometry, perim($r)) } )
+rule <recorded>  = implies( { +answered(geometry, perim($r), $p) },
+                            { +fencing($r, $p) } )
 
 # ...and a second hop, so the stack is exercised: geometry asks arithmetic.
 expert geometry
-rule <perimeter> = implies( { +question(perim(?r)), +wide(?r, ?w) },
-                            { +consult(arithmetic, twice(?w)) } )
-rule <perim-done> = implies( { +answered(arithmetic, twice(?w), ?s),
-                               +wide(?r, ?w) },
-                             { +reply(perim(?r), ?s) } )
+rule <perimeter> = implies( { +question(perim($r)), +wide($r, $w) },
+                            { +consult(arithmetic, twice($w)) } )
+rule <perim-done> = implies( { +answered(arithmetic, twice($w), $s),
+                               +wide($r, $w) },
+                             { +reply(perim($r), $s) } )
 
 # The world. Arithmetic is a table of facts here rather than a tool, because
 # what is being demonstrated is the routing and not the adding.
@@ -294,32 +294,32 @@ PORTED = """
 # pops is a rule saying so*, never the loop noticing its own quiescence. `stop`
 # already settled which way that goes.
 expert responder
-rule <replied> = implies( { +question(?q), +reply(?q, ?a) }, { +answered(?q) } )
-after <replied> => pop(?a)
+rule <replied> = implies( { +question($q), +reply($q, $a) }, { +answered($q) } )
+after <replied> => pop($a)
 
 expert arithmetic extends responder
-rule <double> = implies( { +question(twice(?n)), +num(?n, ?v), +plus(?v, ?v, ?s) },
-                         { +reply(twice(?n), ?s) } )
+rule <double> = implies( { +question(twice($n)), +num($n, $v), +plus($v, $v, $s) },
+                         { +reply(twice($n), $s) } )
 
 expert geometry extends arithmetic
-rule <area> = implies( { +question(area(?r)), +wide(?r, ?w), +tall(?r, ?h),
-                         +times(?w, ?h, ?a) },
-                       { +reply(area(?r), ?a) } )
-rule <perimeter> = implies( { +question(perim(?r)), +wide(?r, ?w) },
-                            { +question(twice(?w)) } )
-after <perimeter> => push(twice(?w))
-rule <perim-done> = implies( { +reply(twice(?w), ?s), +wide(?r, ?w) },
-                             { +reply(perim(?r), ?s) } )
+rule <area> = implies( { +question(area($r)), +wide($r, $w), +tall($r, $h),
+                         +times($w, $h, $a) },
+                       { +reply(area($r), $a) } )
+rule <perimeter> = implies( { +question(perim($r)), +wide($r, $w) },
+                            { +question(twice($w)) } )
+after <perimeter> => push(twice($w))
+rule <perim-done> = implies( { +reply(twice($w), $s), +wide($r, $w) },
+                             { +reply(perim($r), $s) } )
 
 # ⚠ The surveyor no longer knows that geometry exists. It deposits the QUESTION
 # and pushes a frame on it; who answers is computed from the question.
 expert surveyor extends responder
-rule <ask-area>  = implies( { +survey(?r) }, { +question(area(?r)) } )
-after <ask-area> => push(area(?r))
-rule <record>    = implies( { +reply(area(?r), ?a) }, { +plot(?r, ?a) } )
-rule <ask-perim> = implies( { +fence(?r) }, { +question(perim(?r)) } )
-after <ask-perim> => push(perim(?r))
-rule <recorded>  = implies( { +reply(perim(?r), ?p) }, { +fencing(?r, ?p) } )
+rule <ask-area>  = implies( { +survey($r) }, { +question(area($r)) } )
+after <ask-area> => push(area($r))
+rule <record>    = implies( { +reply(area($r), $a) }, { +plot($r, $a) } )
+rule <ask-perim> = implies( { +fence($r) }, { +question(perim($r)) } )
+after <ask-perim> => push(perim($r))
+rule <recorded>  = implies( { +reply(perim($r), $p) }, { +fencing($r, $p) } )
 
 fact +wide(plot1, 3)
 fact +tall(plot1, 4)
@@ -467,9 +467,9 @@ def main() -> int:
     kb.load(INHERIT)
     kb.load("""
 expert a
-rule <a-asks> = implies( { +question(loop(?x)) }, { +consult(b, loop(?x)) } )
+rule <a-asks> = implies( { +question(loop($x)) }, { +consult(b, loop($x)) } )
 expert b
-rule <b-asks> = implies( { +question(loop(?x)) }, { +consult(a, loop(?x)) } )
+rule <b-asks> = implies( { +question(loop($x)) }, { +consult(a, loop($x)) } )
 fact +question(loop(x))
 """)
     kb.load(SETTLE)
@@ -548,16 +548,16 @@ fact +question(loop(x))
 
     # ⭐⭐⭐ ...and the one way a resume CAN differ, which runs the other way.
     stale = """
-rule <splint> = implies( { +broken(?p), +stick(?s) }, { +set(?p) } )
+rule <splint> = implies( { +broken($p), +stick($s) }, { +set($p) } )
 expert responder
-rule <replied> = implies( { +asked(?p), +set(?p) }, { +answered(?p) } )
-after <replied> => pop(?p)
+rule <replied> = implies( { +asked($p), +set($p) }, { +answered($p) } )
+after <replied> => pop($p)
 expert medic extends responder
-rule <treat> = implies( { +hurt(?p), +bandage(?b) }, { +treated(?p) } )
-rule <learn> = implies( { +treated(?p), +taught(?r) }, { +knows(medic, ?r) } )
+rule <treat> = implies( { +hurt($p), +bandage($b) }, { +treated($p) } )
+rule <learn> = implies( { +treated($p), +taught($r) }, { +knows(medic, $r) } )
 expert nurse extends responder
-rule <call> = implies( { +ward(?p), +admitted(?p) }, { +asked(?p) } )
-after <call> => push(hurt(?p))
+rule <call> = implies( { +ward($p), +admitted($p) }, { +asked($p) } )
+after <call> => push(hurt($p))
 fact +hurt(bob)
 fact +ward(bob)
 fact +admitted(bob)

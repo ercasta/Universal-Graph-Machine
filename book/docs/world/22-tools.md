@@ -18,10 +18,10 @@ kb.computator("plus",  lambda a, b: int(a) + int(b))
 
 ```
 rule <pay> = causes(
-    { +pays(?a, ?b, ?n), +purse(?a, ?x), +purse(?b, ?y),
-      minus(?x, ?n) as ?x2, plus(?y, ?n) as ?y2 },
-    { ? purse(?a, ?x), +purse(?a, ?x2), ? purse(?b, ?y), +purse(?b, ?y2),
-      -pays(?a, ?b, ?n) } )
+    { +pays($a, $b, $n), +purse($a, $x), +purse($b, $y),
+      minus($x, $n) as $x2, plus($y, $n) as $y2 },
+    { ? purse($a, $x), +purse($a, $x2), ? purse($b, $y), +purse($b, $y2),
+      -pays($a, $b, $n) } )
 
 fact +purse(anna, 10)
 fact +purse(bo, 5)
@@ -41,10 +41,10 @@ in one application: a standing observer sees `total(10, 5)` and then
 
 Three details in that rule are load-bearing:
 
-- **`as ?x2`** names what the computator returned, so the consequent can use it.
-- **`? purse(?a, ?x)`** invalidates the old amount. Without it, silence means
+- **`as $x2`** names what the computator returned, so the consequent can use it.
+- **`? purse($a, $x)`** invalidates the old amount. Without it, silence means
   unchanged and the purse still reads 10.
-- **`-pays(?a, ?b, ?n)`** consumes the trigger. Without it the rule debits
+- **`-pays($a, $b, $n)`** consumes the trigger. Without it the rule debits
   **forever** — the first version of this fixture took the purse down in threes
   until the budget stopped it. Chapter 7's turn loop, arriving in a corpus
   instead of the machinery.
@@ -60,10 +60,10 @@ kb.answerer("calc", "minus", fn)
 ```
 
 ```
-rule <spend>    = implies( { +purse(?b, ?n), +buying(?b, ?i), +cost(?i, ?c) },
-                           { +minus(?b, ?n, ?c) } )
-rule <apply-it> = implies( { +answered(<calc>, minus(?b, ?n, ?c), ?r) },
-                           { +?r, ? purse(?b, ?n), -buying(?b, sword) } )
+rule <spend>    = implies( { +purse($b, $n), +buying($b, $i), +cost($i, $c) },
+                           { +minus($b, $n, $c) } )
+rule <apply-it> = implies( { +answered(<calc>, minus($b, $n, $c), $r) },
+                           { +$r, ? purse($b, $n), -buying($b, sword) } )
 ```
 
 Use a **computator** wherever the arithmetic is pure. Keep a **tool** for
@@ -89,11 +89,11 @@ part-way through you genuinely **do not know** what the purses hold.
 So say `?`, and assert the numbers only on settlement:
 
 ```
-rule <start>    = causes( { +pays(?a, ?b, ?n), +purse(?a, ?x), +purse(?b, ?y) },
-                          { ? purse(?a, ?x), ? purse(?b, ?y), +pending(...) } )
-rule <complete> = causes( { +pending(...), +confirmed(?a, ?b),
-                            minus(?x, ?n) as ?x2, plus(?y, ?n) as ?y2 },
-                          { +purse(?a, ?x2), +purse(?b, ?y2), -pending(...) } )
+rule <start>    = causes( { +pays($a, $b, $n), +purse($a, $x), +purse($b, $y) },
+                          { ? purse($a, $x), ? purse($b, $y), +pending(...) } )
+rule <complete> = causes( { +pending(...), +confirmed($a, $b),
+                            minus($x, $n) as $x2, plus($y, $n) as $y2 },
+                          { +purse($a, $x2), +purse($b, $y2), -pending(...) } )
 ```
 
 Measured: mid-transfer the purses read `?`, an observer **cannot form a total at

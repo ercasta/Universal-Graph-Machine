@@ -338,8 +338,8 @@ class Table:
 
 DM = """
 # The DM narrates what a player can perceive. Nothing else leaves it.
-rule <narrate> = implies( { +locked(?d), +sees(?who, ?d) },
-                          { +doing(tell(?who, locked(?d))) } )
+rule <narrate> = implies( { +locked($d), +sees($who, $d) },
+                          { +doing(tell($who, locked($d))) } )
 fact +locked(door1)
 fact +sees(p1, door1)
 """
@@ -348,12 +348,12 @@ P1 = """
 # ⭐ The trust rule is the whole of what makes an utterance a belief, and it is
 # the CORPUS's, not the wire's. Delete it and p1 hears the DM and believes
 # nothing -- which is the property being tested, not a bug.
-rule <trust-dm> = implies( { +says(dm, ?p, plus) }, { +?p } )
-rule <gossip>   = implies( { +locked(?d) }, { +doing(tell(p2, locked(?d))) } )
+rule <trust-dm> = implies( { +says(dm, $p, plus) }, { +$p } )
+rule <gossip>   = implies( { +locked($d) }, { +doing(tell(p2, locked($d))) } )
 """
 
 P2 = """
-rule <trust-p1> = implies( { +says(p1, ?p, plus) }, { +?p } )
+rule <trust-p1> = implies( { +says(p1, $p, plus) }, { +$p } )
 """
 
 # The same agent with nothing that turns hearing into believing. ⚠ Written out
@@ -361,7 +361,7 @@ rule <trust-p1> = implies( { +says(p1, ?p, plus) }, { +?p } )
 # and left its body attached to the next declaration, so the trust rule was still
 # there under another name and the check passed for the wrong reason.
 P1_DEAF = """
-rule <gossip> = implies( { +locked(?d) }, { +doing(tell(p2, locked(?d))) } )
+rule <gossip> = implies( { +locked($d) }, { +doing(tell(p2, locked($d))) } )
 """
 
 SCENARIO = (
@@ -379,19 +379,19 @@ SCENARIO = (
 # are collected in is a real choice that a check can see.
 CROSSTALK = (
     Spec("dm", """
-rule <narrate> = implies( { +locked(?d), +sees(?who, ?d) },
-                          { +doing(tell(?who, locked(?d))) } )
+rule <narrate> = implies( { +locked($d), +sees($who, $d) },
+                          { +doing(tell($who, locked($d))) } )
 fact +locked(door1)
 fact +sees(p1, door1)
 fact +sees(p2, door1)
 """),
     Spec("p1", """
-rule <trust-dm> = implies( { +says(dm, ?p, plus) }, { +?p } )
-rule <tell-dm>  = implies( { +locked(?d) }, { +doing(tell(dm, heard(p1, ?d))) } )
+rule <trust-dm> = implies( { +says(dm, $p, plus) }, { +$p } )
+rule <tell-dm>  = implies( { +locked($d) }, { +doing(tell(dm, heard(p1, $d))) } )
 """),
     Spec("p2", """
-rule <trust-dm> = implies( { +says(dm, ?p, plus) }, { +?p } )
-rule <tell-dm>  = implies( { +locked(?d) }, { +doing(tell(dm, heard(p2, ?d))) } )
+rule <trust-dm> = implies( { +says(dm, $p, plus) }, { +$p } )
+rule <tell-dm>  = implies( { +locked($d) }, { +doing(tell(dm, heard(p2, $d))) } )
 """),
 )
 
@@ -474,7 +474,7 @@ def main() -> int:
     refused = []
     for label, txt in (("a moment", a.m.g.show(a.m.chain.moments[0].node)),
                        ("a rule", "<narrate>"),
-                       ("a variable", "locked(?d)")):
+                       ("a variable", "locked($d)")):
         try:
             Table(SCENARIO).wire.agents[1].hear(Utterance("dm", "p1", txt))
         except Exception:

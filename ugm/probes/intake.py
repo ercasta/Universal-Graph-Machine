@@ -69,7 +69,7 @@ def main() -> int:
     # -- the definite article, as a count ----------------------------------
     gate("⭐⭐⭐ *the* is EXACTLY ONE SATISFIES THIS, answered by `count` -- a "
          "claim about the set of readings, which no rule can make",
-         "counted(count(denotes(m1, ?g)), 1)" in _holding(m, kb, "counted"))
+         "counted(count(denotes(m1, $g)), 1)" in _holding(m, kb, "counted"))
     gate("⭐⭐⭐ ...and a description with no time in it is satisfied by BOTH "
          "goblins, so the corpus reports an ambiguity",
          "unclear(m3)" in _holding(m, kb, "unclear"))

@@ -91,13 +91,13 @@ def install() -> None:
 
 PROBES = (
     ("a fact may carry a variable",
-     "fact +hinged(?x)", False),
+     "fact +hinged($x)", False),
     ("...but a NAMED one may",
-     "fact <nh> = count(harm(?x))", True),
+     "fact <nh> = count(harm($x))", True),
     ("a whole proposition as an argument",
      "fact achieves(travel(work), at(work))", True),
     ("a bare-variable consequent",
-     "rule <r> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )", True),
+     "rule <r> = implies( { +did($a), +achieves($a, $y) }, { +$y } )", True),
     # ⭐ This probe read `False` until the day it did not. A variable in the
     # RELATION slot was constructible in the substrate all along and simply
     # never unified -- the surface refused it, `unify` compared the slot by
@@ -105,21 +105,21 @@ PROBES = (
     # in a CONSEQUENT it costs nothing and replaces N rules with one; in an
     # ANTECEDENT member it loses §3's index and scans.
     ("construct a relation from a variable",
-     "rule <r> = implies( { +rel(?p, ?x) }, { +?p(?x) } )", True),
-    ("§12's skeleton -- `where ?n = succ(?m)`",
-     "rule <r> = implies( where ?n = succ(?m) given { +a(?m) } then { +b(?n) } )", False),
+     "rule <r> = implies( { +rel($p, $x) }, { +$p($x) } )", True),
+    ("§12's skeleton -- `where $n = succ($m)`",
+     "rule <r> = implies( where $n = succ($m) given { +a($m) } then { +b($n) } )", False),
     ("§12's named entry / explicit locus",
-     "rule <r> = causes( { +pour(?w, ?g) }, { ?e = entry(?m, level(?g), ?) } )", False),
+     "rule <r> = causes( { +pour($w, $g) }, { $e = entry($m, level($g), ?) } )", False),
     ("§11's span as a locus",
-     "rule <r> = implies( { +a(?m) }, { entry(span(?m, ?n), rises(level(g)), +) } )", False),
+     "rule <r> = implies( { +a($m) }, { entry(span($m, $n), rises(level(g)), +) } )", False),
     ("§16's change-term, held",
-     "rule <r> = causes( { +pour(?w, ?g) }, { ? level(?g), +rises(level(?g)) } )", True),
+     "rule <r> = causes( { +pour($w, $g) }, { ? level($g), +rises(level($g)) } )", True),
 )
 
 
 def _probe() -> int:
     """⭐ The wall, measured rather than read. A fact CAN carry a pattern when it
-    is named; nothing can APPLY one, because deciding a stored `hinged(?x)`
+    is named; nothing can APPLY one, because deciding a stored `hinged($x)`
     corresponds to a ground `hinged(gate)` is match, and match is floor (§5).
     That is the ceiling on schema-rules-plus-facts, and it is why the ground
     fraction above is the number that matters.
@@ -139,8 +139,8 @@ def _probe() -> int:
         print(f"   {mark} {'accepts' if got else 'refuses'}  {label}")
     # and the one that parses and does not fire
     m = Machine()
-    text.load(m, "fact <ho> = implication(hinged(?x), open(?x))\n"
-                 "rule <mp> = implies( { +implication(?p, ?q), +?p }, { +?q } )\n"
+    text.load(m, "fact <ho> = implication(hinged($x), open($x))\n"
+                 "rule <mp> = implies( { +implication($p, $q), +$p }, { +$q } )\n"
                  "fact +hinged(gate)")
     m.run(limit=40)
     fired = any(m.g.show(e.proposition) == "open(gate)"
@@ -154,16 +154,16 @@ def _probe() -> int:
 
 # -- 4. arity and joins are generated ---------------------------------------
 
-TARGET = ("rule <target> = implies( { +p0(?a,?b), +p1(?a,?c), +p2(?a,?d), "
-          "+p3(?b,?c), +p4(?c,?d) }, { +q(?a) } )")
+TARGET = ("rule <target> = implies( { +p0($a,$b), +p1($a,$c), +p2($a,$d), "
+          "+p3($b,$c), +p4($c,$d) }, { +q($a) } )")
 
 PIECES = """
-rule <k0> = implies( { +p0(?a,?b) },                   { +i0(?a,?b) } )
-rule <k1> = implies( { +i0(?a,?b), +p1(?a,?c) },       { +i1(?a,?b,?c) } )
-rule <k2> = implies( { +i1(?a,?b,?c), +p2(?a,?d) },    { +i2(?a,?b,?c,?d) } )
-rule <k3> = implies( { +i2(?a,?b,?c,?d), +p3(?b,?c) }, { +i3(?a,?c,?d) } )
-rule <k4> = implies( { +i3(?a,?c,?d), +p4(?c,?d) },    { +i4(?a) } )
-rule <k5> = implies( { +i4(?a) },                      { +q(?a) } )
+rule <k0> = implies( { +p0($a,$b) },                   { +i0($a,$b) } )
+rule <k1> = implies( { +i0($a,$b), +p1($a,$c) },       { +i1($a,$b,$c) } )
+rule <k2> = implies( { +i1($a,$b,$c), +p2($a,$d) },    { +i2($a,$b,$c,$d) } )
+rule <k3> = implies( { +i2($a,$b,$c,$d), +p3($b,$c) }, { +i3($a,$c,$d) } )
+rule <k4> = implies( { +i3($a,$c,$d), +p4($c,$d) },    { +i4($a) } )
+rule <k5> = implies( { +i4($a) },                      { +q($a) } )
 """
 
 
@@ -218,8 +218,8 @@ def _composition() -> int:
     for a_conn, b_conn in (("implies", "implies"), ("causes", "causes"),
                            ("implies", "causes"), ("causes", "implies")):
         m3 = Machine()
-        text.load(m3, f"rule <x> = {a_conn}( {{ +p(?a) }}, {{ +i(?a) }} )\n"
-                      f"rule <y> = {b_conn}( {{ +i(?a), +r(?a) }}, {{ +q(?a) }} )")
+        text.load(m3, f"rule <x> = {a_conn}( {{ +p($a) }}, {{ +i($a) }} )\n"
+                      f"rule <y> = {b_conn}( {{ +i($a), +r($a) }}, {{ +q($a) }} )")
         b3 = {r.name: r for r in m3.rules.rules if r.name}
         out = m3.rules.compose(b3["x"], b3["y"], name="c")
         print(f"        {a_conn:7} + {b_conn:7} -> {out.connective if out else 'REFUSED'}")

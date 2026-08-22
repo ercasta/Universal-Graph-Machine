@@ -15,7 +15,7 @@ from ..core.text import load
 
 def _chain_corpus(n: int) -> str:
     """`s0 -> s1 -> ... -> sn`, one rule per link."""
-    lines = [f"rule <r{i}> = implies( {{ +s{i}(?x) }}, {{ +s{i + 1}(?x) }} )" for i in range(n)]
+    lines = [f"rule <r{i}> = implies( {{ +s{i}($x) }}, {{ +s{i + 1}($x) }} )" for i in range(n)]
     lines.append("fact +s0(a)")
     lines.append("")
     return chr(10).join(lines)
@@ -26,7 +26,7 @@ def _run(n: int, compose: bool) -> Tuple[int, str]:
     kb = load(m, _chain_corpus(n))
     if compose:
         # Fold the chain into one rule, left to right. Each step is a genuine
-        # pattern-against-pattern unification: `s1(?x')` against `s1(?x'')`.
+        # pattern-against-pattern unification: `s1($x')` against `s1($x'')`.
         rules = [next(r for r in m.rules.rules if r.name == f"r{i}") for i in range(n)]
         folded = rules[0]
         scaffolding = []
@@ -56,11 +56,11 @@ def _guard_inherited(where: str) -> bool:
     recorded and not acted on -- and it would read as success here.
     """
     m = Machine()
-    a = "{ +p(?x), -stop(?x) }" if where == "first" else "{ +p(?x) }"
-    b = "{ +q(?x) }" if where == "first" else "{ +q(?x), -stop(?x) }"
+    a = "{ +p($x), -stop($x) }" if where == "first" else "{ +p($x) }"
+    b = "{ +q($x) }" if where == "first" else "{ +q($x), -stop($x) }"
     kb = load(m, chr(10).join([
-        f"rule <a> = implies( {a}, {{ +q(?x) }} )",
-        f"rule <b> = implies( {b}, {{ +r(?x) }} )",
+        f"rule <a> = implies( {a}, {{ +q($x) }} )",
+        f"rule <b> = implies( {b}, {{ +r($x) }} )",
         "fact +p(guarded)", "fact +p(free)",
         "fact +stop(guarded)",   # the guard holds, so the composite must decline
         "fact -stop(free)",      # ...and is denied here, so it must apply
@@ -82,8 +82,8 @@ def _dormancy_survives() -> bool:
     or composing would be a way past it."""
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "rule <a> = implies( { +p($x) }, { +q($x) } )",
+        "rule <b> = implies( { +q($x) }, { +r($x) } )",
         "fact +p(thing)",
         "",
     ]))
@@ -119,9 +119,9 @@ def _causes_boundary() -> Tuple[bool, bool]:
     See docs/design/compose.md#causes-boundary.
     """
     src = chr(10).join([
-        "rule <a> = causes(  { +p(?x) },         { +q(?x) } )",
-        "rule <b> = implies( { +q(?x), +r(?x) }, { +s(?x) } )",
-        "rule <late> = implies( { +q(?x) }, { +r(?x) } )",
+        "rule <a> = causes(  { +p($x) },         { +q($x) } )",
+        "rule <b> = implies( { +q($x), +r($x) }, { +s($x) } )",
+        "rule <late> = implies( { +q($x) }, { +r($x) } )",
         "fact +p(t)", ""])
     m = Machine(); kb = load(m, src)
     by = {r.name: r for r in m.rules.rules if r.name}
@@ -131,8 +131,8 @@ def _causes_boundary() -> Tuple[bool, bool]:
     reached = m.holds(kb.term("s(t)")) == PLUS
 
     m2 = Machine(); load(m2, chr(10).join([
-        "rule <a> = causes(  { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +s(?x) } )", ""]))
+        "rule <a> = causes(  { +p($x) }, { +q($x) } )",
+        "rule <b> = implies( { +q($x) }, { +s($x) } )", ""]))
     b2 = {r.name: r for r in m2.rules.rules if r.name}
     ok = m2.rules.compose(b2["a"], b2["b"], name="ok")
     return (refused and reached), (ok is not None and ok.connective == CAUSES)

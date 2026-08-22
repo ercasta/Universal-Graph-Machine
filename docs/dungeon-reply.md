@@ -16,7 +16,7 @@ is the most useful thing in this reply — §4.
 | your section | where it stands |
 |---|---|
 | §1 the census | used, and it has now paid a second time — from the *conflict* side |
-| §2 sequencing, 24% clock scaffold | **collapsed, and not by the route we proposed** — `at ?m` cannot do it; spending the request can. 21 rules → 19, `?r` in 65 positions → 6, `add` gone. See the correction in §2 |
+| §2 sequencing, 24% clock scaffold | **collapsed, and not by the route we proposed** — `at $m` cannot do it; spending the request can. 21 rules → 19, `$r` in 65 positions → 6, `add` gone. See the correction in §2 |
 | §3 an occasion is consumed | **you asked us to promote it and we did not.** Now `docs/authoring.md` §0, above §1, with your ordering argument |
 | §4 the open-domain default | **closed** — and not by the feature you asked for |
 | §5 overrides is survivable when transient | **also not done until now.** Added to §2 |
@@ -30,7 +30,7 @@ is the most useful thing in this reply — §4.
 ## §4. The open-domain default is closed, and you were asking for the wrong thing
 
 You wanted *the hero attacks by default when the player has declared nothing this
-round*, could not write `-declares(hero, ?what)`, used
+round*, could not write `-declares(hero, $what)`, used
 `overrides(<hero-acts>, <hero-holds>)`, and named the cost exactly:
 
 >the default is expressed as a precedence between two rules rather than as a
@@ -52,20 +52,20 @@ and `entry_of` bind one end, `asking` names the other, and two bound endpoints i
 what `span_of` mints from.
 
 ```
-rule <round>  = implies( { asking(?q), anc(?q, ?m), in_delta(?m, ?e),
-                           entry_of(?e, ?l, turn(hero, ?r), plus), span_of(?s, ?m, ?q) },
-                         { round_span(?r, ?s) } )
+rule <round>  = implies( { asking($q), anc($q, $m), in_delta($m, $e),
+                           entry_of($e, $l, turn(hero, $r), plus), span_of($s, $m, $q) },
+                         { round_span($r, $s) } )
 
-rule <heard>  = implies( { round_span(?r, ?s), span_of(?s, ?a, ?b), anc(?b, ?m), anc(?m, ?a),
-                           in_delta(?m, ?e), entry_of(?e, ?l, arrived(?c, ?w, ?g), plus) },
-                         { heard(?s, ?c) } )
+rule <heard>  = implies( { round_span($r, $s), span_of($s, $a, $b), anc($b, $m), anc($m, $a),
+                           in_delta($m, $e), entry_of($e, $l, arrived($c, $w, $g), plus) },
+                         { heard($s, $c) } )
 
-rule <silent> = implies( { round_span(?r, ?s), -heard(?s, player) },
-                         { silent(?s, player) } )
+rule <silent> = implies( { round_span($r, $s), -heard($s, player) },
+                         { silent($s, player) } )
 
-rule <hero-acts>  = implies( { silent(?s, player), +turn(hero, ?r) }, { +attacks(hero, ?r) } )
-rule <hero-holds> = implies( { +says(player, hold(hero), ?g), +turn(hero, ?r) },
-                             { +holds(hero, ?r) } )
+rule <hero-acts>  = implies( { silent($s, player), +turn(hero, $r) }, { +attacks(hero, $r) } )
+rule <hero-holds> = implies( { +says(player, hold(hero), $g), +turn(hero, $r) },
+                             { +holds(hero, $r) } )
 ```
 
 Layers `[[round], [heard], [silent]]`, **derived and not assigned**. Player
@@ -78,11 +78,11 @@ precedence was costing you.
 **Two things that cost us time and will cost you the same.** A **round is a
 stretch, so it must have duration**: mint the span even when nothing happened, or
 there is no stretch for nothing to have happened in. And **anchoring order is
-everything** — `in_delta(?m, ?e)` written before anything binds `?m` finds
+everything** — `in_delta($m, $e)` written before anything binds `$m` finds
 nothing, silently. We walked into that one while writing the fix for it.
 
 **The residue, stated exactly:** the channel must be a **ground atom**.
-`listens(?c)` stops the rule being stratum 0, because a corpus relation cannot be
+`listens($c)` stops the rule being stratum 0, because a corpus relation cannot be
 structural, and its structural members then match nothing. **Silence about a
 named channel is sayable; silence about *any* channel is not.** If you need the
 second, tell us — it is a much sharper request than the one you filed.
@@ -95,8 +95,8 @@ You reported **5 of 21 rules — 24% of the corpus — as clock scaffold**, plus
 `may` token, plus `follows`/`wraps`, plus an `add` operator on the arithmetic
 tool that *exists solely to count rounds*.
 
-`at ?m` was built on that evidence and you have it. What is new is that **a round
-is a span**, and `round_span(?r, ?s)` above is that rule. A stretch of the chain
+`at $m` was built on that evidence and you have it. What is new is that **a round
+is a span**, and `round_span($r, $s)` above is that rule. A stretch of the chain
 is a first-class locus now, so the round ordinal may not need to be a number your
 corpus computes at all.
 
@@ -111,7 +111,7 @@ customer.
 outcome.** We collapsed the clock in `ugm/rules/dungeon.ugm` and measured, and
 you should not spend time on the route we recommended.
 
-**`at ?m` cannot do it, and neither can a span.** A locus does not make a
+**`at $m` cannot do it, and neither can a span.** A locus does not make a
 request fresh, because the read INHERITS: deposit `roll(d20, hit(a, b))` at a
 later moment and the chain already answers `+` there, so the application changes
 nothing and quiescence drops it — correctly, and silently. Measured on a
@@ -129,7 +129,7 @@ was a denial, and the round argument was hiding it.
 | | before | after |
 |---|---|---|
 | rules | 21 | **19** — `<tick>` and `<wrap>` gone |
-| member positions carrying `?r` | 65 | **6** |
+| member positions carrying `$r` | 65 | **6** |
 | `add` asked, over four seeds | yes | **never** — the tool no longer implements it |
 | entries (`implies`, seed 7) | 895 | **873** |
 | checks | 17/17 | 17/17 |
@@ -140,8 +140,8 @@ all existed to notice that wrap and put a number on it, and nothing ever read th
 number except the things that produced it. Anything wanting a number counts
 `+turn(hero)` off the trail, which is an observer's job.
 
-**What survives, and it is a real ceiling rather than a leftover.** `?r` stays in
-`declares(?act, ?r)` and `intends(hero, ?act, ?r)` — the player's declarations —
+**What survives, and it is a real ceiling rather than a leftover.** `$r` stays in
+`declares($act, $r)` and `intends(hero, $act, $r)` — the player's declarations —
 because **an agent cannot utter a moment**. Every moment renders identically, so
 a round label is the only vocabulary a channel carries. That is the same wall
 `ugm/table.py` hits from the multi-agent side: two agents can never refer to the
@@ -176,8 +176,8 @@ nothing on the record saying who wins:
 | a passenger-rights corpus (9 rules) | **1** — and it is a real question |
 | **the dungeon** | **28** |
 
-Almost all 28 are your ordinary grant-and-spend cycle: `-may(hero, ?r)` against
-`+may(?y, ?r)` is the corpus working. **A corpus that changes the world trips a
+Almost all 28 are your ordinary grant-and-spend cycle: `-may(hero, $r)` against
+`+may($y, $r)` is the corpus working. **A corpus that changes the world trips a
 static conflict detector far more than one that concludes about it** — your 57%,
 arriving from the conflict side and confirming that a detector of that shape
 cannot be gated on a world model.

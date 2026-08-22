@@ -53,7 +53,7 @@ that parentheses mean application, it is not a trap but the rule.
                | ( fact  sign <name> )      |  ( say channel sign term )
                | ( rule  <name> connective ( member... ) ( member... ) )
     member    := ( sign term )  |  term          -- a bare term is `+`
-    term      := name | ?var | <rulename> | ( term... )
+    term      := name | $var | <rulename> | ( term... )
 
 A list's first element is its relation and the rest are its members, which is
 exactly what a node is (§3). `(a)` has a relation and no members; `a` is an atom,

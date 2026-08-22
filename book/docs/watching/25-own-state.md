@@ -46,11 +46,11 @@ preempted and an interpreter's cannot.
 **3. Surprise is an ordinary rule, and it wins its turn like any other.**
 
 ```
-rule <S> = causes( { +deviates(?p) },
-                   { +goal(explain_failure(?p)) } )
+rule <S> = causes( { +deviates($p) },
+                   { +goal(explain_failure($p)) } )
 ```
 
-`deviates(?p)` is arity **one** and it is what the four bundled rules below
+`deviates($p)` is arity **one** and it is what the four bundled rules below
 conclude; there is no `due`/`after` to consult, for the reason just given.
 
 > **There is no interrupt mechanism.**

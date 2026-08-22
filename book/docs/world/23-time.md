@@ -12,7 +12,7 @@ Time shows up in three places here, and it's worth being explicit that this is
 Only the first is the machine's. The second used to be too — an entry could be
 *located* at a moment or a stretch — and Chapter 19 tells the story of why it
 is not any more. The third is the one that needs discipline, because it's
-already in use — `cloudy(?day, morning)` — and left unexamined it would become
+already in use — `cloudy($day, morning)` — and left unexamined it would become
 a second ordering competing with succession.
 
 It isn't one, and the rule is:
@@ -33,26 +33,26 @@ The state answers *what do I think now*. Time questions are about what came
 before it, and those are answered by walking the **chain** — which a rule does
 with three ordinary structural relations:
 
-- **`anc(?a, ?b)`** — `?b` is an ancestor of `?a`; `sanc` is the strict version.
-- **`in_delta(?m, ?e)`** — entry `?e` was deposited in moment `?m`.
-- **`entry_of(?e, p, plus)`** — what that entry actually claims.
+- **`anc($a, $b)`** — `$b` is an ancestor of `$a`; `sanc` is the strict version.
+- **`in_delta($m, $e)`** — entry `$e` was deposited in moment `$m`.
+- **`entry_of($e, p, plus)`** — what that entry actually claims.
 
-A walk has to start somewhere, and the anchor is `asking(?s)` — the seat the
+A walk has to start somewhere, and the anchor is `asking($s)` — the seat the
 rule-level read is asked from, which a host seeds with `ask_read`:
 
 ```
 fact +ill(paul)
-rule <heal> = causes( { +ill(?x) }, { -ill(?x), +healthy(?x) } )
+rule <heal> = causes( { +ill($x) }, { -ill($x), +healthy($x) } )
 
 rule <recovered> = implies(
-  { +healthy(?x), asking(?now), anc(?now, ?then), in_delta(?then, ?e),
-    entry_of(?e, ill(?x), plus) },
-  { +recovered(?x) } )
+  { +healthy($x), asking($now), anc($now, $then), in_delta($then, $e),
+    entry_of($e, ill($x), plus) },
+  { +recovered($x) } )
 ```
 
 ```
 ill(paul)        -> -          (the state: he is not ill now)
-recovered(paul)  -> +          (the chain: he was, at ?then)
+recovered(paul)  -> +          (the chain: he was, at $then)
 ```
 
 Read that pair carefully, because it is the whole point of the chapter:
@@ -61,7 +61,7 @@ Read that pair carefully, because it is the whole point of the chapter:
 > a different thing.
 
 A matcher sees the state — one winner per proposition — so a plain member like
-`+ill(?x)` finds the *denial*, and *it was on, then it was not* is not
+`+ill($x)` finds the *denial*, and *it was on, then it was not* is not
 expressible against the state at all. It is expressible against the chain,
 which keeps every entry in deposit order.
 
@@ -76,7 +76,7 @@ structure, and a rule that wants history walks it.
 
 !!! note "Anchoring is not a formality"
     A skeleton member must have at least one argument already bound. An
-    unanchored `in_delta(?m, ?e)` would enumerate the entire history, so it
+    unanchored `in_delta($m, $e)` would enumerate the entire history, so it
     finds **nothing** instead — which is why the walk above starts at `asking`
     and steps outward from it. Chapter 5's anchoring discipline, arriving where
     it bites.
@@ -87,7 +87,7 @@ counter re-implementing a moment ordinal, plus a token threaded through six
 acting rules and an arithmetic operator that existed only to count rounds.
 
 !!! note "Deep dive: and then it did not remove the scaffold"
-    The obvious next step was that `at ?m` would collapse that scaffold, since a
+    The obvious next step was that `at $m` would collapse that scaffold, since a
     round integer is a moment ordinal re-implemented in a corpus. That was
     proposed in writing, and it is **wrong** — which is worth showing, because
     the reason is a property of the read you already know.
@@ -113,7 +113,7 @@ acting rules and an arithmetic operator that existed only to count rounds.
     Collapsing it took the corpus from 21 rules to 19, from 65 member positions
     carrying a round to 6, and removed the arithmetic operator entirely.
 
-    What survives is one job: `?r` on the *player's declaration*, because an
+    What survives is one job: `$r` on the *player's declaration*, because an
     agent cannot utter a moment (Chapter 24). A round label is the only
     vocabulary a channel carries.
 
@@ -149,9 +149,9 @@ reads it by anchoring at the seat.
 ```
 fact +kettle(k1)
 fact +heating(k1)
-rule <boil>  = causes(  { +heating(?k) }, { -heating(?k), +boiling(?k) } )
-rule <began> = implies( { asking(?s), time(?s, ?t), +kettle(?k) },
-                        { +seen_at(?k, ?t) } )
+rule <boil>  = causes(  { +heating($k) }, { -heating($k), +boiling($k) } )
+rule <began> = implies( { asking($s), time($s, $t), +kettle($k) },
+                        { +seen_at($k, $t) } )
 ```
 
 ```

@@ -38,9 +38,9 @@ Is the unsound composition refused, and is the refusal exact? (§4, §14)
     which is a stricter question, and the discriminating world is one where the
     extra premise only appears once the first rule has acted:
 
-        <a> = causes(  { +p(?x) },         { +q(?x) } )
-        <b> = implies( { +q(?x), +r(?x) }, { +s(?x) } )
-        <late> = implies( { +q(?x) }, { +r(?x) } )      -- r arrives WITH q
+        <a> = causes(  { +p($x) },         { +q($x) } )
+        <b> = implies( { +q($x), +r($x) }, { +s($x) } )
+        <late> = implies( { +q($x) }, { +r($x) } )      -- r arrives WITH q
 
     Measured before the guard existed: the derivation reaches `s` and the
     composite does not. Under-derivation is the safer direction and is still a

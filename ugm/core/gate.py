@@ -56,7 +56,7 @@ class Gate:
         """Mint one entry.
 
         `mention` is the use/mention distinction, and it is needed the moment
-        rules become data. `+ant(<R>, heat(?a, ?w))` is a **ground** claim about a
+        rules become data. `+ant(<R>, heat($a, $w))` is a **ground** claim about a
         rule, which happens to name a node that contains variables. It is not a
         generic claim, and refusing it would make rules unspeakable-about -- but
         structurally the two are the same shape, so nothing can tell them apart.

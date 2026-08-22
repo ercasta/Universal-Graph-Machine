@@ -85,10 +85,10 @@ splits the job in two, and the split is the interesting part:
   only it knows what a rule concluded forward.
 - **rules notice the deviation** — four bundled rules, not a phase:
 
-      rule <deviation-+-contradicted> = implies( { +expects(?p, plus),  -?p  }, { +deviates(?p) } )
-      rule <deviation-+-invalidated>  = implies( { +expects(?p, plus),  ? ?p }, { +deviates(?p) } )
-      rule <deviation---contradicted> = implies( { +expects(?p, minus), +?p  }, { +deviates(?p) } )
-      rule <deviation---invalidated>  = implies( { +expects(?p, minus), ? ?p }, { +deviates(?p) } )
+      rule <deviation-+-contradicted> = implies( { +expects($p, plus),  -$p  }, { +deviates($p) } )
+      rule <deviation-+-invalidated>  = implies( { +expects($p, plus),  ? $p }, { +deviates($p) } )
+      rule <deviation---contradicted> = implies( { +expects($p, minus), +$p  }, { +deviates($p) } )
+      rule <deviation---invalidated>  = implies( { +expects($p, minus), ? $p }, { +deviates($p) } )
 
 Noticing a deviation used to be a phase, and the note on its removal is the
 argument in one line: *§18 already said surprise is a match, and the phase was

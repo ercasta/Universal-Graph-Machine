@@ -4,7 +4,7 @@ A **corpus** is a text file of statements. There are three kinds, and you say
 which, so the loader never has to guess:
 
 ```
-rule <boil> = causes( { +heat(?a, ?w) }, { +boiling(?w) } )
+rule <boil> = causes( { +heat($a, $w) }, { +boiling($w) } )
 fact +water(kettle)
 say  user: +raining(here)
 ```
@@ -19,7 +19,7 @@ A fact may carry a name, in the same angle brackets a rule's goes in, because
 `<...>` is the namespace of **statements** and a rule is a statement:
 
 ```
-fact <how-many> = count(goblin(?x))
+fact <how-many> = count(goblin($x))
 fact dormant(<cool>)
 ```
 
@@ -30,20 +30,20 @@ the licence and the source always come from the machinery.
 ## The pattern worth building a world on
 
 Here's the one to learn first. A relation can be named by a **variable** —
-`+?kind(?item)` — so *the smith sells weapons* becomes a **fact**, and applying
+`+$kind($item)` — so *the smith sells weapons* becomes a **fact**, and applying
 that class to a particular sword is the rule's job.
 
 ```
 rule <can-buy> = implies(
-    { +wants(?b, ?item), +sells(?s, ?kind), +?kind(?item),
-      +stocks(?s, ?item), +purse(?b, ?coin) },
-    { +offer(?b, ?s, ?item) } )
+    { +wants($b, $item), +sells($s, $kind), +$kind($item),
+      +stocks($s, $item), +purse($b, $coin) },
+    { +offer($b, $s, $item) } )
 
 rule <buy> = causes(
-    { +offer(?b, ?s, ?item), +purse(?b, ?coin) },
-    { +owns(?b, ?item), -stocks(?s, ?item), ? purse(?b, ?coin) } )
+    { +offer($b, $s, $item), +purse($b, $coin) },
+    { +owns($b, $item), -stocks($s, $item), ? purse($b, $coin) } )
 
-rule <blades> = implies( { +blade(?x) }, { +weapon(?x) } )
+rule <blades> = implies( { +blade($x) }, { +weapon($x) } )
 ```
 
 ...and then the world is **declared**, not coded:
@@ -77,9 +77,9 @@ Three things measured about this pattern, and the last two are what make it pay:
 |---|---|
 | the trade goes through | `owns(hero, dagger)` `+`, `stocks(smith, dagger)` `−` |
 | **a whole new trade is facts** | armourer / armour / shield: **5 facts, 0 new rules** |
-| **a second verb reuses the declarations** | a `<steal>` rule keys on the same `sells` and `?kind`, untouched |
+| **a second verb reuses the declarations** | a `<steal>` rule keys on the same `sells` and `$kind`, untouched |
 
-> **`sells(smith, weapon)` names a class, and `?kind(?item)` is what applies
+> **`sells(smith, weapon)` names a class, and `$kind($item)` is what applies
 > it.** Without a variable in the relation slot, `sells` could only ever name a
 > particular item, and every merchant would need its own rule.
 
@@ -87,7 +87,7 @@ Three things measured about this pattern, and the last two are what make it pay:
 *consequent* is free at match time and cheaper overall, because one rule
 replaces many. In an *antecedent* it loses the relation index — the pattern has
 no bucket, so it scans. Measured at **14× the comparisons** on a small world
-with 200 unrelated facts. Above, `?kind(?item)` is affordable because `sells`
+with 200 unrelated facts. Above, `$kind($item)` is affordable because `sells`
 and `stocks` narrow it first. **Don't lead with the unindexed member.**
 
 ## Ability catalogues are rules, not data
@@ -95,7 +95,7 @@ and `stocks` narrow it first. **Don't lead with the unindexed member.**
 The tempting alternative is a data table of what does what:
 
 ```
-rule <resolve> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )
+rule <resolve> = implies( { +did($a), +achieves($a, $y) }, { +$y } )
 fact achieves(fireball_goblin, burned(goblin))
 ```
 
@@ -103,25 +103,25 @@ That works, and it does not parameterise. Here's the whole story in a table:
 
 | | does `burned(goblin)` hold? |
 |---|---|
-| `fact achieves(fireball(?t), burned(?t))` | refused at load — a fact may not contain a variable |
+| `fact achieves(fireball($t), burned($t))` | refused at load — a fact may not contain a variable |
 | the same as a **named** fact | parses, and **never fires** |
 | `fact achieves(fireball_goblin, burned(goblin))` | yes — but one fact per (spell, target) pair |
-| `rule <fireball> = implies( { +did(fireball(?t)) }, { +burned(?t) } )` | yes |
+| `rule <fireball> = implies( { +did(fireball($t)) }, { +burned($t) } )` | yes |
 
 The second row is the instructive one. A named fact *may* contain variables. But
-then `?a` binds to the stored pattern `fireball(?t)`, and matching that against
+then `$a` binds to the stored pattern `fireball($t)`, and matching that against
 a ground `did(fireball(goblin))` is exactly the operation no rule may perform
 (Chapter 6).
 
 > **A fact can carry a whole ground proposition as an argument. It cannot carry
 > a pattern that anything will apply.**
 
-Same reason a universal must be a rule: `fact +hostile(?x)` is refused outright.
+Same reason a universal must be a rule: `fact +hostile($x)` is refused outright.
 Don't try to put your rulebook in a fact.
 
 ## Things that will bite
 
-**Arity slips are silent.** Writing `? purse(?b)` against a `purse(hero, 20)`
+**Arity slips are silent.** Writing `? purse($b)` against a `purse(hero, 20)`
 fact invalidates a *different proposition* — one nobody asserted — and the old
 amount goes on reading `+`. Nothing complains.
 

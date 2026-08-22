@@ -56,7 +56,7 @@ The postcondition that deposits attention on what the move just bound.
     it, and the parser's own term before that.
     
     ⭐⭐⭐ **And it carries a WEIGHT, which is what a learned buff used to be.**
-    `attend(?x, 3)` says *of the things this move touched, THAT one matters* --
+    `attend($x, 3)` says *of the things this move touched, THAT one matters* --
     a multiplier on a node's place in the attention queue rather than a number
     added to some other rule's score.
 
@@ -82,14 +82,14 @@ re-implementing a moment ordinal as a round counter.
 was missing was a pattern for it, which is the third time this session a
 wall turned out to be information nothing looked at.
 
-## ...and a name for WHAT matched. at ?m says w
+## ...and a name for WHAT matched. at $m says w
 
-⭐ ...and a name for WHAT matched. `at ?m` says where the entry sits; `as
-?t` says what its proposition is, so a rule can refer to the very thing it
+⭐ ...and a name for WHAT matched. `at $m` says where the entry sits; `as
+$t` says what its proposition is, so a rule can refer to the very thing it
 matched rather than describing it again.
 
 Without it a corpus reaches the same place by reconstruction -- match
-`+?r(?x, ?y)` and rebuild `?r(?x, ?y)`, which interning makes the SAME
+`+$r($x, $y)` and rebuild `$r($x, $y)`, which interning makes the SAME
 node, so it is genuine reference rather than a copy. That works and costs
 §3's index, because a variable relation has no bucket. This keeps the
 index and says the thing directly.
@@ -138,7 +138,7 @@ OTHER action in the step. `supersedes` was added for exactly that case, and
 compared consumed entries to find the applications about the same case.
 
 Both are gone. *About the same case* belongs in the antecedent -- the bundle's
-`<assert-act>` reads `no substituted(?what)`, so the corpus qualifies it per ACT
+`<assert-act>` reads `no substituted($what)`, so the corpus qualifies it per ACT
 -- and *this rule is out* belongs in `dormant`, which is per rule and says so.
 Neither is precedence, and neither needs a second thing in the loop.
 
@@ -223,10 +223,10 @@ Collapse `first` then `second` into one rule (§4).
 
         Three things §21 requires, and each is a line here rather than a promise:
 
-        **Standardise apart.** Both rules may say `?w` and mean different things.
+        **Standardise apart.** Both rules may say `$w` and mean different things.
 
-        **Unify pattern against pattern.** Not match: `boiling(?w)` against
-        `boiling(?x)` binds a variable to a variable, which matching never does.
+        **Unify pattern against pattern.** Not match: `boiling($w)` against
+        `boiling($x)` binds a variable to a variable, which matching never does.
 
         **Inherit the dormancy.** Anything that takes either constituent out must
         take the composition out too, or the shortcut fires where the reasoning
@@ -294,7 +294,7 @@ seam composes soundly across a `causes` and is allowed. Refusing is
 
 ⭐⭐⭐ **Identity, at BIND TIME** -- and without this the rest of the
 identity layer is half a feature. `merge` repoints the indices, so after
-merging `debt` into `owes` a rule reading `+owes(?x, ?y)` is OFFERED
+merging `debt` into `owes` a rule reading `+owes($x, $y)` is OFFERED
 `debt(zeta, 900)` by the argument index and then rejects it here, because
 a node's own `_rel` field still says `debt`. Candidates found and thrown
 away: the rule matches nothing, reports nothing, and looks like a corpus
@@ -307,7 +307,7 @@ engine and it has to cost nothing until something has merged.
 ## A variable in the RELATION slot. The subst
 
 ⭐ **A variable in the RELATION slot.** The substrate has always been
-able to build `?p(?x)` -- it is a node whose relation happens to be a
+able to build `$p($x)` -- it is a node whose relation happens to be a
 variable -- and this is the line that decided it could never match.
 Binding it is what makes *apply the effect named by this ability* a
 rule rather than one fact per (ability, target) pair.
@@ -331,14 +331,14 @@ The least general structure both `a` and `b` are instances of (Plotkin).
     ⭐⭐⭐ **`mapping` is the whole of it, and it is why this takes one.** The
     same disagreement must produce the same variable *everywhere it appears*,
     including across the two structures a caller generalises in turn. Without
-    that, `f(a, a)` and `f(b, b)` generalise to `f(?1, ?2)` -- true, useless,
+    that, `f(a, a)` and `f(b, b)` generalise to `f($1, $2)` -- true, useless,
     and strictly more general than the answer -- and a premise and a conclusion
     generalised separately share no variable at all, so the rule built from them
     concludes about something nothing binds. That is the crux of building a rule
     out of two examples, and it is one dictionary.
 
-    ⚠ What agrees is KEPT. `f(a, b)` and `f(a, c)` give `f(a, ?1)`, never
-    `f(?1, ?2)`: an implementation that variabilises everything returns a
+    ⚠ What agrees is KEPT. `f(a, b)` and `f(a, c)` give `f(a, $1)`, never
+    `f($1, $2)`: an implementation that variabilises everything returns a
     generalisation, just not the least one, and the rule it yields fires on
     everything.
 
@@ -354,8 +354,8 @@ Unify two structures that may **both** be generic.
     | sides | generic against **anchored** | generic against generic |
     | a variable binds to | a thing | a thing **or another variable** |
     | needs `walk` | no | yes -- bindings chain |
-    | needs `occurs` | no | yes -- `?x = f(?x)` is constructible |
-    | needs standardising apart | no | yes -- two rules may reuse `?w` |
+    | needs `occurs` | no | yes -- `$x = f($x)` is constructible |
+    | needs standardising apart | no | yes -- two rules may reuse `$w` |
 
     So the floor's item 2 does not cover it. What follows is that composition
     (§4) cannot be built out of `fit`, and needs its own service -- which is the
@@ -376,7 +376,7 @@ Ground a consequent pattern. Anything still generic afterwards is a rule
     rule nodes do not intern.
 
     The test cannot be *is it ground*, because a rule node is not: it contains
-    the variables of its own patterns. `+resume(?h, <cb>)` binds `?h` and touches
+    the variables of its own patterns. `+resume($h, <cb>)` binds `$h` and touches
     nothing inside `<cb>`, whose variables belong to `<cb>` and are bound by
     nobody. Rebuild it anyway and the conclusion is about an interned **twin** of
     the rule, so every later question about the real one answers nothing --
@@ -416,7 +416,7 @@ The current state, plus the one index matching actually asks for.
 
     Signed, because a member's sign is fixed and half the entries are the wrong
     one. A member that is a **bare variable** has no relation to key on and still
-    scans everything, which is correct: `+?p` is a rule that says *believe what
+    scans everything, which is correct: `+$p` is a rule that says *believe what
     this channel reported*, and it genuinely is about anything.
 
     ⭐⭐⭐ **And it is MAINTAINED, not rebuilt.** The index was built from the
@@ -448,7 +448,7 @@ The current state, plus the one index matching actually asks for.
     ⭐⭐⭐ **And by ARGUMENT POSITION, which is the second index and a different
     quadratic.** Keyed on the relation alone, a member that has already bound
     one of its arguments still draws every instance of that relation and unifies
-    each: `{ +child(?p, ?x), +child(?x, ?y) }` over N facts is N candidates for
+    each: `{ +child($p, $x), +child($x, $y) }` over N facts is N candidates for
     each of N bindings, so **one tick costs 2N² unifications** with no option set,
     no arbitration and no candidate walk involved. Reported from `pystrider`,
     who measured it as the shape their whole corpus has -- *a broad structural
@@ -591,7 +591,7 @@ rather than guessing -- and the pivot never lands on one (see
 
 ## `_anchored`
 
-`pred(?m, ?n)` / `sanc(?m, ?n)` -- read off the chain, anchored upward.
+`pred($m, $n)` / `sanc($m, $n)` -- read off the chain, anchored upward.
 
     ⭐⭐⭐ **This is where containment stays structural.** The first argument must
     already be bound: from an anchored moment we walk toward the root, and §11
@@ -613,8 +613,8 @@ already found, so it anchors this member however generic what is
 INSIDE it may be. Recursing further asks whether some other rule's
 pattern, quoted inside an entry about a rule, is ground; it is not,
 and answering no refused the walk an anchor it had. That is what kept
-deposit order from crossing a reified entry: `in_delta(?m, ?e)` bound
-`?e` to such an entry, and `delta_next(?e, ?f)` then found no anchor
+deposit order from crossing a reified entry: `in_delta($m, $e)` bound
+`$e` to such an entry, and `delta_next($e, $f)` then found no anchor
 and enumerated nothing (docs/observations.md Part 6.3).
 
 ## `_stored`
@@ -647,28 +647,28 @@ A skeleton relation that is IN the graph -- `pred`, `in_delta`,
 ## GROUND, not merely not-a-variable. This
 
 ⚠⚠⚠ **GROUND, not merely not-a-variable.** This asked `is_var`, which is
-False for any relation instance -- so `licensed_by(?e, loaded(?p))` counted
-`loaded(?p)` as an anchor although nothing in it was known, and the walk
+False for any relation instance -- so `licensed_by($e, loaded($p))` counted
+`loaded($p)` as an anchor although nothing in it was known, and the walk
 enumerated every instance in the history. That is exactly the leak the
 paragraph above says this line prevents, available to any corpus writing a
-structured argument: `rests_on(?e, foo(?p))`, `in_delta(?m, bar(?x))`.
+structured argument: `rests_on($e, foo($p))`, `in_delta($m, bar($x))`.
 
 `has_var` is not the test either, because it cannot see through bindings:
-`loaded(?p)` with `?p` already bound is ground in fact and generic in
+`loaded($p)` with `$p` already bound is ground in fact and generic in
 shape, and refusing it would break the anchored reads §12 relies on. So
 the question is asked of the binding, recursively. Measured:
 docs/observations.md §3.1, finding 2.
 
 ## `_holds_at`
 
-`holds_at(?p, ?m, ?sign)` -- what a proposition RESOLVED TO at a moment.
+`holds_at($p, $m, $sign)` -- what a proposition RESOLVED TO at a moment.
 
-    §12's `at ?m` binds the LOCUS OF THE ENTRY THAT SATISFIED a member, and the
+    §12's `at $m` binds the LOCUS OF THE ENTRY THAT SATISFIED a member, and the
     resolved state keeps one entry per proposition -- the winner. So a corpus
     can say *the goblin acted after the hero* (two propositions, two loci) and
     cannot say *p held then and does not now* (one proposition, two times): the
-    earlier claim is not in the state to be matched against. Probed: `?then`
-    bound to a real moment where `ill(paul)` held, and `+ill(?x) at ?then` still
+    earlier claim is not in the state to be matched against. Probed: `$then`
+    bound to a real moment where `ill(paul)` held, and `+ill($x) at $then` still
     matched nothing.
 
     `Chain.resolve` has always answered the question. What was missing was any
@@ -681,7 +681,7 @@ docs/observations.md §3.1, finding 2.
     question is a different relation and should say so in its name rather than
     quietly meaning something else.
 
-    Containment holds compositionally, as it does for `_stored`: `?m` can only
+    Containment holds compositionally, as it does for `_stored`: `$m` can only
     be bound by a walk the frame could make, so a moment on a sibling branch is
     unreachable to bind in the first place.
 
@@ -703,8 +703,8 @@ The instances worth offering this member, using §3's argument-position
     `_stored`'s anchor rule refuses that case before it is reached.
 
     A STRUCTURE THAT STILL CARRIES A VARIABLE IS NOT A VALUE, and reading it as
-    one is the interning trap wearing an index. `said(implies(?a, ?c))` asks the
-    bucket for the pattern node `implies(?a, ?c)` itself -- a node the graph
+    one is the interning trap wearing an index. `said(implies($a, $c))` asks the
+    bucket for the pattern node `implies($a, $c)` itself -- a node the graph
     minted when the rule was authored, which nothing was ever an instance
     against -- so the bucket is empty and the member matches NOTHING. No error,
     no scan, no candidate: the rule is well formed, every other member is fine,
@@ -733,8 +733,8 @@ The instances worth offering this member, using §3's argument-position
     which is what an author has to go and change.
 
     ⚠⚠ **Both the count and the SIZE, because the count alone does not rank
-    them.** Measured on `ugm.interpret`: `asking(?s)` falls back 169 times and
-    `met(?a)` 16, which reads as one problem and one footnote -- and `asking`
+    them.** Measured on `ugm.interpret`: `asking($s)` falls back 169 times and
+    `met($a)` 16, which reads as one problem and one footnote -- and `asking`
     has a single instance, so those 169 fallbacks visit 169 nodes between them
     while the 16 walk a bucket that grows with the run. A member that cannot be
     indexed over a relation with one instance costs nothing and is not worth an
@@ -792,7 +792,7 @@ A skeleton relation that needs no anchor, because it is bounded by
 
 ## `_span_of`
 
-`span_of(?s, ?start, ?end)` -- a stretch of the chain (§11).
+`span_of($s, $start, $end)` -- a stretch of the chain (§11).
 
     `entry_of`'s shape one construct along, and read the same two ways:
 
@@ -846,7 +846,7 @@ The skeleton, as members an ordinary rule may write (§6, §12).
 ⚠⚠⚠ **`pred` was the reflexive-transitive walk, under the name of the
 immediate one.** It was registered for corpora to write (`machine.py`'s
 name table) and no rule in this repo or the foreign one ever wrote it, so
-nothing could see that `pred(?m, ?n)` yielded every ancestor AND `?m`
+nothing could see that `pred($m, $n)` yielded every ancestor AND `$m`
 itself. `anc` is that walk and now carries the name; `pred` is the stored
 immediate-predecessor fact the chain actually deposits. A name a corpus
 may write whose meaning is not what the name says is worse than an absent

@@ -1,8 +1,8 @@
 # Two connectives, and why exactly two
 
 ```
-rule <boil>    = causes(  { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )
-rule <weather> = implies( { +cloudy(?d, morning) },  { +likely(rain(?d, afternoon)) } )
+rule <boil>    = causes(  { +heat($a, $w), +water($w) }, { +boiling($w) } )
+rule <weather> = implies( { +cloudy($d, morning) },  { +likely(rain($d, afternoon)) } )
 ```
 
 There are two, and the interesting question isn't *why does the engine know
@@ -66,7 +66,7 @@ The two-connective split is precisely what makes that plan unwritable.
 Which means the connective silently decides whether your loop terminates.
 
 ```
-rule <tick> = implies( { +quiet(?m) }, { +turn(?m) } )
+rule <tick> = implies( { +quiet($m) }, { +turn($m) } )
 ```
 
 ```
@@ -74,7 +74,7 @@ rule <tick> = implies( { +quiet(?m) }, { +turn(?m) } )
 ```
 
 ```
-rule <tick> = causes( { +quiet(?m) }, { +turn(?m) } )
+rule <tick> = causes( { +quiet($m) }, { +turn($m) } )
 ```
 
 ```
@@ -109,8 +109,8 @@ machinery deposits — `quiet`, `left`, `stopped` — reach for `implies` first.
     isn't a denial; it's **a right that acting spends**:
 
     ```
-    rule <swing> = causes( { +turn(?x, ?r), +may(?x, ?r) },
-                           { -may(?x, ?r), +attack(?x, ?r) } )
+    rule <swing> = causes( { +turn($x, $r), +may($x, $r) },
+                           { -may($x, $r), +attack($x, $r) } )
     ```
 
     Nothing catches this. Every pass genuinely concludes something new, so
@@ -140,12 +140,12 @@ shipped data**, two rules of one shape:
 
 ```
 <F-implies> = causes(
-    given  +rule(?r), +conn(?r, implies), +matched(?app, ?r, ?m)
-    then   +deposit_into(?app, ?m) )
+    given  +rule($r), +conn($r, implies), +matched($app, $r, $m)
+    then   +deposit_into($app, $m) )
 
 <F-causes> = causes(
-    given  +rule(?r), +conn(?r, causes), +matched(?app, ?r, ?m), ?m' = succ(?m)
-    then   +deposit_into(?app, ?m') )
+    given  +rule($r), +conn($r, causes), +matched($app, $r, $m), $m' = succ($m)
+    then   +deposit_into($app, $m') )
 ```
 
 A third connective would be a third rule of the same shape.

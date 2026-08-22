@@ -61,7 +61,7 @@ Every machine the suite builds, asked the unwebbed question.
     This reaches the rest without moving a line, by `ugm.harmony`'s own trick:
     hook `Machine.run` and ask each machine once. And it paid immediately -- it
     found a bug **in the checker**, not in the corpora: a variable in relation
-    position (`+?kind(?item)`) was being reported as a relation nothing writes,
+    position (`+$kind($item)`) was being reported as a relation nothing writes,
     so a corpus using §4's *class as data* was told a working rule was broken.
 
     ⚠ **What it does NOT justify is moving the fixtures.** 62 of 239 machines

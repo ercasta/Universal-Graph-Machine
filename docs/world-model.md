@@ -55,7 +55,7 @@ a corpus mints the node as a side effect of the loader's name table
 (`Loader.atom`): the label is the handle. Under the change nothing exists by
 being mentioned. A rule concludes that a fresh entity exists and deposits the
 mapping — `denotes(m4, e17)`, `named(e17, paul)` — as facts the record shows.
-"Paul" in later text is not a handle; it is `name(?x, paul)`, a query resolved
+"Paul" in later text is not a handle; it is `name($x, paul)`, a query resolved
 against those facts.
 
 **A relationship is reified: it has an atom id of its own.** `attacked(e3, e7)`
@@ -68,18 +68,18 @@ denied, made a participant of another relationship.
 query.** The interned compound (`Graph.rel`, where `on(a, b)` is one node
 however often it is written) is not a thing in the world; it is a criterion for
 matching things in the world. *The goblin you attacked three turns ago* and
-`name(?x, paul)` are the same kind of object: a query over a span with a truthy
+`name($x, paul)` are the same kind of object: a query over a span with a truthy
 value, cacheable and explicitly invalidated. List, Bag, Set, All, Some, count,
 greater, smaller live here.
 
-**Absence is asked, never asserted: `no p(?x)`.** A query needs to say *nothing
+**Absence is asked, never asserted: `no p($x)`.** A query needs to say *nothing
 matches this*, and `-` cannot say it — §9's `-` means *an entry denies this*,
 and the rule that materialises a denial has to ask about absence first, which
-is chicken and egg. So `no p(?x)` is a fourth way an antecedent member relates
+is chicken and egg. So `no p($x)` is a fourth way an antecedent member relates
 to the state, beside `+`, `-` and `?`: it holds when nothing currently asserts
-`p(?x)` (a denied `p` is absent too — `no` asks the prior question). It is a
+`p($x)` (a denied `p` is absent too — `no` asks the prior question). It is a
 check, not a binder — every variable must arrive bound from an earlier member,
-because `no p(?x)` with `?x` free would mean *for no ?x*, the negative
+because `no p($x)` with `$x` free would mean *for no $x*, the negative
 existential a member cannot mean. And it can never be concluded or deposited:
 a fact states, a consequent asserts or denies, and only an antecedent asks.
 
@@ -87,7 +87,7 @@ a fact states, a consequent asserts or denies, and only an antecedent asks.
 lines where the old style was one, so the surface lets a corpus define the
 shorthand itself:
 
-    alias attacks(?a, ?t) = { +is(+e, attack), +agent(+e, ?a), +target(+e, ?t) }
+    alias attacks($a, $t) = { +is(+e, attack), +agent(+e, $a), +target(+e, $t) }
 
 An alias use *is* its expansion, at member level, and the `+e` marker is the
 entity the shorthand stands up: in a `fact` it is minted at load (one entity,

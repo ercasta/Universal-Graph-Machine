@@ -300,11 +300,11 @@ in the table loop:
 Boosting the winner gets it applied *first*, and then the loser applies second
 and **overwrites it** -- the buff produced the opposite conclusion, worse than
 doing nothing. This is *ordering is not defeasibility*, and it is why the author's
-own resolution for norms made `+lawful(?a)` **a premise, never a boost**.
+own resolution for norms made `+lawful($a)` **a premise, never a boost**.
 
 **Consumption cannot either**, and the reason is a rule this repository already
-has. Make `<outcome>` spend its trigger -- `{ +did(?a), +achieves(?a, ?y) } =>
-{ +?y, -did(?a) }` -- and the act is asserted anyway, because `did` is
+has. Make `<outcome>` spend its trigger -- `{ +did($a), +achieves($a, $y) } =>
+{ +$y, -did($a) }` -- and the act is asserted anyway, because `did` is
 re-derived from `emitted` by a bundled rule. **Never consume what you were told**,
 arriving from the far side: the trigger is downstream of a boundary record.
 
@@ -539,7 +539,7 @@ The endpoint is the design's own sentence -- *the rules stay fixed; the
 postconditions are what a learning process calibrates.* `learned()` should emit
 **buffs** rather than `prefer` rows:
 
-    fact prefer(<R>, water, 3)   ->   when { +water(?x) } => boost(<R>, 3)
+    fact prefer(<R>, water, 3)   ->   when { +water($x) } => boost(<R>, 3)
 
 Then offline learning writes what the loop actually obeys, and the two mechanisms
 become one. `ugm.quiescence` stays red and is **pre-existing** -- its `<silent>`
@@ -570,7 +570,7 @@ for.
 
 **A key is not a query.** `prefer(<R>, water, 3)` keys on a relation being **in
 play**, and what is in play includes keys derived from goals -- nothing is
-required to *hold*. Rebuilding it as `{ +water(?x) }` needs an arity nobody
+required to *hold*. Rebuilding it as `{ +water($x) }` needs an arity nobody
 recorded, and means something strictly narrower.
 
 **Buffs fade and saturate, by design.** A lift is about what is going on now, so

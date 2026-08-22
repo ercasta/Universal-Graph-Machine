@@ -22,29 +22,29 @@ from ..core.text import load, load_file
 # derived* rather than *something denies it*.
 QUIET = """
 rule <holds> = implies(
-  { best(?seat, ?prop, ?e), entry_of(?e, ?pe, ?sign) },
-  { holds_as(?seat, ?prop, ?sign) } )
+  { best($seat, $prop, $e), entry_of($e, $pe, $sign) },
+  { holds_as($seat, $prop, $sign) } )
 
 rule <mention-inherited> = implies(
-  { consumed_by(?a, ?e), mentioned(?e) },
-  { mentioning(?a) } )
+  { consumed_by($a, $e), mentioned($e) },
+  { mentioning($a) } )
 
 rule <mention-authored> = implies(
-  { about_rules(?a) },
-  { mentioning(?a) } )
+  { about_rules($a) },
+  { mentioning($a) } )
 
 rule <silent> = implies(
-  { unbound(?a), -mentioning(?a) },
-  { silent(?a) } )
+  { unbound($a), -mentioning($a) },
+  { silent($a) } )
 
 rule <changes> = implies(
-  { proposes(?a, ?seat, ?prop, ?sign),
-    -holds_as(?seat, ?prop, ?sign), -silent(?a) },
-  { would_change(?a) } )
+  { proposes($a, $seat, $prop, $sign),
+    -holds_as($seat, $prop, $sign), -silent($a) },
+  { would_change($a) } )
 
 rule <quiet> = implies(
-  { candidate(?a), -would_change(?a) },
-  { settled(?a) } )
+  { candidate($a), -would_change($a) },
+  { settled($a) } )
 """
 
 # The harness's own relations: what a candidate application IS, in the graph.
@@ -85,7 +85,7 @@ fact swept(hall)
 rule <mess>  = causes(  { +dirty(room) }, { -clean(hall) } )
 rule <again> = implies( { +swept(hall) }, { +clean(hall) } )
 
-rule <echo>   = implies( { +con(?r, ?pat, plus, ?i) }, { +echoed(?pat) } )
+rule <echo>   = implies( { +con($r, $pat, plus, $i) }, { +echoed($pat) } )
 rule <attach> = implies( { +swept(hall) }, { +resume(hall, <echo>) } )
 """
 
@@ -124,7 +124,7 @@ def _admissible(m: Machine, h: Harvest, app: Application) -> Optional[List[tuple
     if it falls in one of the uncompared branches, tallied.
 
     ⚠ It was `(locus, prop, sign)`, and the locus came from `_conclude_at`,
-    which resolved a member's `at ?m` against the bindings. Both are gone, and
+    which resolved a member's `at $m` against the bindings. Both are gone, and
     with them the `span` branch -- *the bound locus is not a moment*. Its
     counter is kept in the tally as a permanent zero rather than removed,
     because a counter that disappears reads as a branch nobody reached.

@@ -67,7 +67,7 @@ class Lesson:
         # back to the previous rule's own variables. This is what makes a focus
         # lesson conditional, and a corpus with ONE action rule cannot be taught
         # without it: every move is the same rule, so an unconditional
-        # `after <move> => attend(?d)` says the same thing at every step and
+        # `after <move> => attend($d)` says the same thing at every step and
         # therefore says nothing. What distinguishes the steps is the SHAPE of
         # the situation, and that is what a query is.
         self.focused: Dict[Tuple[str, str], List[Tuple]] = {}

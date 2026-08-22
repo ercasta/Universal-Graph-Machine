@@ -24,16 +24,16 @@ to no occasion. Anchored ones never are.
 
 Three statements, with the author saying which, so the loader branches on nothing:
 
-    rule  boil = causes( { +heat(?a,?w), +water(?w) }, { +boiling(?w) } )
+    rule  boil = causes( { +heat($a,$w), +water($w) }, { +boiling($w) } )
     fact  +on(a, b)                    standing knowledge, stamped source=kb
     say   user: +raining(here)         an arrival on the channel `user`
     fact  overrides(<boil>, <cool>)        an ordinary claim, and it seeds precedence
-    fact  <how-many> = count(harm(?x))            a named statement
+    fact  <how-many> = count(harm($x))            a named statement
     fact  -<no-harm>                       ...which other statements can be about
 
 A fact may carry a name, in the same angle brackets a rule's goes in, because
 `<...>` is the namespace of **statements** and a rule is a statement. It earns its
-place on descriptions: `count(harm(?x))` contains variables, and §8
+place on descriptions: `count(harm($x))` contains variables, and §8
 scopes a statement's variables to it, so writing it twice writes two nodes that
 say a similar thing. A description has no identity but the one an author gives it,
 and without a name a norm could be stated and never retired.
@@ -49,7 +49,7 @@ A relation instance, an atom, a variable or a rule reference, still
     ⭐ `fn` is the relation slot when it holds a whole TERM rather than a name --
     `a(b)(c)`, the node whose relation is `a(b)`. The substrate has always built
     one (a node's relation is a node like any other, and `show` renders it by
-    recursing), `unify` learned to compare one when `?p(?t)` landed, and this is
+    recursing), `unify` learned to compare one when `$p($t)` landed, and this is
     the last component that could not read it.
 
     ⚠ Set only for a CHAINED application, so every term that parsed before this
@@ -63,13 +63,13 @@ A relation instance, an atom, a variable or a rule reference, still
 
 A postcondition, as written: a query, and what it spends if it holds.
 
-        rule <classify> = implies( { +asked(?x) }, { +considered(?x) } )
-          after { +penguin(?x) } => attend(?x, 3)
+        rule <classify> = implies( { +asked($x) }, { +considered($x) } )
+          after { +penguin($x) } => attend($x, 3)
           frozen after => unattend
 
     The query is an ordinary antecedent -- no new notation, and the same
     matcher -- and it is matched with the rule's OWN bindings already in hand,
-    so `?x` above is the `?x` the rule bound. A bare `after` is the query that
+    so `$x` above is the `$x` the rule bound. A bare `after` is the query that
     asks nothing and always holds.
 
     `frozen` marks what a calibration process may not touch, and `learned` its
@@ -86,8 +86,8 @@ A postcondition, as written: a query, and what it spends if it holds.
         learned     play added it, and re-learning may replace it
 
     ⚠ And learning ADJUSTS rather than replaces, which needs no arithmetic at
-    all: two postconditions on one rule both spend, so an authored `attend(?x)`
-    beside a learned `attend(?y)` leaves the agent thinking about both. Measured.
+    all: two postconditions on one rule both spend, so an authored `attend($x)`
+    beside a learned `attend($y)` leaves the agent thinking about both. Measured.
     Strip every `learned` line and the bootstrap is exactly what is left.
 
 ## Which expert the rules below belong to, and op
@@ -108,7 +108,7 @@ keyword buys is not having to name every rule twice.
 
 ⭐⭐⭐ **The action palette, declared:**
 
-    action move(?x, ?y)
+    action move($x, $y)
 
 A SIGNATURE and nothing else. It says what the agent may ask to
 do; the world model's own rules say what happens when it asks, and
@@ -126,7 +126,7 @@ A fact may be NAMED, and the name goes in the same angle brackets a
 rule's does, because it is the same namespace: names of
 *statements*, kept out of the relation namespace.
 
-It earns its place on descriptions. `count(harm(?x))`
+It earns its place on descriptions. `count(harm($x))`
 contains variables, and §8 scopes a statement's variables to it --
 so writing it twice writes two nodes that say a similar thing, and
 a denial of the second leaves the first forbidding. A description
@@ -134,7 +134,7 @@ has no identity but the one the author gives it.
 
 ## `trigger`
 
-`after <A> { ... } => attend(?x, 3)`.
+`after <A> { ... } => attend($x, 3)`.
 
         `after` fires when its rule applies and its query holds. `frozen` marks
         what a calibration process may not touch.
@@ -149,9 +149,9 @@ has no identity but the one the author gives it.
         trigger on the rule that RAN can say, and it says it about a move that
         actually happened.
 
-## +acts(goblin) at ?m -- WHERE the entry sits.
+## +acts(goblin) at $m -- WHERE the entry sits.
 
-⭐ `+acts(goblin) at ?m` -- WHERE the entry sits. §12 calls the short
+⭐ `+acts(goblin) at $m` -- WHERE the entry sits. §12 calls the short
 form an abbreviation for the entry, whose locus the frame supplies;
 this is how a rule says otherwise, and it relates two moments.
 
@@ -286,7 +286,7 @@ A bare name in an ARGUMENT position that resolves to a reserved node.
         debugging session to it.
 
         It is a **report and not a refusal**, and that is forced rather than
-        timid: `+expects(?p, plus)` and `+says(user, ?p, plus)` are legitimate
+        timid: `+expects($p, plus)` and `+says(user, $p, plus)` are legitimate
         and there are twenty-odd of them, so the loader cannot tell an operator
         from a sign. What it can do is stop being silent -- which is §5's rule
         about the places machinery declines without saying so, arriving at the
@@ -322,8 +322,8 @@ claim about two rules, not a generic claim -- R3 depends on being able
 to write it. The `<...>` marker is what makes the distinction visible
 here, where structurally the two are identical (§13).
 A norm's argument is a DESCRIPTION, not a proposition:
-`count(harm(?x))` names a class of acts, exactly as
-`ant(<R>, heat(?a, ?w))` names a class of premises. Both are ground
+`count(harm($x))` names a class of acts, exactly as
+`ant(<R>, heat($a, $w))` names a class of premises. Both are ground
 claims that happen to contain variables, and §13 says what tells them
 apart is who is writing -- here, an author who wrote a described head.
 
@@ -344,7 +344,7 @@ useless, and a norm expressed as a rule is a competitor in recall.
 : silently*. Adding `count` as a second literal in two more places is how that
 : happens again, so the set is named once and read everywhere.
 :
-: `count(goblin(?x))` names a class of things to be counted, and a norm's
+: `count(goblin($x))` names a class of things to be counted, and a norm's
 : shape is now said in a trigger's antecedent instead. Same price, same reason
 : §13 allows it: what tells a description from a generic claim is who is
 : writing.
@@ -355,15 +355,15 @@ Every variable in a structure -- **including one in RELATION position.**
 
     ⚠⚠⚠ It did not look at the relation, and `Graph.has_var` always has: `_mint`
     computes genericity as *the relation is generic, or any member is*. So the
-    two disagreed about `?verb(?a, ?b)`, and the binding check is built from
+    two disagreed about `$verb($a, $b)`, and the binding check is built from
     both -- `has_var` decides whether a consequent needs checking and this
     decides what would satisfy it.
 
     The disagreement cut both ways, which is why it survived. A consequent
-    `+?r(?x, ?y)` passed the check because `?r` was never *wanted*; an antecedent
-    `+ev_at(?verb(?a, ?b), ?t)` failed it because `?verb` was never *had* -- so
+    `+$r($x, $y)` passed the check because `$r` was never *wanted*; an antecedent
+    `+ev_at($verb($a, $b), $t)` failed it because `$verb` was never *had* -- so
     destructuring a description was refused at the surface while `match` handled
-    it perfectly (measured: 2 matches, `?verb` bound to `attack` and `steal`).
+    it perfectly (measured: 2 matches, `$verb` bound to `attack` and `steal`).
 
     ⭐ That is what blocked a **generic** interpreter: one rule per predicate was
     forced, because a rule could not be written over the predicate itself.

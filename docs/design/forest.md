@@ -57,7 +57,7 @@ Gated: load that text, **retire the forest**, and the verdict is reproduced by
 the rules alone. The model hands its work to the engine and leaves.
 
 ⚠ **Positive tests only, and that is §9 rather than a simplification.** A tree
-wants *not pointed*, and `-pointed(?a)` does not mean it: §9's `-` is *an entry
+wants *not pointed*, and `-pointed($a)` does not mean it: §9's `-` is *an entry
 denies this*, never *there is no such entry*. So a path here is a monotone
 conjunction, and the two classes are learned as two positive concepts rather than
 one predicate and its complement. What would otherwise be the negative branch is
@@ -117,14 +117,14 @@ itself. Kept as the refutation rather than deleted as a failed control.
 
 ⚠⚠ **What this corpus is willing to act on, in two lines.** The two
 encodings say the verdict differently -- a rules-as-ensemble member
-concludes `is_gothic(?c)` flat, the tool's corpus concludes
-`possible(is_gothic(?c))` -- so the corpus has to say which of those
+concludes `is_gothic($c)` flat, the tool's corpus concludes
+`possible(is_gothic($c))` -- so the corpus has to say which of those
 it will treat a cathedral on.
 
 ⭐ And this corpus is RECKLESS, deliberately: it acts on a merely
 possible classification, which is what costs it the goal below. Under
 grades that recklessness was invisible -- `<treat>` matched
-`is_gothic(?c)` whatever grade the entry carried, because nothing
+`is_gothic($c)` whatever grade the entry carried, because nothing
 could read a grade -- so an agent could not have declined even if its
 author had wanted it to. Now the recklessness is one line, and
 deleting it is how you get a careful agent.

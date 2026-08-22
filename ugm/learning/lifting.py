@@ -29,8 +29,8 @@ fact +contains(k4, milk)
 fact +contains(k5, pebbles)
 fact +contains(k6, juice)
 
-rule <boils> = causes( { +heating(?k) }, { +boiling(?k) } )
-rule <trust> = implies( { +says(world, ?p, minus) }, { -?p } )
+rule <boils> = causes( { +heating($k) }, { +boiling($k) } )
+rule <trust> = implies( { +says(world, $p, minus) }, { -$p } )
 
 say world: -boiling(k2)
 say world: -boiling(k3)

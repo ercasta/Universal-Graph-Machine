@@ -17,7 +17,7 @@ CAUSES = "causes"
 IMPLIES = "implies"
 
 # The fourth member mode, and it is a MEMBER mode rather than an entry sign:
-# `no p(?x)` holds when nothing in the state asserts `p(?x)`. §9's `-` means
+# `no p($x)` holds when nothing in the state asserts `p($x)`. §9's `-` means
 # *an entry denies this*, never *absent* -- and it cannot mean absent, because
 # the rule that MATERIALISES a denial needs to ask about absence first
 # (chicken and egg). An absence is asked, never deposited: the gate has no
@@ -138,10 +138,10 @@ class Member(NamedTuple):
 
     sign: str
     pattern: NodeId
-    # ⚠ `at ?m` -- WHERE the entry must sit -- went with the locus itself. An
+    # ⚠ `at $m` -- WHERE the entry must sit -- went with the locus itself. An
     # entry has no second time to bind to. A rule that wants history reads
     # `in_delta`/`anc`/`entry_of`, which are ordinary structural relations.
-    # ⭐ ...and a name for WHAT matched. at ?m says where the entry sits; as ?t
+    # ⭐ ...and a name for WHAT matched. at $m says where the entry sits; as $t
     # says what its proposition is, so a rule can refer to the very thing it
     # matched rather than describing it again.
     # → docs/design/rules.md#and-a-name-for-what-matched-at-m-says-w
@@ -163,7 +163,7 @@ class Rule:
         self.antecedent = list(antecedent)
         self.consequent = list(consequent)
         self.name = name
-        # Whether this rule was AUTHORED naming a rule -- `+resume(?h, <cb>)`.
+        # Whether this rule was AUTHORED naming a rule -- `+resume($h, <cb>)`.
         # A rule node contains the variables of its own patterns, so a consequent
         # that names one is a ground claim that happens to be generic, and the
         # gate would otherwise refuse it. §14 settles use/mention by inheritance,
@@ -222,7 +222,7 @@ class RuleSet:
             s: g.atom(s) for s in ("+", "-", "?")
         }
         # ⚠ In the RULESET's table only, never the chain's: a reified `no`
-        # member needs a sign node to be spoken of (`ant(?r, ?p, absent, ?i)`),
+        # member needs a sign node to be spoken of (`ant($r, $p, absent, $i)`),
         # but no entry may ever carry it -- `Gate.write` with this sign would
         # KeyError at `chain.SIGN`, which is the loud failure we want.
         self.SIGN[ABSENT] = g.atom("absent")
@@ -258,7 +258,7 @@ class RuleSet:
         # Authoring a rule is an event, the way a write is. The machine
         # subscribes so that a rule becomes DATA the moment it exists rather than
         # when somebody remembers to ask -- which matters once rules read rules:
-        # a reader that enumerates `+rule(?r)` sees whatever was reified, and a
+        # a reader that enumerates `+rule($r)` sees whatever was reified, and a
         # rule authored afterwards was invisible to it with nothing reporting so.
         self.on_rule: List[Callable[["Rule"], None]] = []
         # Rules by the relation they CONCLUDE.
@@ -587,7 +587,7 @@ def generalise(
             ])
     key = (a, b)
     if key not in mapping:
-        mapping[key] = g.var(f"?g{len(mapping)}")
+        mapping[key] = g.var(f"$g{len(mapping)}")
     return mapping[key]
 
 
@@ -606,7 +606,7 @@ def walk(g: Graph, n: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
 
 
 def occurs(g: Graph, var: NodeId, n: NodeId, bindings: Dict[NodeId, NodeId]) -> bool:
-    """Does `var` appear inside `n`? Binding `?x` to `f(?x)` builds a structure
+    """Does `var` appear inside `n`? Binding `$x` to `f($x)` builds a structure
     that contains itself, and every later walk over it runs forever. Matching
     cannot produce the situation; unification can, so it has to be checked."""
     n = walk(g, n, bindings)
@@ -662,7 +662,7 @@ def unify_patterns(
 def rename(g: Graph, pattern: NodeId, fresh: Dict[NodeId, NodeId]) -> NodeId:
     """Standardise apart: give a rule's variables identities nobody else uses.
 
-    Two rules written independently both say `?w`, and they mean different
+    Two rules written independently both say `$w`, and they mean different
     things. Matching never notices because only one side has variables.
 
     Ground structures pass through untouched -- same reason as `substitute`.
@@ -692,7 +692,7 @@ def ground(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
     r = g.relation_of(p)
     assert r is not None
     # ...and the relation slot substitutes like any other, or a rule could bind
-    # `?p` and then be unable to build `?p(?x)` back -- match and substitute
+    # `$p` and then be unable to build `$p($x)` back -- match and substitute
     # travel together (§5), and half of it is worse than neither.
     r2 = walk(g, r, bindings) if g.is_var(r) else r
     members = g.members(p)
@@ -706,8 +706,8 @@ def _left_open(g, pattern, bindings) -> bool:
     """Did this member leave a variable of its OWN unbound?
 
     The question `has_var` over the grounded node was standing in for, and the
-    two part company exactly where §14 does. A rule reading `con(?r, ?pat, +, ?i)`
-    binds `?pat` to a stored pattern, so its conclusion contains variables and
+    two part company exactly where §14 does. A rule reading `con($r, $pat, +, $i)`
+    binds `$pat` to a stored pattern, so its conclusion contains variables and
     every one of them is bound -- a ground claim that happens to be about a
     generic thing. A rule whose consequent names a variable its antecedent never
     bound is the other case, and only that one has nothing to deposit.
@@ -741,8 +741,8 @@ def substitute(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> Nod
         return pattern
     rel = g.relation_of(pattern)
     assert rel is not None
-    # ...and the relation slot substitutes too, or a rule may bind `?p` in its
-    # antecedent and be unable to conclude `?p(?t)`. Anything still generic here
+    # ...and the relation slot substitutes too, or a rule may bind `$p` in its
+    # antecedent and be unable to conclude `$p($t)`. Anything still generic here
     # is refused by the gate as before, which now correctly includes a
     # consequent whose RELATION nothing bound.
     new_rel = bindings.get(rel, rel) if g.is_var(rel) else rel
@@ -1153,7 +1153,7 @@ def match(
 
 
 def _anchored(g, chain, want, bindings, strict: bool):
-    """`pred(?m, ?n)` / `sanc(?m, ?n)` -- read off the chain, anchored upward.
+    """`pred($m, $n)` / `sanc($m, $n)` -- read off the chain, anchored upward.
 
     ⭐⭐⭐ This is where containment stays structural.
 
@@ -1183,7 +1183,7 @@ def _ground(g, n, bindings) -> bool:
 
     `walk` resolves a variable to its value but does not substitute inside a
     structure, so neither `is_var` nor `has_var` answers this on its own: the
-    first is blind to `loaded(?p)`, the second is blind to `?p` being bound.
+    first is blind to `loaded($p)`, the second is blind to `$p` being bound.
     """
     w = walk(g, n, bindings)
     if g.is_var(w):
@@ -1343,7 +1343,7 @@ def _as_fact(g, want, node, bindings):
         # among the instances of its relation, and `unify` returns early on
         # identity -- binding nothing, and therefore binding nothing to a
         # variable either, which is how this walked past the test below and
-        # derived `near(M, ?p)` with `?p` free.
+        # derived `near(M, $p)` with `$p` free.
         return None
     b = unify(g, want.pattern, node, bindings)
     if b is None:
@@ -1353,8 +1353,8 @@ def _as_fact(g, want, node, bindings):
             return None
         if g.has_var(v) and (k, v) not in _SAFE and occurs(g, k, v, {}):
             # A rule reading the reification of ITSELF: `<echo>`'s antecedent
-            # `con(?r, ?pat, plus, ?i)` meets the entry that reifies `<echo>`,
-            # whose stored pattern contains that very `?pat` node -- and binding
+            # `con($r, $pat, plus, $i)` meets the entry that reifies `<echo>`,
+            # whose stored pattern contains that very `$pat` node -- and binding
             # it builds a structure that contains itself, which every later walk
             # runs forever on. `occurs` exists for exactly this and says match
             # cannot produce it; once a chain fact about a generic proposition
@@ -1383,9 +1383,9 @@ def _bounded(g, chain, want, bindings):
 
 
 def _members_of(g, chain, want, bindings):
-    """`entry_of(?e, ?prop, ?sign)` -- an entry's own two members.
+    """`entry_of($e, $prop, $sign)` -- an entry's own two members.
 
-    §12's `?t = entry(p, +)` prefix form, as a member rather than as notation.
+    §12's `$t = entry(p, +)` prefix form, as a member rather than as notation.
     An entry node IS `entry(proposition, sign)`, so this reads what is already
     there; nothing is stored for it.
 
@@ -1442,7 +1442,7 @@ def structural_relations(chain) -> Dict[NodeId, Callable]:
         chain.ENTRY_OF: _members_of,
         chain.ASKING: _bounded,
         chain.ASKED: _bounded,
-        # `time(?m, ?t)` -- stored, so it refuses an unbound moment for
+        # `time($m, $t)` -- stored, so it refuses an unbound moment for
         # `_stored`'s reason: it is a fact about the whole history, and an
         # unanchored read would walk all of it.
         chain.TIME: _stored,

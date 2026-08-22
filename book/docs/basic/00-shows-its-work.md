@@ -6,7 +6,7 @@ take it apart.
 Here is a complete program. It is two lines.
 
 ```
-rule <mortality> = implies( { +person(?p) }, { +mortal(?p) } )
+rule <mortality> = implies( { +person($p) }, { +mortal($p) } )
 
 fact +person(paul)
 ```

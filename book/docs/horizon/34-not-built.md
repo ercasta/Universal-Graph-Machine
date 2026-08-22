@@ -27,7 +27,7 @@ That fourth category is the one worth taking seriously. **Two items on this
 project's open list changed status in a single afternoon**, purely because
 somebody asked *why* instead of accepting the list.
 
-- **`?p(?x)` — a class named by data.** Listed as a wall. It was three
+- **`$p($x)` — a class named by data.** Listed as a wall. It was three
   independent refusals — the parser wouldn't read it, the unifier compared the
   relation slot by identity, and substitution wouldn't rebuild one — and the
   substrate had been able to construct the node all along. About an hour to
@@ -102,7 +102,7 @@ is a denial (Chapter 24), but *do not go where you have been* asks about
 `−`, which means *denied* rather than *absent* — so a maze with a cycle spawned
 without limit.
 
-⚠ This one is **now buildable**: `no at(?w, ?room)` is exactly the missing
+⚠ This one is **now buildable**: `no at($w, $room)` is exactly the missing
 question (Chapter 6). The item stays on the list because nothing in the tree
 demonstrates it — the probe that measured walkers was deleted — so *buildable*
 is not yet *built*.
@@ -188,7 +188,7 @@ its own matches. Measured, and shipped as an instrument rather than as a claim
 that it is acceptable (Chapter 28).
 
 **A lesson can raise a thing, not a rule.** A postcondition spends
-`attend(?x, n)` on a **node**, and the score-moving forms that named a rule
+`attend($x, n)` on a **node**, and the score-moving forms that named a rule
 (`boost`, `damp`, `reset`) are retired: a rule id goes stale the moment a rule
 is adopted, composed or renamed, so a corpus of experience written against rule
 names stops *loading* rather than going quietly wrong. What is not yet built is

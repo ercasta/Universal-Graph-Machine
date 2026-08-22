@@ -33,7 +33,7 @@ Here is the trap, run for real. The rule says *heal the wounded, unless
 poisoned*:
 
 ```
-rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
+rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
 
 fact +wounded(a)
 fact +poisoned(a)
@@ -48,7 +48,7 @@ why heals(b)?
   nothing concluded it -- see what is BLOCKED above
 ```
 
-**No.** The `−poisoned(?x)` member is looking for an entry that says *this does
+**No.** The `−poisoned($x)` member is looking for an entry that says *this does
 not hold*. It does not match *no entry*. There is nothing anywhere claiming that
 `b` isn't poisoned, so the rule simply never applies — silently, with nothing
 printed and nothing to distinguish it from a rule that had no work to do.
@@ -72,7 +72,7 @@ why heals(b)?
 You don't have to write them all by hand. Deriving them is an ordinary rule:
 
 ```
-rule <clean> = implies( { +wounded(?x), -bitten(?x) }, { -poisoned(?x) } )
+rule <clean> = implies( { +wounded($x), -bitten($x) }, { -poisoned($x) } )
 ```
 
 ...which of course needs `-bitten` to come from somewhere in turn. At some point
@@ -103,8 +103,8 @@ precisely the thing that cannot be said.
 `?` **invalidates without replacing**. It stops the walk and reports ignorance.
 
 ```
-rule <hit> = causes( { +strike(?a, ?t), +hp(?t, ?n) },
-                     { ? hp(?t, ?n), +falls(hp(?t)) } )
+rule <hit> = causes( { +strike($a, $t), +hp($t, $n) },
+                     { ? hp($t, $n), +falls(hp($t)) } )
 ```
 
 ```

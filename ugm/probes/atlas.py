@@ -129,7 +129,7 @@ def mermaid(m: Machine, rules, have: Set[str]) -> str:
 def links(m: Machine, rules) -> Set[frozenset]:
     """A rule joins every relation it READS to every relation it WRITES.
 
-    ⚠ A relation joined only to ITSELF is not joined: `{+p(?x)} ⟹ {+p(?y)}`
+    ⚠ A relation joined only to ITSELF is not joined: `{+p($x)} ⟹ {+p($y)}`
     gives `p` no meaning it did not have, because meaning is being connected to
     something else. So self-links are dropped rather than counted.
     """
@@ -279,7 +279,7 @@ def survey(m: Machine, rules, label: str = "", show_mermaid: bool = False) -> Li
     if alone:
         # ⚠⚠⚠ **`not` will appear here and is a false positive**, which is the
         # bare variable distorting a measurement for the third time. `<denial>`
-        # concludes `-?p` -- a bare variable, with no relation to draw a link to
+        # concludes `-$p` -- a bare variable, with no relation to draw a link to
         # -- so `not` looks joined to nothing while it is in fact joined to
         # everything the agent can deny.
         print(f"  joined to nothing else       : {alone}"

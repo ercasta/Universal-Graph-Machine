@@ -8,19 +8,19 @@ fact -holds(p1, key1)
 # Somebody wants a thing: tell whoever has it.
 #
 # ⚠⚠⚠ **In two rules, because a request has to be SPENT.** Written as one --
-# `{ +says(?who, want(?who, ?k), plus), +holds(?keeper, ?k) }` straight to the
+# `{ +says($who, want($who, $k), plus), +holds($keeper, $k) }` straight to the
 # telling -- the arrival never stops being true, so when the key changed hands
 # the rule matched again with the new keeper and the DM told p1 it had been
 # asked for the key it had just been given. Harmless only because p1 has no rule
 # for `asked`. `docs/authoring.md` §0, in a third corpus: the arrival is the
 # record and stays, `wants` is the belief, and routing spends the belief.
-rule <heard-want> = implies( { +says(?who, want(?who, ?k), plus) },
-                             { +wants(?who, ?k) } )
+rule <heard-want> = implies( { +says($who, want($who, $k), plus) },
+                             { +wants($who, $k) } )
 
-rule <route> = implies( { +wants(?who, ?k), -holds(?who, ?k), +holds(?keeper, ?k) },
-                        { +doing(tell(?keeper, asked(?who, ?k))) } )
+rule <route> = implies( { +wants($who, $k), -holds($who, $k), +holds($keeper, $k) },
+                        { +doing(tell($keeper, asked($who, $k))) } )
 
 # Somebody handed it over: narrate the new state to the receiver, and record it.
-rule <deliver> = causes( { +says(?keeper, gives(?keeper, ?who, ?k), plus) },
-                         { -holds(?keeper, ?k), +holds(?who, ?k),
-                           +doing(tell(?who, have(?who, ?k))) } )
+rule <deliver> = causes( { +says($keeper, gives($keeper, $who, $k), plus) },
+                         { -holds($keeper, $k), +holds($who, $k),
+                           +doing(tell($who, have($who, $k))) } )

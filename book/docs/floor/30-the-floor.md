@@ -74,7 +74,7 @@ with this. A rule is a rule *because* it's generic; a pattern is a pattern
 to write conventions in.
 
 !!! note "Deep dive: which slots may be generic was never argued"
-    A relation instance whose *relation slot* holds a variable — `?p(?x)` — is an
+    A relation instance whose *relation slot* holds a variable — `$p($x)` — is an
     ordinary generic node, and the substrate could always build one.
 
     It never matched, because three separate things declined it and **none of

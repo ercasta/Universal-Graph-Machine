@@ -27,7 +27,7 @@ a rule is adopted, composed or renamed.
 `rooted`, `unsupported` and `blocked` rather than a fourth of them.**
 A rule's antecedent is existential -- each member matches *an entry*,
 so a rule says *there is an entry such that*, and a `-` member says
-*an entry denies this*, never *for no `?x`*. A rule therefore sees one
+*an entry denies this*, never *for no `$x`*. A rule therefore sees one
 binding at a time, and *there are two matches* exists only inside
 `match`, which is the floor.
 
@@ -58,7 +58,7 @@ a corpus writing `new(car)` means its own `new` and always did.
 *Not that one* -- what a plan has tried and ruled out for a variable.
 
 A separate relation rather than a denied `binds`, deliberately. Reading
-`-binds(<plan>, ?v, sink)` as an exclusion would give `-` a second
+`-binds(<plan>, $v, sink)` as an exclusion would give `-` a second
 meaning it has nowhere else: everywhere in this design a denial says
 *an entry denies this*, and it steers nothing. Here it would also have
 to steer a search, and a sign that means one thing in general and
@@ -71,7 +71,7 @@ The other silent decline (§5). The loop running out of work is the
 third place the machinery declines and the only one that used to say
 nothing at all -- so reasoning could stop with goals still open and
 nothing in the graph recorded that it had. `quiet(<m>)` is that record,
-and a watchdog is then an ORDINARY rule with `+quiet(?m)` in its
+and a watchdog is then an ORDINARY rule with `+quiet($m)` in its
 antecedent: inert until the loop stops, which is precisely when the
 aggregate it wants to compute -- *is anything still open?* -- becomes
 legitimate, because the search it is an aggregate over has finished.
@@ -225,18 +225,18 @@ considers and can never act. A learned rule still cannot mint.
 §18's call stack, as facts -- the plumbing under a recursive plan, and
 deliberately NOT a strategy for making one.
 
-    call(?c, ?args)      a call, its parameters as ONE node
-    stage(?c, ?s)        which step of it we are on
-    spawn(?c, ?a, ?s)    ask for a sub-call, starting at stage ?s
-    awaits(?c, ?k)       ?c cannot go on until ?k returns
-    returned(?c)         it has
-    advances(?p, ?q)     from ?p, go to ?q when the child returns
-    closes(?p)           ...or return, if ?p was the last step
+    call($c, $args)      a call, its parameters as ONE node
+    stage($c, $s)        which step of it we are on
+    spawn($c, $a, $s)    ask for a sub-call, starting at stage $s
+    awaits($c, $k)       $c cannot go on until $k returns
+    returned($c)         it has
+    advances($p, $q)     from $p, go to $q when the child returns
+    closes($p)           ...or return, if $p was the last step
 
 ⭐⭐⭐ **The parameters are one NODE, and that is the whole of what
-makes this parametric.** Written as `call(?c, ?d, ?f, ?t, ?s)` the
+makes this parametric.** Written as `call($c, $d, $f, $t, $s)` the
 arity is Hanoi's and no other domain can use it; written as
-`call(?c, tower(?d, ?f, ?t, ?s))` the arity is the domain's business
+`call($c, tower($d, $f, $t, $s))` the arity is the domain's business
 and the plumbing never sees it. Measured on two domains that share
 nothing else -- Hanoi and a countdown -- over the same three rules.
 
@@ -252,27 +252,27 @@ are words a WORLD uses, and reserving one takes it from every corpus
 that has a family or a task in it. These are deliberation words and
 nothing else.
 ⭐⭐⭐ **The action palette, declared rather than implied.** `action
-move(?x, ?y)` says *this is something the agent may do*, and it says
-nothing about how it is done: the request is `?a` deposited, and the
+move($x, $y)` says *this is something the agent may do*, and it says
+nothing about how it is done: the request is `$a` deposited, and the
 world model's own rules resolve it -- or REFUSE it, which is the whole
 point. An illegal move that simply fails to match is indistinguishable
 from nothing having happened, and that silence is this repository's
 most-recorded failure mode.
 
-⚠ `conn(?r, causes)` was the nearest thing to this and it is the wrong
+⚠ `conn($r, causes)` was the nearest thing to this and it is the wrong
 question: it says how a rule relates to the world, not that the agent
 may deliberately do it. *Fire causes smoke* and *I may strike a match*
 are both `causes`.
 
 ⚠⚠⚠ Spelled `afforded`, and NOT `action`, because `ugm.modality` uses
-`action(replace, ?p)` as a DOMAIN relation -- the recommended repair
+`action(replace, $p)` as a DOMAIN relation -- the recommended repair
 for a blocked filter. Reserving `action` took the word from it and
 broke two checks. Third time this trap has been walked into in one
 thread; the rule is to grep every corpus for a name before reserving
 it, and it works only when it is actually run. The surface keyword is
 still `action`, because a keyword is not a relation.
 
-⚠⚠ The signature is generic -- `move(?x, ?y)` -- so it is MENTIONED
+⚠⚠ The signature is generic -- `move($x, $y)` -- so it is MENTIONED
 rather than claimed, exactly as a rule's own patterns are (`reify`).
 The gate refuses to deposit a proposition with a variable in it, and
 rightly; what is deposited here is a claim ABOUT a pattern.
@@ -299,8 +299,8 @@ is this repository's standing answer.
 ⚠⚠ Checked at the WRITE, for the reason a norm used to be checked
 there and by the same route: a rule cannot ask it. Subsumption runs
 `unify(generic, ground)`, and a rule's premise is the pattern and the
-entry is the ground fact -- so `+afforded(?a)` against a ground
-attempt matches nothing. Measured: `unify(move(?x,?y), move(d1,z))`
+entry is the ground fact -- so `+afforded($a)` against a ground
+attempt matches nothing. Measured: `unify(move($x,$y), move(d1,z))`
 is True and the reverse is False.
 
 ## The second carve-out, and it is the mirror of §1
@@ -325,7 +325,7 @@ complete while *what to do* stays incomplete-able.
 
 Recall, as a request -- the fourth. `_recall` narrows which rules are
 PROPOSED, and that cannot reach a cross product written inside an
-antecedent: `<ask-fit>` used to say `+goal(?w), +rule(?r)` and matched
+antecedent: `<ask-fit>` used to say `+goal($w), +rule($r)` and matched
 |goals| x |rules| ways however few rules were proposed. Measured, it
 was 711 of 816 applications on a workload -- an agent asking every rule
 it has about every goal it holds, before doing anything.
@@ -421,7 +421,7 @@ The signs as ARGUMENTS -- `expects(p, plus)` mentions a sign where
 ⚠ `unsure` is NOT load-bearing for the bundle, and the first
 version of this comment said it was. Measured by deleting it: the
 machine still builds, because the deviation rules carry §9's `?`
-as a member SIGN (`? ?p`), which the parser always accepted --
+as a member SIGN (`? $p`), which the parser always accepted --
 not as an argument. What is real is the ASYMMETRY it was noticed
 through: two of three signs could be spoken about and the third
 could only be used. `expects(p, plus)` was writable and
@@ -513,7 +513,7 @@ them; it cannot make the agent stop reading.
 first.** The reasoning was *narrowing off means exhaustive recall,
 which is the default* -- and it is wrong about which thing this
 answers. `_remember` is not the narrowing; it is the ANSWER to the
-recall request, and `<ask-fit>` keys on `recalled(?r, ?w)`, so nothing
+recall request, and `<ask-fit>` keys on `recalled($r, $w)`, so nothing
 asks `fit` about anything without it. Measured on a goal reachable
 only backwards: 15 ticks and two subgoals becomes 4 ticks and none.
 The narrowing lives in attention and the budget, which are separately
@@ -567,7 +567,7 @@ instead would take the word from every corpus, which
 
 ⚠⚠⚠ **An ARGUMENT atom is a twin waiting to happen exactly as
 a relation is, and this returned early on every one of them.**
-`<unattended>` concludes `declined(?a, unattended)`; the
+`<unattended>` concludes `declined($a, unattended)`; the
 bundle's `unattended` was not reserved, so a corpus asking
 about it built a second node with the same name and saw
 nothing at all. The rule fired. The corpus could not tell.
@@ -724,8 +724,8 @@ corpus makes and can itself deny.
 Answer *is this what I was asked for, or something I asked myself?*
 
         §6 recorded the gap and §12 recorded why it could not be a rule: a root
-        goal is a `goal(?w)` with **no** `subgoal(?p, ?w)`, and a `-` member says
-        *an entry denies this*, never *for no `?p`*. That is the same shape as
+        goal is a `goal($w)` with **no** `subgoal($p, $w)`, and a `-` member says
+        *an entry denies this*, never *for no `$p`*. That is the same shape as
         `blocked` -- a negative existential over what the rules produced -- so it
         gets the same treatment, which is the point of having settled it once.
 
@@ -737,8 +737,8 @@ Answer *is this what I was asked for, or something I asked myself?*
 
         What it unblocks is one line a corpus could not write before:
 
-            rule <done> = implies( { +goal(?w), +rooted(?w), +?w },
-                                   { +enough(?w) } )
+            rule <done> = implies( { +goal($w), +rooted($w), +$w },
+                                   { +enough($w) } )
 
         *What I was asked for holds, so I am done.* The version without `rooted`
         is unsound and running it is how the gap was found -- `<expand>` writes
@@ -756,8 +756,8 @@ Answer *is this what I was asked for, or something I asked myself?*
 
 Answer *how many ground matches does this pattern have here?*
 
-            count(goblin(?x))         a REQUEST, asked by a corpus rule
-            counted(goblin(?x), 2)    the answer, and it always answers
+            count(goblin($x))         a REQUEST, asked by a corpus rule
+            counted(goblin($x), 2)    the answer, and it always answers
 
         ⭐⭐⭐ **The general case of the three asks above it**, and the reason it
         is worth having is that they are three special cases of one question.
@@ -768,9 +768,9 @@ Answer *how many ground matches does this pattern have here?*
         thresholds on -- so it answers with a number and lets a corpus write the
         comparison:
 
-            { +counted(?p, 0) }  =>  nothing was told about it
-            { +counted(?p, 1) }  =>  ***the*** one that satisfies it
-            { +counted(?p, 2) }  =>  ambiguous, and what to do about it is mine
+            { +counted($p, 0) }  =>  nothing was told about it
+            { +counted($p, 1) }  =>  ***the*** one that satisfies it
+            { +counted($p, 2) }  =>  ambiguous, and what to do about it is mine
 
         ⚠⚠⚠ **The matcher does the counting, and that is the whole of why this
         is admissible.** `deposit-dont-decide.md`: the engine may compute
@@ -812,13 +812,13 @@ should not quietly start answering the other.
 
 ⚠⚠⚠ **Keyed on the ASK, not on the pattern, and that is what makes the
 answer readable at all.** A statement's variables are scoped to it
-(§8), so the `?x` in one rule's `goblin(?x)` is not the `?x` in
+(§8), so the `$x` in one rule's `goblin($x)` is not the `$x` in
 another's -- two rules writing the same description build two nodes,
 and a corpus had no way to name the thing it had just asked about.
-Keyed on `count(goblin(?x))` it does, by the route the surface already
+Keyed on `count(goblin($x))` it does, by the route the surface already
 gives a description: name the statement.
 
-    fact <goblins> = count(goblin(?x))
+    fact <goblins> = count(goblin($x))
     rule <ambiguous> = implies( { +counted(<goblins>, 2) }, { ... } )
 
 Read back the pattern with an ordinary structural member if you want
@@ -866,9 +866,9 @@ Answer *does anything still hold this up?* -- the third negative
         *keep believing it until something contradicts it* are both correct, for
         different deployments, so the reaction is a corpus's:
 
-            {+unsupported(?p)} => {-?p}                tear down
-            {+unsupported(?p)} => {+goal(?p)}          go and re-derive it
-            {+unsupported(?p)} => {+doing(ask(?p))}    ask
+            {+unsupported($p)} => {-$p}                tear down
+            {+unsupported($p)} => {+goal($p)}          go and re-derive it
+            {+unsupported($p)} => {+doing(ask($p))}    ask
                                                       ...or nothing
 
         ⚠ **Asked, never volunteered**, and for `blocked`'s reason exactly: a
@@ -887,7 +887,7 @@ Answer *did anything fit this goal?* -- the aggregate, and the last
         `blocked` is a claim that **no** rule fits. §12's argument that it cannot
         be a rule stands: a positive rule fires when *some* rule does not fit,
         which is a different claim, and a `-` member says *an entry denies this*,
-        never *for no `?r`*. It is an aggregate over a finished search.
+        never *for no `$r`*. It is an aggregate over a finished search.
 
         Three things make answering it here different from running it in a phase,
         and together they are the reason the phase could go.
@@ -898,7 +898,7 @@ Answer *did anything fit this goal?* -- the aggregate, and the last
         narrow it (§19). A phase that searched for itself made recall unreachable.
 
         **It is asked, not assumed.** A rule decides when a goal is settled --
-        `+quiet(?m), +goal(?w) => +verdict(?w)` is the shipped policy, and it is
+        `+quiet($m), +goal($w) => +verdict($w)` is the shipped policy, and it is
         overridable like any other. The phase asserted the same policy in control
         flow, where §18 says a convention is invisible and expensive.
 
@@ -919,9 +919,9 @@ A goal, with whatever its own plan has since bound filled in.
         ⭐⭐⭐ **A verdict was reported AS THE RULE WROTE IT, and by the time it is
         reported that is no longer the most informed thing available.** A foreign
         corpus found it (`docs/quest-feedback.md` §1): fitting `open(door1)`
-        against `{ +have(?w, ?k), +opens(?k, ?d) }` subgoals `opens(?k, door1)`,
+        against `{ +have($w, $k), +opens($k, $d) }` subgoals `opens($k, door1)`,
         the world satisfies it with `opens(key1, door1)`, **and the machinery
-        records `binds(plan, ?k, key1)`** -- and then said `blocked(have(?w, ?k))`
+        records `binds(plan, $k, key1)`** -- and then said `blocked(have($w, $k))`
         anyway. The binding was not missing. It was known, written down, and not
         read back.
 
@@ -942,8 +942,8 @@ A goal, with whatever its own plan has since bound filled in.
         ⚠⚠⚠ **One answer PER PLAN, and the first version of this returned one
         answer and was silently wrong.** A rule fitted to two goals shares its
         variable nodes, so `plan(<unlock>, open(door1))` and
-        `plan(<unlock>, open(door2))` both carry a `?k` -- the *same node* --
-        bound to `key1` and `key2`, and they subgoal the *same* `have(?w, ?k)`
+        `plan(<unlock>, open(door2))` both carry a `$k` -- the *same node* --
+        bound to `key1` and `key2`, and they subgoal the *same* `have($w, $k)`
         node. Collecting every relevant binding into one environment then let the
         last one win: the agent was stuck on two keys and said one. Arbitrary and
         silent, which is the worst pair this design knows.
@@ -1028,7 +1028,7 @@ Taking one way of getting something is passing up the others.
 
         So the deposit is deniable, and retrying is one ordinary corpus rule:
 
-            {+open(?w), +forgone(?r, ?w)} => {-forgone(?r, ?w)}
+            {+open($w), +forgone($r, $w)} => {-forgone($r, $w)}
 
         *When what I wanted is still outstanding, reconsider what I passed up.*
         That is §21's backtracking item, arriving as a consequence rather than as
@@ -1036,7 +1036,7 @@ Taking one way of getting something is passing up the others.
         rather than a retraction of the goal.
 
         ⚠ The apparatus is exempt on both sides -- §13's carve-out again. Nearly
-        every bundled rule consumes `goal(?w)`, so without this, applying one
+        every bundled rule consumes `goal($w)`, so without this, applying one
         would forgo backward reading entire.
 
 ## `_reaching`
@@ -1244,7 +1244,7 @@ The loop found nothing to do. Say so, in the graph, once per seat.
         anywhere recording that it stopped rather than finished.
 
         What is deposited is one fact and no interpretation. A watchdog is then
-        an ordinary rule with `+quiet(?m)` in its antecedent: inert until the
+        an ordinary rule with `+quiet($m)` in its antecedent: inert until the
         loop stops, because nothing else ever writes that. No registry of
         watchdogs, no trigger table, no second loop -- the trigger IS the fact,
         and the rule that wants it says so in its antecedent like any other rule.
@@ -1264,7 +1264,7 @@ The loop found nothing to do. Say so, in the graph, once per seat.
 
 Register a function that is COMPUTED during a match (§12, §22).
 
-            { +purse(?a, ?x), +cost(?i, ?c), minus(?x, ?c) as ?new }
+            { +purse($a, $x), +cost($i, $c), minus($x, $c) as $new }
 
         ⭐⭐⭐ **Purity is structural here, not declared.** An answerer is given
         `(machine, frame, entry)` and can do anything; a computator is given
@@ -1492,7 +1492,7 @@ Make a rule the graph describes into a rule the loop reads.
         This is a **door, not a question**, and belongs with `_dispatch` and
         `_enter` rather than with the six answerers: `_dispatch` is where an
         intent leaves the agent and this is where a rule enters it. What decides
-        that a rule is worth having is a corpus concluding `adopt(?r)`; what
+        that a rule is worth having is a corpus concluding `adopt($r)`; what
         happens then is not a judgement.
 
         ⚠⚠⚠ **Refused inside a supposition, and this is containment rather than
@@ -1525,8 +1525,8 @@ Collapse two rules into one, because a corpus asked.
         judgement the machinery makes alone is a seam: the agent could not
         notice it was composing the wrong things, because a bad shortcut makes
         worse work and never a wrong conclusion, so no fixture fails. So this
-        answers a request and never proposes one. `{+exercised(?a), +exercised(?b)}
-        ⟹ {+compose(?a, ?b)}` is a corpus's line, and *compose what has run
+        answers a request and never proposes one. `{+exercised($a), +exercised($b)}
+        ⟹ {+compose($a, $b)}` is a corpus's line, and *compose what has run
         often and never surprised* stays §22's open trigger rather than becoming
         a constant in here.
 
@@ -1562,7 +1562,7 @@ been described and not yet built.
 
 What tells them apart is membership of the live set: `by_node` answers
 *is this a rule* without asking what it looks like. A genuinely generic
-`compose(?x, ?y)` has variables as members, and a variable is in no
+`compose($x, $y)` has variables as members, and a variable is in no
 rule set, so the same line refuses it.
 
 ## -- backward reading ----------------------------
@@ -1597,7 +1597,7 @@ What it buys is the one thing `hypothesis.py`'s `rivals(about)` had and
 this floor did not: two suppositions about the same thing both cross
 their conclusions to the same parent as `likely(q)`, and until now
 nothing said which came from where -- so a corpus could open rivals and
-not compare them. `+left(?f, ?a), +concluded(?f, ?c)` is now a join.
+not compare them. `+left($f, $a), +concluded($f, $c)` is now a join.
 
 Deduped per discharge, and it is a claim about the frame rather than a
 count: a proposition concluded twice inside crossed once, and says so
@@ -1733,7 +1733,7 @@ Never complete, by design (§15). Exhaustive here, which is the
 Nothing DERIVED narrows this step, and finding out why was a session's
 clearest negative result. Filtering recall by *what fits the current
 goal* starved a rule that reacted to a **blocked** goal --
-`{+blocked(heat(?a, ?w))} => {+doing(heat(anna, ?w))}` is the most
+`{+blocked(heat($a, $w))} => {+doing(heat(anna, $w))}` is the most
 useful rule in that corpus and it does not fit the goal at all.
 
 > **Relevance to a goal is one signal, and as a filter it is silent
@@ -1806,7 +1806,7 @@ What the agent is thinking ABOUT: the nodes it claims `attention` of.
         better `_in_play` -- it is the other axis, and both are read on the same
         move.
 
-        ⚠ Ground only. `attention(?x)` is a rule that has not matched yet, not a
+        ⚠ Ground only. `attention($x)` is a rule that has not matched yet, not a
         claim about anything, and lifting on it would lift everything.
 
         ⚠ Insertion-ordered like everything else here, because a caller ranks
@@ -1817,7 +1817,7 @@ What the agent is thinking ABOUT: the nodes it claims `attention` of.
 Every standing `attention` claim, as `(node, weight)`, in graph order.
 
         ⭐⭐⭐ **A claimed attention may carry its evidence count, exactly as a
-        spent one does.** `attend(?x, n)` has said *how much* since attention
+        spent one does.** `attend($x, n)` has said *how much* since attention
         was built; `attention(x)` could only ever say *at all*, so a lesson
         written from experience had nowhere to put the one quantity experience
         produces -- how much the route it is about turned out to cost. The
@@ -1829,7 +1829,7 @@ Every standing `attention` claim, as `(node, weight)`, in graph order.
         is a claim about something else that this read has no business failing
         on. Same policy as `_priority`.
 
-        ⚠ Ground only. `attention(?x)` is a rule that has not matched yet, not
+        ⚠ Ground only. `attention($x)` is a rule that has not matched yet, not
         a claim about anything, and lifting on it would lift everything.
 
 ## `_deliver`
@@ -1948,7 +1948,7 @@ quiescence sees it as one.
 ⭐⭐⭐ **A rule may introduce a thing that did not exist.** Everything a
 consequent could name until now came from a binding or was written
 literally, so *there is some new person here* was unsayable -- the
-binding check refuses `+named(?p, ?x)` with `?p` unbound, correctly,
+binding check refuses `+named($p, $x)` with `$p` unbound, correctly,
 because the gate cannot deposit a variable. `+person` says it
 instead: a mark the application replaces with a node it mints, and it
 is the same `+` that already signals a node coming to be.
@@ -1975,7 +1975,7 @@ A consequent member's own locus (§8), or None for the frame's topic.
         `text.py` refuses a consequent whose locus variable no antecedent binds,
         `_reify_locus` records it so the round trip through the graph keeps it,
         and `_apply` then wrote every conclusion at the frame's topic anyway. So
-        `{ +noted(?p) at ?mp }` matching entries at M1 and M2 deposited BOTH at
+        `{ +noted($p) at $mp }` matching entries at M1 and M2 deposited BOTH at
         M2, and nothing could see it: the two differ only in a field no outcome
         check reads. §21's defect for the eleventh time, and this face of it --
         *a knob read and not obeyed* -- is the one `adopt` recorded about a
@@ -2456,7 +2456,7 @@ it is cached with no index at all.
 ⚠⚠⚠ **At the consequent's OWN locus, and this is the same defect
 as the write's twice over.** Quiescence asked whether the
 proposition already holds at the frame's TOPIC -- so a rule
-concluding `+taking_turns(?a, ?b) at ?s` was told *nothing to do*
+concluding `+taking_turns($a, $b) at $s` was told *nothing to do*
 the moment any span had it, and §13's recursion produced its first
 recognition and stopped. Fixing the write alone was not enough:
 the loop never reached the write, because the verdict was computed
@@ -2469,8 +2469,8 @@ Is this application talking ABOUT rules rather than in them?
         §14 says the use/mention distinction is settled by *who is writing* --
         the machinery reifying a rule mentions, a rule's consequent uses. That is
         too strong, and running it is how the gap showed: a rule whose antecedent
-        matched `con(?r, ?pat, +)` binds `?pat` to a stored pattern, and anything
-        it concludes about `?pat` is a **ground claim that happens to contain
+        matched `con($r, $pat, +)` binds `$pat` to a stored pattern, and anything
+        it concludes about `$pat` is a **ground claim that happens to contain
         variables**. A rule's consequent can mention.
 
         What tells them apart is inheritance rather than authorship:
@@ -2484,7 +2484,7 @@ Is this application talking ABOUT rules rather than in them?
         is the pattern to expect.
 
         Inheritance has to start somewhere, and `app.rule.mentions` is the
-        source: a rule AUTHORED naming a rule -- `+resume(?h, <cb>)`, the `<...>`
+        source: a rule AUTHORED naming a rule -- `+resume($h, <cb>)`, the `<...>`
         marker the surface already reads for facts -- is mentioning. Without it a
         rule that attaches a rule to something concludes a structurally generic
         proposition from entries that are not mentions, and quiescence drops it
@@ -2506,9 +2506,9 @@ For each relation name: how often it is READ (an antecedent member)
         that indexes what it re-implements is what `state` paid for once.
 
         ⚠⚠⚠ **A VARIABLE in relation position is not a name, and reporting one
-        was this instrument's own bug.** `+?kind(?item)` applies a class held in
+        was this instrument's own bug.** `+$kind($item)` applies a class held in
         a variable (§4's *a class as data*), and `relation_of` answers with the
-        variable node, which `show` prints as `?kind`. So a corpus using the
+        variable node, which `show` prints as `$kind`. So a corpus using the
         feature was told nothing writes a relation it never named -- the rule
         derives correctly and the checker called it a defect. Found by sweeping
         the 239 machines the suite builds, which is the only way it could have
@@ -2564,7 +2564,7 @@ For each relation name: how often it is READ (an antecedent member)
         that was taken, and the rule that chose the act.
 
         Ground goals only. Backward reading expands into generic subgoals like
-        `heat(?a, kettle)` which were never meant to hold as stated, and counting
+        `heat($a, kettle)` which were never meant to hold as stated, and counting
         those as failures would blame every rule for every search.
 
 ## `learned`
@@ -2587,8 +2587,8 @@ What this episode has to say to the next one, as surface text.
         Three depths, and they are the same tree they always were:
 
             fact +attention(sink, 3)                     depth 0, and GROUND
-            { +tap(?v0) } => +attention(?v0, 3)          depth 0, generic
-            { +precious(?v1), +tap(?v0) } => ...         depth 1, and so on
+            { +tap($v0) } => +attention($v0, 3)          depth 0, generic
+            { +precious($v1), +tap($v0) } => ...         depth 1, and so on
 
         The first is what this method returns; the rest are `conditional=True`
         and `refine`. Measured on §19's three-situation world, the ground row
@@ -2678,7 +2678,7 @@ Render ground propositions as one generic antecedent.
 
         Every constant becomes a variable, **shared across the conjunction** so
         that `completes(jug1, heirlooms), precious(jug1)` becomes
-        `completes(?v0, ?v1), precious(?v0)` -- the join is what makes it a claim
+        `completes($v0, $v1), precious($v0)` -- the join is what makes it a claim
         about a *kind* of situation rather than a longer way of naming this one.
 
         ⭐ Generalising is nearly unconstrained here, and that is a property of
@@ -2689,7 +2689,7 @@ Render ground propositions as one generic antecedent.
         would not have that freedom.
 
         ⚠ `names` is an OUT parameter, and it is not a convenience. An
-        attention lesson concludes ABOUT A NODE -- `+attention(?v0)` -- so its
+        attention lesson concludes ABOUT A NODE -- `+attention($v0)` -- so its
         consequent variable has to be the one this method happened to assign to
         that node, and a caller that guessed would be writing a rule whose
         conclusion is unbound. Handing the map back is what keeps the naming in
@@ -2701,8 +2701,8 @@ One learned rule per promoted alternative, plus its `standing` line.
 
         ⭐⭐⭐ **The BINDER is always in the antecedent, and it is what makes
         an attention lesson generalise at all.** A rule may only conclude about
-        a variable its antecedent binds, and this one concludes `+attention(?v)`
-        -- so the salient node has to be named in a member. `tap(?v0)` is that
+        a variable its antecedent binds, and this one concludes `+attention($v)`
+        -- so the salient node has to be named in a member. `tap($v0)` is that
         member, and pruning may take every test away but never it. Pruned to
         nothing else, the lesson reads *whatever plays the tap's part here, that
         is what to think about*, which transfers to a kettle the agent was never
@@ -2713,7 +2713,7 @@ One learned rule per promoted alternative, plus its `standing` line.
         name is the easiest place to leak the thing you just removed.
 
         ⚠ `standing` for the same reason it was needed before -- a learned rule
-        whose tests mention `goal(?w)` is otherwise read by forgoing as a rival
+        whose tests mention `goal($w)` is otherwise read by forgoing as a rival
         way of getting the same want, and passed up before it can advise.
 
 ## `refine`
@@ -2828,7 +2828,7 @@ Grow a decision tree with MORE THAN ONE LEAF, from more than one episode.
 
 ## `advice`
 
-`attention(?v, n)`, or `possible(...)` when nothing was observed.
+`attention($v, n)`, or `possible(...)` when nothing was observed.
 
         ⭐⭐⭐ **How sure is a WRAPPER, not a field**, and this was the argument
         that eventually deleted grades outright. §21's item 5 was that a grade
@@ -2838,8 +2838,8 @@ Grow a decision tree with MORE THAN ONE LEAF, from more than one episode.
         lesson must not silently steer), and a corpus rule decides whether to
         take it up:
 
-            rule <venture> = implies( { +possible(attention(?x, ?n)), +exploring },
-                                      { +attention(?x, ?n) } )
+            rule <venture> = implies( { +possible(attention($x, $n)), +exploring },
+                                      { +attention($x, $n) } )
 
         So **explore/exploit stops being machinery and becomes a claim** --
         defeasible, deniable, on the trail, and switched by an ordinary fact. The
@@ -2923,8 +2923,8 @@ The gap between two spans, materialised.
     ordinary rule can read.
 
     It PROPOSES, like every tool: the gap is a record of what was computed, and
-    a rule decides whether any of it is worth wanting. `{ +missing(<gap>, ?p) }
-    => { +goal(?p) }` is the whole of turning a gap into a plan, and no plan
+    a rule decides whether any of it is worth wanting. `{ +missing(<gap>, $p) }
+    => { +goal($p) }` is the whole of turning a gap into a plan, and no plan
     machinery is involved.
 
     `_contents` says what a span holds. A moment holds what is asserted there,
@@ -2941,10 +2941,10 @@ The gap between two spans, materialised.
     ⭐ **The empty gap is deposited too, and that is the half that matters.**
     `matched(<gap>)` lands when nothing differed. A rule can read every
     difference one at a time and still never conclude that there were none:
-    `no missing(?g, ?p)` is a negative existential -- *for no ?p* -- and the
+    `no missing($g, $p)` is a negative existential -- *for no $p* -- and the
     loader refuses it, correctly. The tool has seen the whole set and is the
     only party that can say so, which is what makes satisfaction expressible as
-    an ordinary rule: `{ +matched(?g) } => { +enough(?g) }`.
+    an ordinary rule: `{ +matched($g) } => { +enough($g) }`.
 
 ## `_intercept`, `_producing`, `_obey`
 

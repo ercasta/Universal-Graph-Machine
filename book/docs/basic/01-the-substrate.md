@@ -98,7 +98,7 @@ relation for it either (Chapter 17).
 
 !!! note "Deep dive: filing the same thing twice is still storage"
     Filing an entry by relation alone makes some searches quadratic — a rule
-    asking about `child(?p, ?x), child(?x, ?y)` would draw every `child` fact
+    asking about `child($p, $x), child($x, $y)` would draw every `child` fact
     for each binding of the first member. Filing each entry *additionally* under
     each of its arguments, and walking whichever member narrows first, turned
     2,006,004 comparisons over 1,000 facts into **3,003** on the measurement
@@ -112,8 +112,8 @@ relation for it either (Chapter 17).
 
 Two kinds of pattern can't be filed, and it's worth knowing which:
 
-- a **bare variable** — `?p`, matching anything at all;
-- a pattern whose **relation** is a variable — `?kind(?item)`.
+- a **bare variable** — `$p`, matching anything at all;
+- a pattern whose **relation** is a variable — `$kind($item)`.
 
 Neither says anything about what it names until it matches, so both fall back to
 scanning. That is the price of the two most general things the language can say.

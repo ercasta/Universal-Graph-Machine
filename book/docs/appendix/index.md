@@ -22,7 +22,7 @@ conclusion. [Chapter 29](../watching/29-learning.md)
 
 **attention** — what an applied rule **spends**. A rule's postconditions are
 queries paired with something to spend, and applying the rule runs them. There
-are five: `attend(?x, n)` and `unattend`, which are claims about a **node**;
+are five: `attend($x, n)` and `unattend`, which are claims about a **node**;
 `stop`, which ends the run; and `push`/`pop`, which suspend a line of work for
 another. None of them moves a score. (Three that did — `boost`, `damp`,
 `reset` — are retired, because they named a *rule*, and a rule id goes stale.)
@@ -204,13 +204,13 @@ hypothesis in the **proposition** instead — `given(h1, p)` — and the wrapper
 the containment.
 [Chapter 16](../unsure/16-supposing.md)
 
-**absence** — `no p(?x)`, a fourth way an antecedent member relates to the
-state: it holds when nothing **asserts** `p(?x)`. Distinct from `-p(?x)`
+**absence** — `no p($x)`, a fourth way an antecedent member relates to the
+state: it holds when nothing **asserts** `p($x)`. Distinct from `-p($x)`
 (*something denies it*) on purpose, because the rule that materialises a denial
 must ask about absence first. It checks, never binds, and can never be
 concluded.
 
-**alias** — corpus-defined shorthand for a structure: `alias sale(?s, ?b) = {
+**alias** — corpus-defined shorthand for a structure: `alias sale($s, $b) = {
 ... }`. Expanded by the loader, so nothing downstream sees one. A nested
 occurrence is **not** expanded, because nested is a denotation.
 

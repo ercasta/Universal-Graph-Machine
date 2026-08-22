@@ -100,7 +100,7 @@ this request evaporates and only §1 remains.
 
 `_narrowed` now skips a structure that still carries a variable and falls back
 to `instances_of` — correct, and better than the defect its docstring records
-(the bucket for `said(implies(?a, ?c))` is empty, so the member matched
+(the bucket for `said(implies($a, $c))` is empty, so the member matched
 **nothing**, with no error and no scan). The docstring is right that the
 fallback cost is one the function already sanctions.
 
@@ -152,8 +152,8 @@ what a repair ladder needs is an **ordering**, which exists, not a metric. The
 gap in §1 is the aggregate, not the number, and adding numbers would not close
 it.
 
-**Not an index bucket for a variable relation.** §2.19 flags `?r(?x, ?y)` as the
-one real limit, but §2.23-B then writes `?v(?whom, ?kind)` and it emits
+**Not an index bucket for a variable relation.** §2.19 flags `$r($x, $y)` as the
+one real limit, but §2.23-B then writes `$v($whom, $kind)` and it emits
 correctly — unindexed, and working. §2.19's own suggestion that command forms
 are a much smaller open class than concepts looks right to us, and a row per
 form looks like the answer rather than the limitation. Item §3 above is the

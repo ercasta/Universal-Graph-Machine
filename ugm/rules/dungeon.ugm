@@ -17,12 +17,12 @@
 #
 # -- THE ROUND COUNTER IS GONE, and what replaced it is this corpus's own law --
 #
-# An earlier version of this corpus threaded a round integer `?r` through 65
+# An earlier version of this corpus threaded a round integer `$r` through 65
 # member positions: through the turn, the right to act, every attack, and every
 # request. `docs/dungeon-feedback.md` measured it at **5 of 21 rules -- 24% of
 # the corpus -- as clock scaffold**, plus a `may` token, plus `follows`/`wraps`,
 # plus an `add` operator on the arithmetic tool that existed SOLELY to count
-# rounds. The reply's proposal was that `at ?m` and spans would collapse it,
+# rounds. The reply's proposal was that `at $m` and spans would collapse it,
 # since a round integer is a moment ordinal re-implemented in the corpus.
 #
 # ⚠⚠⚠ **That proposal is wrong, and probing it is what found the right answer.**
@@ -90,8 +90,8 @@ fact +may(hero)
 # declaration names its round the way a person would.
 
 rule <trust-player> = implies(
-    { +says(player, declares(?act, ?r), plus) },
-    { +intends(hero, ?act, ?r) } )
+    { +says(player, declares($act, $r), plus) },
+    { +intends(hero, $act, $r) } )
 
 # ⭐ **`may` is the right to act, and acting SPENDS it.** Without it `turn` is a
 # standing fact and `<hero-acts>` re-concluded the attack as fast as the
@@ -106,16 +106,16 @@ rule <trust-player> = implies(
 # does it without anything having to know what round it is.
 rule <hero-acts> = causes(
     { +turn(hero), +may(hero), +present(hero),
-      +intends(hero, attack(?d), ?r), +present(?d) },
-    { -may(hero), -intends(hero, attack(?d), ?r), +attack(hero, ?d) } )
+      +intends(hero, attack($d), $r), +present($d) },
+    { -may(hero), -intends(hero, attack($d), $r), +attack(hero, $d) } )
 
 # ...and what to do when the declared target is already down. The player named
 # a goblin, not a policy, so this is the corpus's judgement and not the engine's.
 rule <hero-switch> = causes(
     { +turn(hero), +may(hero), +present(hero),
-      +intends(hero, attack(?d), ?r), -present(?d),
-      +monster(?e), +present(?e) },
-    { -may(hero), -intends(hero, attack(?d), ?r), +attack(hero, ?e) } )
+      +intends(hero, attack($d), $r), -present($d),
+      +monster($e), +present($e) },
+    { -may(hero), -intends(hero, attack($d), $r), +attack(hero, $e) } )
 
 # What the hero does when the player has declared nothing for this round.
 # Nothing has to defeat this rule: the two acting rules are declared before it
@@ -124,8 +124,8 @@ rule <hero-switch> = causes(
 # exactly when no declaration did, and authored order is the whole of it.
 rule <hero-holds> = causes(
     { +turn(hero), +may(hero), +present(hero),
-      +monster(?e), +present(?e) },
-    { -may(hero), +attack(hero, ?e) } )
+      +monster($e), +present($e) },
+    { -may(hero), +attack(hero, $e) } )
 
 # -- the monsters ------------------------------------------------------------
 #
@@ -133,22 +133,22 @@ rule <hero-holds> = causes(
 # it competes for the tick exactly as the mechanics do.
 
 rule <gob-acts> = causes(
-    { +turn(?x), +may(?x), +monster(?x), +present(?x), +present(hero),
-      no hp(?x, 1) },
-    { -may(?x), +attack(?x, hero) } )
+    { +turn($x), +may($x), +monster($x), +present($x), +present(hero),
+      no hp($x, 1) },
+    { -may($x), +attack($x, hero) } )
 
 # Preemption: a goblin down to its last point runs rather than swings. The two
 # rules do not compete for the tick at all -- one point of hit points is the
 # premise that tells them apart, and `<gob-acts>` reads its absence.
 rule <gob-flees> = causes(
-    { +turn(?x), +may(?x), +monster(?x), +present(?x), +hp(?x, 1) },
-    { -may(?x), -present(?x), +fled(?x), +done(?x) } )
+    { +turn($x), +may($x), +monster($x), +present($x), +hp($x, 1) },
+    { -may($x), -present($x), +fled($x), +done($x) } )
 
 # -- the mechanics -----------------------------------------------------------
 
 rule <swing> = implies(
-    { +attack(?a, ?d) },
-    { +roll(d20, hit(?a, ?d)) } )
+    { +attack($a, $d) },
+    { +roll(d20, hit($a, $d)) } )
 
 # ⚠ **Only the DICE are spent, and the other two tools are not.** A die is the
 # world speaking, so asking twice is two questions and the second must be a
@@ -157,34 +157,34 @@ rule <swing> = implies(
 # are ordinary standing facts and re-deriving one changes nothing. Spending
 # those would be work with nothing to buy.
 rule <check-ac> = implies(
-    { +answered(<dice>, roll(d20, hit(?a, ?d)), ?n), +ac(?d, ?c) },
-    { +beats(?n, ?c) } )
+    { +answered(<dice>, roll(d20, hit($a, $d)), $n), +ac($d, $c) },
+    { +beats($n, $c) } )
 
 rule <hit> = implies(
-    { +attack(?a, ?d),
-      +answered(<dice>, roll(d20, hit(?a, ?d)), ?n),
-      +ac(?d, ?c),
-      +answered(<compare>, beats(?n, ?c), yes) },
-    { +hits(?a, ?d) } )
+    { +attack($a, $d),
+      +answered(<dice>, roll(d20, hit($a, $d)), $n),
+      +ac($d, $c),
+      +answered(<compare>, beats($n, $c), yes) },
+    { +hits($a, $d) } )
 
 rule <miss> = causes(
-    { +attack(?a, ?d),
-      +answered(<dice>, roll(d20, hit(?a, ?d)), ?n),
-      +ac(?d, ?c),
-      +answered(<compare>, beats(?n, ?c), no) },
-    { -attack(?a, ?d), +missed(?a, ?d), +done(?a),
-      -roll(d20, hit(?a, ?d)),
-      -answered(<dice>, roll(d20, hit(?a, ?d)), ?n) } )
+    { +attack($a, $d),
+      +answered(<dice>, roll(d20, hit($a, $d)), $n),
+      +ac($d, $c),
+      +answered(<compare>, beats($n, $c), no) },
+    { -attack($a, $d), +missed($a, $d), +done($a),
+      -roll(d20, hit($a, $d)),
+      -answered(<dice>, roll(d20, hit($a, $d)), $n) } )
 
 rule <harm> = implies(
-    { +hits(?a, ?d), +die(?a, ?dd) },
-    { +roll(?dd, hurt(?a, ?d)) } )
+    { +hits($a, $d), +die($a, $dd) },
+    { +roll($dd, hurt($a, $d)) } )
 
 rule <subtract> = implies(
-    { +hits(?a, ?d),
-      +answered(<dice>, roll(?dd, hurt(?a, ?d)), ?n),
-      +hp(?d, ?h) },
-    { +calc(sub, ?h, ?n) } )
+    { +hits($a, $d),
+      +answered(<dice>, roll($dd, hurt($a, $d)), $n),
+      +hp($d, $h) },
+    { +calc(sub, $h, $n) } )
 
 # ⚠ **A functional attribute has to retract its own old value.** `hp(g1, 5)` and
 # `hp(g1, 2)` are different propositions, so asserting the second leaves the
@@ -214,23 +214,23 @@ rule <subtract> = implies(
 # be named in the antecedent to be denied in the consequent, because a rule may
 # conclude only about variables its antecedent bound. The gate refuses the
 # alternative outright, which is the one place in this rewrite where the engine
-# said no and was right: an unbound `?hitroll` names no particular roll.
+# said no and was right: an unbound `$hitroll` names no particular roll.
 rule <wound> = causes(
-    { +hits(?a, ?d),
-      +answered(<dice>, roll(d20, hit(?a, ?d)), ?hitroll),
-      +answered(<dice>, roll(?dd, hurt(?a, ?d)), ?n),
-      +hp(?d, ?h),
-      +answered(<arith>, calc(sub, ?h, ?n), ?new) },
-    { -attack(?a, ?d), -hits(?a, ?d),
-      -hp(?d, ?h), +hp(?d, ?new), +done(?a),
-      -roll(d20, hit(?a, ?d)),
-      -answered(<dice>, roll(d20, hit(?a, ?d)), ?hitroll),
-      -roll(?dd, hurt(?a, ?d)),
-      -answered(<dice>, roll(?dd, hurt(?a, ?d)), ?n) } )
+    { +hits($a, $d),
+      +answered(<dice>, roll(d20, hit($a, $d)), $hitroll),
+      +answered(<dice>, roll($dd, hurt($a, $d)), $n),
+      +hp($d, $h),
+      +answered(<arith>, calc(sub, $h, $n), $new) },
+    { -attack($a, $d), -hits($a, $d),
+      -hp($d, $h), +hp($d, $new), +done($a),
+      -roll(d20, hit($a, $d)),
+      -answered(<dice>, roll(d20, hit($a, $d)), $hitroll),
+      -roll($dd, hurt($a, $d)),
+      -answered(<dice>, roll($dd, hurt($a, $d)), $n) } )
 
 rule <falls> = causes(
-    { +hp(?x, 0), +present(?x) },
-    { -present(?x), +dead(?x) } )
+    { +hp($x, 0), +present($x) },
+    { -present($x), +dead($x) } )
 
 # -- the clock ---------------------------------------------------------------
 #
@@ -238,16 +238,16 @@ rule <falls> = causes(
 # round integer they existed to compute.
 
 rule <skip> = causes(
-    { +turn(?x), +may(?x), -present(?x) },
-    { -may(?x), +done(?x) } )
+    { +turn($x), +may($x), -present($x) },
+    { -may($x), +done($x) } )
 
 # The baton, and everything it carries: the turn moves, the old turn and the old
 # `done` are spent, and the next actor is handed a fresh right to act. Because
 # `follows` is a closed cycle, this one rule also does what `<wrap>` did -- the
 # hero's turn coming round again is the next round, with nothing counted.
 rule <pass> = causes(
-    { +done(?x), +turn(?x), +follows(?y, ?x) },
-    { -turn(?x), -done(?x), +turn(?y), +may(?y) } )
+    { +done($x), +turn($x), +follows($y, $x) },
+    { -turn($x), -done($x), +turn($y), +may($y) } )
 
 # -- the end -----------------------------------------------------------------
 
@@ -263,7 +263,7 @@ rule <defeat> = implies(
 # act and nothing has to defeat the acting rules for it: each of them needs its
 # combatants present, and by the time there is a winner one side is not.
 # `<halt>` DENIES the right to act; it does not mark the actor done.
-# Written the obvious way -- `{ +done(?x) }`, the same thing `<skip>` writes
+# Written the obvious way -- `{ +done($x) }`, the same thing `<skip>` writes
 # for an absent combatant -- it fed `<pass>`, which moved the baton, and the two
 # of them turned an empty room over for ever: **round 417**, 8,072 entries, with
 # the fight correctly decided and every check about the outcome still green. The
@@ -274,8 +274,8 @@ rule <defeat> = implies(
 # put `+done` back and `_turns_after_the_end` reports the room still turning,
 # which is the only check here that can see it.
 rule <halt> = causes(
-    { +turn(?x), +may(?x), +over(?w) },
-    { -may(?x) } )
+    { +turn($x), +may($x), +over($w) },
+    { -may($x) } )
 
 # -- what the player declared ------------------------------------------------
 

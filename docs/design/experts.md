@@ -36,8 +36,8 @@ are:
 and inheritance is **one ordinary rule**, which is why `extends` needed no
 engine support and is transitive for free:
 
-    rule <inherit> = implies( { +extends(?e, ?f), +knows(?f, ?r) },
-                              { +knows(?e, ?r) } )
+    rule <inherit> = implies( { +extends($e, $f), +knows($f, $r) },
+                              { +knows($e, $r) } )
 
 The surface keyword is a convenience over exactly that and nothing more:
 

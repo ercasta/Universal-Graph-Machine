@@ -61,26 +61,26 @@ fact +mention(m4, name(grish))
 # Locate a described event in time. `via` records that the outer description is
 # read THROUGH the inner one, which is what lets the denotation compose.
 rule <at> = implies(
-    { +mention(?m, turns(?n, ago, ?ev)), +turn(?now), +back(?now, ?n, ?then) },
-    { +ev_at(?m, ?ev, ?then), +via(?m, ?ev) } )
+    { +mention($m, turns($n, ago, $ev)), +turn($now), +back($now, $n, $then) },
+    { +ev_at($m, $ev, $then), +via($m, $ev) } )
 
 # ...and the subject of that event is what the description denotes.
 rule <ev> = implies(
-    { +ev_at(?m, attack(?kind, ?whom), ?t), +refers(?whom, ?target),
-      +attacked(?g, ?target, ?t), +is(?g, ?kind) },
-    { +denotes(?m, ?g) } )
+    { +ev_at($m, attack($kind, $whom), $t), +refers($whom, $target),
+      +attacked($g, $target, $t), +is($g, $kind) },
+    { +denotes($m, $g) } )
 
 # A name denotes what it names. One rule, no notation, no privileged route.
 rule <name> = implies(
-    { +mention(?m, name(?w)), +named(?g, ?w) },
-    { +denotes(?m, ?g) } )
+    { +mention($m, name($w)), +named($g, $w) },
+    { +denotes($m, $g) } )
 
 # A description with no time in it is satisfied by every matching event, which
 # is what makes m3 ambiguous rather than wrong.
 rule <bare> = implies(
-    { +mention(?m, attack(?kind, ?whom)), +refers(?whom, ?target),
-      +attacked(?g, ?target, ?t), +is(?g, ?kind) },
-    { +denotes(?m, ?g) } )
+    { +mention($m, attack($kind, $whom)), +refers($whom, $target),
+      +attacked($g, $target, $t), +is($g, $kind) },
+    { +denotes($m, $g) } )
 
 # -- the definite article, as a count -----------------------------------------
 #
@@ -97,8 +97,8 @@ rule <bare> = implies(
 # which is weaker than *the search is complete*.** Take a rule out of mind and
 # the count changes under you. Measured on THIS corpus, `<bare>` dormant:
 #
-#     everything in mind    counted(count(denotes(m3, ?g)), 2)   unclear(m3)
-#     <bare> dormant        counted(count(denotes(m3, ?g)), 0)   fits_nothing(m3)
+#     everything in mind    counted(count(denotes(m3, $g)), 2)   unclear(m3)
+#     <bare> dormant        counted(count(denotes(m3, $g)), 0)   fits_nothing(m3)
 #
 # Here the narrowing is benign: with nothing left to read m3 with, the corpus
 # says so. ⚠ It is NOT benign when another rule still supplies ONE reading --
@@ -121,19 +121,19 @@ rule <bare> = implies(
 # it is legitimate over the search THE AGENT CHOSE TO RUN, and choosing is the
 # agent's business.
 rule <ask> = implies(
-    { +quiet(?s), +mention(?m, ?d) },
-    { +count(denotes(?m, ?g)) } )
+    { +quiet($s), +mention($m, $d) },
+    { +count(denotes($m, $g)) } )
 
 # One reading: the description picks out a thing, and the agent may act on it.
 rule <the> = implies(
-    { +counted(count(denotes(?m, ?any)), 1), +denotes(?m, ?g) },
-    { +resolved(?m, ?g) } )
+    { +counted(count(denotes($m, $any)), 1), +denotes($m, $g) },
+    { +resolved($m, $g) } )
 
 # Two: say so. **Nothing picks one.** Which reading to take is a decision, and
 # the engine deposits the number rather than making it.
 rule <ambiguous> = implies(
-    { +counted(count(denotes(?m, ?any)), 2) },
-    { +unclear(?m) } )
+    { +counted(count(denotes($m, $any)), 2) },
+    { +unclear($m) } )
 
 # None: the description fits nothing the agent knows about.
 #
@@ -141,8 +141,8 @@ rule <ambiguous> = implies(
 # reading, and a corpus relation sharing it would be the same node -- two
 # meanings on one name, which this repository has paid for repeatedly.
 rule <empty> = implies(
-    { +counted(count(denotes(?m, ?any)), 0) },
-    { +fits_nothing(?m) } )
+    { +counted(count(denotes($m, $any)), 0) },
+    { +fits_nothing($m) } )
 
 # -- coreference, WITHOUT merging anything ------------------------------------
 #
@@ -155,5 +155,5 @@ rule <empty> = implies(
 # rather than filtered: the reflexive pairs are noise an author has to know
 # about, and hiding them in the runner would be the instrument lying.
 rule <corefer> = implies(
-    { +resolved(?m1, ?g), +resolved(?m2, ?g) },
-    { +corefer(?m1, ?m2) } )
+    { +resolved($m1, $g), +resolved($m2, $g) },
+    { +corefer($m1, $m2) } )

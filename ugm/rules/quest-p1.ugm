@@ -8,7 +8,7 @@ rule <unlock> = causes( { +opens(key1, door1), +have(p1, key1) },
 
 # ⭐ The ask. `blocked` is the occasion -- the agent has exhausted what it can do
 # alone, and this is the one moment where another mind is worth anything.
-rule <ask-for-it> = implies( { +blocked(have(p1, ?k)) },
-                             { +doing(tell(dm, want(p1, ?k))) } )
+rule <ask-for-it> = implies( { +blocked(have(p1, $k)) },
+                             { +doing(tell(dm, want(p1, $k))) } )
 
-rule <trust-dm> = implies( { +says(dm, ?p, plus) }, { +?p } )
+rule <trust-dm> = implies( { +says(dm, $p, plus) }, { +$p } )

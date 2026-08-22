@@ -14,18 +14,18 @@ from ..core.machine import Machine, forest, induce, leaves
 from ..core.text import ParseError, load
 
 BASE = [
-    "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
-    "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
-    "rule <squeeze> = implies( { +fruit(?f), +jug(?j), +intact(?j) }, { +juice(?j) } )",
+    "rule <eff> = implies( { +did($a), +achieves($a, $y) }, { +$y } )",
+    "rule <cost> = implies( { +did(smash($j)) }, { -intact($j) } )",
+    "rule <squeeze> = implies( { +fruit($f), +jug($j), +intact($j) }, { +juice($j) } )",
 ]
 # Both routes SPEND the want they serve, and that is what makes taking one
 # passing up the other. Nothing in the engine does it: an occasion is consumed,
 # and a goal is an occasion. Without the denial both routes run, the agent fills
 # the kettle AND smashes the jug, and the episode has no choice to learn from.
-TAP = ("rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
-       " { -goal(water(?w)), +doing(fill(?w)) } )")
-JUG = ("rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
-       " { -goal(water(?w)), +doing(smash(?j)) } )")
+TAP = ("rule <use-tap> = implies( { +goal(water($w)), +tap($t), +under($w, $t) },"
+       " { -goal(water($w)), +doing(fill($w)) } )")
+JUG = ("rule <use-jug> = implies( { +goal(water($w)), +jug($j), +holds($j, $w) },"
+       " { -goal(water($w)), +doing(smash($j)) } )")
 
 
 def world(vessel: str = "kettle", jug: str = "jug1", jug_first: bool = True) -> str:
@@ -114,16 +114,16 @@ def _no_promotion():
 # Spending the want, for the third time in this file and the same reason: with
 # both routes live the agent takes both, every start costs the same, and *which
 # start you had* -- the thing this fixture varies -- stops being measurable.
-HARM_JUG = ("rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
-            " { -goal(water(?w)), +doing(smash(?j)) } )")
-HARM_VASE = ("rule <use-vase> = implies( { +goal(water(?w)), +vase(?v), +holds(?v, ?w) },"
-             " { -goal(water(?w)), +doing(shatter(?v)) } )")
+HARM_JUG = ("rule <use-jug> = implies( { +goal(water($w)), +jug($j), +holds($j, $w) },"
+            " { -goal(water($w)), +doing(smash($j)) } )")
+HARM_VASE = ("rule <use-vase> = implies( { +goal(water($w)), +vase($v), +holds($v, $w) },"
+             " { -goal(water($w)), +doing(shatter($v)) } )")
 HARM_BASE = [
-    "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
-    "rule <cost-j> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
-    "rule <cost-v> = implies( { +did(shatter(?v)) }, { -intact(?v) } )",
-    "rule <set-broken> = implies( { +did(shatter(?v)), +completes(?v, ?s) },"
-    " { -whole(?s) } )",
+    "rule <eff> = implies( { +did($a), +achieves($a, $y) }, { +$y } )",
+    "rule <cost-j> = implies( { +did(smash($j)) }, { -intact($j) } )",
+    "rule <cost-v> = implies( { +did(shatter($v)) }, { -intact($v) } )",
+    "rule <set-broken> = implies( { +did(shatter($v)), +completes($v, $s) },"
+    " { -whole($s) } )",
     "fact +achieves(smash(jug1), water(kettle))",
     "fact +achieves(shatter(vase), water(kettle))",
     "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
@@ -199,17 +199,17 @@ def a_lesson_outlives_its_rule() -> dict:
 # nothing passing up the other way the agent takes BOTH in every world, every
 # world costs the same, and a fixture about which advice is worth having has
 # nothing left to measure. Measured: all four rows scored 2 3 1 without it.
-TREE_JUG = ("rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
-            " { -goal(water(?w)), +doing(smash(?j)) } )")
-TREE_TAP = ("rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
-            " { -goal(water(?w)), +doing(fill(?w)) } )")
+TREE_JUG = ("rule <use-jug> = implies( { +goal(water($w)), +jug($j), +holds($j, $w) },"
+            " { -goal(water($w)), +doing(smash($j)) } )")
+TREE_TAP = ("rule <use-tap> = implies( { +goal(water($w)), +tap($t), +under($w, $t) },"
+            " { -goal(water($w)), +doing(fill($w)) } )")
 TREE_CORE = [
-    "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
-    "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
-    "rule <extra> = implies( { +did(smash(?j)), +precious(?j), +completes(?j, ?s) },"
-    " { -whole(?s) } )",
-    "rule <drain> = implies( { +did(fill(?w)), +scarce(?w) }, { -reserve(town) } )",
-    "rule <drop> = implies( { +did(fill(?w)), +scarce(?w) }, { -pressure(main) } )",
+    "rule <eff> = implies( { +did($a), +achieves($a, $y) }, { +$y } )",
+    "rule <cost> = implies( { +did(smash($j)) }, { -intact($j) } )",
+    "rule <extra> = implies( { +did(smash($j)), +precious($j), +completes($j, $s) },"
+    " { -whole($s) } )",
+    "rule <drain> = implies( { +did(fill($w)), +scarce($w) }, { -reserve(town) } )",
+    "rule <drop> = implies( { +did(fill($w)), +scarce($w) }, { -pressure(main) } )",
     "fact +achieves(smash(jug1), water(kettle))",
     "fact +achieves(fill(kettle), water(kettle))",
     "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
@@ -389,7 +389,7 @@ def main() -> int:
     gate("⚠⚠⚠ ...and is WRONG in the other one, because it can only say *always*",
          costs["depth-0"][1] > costs["nothing"][1])
     gate("a learned RULE, generalised over the objects it saw",
-         any(r.startswith("rule <learned-") and "?v0" in r for r in cond))
+         any(r.startswith("rule <learned-") and "$v0" in r for r in cond))
     gate("⚠ but taking EVERY circumstance is over-specific: the rule declines to "
          "fire in C and the agent breaks a jug it did not need to",
          costs["unpruned"][2] > costs["refined"][2])
@@ -573,7 +573,7 @@ def main() -> int:
   ⚠ AND THE SIGNAL IS STILL ONE EPISODE DEEP. Nothing here weighs a route that
   usually works against one that worked once. The weight on an `attention` claim
   is now a place to put that -- `attention(x, n)` carries its evidence count the
-  way `attend(?x, n)` always has -- and nothing yet accumulates into it.""")
+  way `attend($x, n)` always has -- and nothing yet accumulates into it.""")
     return 1 if failing else 0
 
 

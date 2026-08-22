@@ -31,10 +31,10 @@ is step 3 alone.
 Look at what a chain-walking rule actually asks for:
 
 ```
-given  ?m' = predecessor(?m)
-       ?e ∈ delta(?m)
-       ?e = entry(?p, ?s)
-then   candidate(?e, ?p)
+given  $m' = predecessor($m)
+       $e ∈ delta($m)
+       $e = entry($p, $s)
+then   candidate($e, $p)
 ```
 
 Every member is **structural** — membership, position, node identity,
@@ -107,7 +107,7 @@ One more row, not one more branch.
     This is worth telling, because the version with two matchers *worked* for a
     long time.
 
-    A skeleton member like `sanc(?mq, ?mp)` was said to be unmatchable, on the
+    A skeleton member like `sanc($mq, $mp)` was said to be unmatchable, on the
     grounds that it has no sign, no locus and no licence — nobody asserted it, so
     it has no entry.
 

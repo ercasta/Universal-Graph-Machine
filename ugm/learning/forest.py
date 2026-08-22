@@ -171,17 +171,17 @@ class Forest:
 def render(conj: Sequence[str], concept: str, name: str) -> List[str]:
     """A conjunction, as an ordinary rule a corpus could have been written with.
 
-    Each test gets its own part variable and they all join on `?c`, which is what
-    makes it a claim about a KIND of cathedral. The consequent binds `?c` from
+    Each test gets its own part variable and they all join on `$c`, which is what
+    makes it a claim about a KIND of cathedral. The consequent binds `$c` from
     the antecedent, so the loader's rule is satisfied -- the freedom `induce` had
     for free (a `prefer` consequent holds no variables) has to be earned here,
     and this is what earning it looks like.
     """
-    tests = ["+cathedral(?c)"]
+    tests = ["+cathedral($c)"]
     for i, p in enumerate(conj):
-        tests += [f"+part(?c, ?p{i})", f"+{p}(?p{i})"]
+        tests += [f"+part($c, $p{i})", f"+{p}($p{i})"]
     return [f"rule <{name}> = implies( {{ {', '.join(tests)} }},"
-            f" {{ +{concept}(?c) }} )", f"fact standing(<{name}>)"]
+            f" {{ +{concept}($c) }} )", f"fact standing(<{name}>)"]
 
 
 # -- the corpus ------------------------------------------------------------
@@ -196,24 +196,24 @@ def facts_for(examples) -> List[str]:
     return out
 
 
-ASK = "rule <ask> = implies( { +cathedral(?c) }, { +classify(?c) } )"
+ASK = "rule <ask> = implies( { +cathedral($c) }, { +classify($c) } )"
 # The corpus's WRAPPER, mapped from the count -- rows, not branches, and the whole
 # of what *the corpus governs, not the tool's confidence* means when the
 # tool has a real number to report. Nothing here is arithmetic: five trees make
 # six sayable counts and each is a line.
 TRUST = [
-    "rule <g5> = implies( { +answered(<forest>, classify(?c), gothic(5)) },"
-    " { +certain(is_gothic(?c)) } )",
-    "rule <g4> = implies( { +answered(<forest>, classify(?c), gothic(4)) },"
-    " { +likely(is_gothic(?c)) } )",
-    "rule <g3> = implies( { +answered(<forest>, classify(?c), gothic(3)) },"
-    " { +possible(is_gothic(?c)) } )",
-    "rule <r0> = implies( { +answered(<forest>, classify(?c), gothic(0)) },"
-    " { +certain(is_romanesque(?c)) } )",
-    "rule <r1> = implies( { +answered(<forest>, classify(?c), gothic(1)) },"
-    " { +likely(is_romanesque(?c)) } )",
-    "rule <r2> = implies( { +answered(<forest>, classify(?c), gothic(2)) },"
-    " { +possible(is_romanesque(?c)) } )",
+    "rule <g5> = implies( { +answered(<forest>, classify($c), gothic(5)) },"
+    " { +certain(is_gothic($c)) } )",
+    "rule <g4> = implies( { +answered(<forest>, classify($c), gothic(4)) },"
+    " { +likely(is_gothic($c)) } )",
+    "rule <g3> = implies( { +answered(<forest>, classify($c), gothic(3)) },"
+    " { +possible(is_gothic($c)) } )",
+    "rule <r0> = implies( { +answered(<forest>, classify($c), gothic(0)) },"
+    " { +certain(is_romanesque($c)) } )",
+    "rule <r1> = implies( { +answered(<forest>, classify($c), gothic(1)) },"
+    " { +likely(is_romanesque($c)) } )",
+    "rule <r2> = implies( { +answered(<forest>, classify($c), gothic(2)) },"
+    " { +possible(is_romanesque($c)) } )",
 ]
 SEED_FACT = f"fact +seeded(<forest>, {SEED})"
 
@@ -259,8 +259,8 @@ def verdicts(m, kb, examples) -> Dict[str, str]:
         held = []
         for concept in ("is_gothic", "is_romanesque"):
             # ⚠ Bare AND wrapped, because the two encodings say it differently:
-            # a rules-as-ensemble member concludes `is_gothic(?c)` flat, and the
-            # tool's corpus concludes `likely(is_gothic(?c))`. An unqualified
+            # a rules-as-ensemble member concludes `is_gothic($c)` flat, and the
+            # tool's corpus concludes `likely(is_gothic($c))`. An unqualified
             # claim is the strongest thing a corpus can say, so it reads as
             # `certain` -- which is what its entry's grade used to be by
             # default, before there were grades.
@@ -471,12 +471,12 @@ def main() -> int:
     TREAT = [
         # ⚠⚠ What this corpus is willing to act on, in two lines.
         # → docs/design/forest.md#what-this-corpus-is-willing-to-act-on-in-t
-        "rule <believe> = implies( { +certain(?p) }, { +?p } )",
-        "rule <believe-maybe> = implies( { +possible(?p) }, { +?p } )",
-        "rule <treat> = implies( { +is_gothic(?c), +restoring(?c) },"
-        " { +doing(repoint(?c)) } )",
-        "rule <spoil> = implies( { +did(repoint(?c)), +part(?c, ?p), +barrel(?p) },"
-        " { -intact(?c) } )",
+        "rule <believe> = implies( { +certain($p) }, { +$p } )",
+        "rule <believe-maybe> = implies( { +possible($p) }, { +$p } )",
+        "rule <treat> = implies( { +is_gothic($c), +restoring($c) },"
+        " { +doing(repoint($c)) } )",
+        "rule <spoil> = implies( { +did(repoint($c)), +part($c, $p), +barrel($p) },"
+        " { -intact($c) } )",
         "fact +restoring(conques)", "fact +intact(conques)",
         "fact +goal(intact(conques))",
     ]

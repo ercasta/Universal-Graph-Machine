@@ -5,7 +5,7 @@ identities; interning and both indices are keyed by situation; a supposition
 cuts a branch of the graph as well as a successor of the chain, and its
 structural conclusions die with it. What is *not* built is materialising a
 situation by replaying its deltas, and everything that depends on it —
-`?x@S` as a surface form, `reality(S)`/`current(S)`, and resolving at a named
+`$x@S` as a surface form, `reality(S)`/`current(S)`, and resolving at a named
 locus. `## What is built, and what stands in for the rest` at the foot of this
 file says exactly where the line falls and what the standing-in costs.
 
@@ -104,12 +104,12 @@ test is consulted to keep it out.
 ## Reading across situations
 
 > **Half built.** `(atom id, situation) -> node id` is `Graph.node_of` and it is
-> a lookup, as below. What is *not* built is any way for a rule to write `?x@S`,
+> a lookup, as below. What is *not* built is any way for a rule to write `$x@S`,
 > or to name a situation at all — `reality(S)` and `current(S)` do not exist, and
 > neither does resolving at a named locus. The paragraph beginning *This is a
 > genuine gap* is still true word for word.
 
-    ?x@S        take the atom of ?x, find its node in S
+    $x@S        take the atom of $x, find its node in S
 
 `(atom id, situation) -> node id` is the index that makes it a lookup rather
 than a search, and it is the same index materialisation fills in.
@@ -118,13 +118,13 @@ than a search, and it is the same index materialisation fills in.
 situation it is in. Today the seat is a register and nothing can refer to it,
 which is why `p@current` would be unwritable.
 
-**This is a genuine gap, not sugar.** Probed: `at ?m` does *not* mean *evaluate
+**This is a genuine gap, not sugar.** Probed: `at $m` does *not* mean *evaluate
 this at m*. It binds the locus of the entry that satisfied the member, and the
 resolved state keeps one entry per proposition -- the winner. So a rule can say
 *the goblin acted after the hero* (two propositions, two loci) and cannot say
 *p held then and does not now* (one proposition, two times), because the earlier
-claim is not in the state to be matched. Bound `?then` to a real past moment
-where `ill(paul)` held, and `+ill(?x) at ?then` still did not match.
+claim is not in the state to be matched. Bound `$then` to a real past moment
+where `ill(paul)` held, and `+ill($x) at $then` still did not match.
 
 `Chain.resolve(p, locus, seat)` already answers the question. What is missing is
 any way for a rule to say **which locus to resolve at**.
@@ -240,11 +240,11 @@ appears when, and only when, one is carried into the other.
 
 ### Not built
 
-`?x@S` as a surface form a rule can write; `reality(S)` and `current(S)` as
+`$x@S` as a surface form a rule can write; `reality(S)` and `current(S)` as
 ordinary facts; and *which locus to resolve at*. The last is the genuine gap the
 design identified and it is untouched: `Chain.resolve(p, locus, seat)` still
 answers the question, and there is still no way for a rule to say which locus to
-put it about. `at ?m` binds the locus of the entry that satisfied the member, not
+put it about. `at $m` binds the locus of the entry that satisfied the member, not
 the moment to evaluate at — so *p held then and does not now* remains
 unwritable. Clock arithmetic is likewise unchanged: `Chain.TIME` is deposited
 when the clock is on, and `timeof` would be a lookup over it rather than a

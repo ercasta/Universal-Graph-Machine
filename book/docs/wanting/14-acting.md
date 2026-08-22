@@ -82,7 +82,7 @@ still knows it acted.
 
 ### A description cannot be acted on
 
-`+doing(heat(?a, ?w))` is refused. An intent with an unbound member names no
+`+doing(heat($a, $w))` is refused. An intent with an unbound member names no
 particular act.
 
 This is Chapter 12's achievability question arriving where it belongs — not as a
@@ -125,11 +125,11 @@ for a long time:
 ```
 say player: +declares(attack(goblin1), 1)
 
-rule <trust-player> = implies( { +says(player, declares(?act, ?r), plus) },
-                               { +intends(hero, ?act, ?r) } )
+rule <trust-player> = implies( { +says(player, declares($act, $r), plus) },
+                               { +intends(hero, $act, $r) } )
 ```
 
-`attack(goblin1)` is the act with its binding, and `?r` is the marker — which the
+`attack(goblin1)` is the act with its binding, and `$r` is the marker — which the
 corpus's own header calls *a label the player utters* and which nothing then
 interprets. That the slot was authored before anyone asked for it is the best
 evidence available that the shape is natural rather than imposed.

@@ -53,8 +53,8 @@ The honest scorecard:
 Hold the hypothesis in the **proposition**. The wrapper is the containment:
 
 ```
-rule <wet>   = implies( { +rain(?d) }, { +wet(streets) } )
-rule <carry> = implies( { +given(?h, rain(?d)) }, { +given(?h, wet(streets)) } )
+rule <wet>   = implies( { +rain($d) }, { +wet(streets) } )
+rule <carry> = implies( { +given($h, rain($d)) }, { +given($h, wet(streets)) } )
 
 fact +given(h1, rain(monday))
 ```
@@ -89,11 +89,11 @@ written*. Mark it with `intercepts(<T>, after)` and it matches
 only while that question is being asked and is never deposited.
 
 ```
-rule <wrap> = implies( { +supposing(?h), +producing(?r, ?p) },
-                      { +instead(?p, likely(?p)) } )
+rule <wrap> = implies( { +supposing($h), +producing($r, $p) },
+                      { +instead($p, likely($p)) } )
 fact intercepts(<wrap>, after)
 
-rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )
+rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )
 
 fact +supposing(h1)
 fact +heat(anna, kettle)
@@ -105,13 +105,13 @@ boiling(kettle)          -> None
 likely(boiling(kettle))  -> +
 ```
 
-`<boil>` is the ordinary rule and its consequent says `+boiling(?w)`. Nothing
+`<boil>` is the ordinary rule and its consequent says `+boiling($w)`. Nothing
 in it mentions a wrapper. *Everything concluded while supposing is uncertain* is
 said once, by one rule, and it applies to rules written before it existed.
 
 A trigger's conclusion is read as an instruction: `instead(p, q)` replaces,
 `drop(p)` refuses, and anything else lands as well — so **marking** what a
-hypothesis produced (`+hypothetical(?p, ?h)`) is the same mechanism with a
+hypothesis produced (`+hypothetical($p, $h)`) is the same mechanism with a
 different verb. Two triggers on one conclusion run in table order, and the
 second sees what the first left.
 
@@ -125,7 +125,7 @@ Worth trying, because the result is not obvious. Add a second rule that reads
 what the first concluded:
 
 ```
-rule <wet>  = implies( { +rain(?d) },     { +wet(streets) } )
+rule <wet>  = implies( { +rain($d) },     { +wet(streets) } )
 rule <slip> = implies( { +wet(streets) }, { +slippery(streets) } )
 
 fact +rain(monday)
@@ -177,7 +177,7 @@ unwrapped, it *is* believed — nothing will stop it.
 mechanism contained entries and never contained **structure** — a stratum-0
 rule concludes into the graph itself, where there is no branch and no sign, so
 structure derived inside a hypothesis stayed derived after it. The modern form
-of the same trap: a rule that concludes structure from `given(?h, ...)` is
+of the same trap: a rule that concludes structure from `given($h, ...)` is
 concluding it *outright*, because structure has no wrapper to carry the
 hypothesis.
 

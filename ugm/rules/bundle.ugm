@@ -35,21 +35,21 @@
 # is anchored and a rule is generic; deciding that an arrival is a saying does
 # not, and never did.
 rule <intake> = implies(
-    { +arrived(?channel, ?said, ?sign) },
-    { +says(?channel, ?said, ?sign) } )
+    { +arrived($channel, $said, $sign) },
+    { +says($channel, $said, $sign) } )
 
 # What an emission MEANS: the agent acted.
 rule <did> = implies(
-    { +emitted(?what) },
-    { +did(?what) } )
+    { +emitted($what) },
+    { +did($what) } )
 
 # And the same, one row rather than one branch, for an act decided on inside a
 # hypothesis. `did` under a supposition means *under this, I did* -- which is
 # what the frame already means -- so <assert-act> supplies the assumed outcome
 # and planning continues past the step.
 rule <taken> = implies(
-    { +taken(?what) },
-    { +did(?what) } )
+    { +taken($what) },
+    { +did($what) } )
 
 # §15's *the agent asserts the act*, which was an unarguable line of the
 # interpreter and is now a defeasible claim. The consequent is a bare variable,
@@ -57,14 +57,14 @@ rule <taken> = implies(
 # trust rule, and for the same reason: it says *believe what this channel
 # reported*, where the channel is the agent's own hands.
 #
-# `no substituted(?what)` is how a corpus takes that back for one act rather
+# `no substituted($what)` is how a corpus takes that back for one act rather
 # than for all of them: a rule supplying an act's outcome concludes
-# `substituted(?a)` as well, and this rule then assumes nothing about that act
+# `substituted($a)` as well, and this rule then assumes nothing about that act
 # while every other act keeps the fallback. That is per ACT, where precedence
 # is per rule and per tick.
 rule <assert-act> = implies(
-    { +did(?what), no substituted(?what) },
-    { +?what } )
+    { +did($what), no substituted($what) },
+    { +$what } )
 
 
 # -- denial ----------------------------------------------------------------
@@ -74,15 +74,15 @@ rule <assert-act> = implies(
 # unwraps `likely(not(b))` to `not(b)`, and the rules inside are written
 # against `-b`.
 #
-# One direction only, and the asymmetry is the point. `+not(?p)` is a claim the
+# One direction only, and the asymmetry is the point. `+not($p)` is a claim the
 # machinery may have manufactured while re-wrapping, so it is translated back.
 # The reverse -- minting `+not(p)` for every denial in the graph -- would double
 # every negative fact, and would build `not(not(p))` the moment it met its own
 # output. §9 names that as the cost of wrappers; this is where the cost is
 # declined.
 rule <denial> = implies(
-    { +not(?denied) },
-    { -?denied } )
+    { +not($denied) },
+    { -$denied } )
 
 
 # -- surprise --------------------------------------------------------------
@@ -102,20 +102,20 @@ rule <denial> = implies(
 # The second member is a bare variable, already bound by the first, so it matches
 # the observation of that very proposition under the sign that disappoints it.
 rule <deviation-+-contradicted> = implies(
-    { +expects(?p, plus), -?p },
-    { +deviates(?p) } )
+    { +expects($p, plus), -$p },
+    { +deviates($p) } )
 
 rule <deviation-+-invalidated> = implies(
-    { +expects(?p, plus), ? ?p },
-    { +deviates(?p) } )
+    { +expects($p, plus), ? $p },
+    { +deviates($p) } )
 
 rule <deviation---contradicted> = implies(
-    { +expects(?p, minus), +?p },
-    { +deviates(?p) } )
+    { +expects($p, minus), +$p },
+    { +deviates($p) } )
 
 rule <deviation---invalidated> = implies(
-    { +expects(?p, minus), ? ?p },
-    { +deviates(?p) } )
+    { +expects($p, minus), ? $p },
+    { +deviates($p) } )
 
 
 # -- backward reading, entire ----------------------------------------------
@@ -123,7 +123,7 @@ rule <deviation---invalidated> = implies(
 # The last phase, as six rules over three requests (`ugm.backward` measured these
 # against it, one rule deleted at a time, before it went).
 #
-# §14 prints a rule for this and it cannot work: `con(?r, ?pat, +)` binds the
+# §14 prints a rule for this and it cannot work: `con($r, $pat, +)` binds the
 # rule's stored PATTERN, which is generic, and a goal is ground, so one variable
 # cannot bind to both. Deciding they correspond is `match`, and match is floor.
 # The repair was not to make backward reading a primitive but to give the wall a
@@ -140,32 +140,32 @@ rule <deviation---invalidated> = implies(
 # rather than about everything it has ever been told. That is §14's index -- 711
 # applications of <ask-fit> became 8, one per goal.
 rule <ask-recall> = implies(
-    { +goal(?wanted) },
-    { +recall(?wanted) } )
+    { +goal($wanted) },
+    { +recall($wanted) } )
 
 rule <ask-fit> = implies(
-    { +recalled(?r, ?wanted) },
-    { +fit(?r, ?wanted) } )
+    { +recalled($r, $wanted) },
+    { +fit($r, $wanted) } )
 
 # A rule that fits is a plan. R7 for the search's own working state: the plan
 # node is built by substitution, and substitution interns, so the same rule
 # expanding the same goal names the same plan -- which is what a plan is. Minting
 # a fresh node would be wrong, not merely wasteful.
 rule <plan> = implies(
-    { +fits(?r, ?wanted) },
-    { +expands(plan(?r, ?wanted), ?wanted, ?r) } )
+    { +fits($r, $wanted) },
+    { +expands(plan($r, $wanted), $wanted, $r) } )
 
-# What it needs becomes a subgoal of that plan. `?sub` arrives already
+# What it needs becomes a subgoal of that plan. `$sub` arrives already
 # instantiated, which is the whole reason `fit` answers with `need`.
 rule <expand> = implies(
-    { +fits(?r, ?wanted), +need(?r, ?wanted, ?sub) },
-    { +subgoal(plan(?r, ?wanted), ?sub), +goal(?sub) } )
+    { +fits($r, $wanted), +need($r, $wanted, $sub) },
+    { +subgoal(plan($r, $wanted), $sub), +goal($sub) } )
 
 # Is it already satisfied? Asked inside the PLAN's bindings, so siblings agree
 # about which tap (§18).
 rule <ask-check> = implies(
-    { +subgoal(plan(?r, ?wanted), ?sub) },
-    { +check(plan(?r, ?wanted), ?sub) } )
+    { +subgoal(plan($r, $wanted), $sub) },
+    { +check(plan($r, $wanted), $sub) } )
 
 
 # -- relevance -------------------------------------------------------------
@@ -177,8 +177,8 @@ rule <ask-check> = implies(
 # preference wants.
 #
 # ⚠⚠⚠ **`<relevant>` USED TO TRANSLATE IT INTO A SCORE, and that rule is gone
-# with `prefer`.** It read `fits(?r, ?wanted)` and concluded
-# `prefer(?r, ?wanted, 1)` -- means-ends analysis as a rule-keyed buff. The
+# with `prefer`.** It read `fits($r, $wanted)` and concluded
+# `prefer($r, $wanted, 1)` -- means-ends analysis as a rule-keyed buff. The
 # KNOWLEDGE is untouched: the backward reader still works out which rule serves
 # the goal and still says so, in `fits`. What went is only the translation into
 # a number attached to a rule id, which is what could not survive a rule being
@@ -198,12 +198,12 @@ rule <ask-check> = implies(
 # got. This is the policy the phase asserted in control flow; here it is one
 # rule, and a corpus that wants to give up earlier or later overrides it.
 rule <give-up> = implies(
-    { +quiet(?m), +goal(?wanted) },
-    { +verdict(?wanted) } )
+    { +quiet($m), +goal($wanted) },
+    { +verdict($wanted) } )
 
 
 # ...and no sibling for the veto's occasion, which is worth a note because one
-# was written and deleted. `+open(?w) => +verdict(?w)` looked exactly parallel and
+# was written and deleted. `+open($w) => +verdict($w)` looked exactly parallel and
 # `ugm.bundle` reported it blind; deleting it broke no check, and the reason is
 # the veto's own shape. Because an outstanding goal *outranks* an `enough` rather
 # than delaying it, a run with an open goal always finishes at quiescence -- so
@@ -212,7 +212,7 @@ rule <give-up> = implies(
 # dropped*, which nothing else records); a second way to ask about it was.
 #
 # What is deliberately not bundled either is the REACTION.
-# `+open(?w), +blocked(?w) => +doing(ask(?w))` is one line and a corpus writes it,
+# `+open($w), +blocked($w) => +doing(ask($w))` is one line and a corpus writes it,
 # because where a question goes is a fact about a deployment and not about
 # reasoning. What ships is the occasion; §19 argues the split.
 
@@ -236,11 +236,11 @@ rule <give-up> = implies(
 # stretch is exactly what `resolve` cannot see. Written as a missing rule rather
 # than as a returned False, so a corpus that disagrees adds a row.
 # ⚠⚠⚠ **The span rules went with the locus.** `<span-complete>` and
-# `<span-itself>` concluded `reaches(?m, ?s)`, which was the policy `Moment
+# `<span-itself>` concluded `reaches($m, $s)`, which was the policy `Moment
 # .at_or_after` consulted to decide whether a claim ABOUT A STRETCH was visible
 # from a moment. An entry has no locus now, so nothing can be about a stretch
 # and there is nothing for the policy to decide. §11's recognitions over a
-# stretch are still sayable -- `span(?a, ?b)` is an ordinary node and a corpus
+# stretch are still sayable -- `span($a, $b)` is an ordinary node and a corpus
 # can conclude whatever it likes about one -- but the claim is deposited now,
 # like every other claim, rather than dated to the stretch.
 
@@ -254,12 +254,12 @@ rule <give-up> = implies(
 # return.
 #
 # ⭐⭐⭐ **A call carries its parameters as ONE node**, which is the whole of what
-# makes this parametric. `call(?c, tower(?d, ?f, ?t, ?s))` puts the arity in the
+# makes this parametric. `call($c, tower($d, $f, $t, $s))` puts the arity in the
 # domain's hands, so nothing here knows how many parameters a plan has or what
 # they mean. Exercised by two domains that share nothing else -- `ugm.hanoi` and
 # the countdown beside it.
 #
-# ⚠ The stage ORDER is data, not rules: `advances(?p, ?q)` and `closes(?p)` are
+# ⚠ The stage ORDER is data, not rules: `advances($p, $q)` and `closes($p)` are
 # facts a corpus deposits, because what differs between one recursive plan and
 # the next is exactly the order of its steps. The bundle supplies the stack; the
 # corpus supplies the strategy.
@@ -274,16 +274,16 @@ rule <give-up> = implies(
 # One node per application, so two calls with the same parameters are two calls.
 # That is not a nicety: `solve(d1, x, z, y)` occurs TWICE in a three-disk Hanoi,
 # and a call keyed on its arguments would collide with itself.
-rule <call-spawn> = implies( { +spawn(?c, ?args, ?stage) },
-                        { +call(+k, ?args), +stage(+k, ?stage),
-                          +awaits(?c, +k), -spawn(?c, ?args, ?stage) } )
+rule <call-spawn> = implies( { +spawn($c, $args, $stage) },
+                        { +call(+k, $args), +stage(+k, $stage),
+                          +awaits($c, +k), -spawn($c, $args, $stage) } )
 
 # The child returned, and this call has more to do.
-rule <call-advance> = implies( { +stage(?c, ?p), +awaits(?c, ?k), +returned(?k),
-                            +advances(?p, ?q) },
-                          { -stage(?c, ?p), +stage(?c, ?q), -awaits(?c, ?k) } )
+rule <call-advance> = implies( { +stage($c, $p), +awaits($c, $k), +returned($k),
+                            +advances($p, $q) },
+                          { -stage($c, $p), +stage($c, $q), -awaits($c, $k) } )
 
 # ...or it does not, and the call returns in its turn.
-rule <call-return> = implies( { +stage(?c, ?p), +awaits(?c, ?k), +returned(?k),
-                           +closes(?p) },
-                         { -stage(?c, ?p), +returned(?c) } )
+rule <call-return> = implies( { +stage($c, $p), +awaits($c, $k), +returned($k),
+                           +closes($p) },
+                         { -stage($c, $p), +returned($c) } )

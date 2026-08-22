@@ -5,7 +5,7 @@ session.** Everything below was probed against `5c0a92f`..`0e023cd` on the
 engine as it stands; no engine change was made to take any of it.
 
 The subject is the first item in `docs/todo.md`: *instead of `rule <something>:`,
-could we use `rule(something, implies(...))` and `action(move(?x,?y))`... this
+could we use `rule(something, implies(...))` and `action(move($x,$y))`... this
 would make everything be "facts"*. What follows is what that costs and what
 stands in its way, in the order the pieces have to be taken.
 
@@ -16,18 +16,18 @@ stands in its way, in the order the pieces have to be taken.
 A corpus can author a live rule with no Python and no engine change. The whole
 compiler is five rules and one named fact:
 
-    fact <anchor> = +anchor(?w)
+    fact <anchor> = +anchor($w)
 
-    rule <twin>       = implies( { +lift(?r), +conn(?r, ?c) },
-                                 { +rule(+t), +conn(+t, ?c), +twin(?r, +t) } )
-    rule <lift-ant>   = implies( { +twin(?r,?t), +anchor(?w), +ant(?r,?p,?s,?i) },
-                                 { +ant(?t, holds_in(?w, ?p), ?s, ?i) } )
-    rule <lift-con>   = implies( { +twin(?r,?t), +anchor(?w), +con(?r,?p,?s,?i) },
-                                 { +con(?t, holds_in(?w, ?p), ?s, ?i) } )
-    rule <lift-at>    = implies( { +twin(?r,?t), +at(?side,?r,?i,?m) },
-                                 { +at(?side, ?t, ?i, ?m) } )
-    rule <lift-names> = implies( { +twin(?r,?t), +names(?side,?r,?i,?n) },
-                                 { +names(?side, ?t, ?i, ?n) } )
+    rule <twin>       = implies( { +lift($r), +conn($r, $c) },
+                                 { +rule(+t), +conn(+t, $c), +twin($r, +t) } )
+    rule <lift-ant>   = implies( { +twin($r,$t), +anchor($w), +ant($r,$p,$s,$i) },
+                                 { +ant($t, holds_in($w, $p), $s, $i) } )
+    rule <lift-con>   = implies( { +twin($r,$t), +anchor($w), +con($r,$p,$s,$i) },
+                                 { +con($t, holds_in($w, $p), $s, $i) } )
+    rule <lift-at>    = implies( { +twin($r,$t), +at($side,$r,$i,$m) },
+                                 { +at($side, $t, $i, $m) } )
+    rule <lift-names> = implies( { +twin($r,$t), +names($side,$r,$i,$n) },
+                                 { +names($side, $t, $i, $n) } )
 
 Given two ordinary domain rules that mention no hypothesis, it authored both
 anchored twins, and they chain:
@@ -51,8 +51,8 @@ two members stays one variable.
 **The parser refuses a malformed WRITTEN rule. Nothing refuses a malformed
 DESCRIBED one.** That is the whole of it, and both faults below are instances:
 
-    a description split across two statements   consequent `?x` unbound  REFUSED
-    a compiler that drops the `as` slot         consequent `?n` unbound  REFUSED
+    a description split across two statements   consequent `$x` unbound  REFUSED
+    a compiler that drops the `as` slot         consequent `$n` unbound  REFUSED
     a description in ONE statement (control)    nothing unbound          accepted
 
 `Loader._rule` already applies this check. It has to be applied where rules now
@@ -117,19 +117,19 @@ into the graph.
 
 ## 4. Variable identity could be a CLAIM, and today nothing reads it
 
-`Loader.var`: *variables are scoped to a rule -- `?w` in two rules is two
+`Loader.var`: *variables are scoped to a rule -- `$w` in two rules is two
 variables, because a rule is a statement and not a fragment of a larger one.*
 That is uniform for written and described rules, and there is no asymmetry: a
 rule described in ONE statement behaves exactly like a written one.
 
-The engine can already represent two `?w` nodes as one thing -- `Graph.merge`
+The engine can already represent two `$w` nodes as one thing -- `Graph.merge`
 does congruence over leaves, and a variable is a leaf. What does not follow is
 behaviour:
 
-    one shared ?w node                             q(a) = +
-    two ?w nodes, no coreference                   q(a) = None
-    two ?w nodes, MERGED                           q(a) = None
-    two ?w nodes, MERGED, substitute resolving     q(a) = +      <- one line
+    one shared $w node                             q(a) = +
+    two $w nodes, no coreference                   q(a) = None
+    two $w nodes, MERGED                           q(a) = None
+    two $w nodes, MERGED, substitute resolving     q(a) = +      <- one line
 
 `substitute` is `bindings.get(pattern, pattern)`, a raw node-id lookup that never
 consults `identity_of`. **So the coreference is real in the index and inert in
@@ -149,9 +149,9 @@ not "the representation cannot express it".**
 
 ## 5. A rule IS already a subgraph -- and that is where the real blocker is
 
-    <rich> = implies( { +p(?x) at ?mm as ?nn, -b(?x) }, { +q(?nn) } )
+    <rich> = implies( { +p($x) at $mm as $nn, -b($x) }, { +q($nn) } )
     node 1432, relation `implies`, members (1429, 1431)
-      antecedent moment -> moment( entry(p(?x), +), entry(b(?x), -) )
+      antecedent moment -> moment( entry(p($x), +), entry(b($x), -) )
 
 Built with `Graph.instance`, which does NOT intern, so two textually identical
 rules are two nodes -- which `RuleSet.rule` requires: *two rules that happen to
@@ -160,17 +160,17 @@ express that, which is one reason an explicit constructor is needed at all.
 
 **But it is lossy, and the two kinds of rule are two representations:**
 
-    Python Rule   ant[0] pattern=p(?x) sign=+ locus=?mm binds=?nn
-    the subgraph  entry(p(?x), +)                    both slots GONE
+    Python Rule   ant[0] pattern=p($x) sign=+ locus=$mm binds=$nn
+    the subgraph  entry(p($x), +)                    both slots GONE
 
     a LOADED rule's node    <compile>   2 members, full structure
     an ADOPTED rule's node  #1554       relation None, 0 members
 
 ⚠⚠⚠ And reusing a node leaves both readable forms describing the OLD rule:
 
-    live members  p(?y) => z(?y)
-    its subgraph  moment(entry(p(?x), +)) => moment(entry(q(?x), +))
-    reified       ant(<r>, p(?x), +, 0)   con(<r>, q(?x), +, 0)
+    live members  p($y) => z($y)
+    its subgraph  moment(entry(p($x), +)) => moment(entry(q($x), +))
+    reified       ant(<r>, p($x), +, 0)   con(<r>, q($x), +, 0)
 
 `RuleSet.rule` mints the moments only when `node is None`; `reify` returns early
 on a node it has seen. Not reachable today, because `_adopt` declines a live
@@ -184,17 +184,17 @@ varies with how much happens to be known about it*. That argument is about
 `ant`/`con`, which have no node for the member and must address it as
 `at(SIDE, rule, position, locus)`. **In the subgraph the member IS a node**, so:
 
-    at(<entry>, ?m)        instead of   at(ANT, <rule>, 0, ?m)
-    names(<entry>, ?n)     instead of   names(ANT, <rule>, 0, ?n)
+    at(<entry>, $m)        instead of   at(ANT, <rule>, 0, $m)
+    names(<entry>, $n)     instead of   names(ANT, <rule>, 0, $n)
 
 ...and position stops being an argument at all, because a moment's members are
-ordered. `_read_rule`'s sort-by-numeral, the `?i` in every compiling rule, and
+ordered. `_read_rule`'s sort-by-numeral, the `$i` in every compiling rule, and
 the side argument all go.
 
 ### ⭐⭐⭐ The blocker: a rule cannot build a node of runtime arity
 
 A moment has one entry per member, and a consequent writes terms whose arity is
-fixed at authoring. **That is why `ant(?r, ?p, ?s, ?i)` exists as scattered facts
+fixed at authoring. **That is why `ant($r, $p, $s, $i)` exists as scattered facts
 with position as an ARGUMENT: N ground facts is the only variable-arity thing a
 rule can produce.**
 
@@ -213,7 +213,7 @@ This is upstream of everything else in this document.
 
 The author's, 2026-08-20, and not yet probed:
 
-    runs(named(paul, ?x=person)) implies moves(?x)
+    runs(named(paul, $x=person)) implies moves($x)
 
 *We currently can't share a node with a given name with this syntax.* The
 existing `as` slot (§12's `binds`) names **what a whole member matched**, not a
@@ -223,8 +223,8 @@ pattern.
 ⚠ Two readings, and they want different things -- **settle this before
 building**:
 
-    (a) a TYPE on the binding: bind `?x`, and constrain it to be a person
-    (b) a NAME on the node: bind `?x`, and call this node `person` so another
+    (a) a TYPE on the binding: bind `$x`, and constrain it to be a person
+    (b) a NAME on the node: bind `$x`, and call this node `person` so another
         statement can refer to the same node
 
 Reading (b) is the cross-statement sharing question of §4 arriving in the

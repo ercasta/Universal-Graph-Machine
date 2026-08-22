@@ -5,8 +5,8 @@
 `Machine._attention` is a stack of frames rather than a flat queue, and the
 postcondition vocabulary gained two rows:
 
-    push(?a, ?b, ...)   start a fresh attention frame on those nodes
-    pop(?x)             restore the previous frame, attending ?x on it
+    push($a, $b, ...)   start a fresh attention frame on those nodes
+    pop($x)             restore the previous frame, attending $x on it
 
 ⚠⚠⚠ **The graph is untouched by both.** This is not a transaction, there is no
 rollback, and nothing derived inside a frame stops existing when it is popped.
@@ -33,22 +33,22 @@ from ..core.text import Loader, load
 
 # Twelve rules that never match, so the shortlist is a real cut and the lift has
 # something to do. `attention_is_a_bounded_queue` uses the same instrument.
-PAD = "".join("rule <p%d> = implies( { +z%d(?x) }, { +y%d(?x) } )\n" % (i, i, i)
+PAD = "".join("rule <p%d> = implies( { +z%d($x) }, { +y%d($x) } )\n" % (i, i, i)
               for i in range(12))
 
 # One outer line of work and one sub-line long enough to evict it. ⚠ The two
 # corpora below differ by EXACTLY the two postconditions substituted in --
 # everything else, rule for rule and fact for fact, is the same text.
 HEAD = """
-rule <begin>   = implies( { +task(?t), +about(?t, ?g) }, { +begun(?t) } )
-after <begin> => attend(?g)%s
-rule <check>   = implies( { +begun(?t), +item(?i) }, { +checked(?i) } )
-rule <done>    = implies( { +begun(?t), +about(?t, ?g), +checked(i8) },
-                          { +surveyed(?t) } )
+rule <begin>   = implies( { +task($t), +about($t, $g) }, { +begun($t) } )
+after <begin> => attend($g)%s
+rule <check>   = implies( { +begun($t), +item($i) }, { +checked($i) } )
+rule <done>    = implies( { +begun($t), +about($t, $g), +checked(i8) },
+                          { +surveyed($t) } )
 after <done> => %s
 """
 TAIL = """
-rule <report>  = implies( { +surveyed(?t), +about(?t, ?g) }, { +told(?g) } )
+rule <report>  = implies( { +surveyed($t), +about($t, $g) }, { +told($g) } )
 fact +task(survey)
 fact +about(survey, plots)
 """
@@ -77,8 +77,8 @@ def _survey(push: str, pop: str):
 
 
 INHERIT = """
-rule <inherit> = implies( { +extends(?e, ?f), +knows(?f, ?r) },
-                          { +knows(?e, ?r) } )
+rule <inherit> = implies( { +extends($e, $f), +knows($f, $r) },
+                          { +knows($e, $r) } )
 """
 
 # Three experts over one graph, lifted verbatim from `probes/experts.py` so the
@@ -86,19 +86,19 @@ rule <inherit> = implies( { +extends(?e, ?f), +knows(?f, ?r) },
 # written to be selectable.
 EXPERTS = """
 expert arithmetic
-rule <double> = implies( { +question(twice(?n)), +num(?n, ?v), +plus(?v, ?v, ?s) },
-                         { +reply(twice(?n), ?s) } )
+rule <double> = implies( { +question(twice($n)), +num($n, $v), +plus($v, $v, $s) },
+                         { +reply(twice($n), $s) } )
 
 expert geometry extends arithmetic
-rule <area> = implies( { +question(area(?r)), +wide(?r, ?w), +tall(?r, ?h),
-                         +times(?w, ?h, ?a) },
-                       { +reply(area(?r), ?a) } )
+rule <area> = implies( { +question(area($r)), +wide($r, $w), +tall($r, $h),
+                         +times($w, $h, $a) },
+                       { +reply(area($r), $a) } )
 
 expert surveyor
-rule <ask-area>  = implies( { +survey(?r) },
-                            { +consult(geometry, area(?r)) } )
-rule <record>    = implies( { +answered(geometry, area(?r), ?a) },
-                            { +plot(?r, ?a) } )
+rule <ask-area>  = implies( { +survey($r) },
+                            { +consult(geometry, area($r)) } )
+rule <record>    = implies( { +answered(geometry, area($r), $a) },
+                            { +plot($r, $a) } )
 
 fact +wide(plot1, 3)
 fact +tall(plot1, 4)
@@ -125,8 +125,8 @@ def main() -> int:
     # -- 1. the measurement the mechanism has to justify itself against -----
     print("1. the same corpus, differing by two postconditions")
     print()
-    flat_m, flat_kb, flat_r, flat_seen = _survey("", "attend(?t)")
-    frame_m, frame_kb, frame_r, frame_seen = _survey(", push(items)", "pop(?g)")
+    flat_m, flat_kb, flat_r, flat_seen = _survey("", "attend($t)")
+    frame_m, frame_kb, frame_r, frame_seen = _survey(", push(items)", "pop($g)")
 
     def at_choice(seen, name):
         for who, attended in seen:
@@ -150,7 +150,7 @@ def main() -> int:
          "the corpus",
          flat_m.holds(flat_kb.term("told(plots)")) == PLUS
          and frame_m.holds(frame_kb.term("told(plots)")) == PLUS)
-    # ⚠⚠⚠ POSITION, not membership. `attend(?g)` deposited a standing
+    # ⚠⚠⚠ POSITION, not membership. `attend($g)` deposited a standing
     # `attention(plots)` claim, and `_attended()` puts a standing claim at the
     # BOTTOM rather than dropping it -- so *was it forgotten* is the wrong
     # question and would have made this check pass on a technicality. What the
@@ -254,16 +254,16 @@ def main() -> int:
     print("4. the frame carries its expert's table")
     print()
     # ⚠ Two members apiece, and not for decoration: a one-member antecedent
-    # `{ +asking(?q) }` matches the MENTION the loader wrote for the rule's own
-    # pattern, so the rule applies twice, binds `?q` to a generic, writes
+    # `{ +asking($q) }` matches the MENTION the loader wrote for the rule's own
+    # pattern, so the rule applies twice, binds `$q` to a generic, writes
     # nothing, and the corpus looks like it ran. Caught here by asking what it
     # concluded rather than whether it moved.
     src = """
-rule <call>  = implies( { +ask(?q), +known(?q) }, { +asking(?q) } )
-after <call> => push(?q)
-rule <work>  = implies( { +asking(?q), +known(?q) }, { +worked(?q) } )
-rule <back>  = implies( { +worked(?q), +known(?q) }, { +heard(?q) } )
-after <back> => pop(?q)
+rule <call>  = implies( { +ask($q), +known($q) }, { +asking($q) } )
+after <call> => push($q)
+rule <work>  = implies( { +asking($q), +known($q) }, { +worked($q) } )
+rule <back>  = implies( { +worked($q), +known($q) }, { +heard($q) } )
+after <back> => pop($q)
 fact +ask(sum)
 fact +known(sum)
 """
@@ -278,7 +278,7 @@ fact +known(sum)
          "stepping by hand is not measuring a different agent each time",
          root.ticked >= 3)
     gate("⭐ the frame closed and the answer came back on the restored frame -- "
-         "`pop(?q)` is the attention-level analogue of a return value",
+         "`pop($q)` is the attention-level analogue of a return value",
          len(m2._frames) == 1
          and m2._attended()[0] is kb2.term("sum")
          and m2.holds(kb2.term("heard(sum)")) == PLUS)
@@ -289,8 +289,8 @@ fact +known(sum)
     print()
     deep = Machine()
     kbd = load(deep, """
-rule <down> = implies( { +go(?x), +next(?x, ?y) }, { +go(?y) } )
-after <down> => push(?y)
+rule <down> = implies( { +go($x), +next($x, $y) }, { +go($y) } )
+after <down> => push($y)
 fact +go(n0)
 fact +next(n0, n1)
 fact +next(n1, n2)
@@ -317,10 +317,10 @@ fact +next(n8, n9)
 
     cyc = Machine()
     load(cyc, """
-rule <there> = implies( { +at(?x), +place(?x) }, { +went(?x) } )
-after <there> => push(?x)
-rule <again> = implies( { +went(?x), +place(?x) }, { +back(?x) } )
-after <again> => push(?x)
+rule <there> = implies( { +at($x), +place($x) }, { +went($x) } )
+after <there> => push($x)
+rule <again> = implies( { +went($x), +place($x) }, { +back($x) } )
+after <again> => push($x)
 fact +at(here)
 fact +place(here)
 """)
@@ -334,8 +334,8 @@ fact +place(here)
 
     rootpop = Machine()
     load(rootpop, """
-rule <up> = implies( { +here(?x), +place(?x) }, { +gone(?x) } )
-after <up> => pop(?x)
+rule <up> = implies( { +here($x), +place($x) }, { +gone($x) } )
+after <up> => pop($x)
 fact +here(a)
 fact +place(a)
 """)

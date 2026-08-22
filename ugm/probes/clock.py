@@ -15,20 +15,20 @@ from ..core.text import load
 
 CORPUS = """
 fact +a(x)
-rule <step> = causes( { +a(?x) }, { +b(?x) } )
+rule <step> = causes( { +a($x) }, { +b($x) } )
 """
 
 # Reads the clock and concludes STRUCTURE -- every antecedent member is
 # structural, so §6's test lands it in the skeleton.
 READS = """
-rule <when> = implies( { asking(?s), time(?s, ?t) }, { started(?t) } )
+rule <when> = implies( { asking($s), time($s, $t) }, { started($t) } )
 """
 
 # ...and reads it into an ENTRY, which needs one member that is not structural.
 # That is the version whose conclusions can differ between runs.
 RECORDS = """
-rule <mark> = implies( { asking(?s), time(?s, ?t), +a(?x) },
-                       { +began(?x, ?t) } )
+rule <mark> = implies( { asking($s), time($s, $t), +a($x) },
+                       { +began($x, $t) } )
 """
 
 
@@ -115,7 +115,7 @@ def main() -> int:
     # misread rather than the rule misbehaving.
     stamped = {t for t in read["times"]}
     gate("a rule can READ the clock: a stratum-0 antecedent anchored at "
-         "`asking(?s)` binds the seat's stamp, once per seat, and every value "
+         "`asking($s)` binds the seat's stamp, once per seat, and every value "
          f"it concluded is a stamp the chain actually made ({read['started']})",
          read["started"]
          and all(int(v.split("(")[1].rstrip(")")) in stamped

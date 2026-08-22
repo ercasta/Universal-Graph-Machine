@@ -65,18 +65,18 @@ straight back to Chapter 31:
 > than a claim.**
 
 The recognisers mention only `anc`, `in_delta`, `entry_of` — no
-entries. So what they conclude is *structure*: a `turns(?s, ?a, ?b)` that is
+entries. So what they conclude is *structure*: a `turns($s, $a, $b)` that is
 undated, unattributed, and deniable by nothing. Exactly what a walk's
 intermediate result has to be, or the bootstrap circle returns.
 
 Then **one ordinary rule says it**:
 
 ```
-rule <say> = implies( { turns(?s, ?a, ?b), +watching(x) },
-                      { +taking_turns(?a, ?b, ?s) } )
+rule <say> = implies( { turns($s, $a, $b), +watching(x) },
+                      { +taking_turns($a, $b, $s) } )
 ```
 
-The stretch `?s` rides in the **proposition**, because a claim has nowhere else
+The stretch `$s` rides in the **proposition**, because a claim has nowhere else
 to put it — which is exactly Chapter 19's change arriving here.
 
 Two rules to see it, one to say it. The chain-reading rules are allowed to read
@@ -134,15 +134,15 @@ know about the group is said about the group.
 The same move works for a **scalar you don't know**:
 
 ```
-rule <pour> = causes( { +level(?g, ?v), +poured(?g) },
-                      { ? level(?g, ?v), +greater(after(?g), ?v), +rises(level(?g)) } )
+rule <pour> = causes( { +level($g, $v), +poured($g) },
+                      { ? level($g, $v), +greater(after($g), $v), +rises(level($g)) } )
 ```
 
 Don't name the value; name the **quantity**, and say what's known of it. And it
 is genuinely reasoned with, not merely recorded — a downstream rule reads it:
 
 ```
-rule <spill> = implies( { +greater(after(?g), ?v), +brim(?g, ?v) }, { +overflows(?g) } )
+rule <spill> = implies( { +greater(after($g), $v), +brim($g, $v) }, { +overflows($g) } )
 ```
 
 The real limit, stated honestly: once the level reads `?`, a second change has

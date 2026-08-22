@@ -223,7 +223,7 @@ Materialise the thing `a` names, in `target`, **from atoms alone**.
         ⚠ A variable rebuilds as a variable. `_is_var` is not derivable from the
         structure -- a bare variable has no relation and no members, exactly like
         an atom -- so it is carried across explicitly. Without this a replayed
-        rule's members turn into ground atoms named `?x` and match nothing.
+        rule's members turn into ground atoms named `$x` and match nothing.
 
 ## `carry`
 

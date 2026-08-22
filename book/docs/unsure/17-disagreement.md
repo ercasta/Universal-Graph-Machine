@@ -3,8 +3,8 @@
 *The wounded heal. The poisoned do not.*
 
 ```
-rule <regen>  = implies( { +wounded(?x) },                { +heals(?x) } )
-rule <poison> = implies( { +wounded(?x), +poisoned(?x) }, { -heals(?x) } )
+rule <regen>  = implies( { +wounded($x) },                { +heals($x) } )
+rule <poison> = implies( { +wounded($x), +poisoned($x) }, { -heals($x) } )
 ```
 
 `a` is wounded and poisoned. `b` is only wounded. What should happen is obvious.
@@ -38,7 +38,7 @@ ever claims `due(<regen>)`.
 Put the case where the case lives — in the antecedent:
 
 ```
-rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
+rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
 ```
 
 ```
@@ -83,10 +83,10 @@ needed a precedence relation:
 
 | what it said | what it says now |
 |---|---|
-| `overrides(<gob-flees>, <gob-acts>)` | `no hp(?x, 1)` — a premise about the state |
+| `overrides(<gob-flees>, <gob-acts>)` | `no hp($x, 1)` — a premise about the state |
 | `overrides(<hero-acts>, <hero-holds>)` | nothing: acting spends `may(hero)`, so the loser has no right left to act on |
 | `overrides(<halt>, …)` ×4 | nothing: each actor already requires its combatants present |
-| `supersedes(<outcome>, <assert-act>)` | `no substituted(?what)` in the bundled rule, per act |
+| `supersedes(<outcome>, <assert-act>)` | `no substituted($what)` in the bundled rule, per act |
 
 Four of the seven were doing no work at all. The rest were premises wearing a
 mechanism's clothes.
@@ -102,7 +102,7 @@ of its own rules by deciding which one is out. And `due(<R>)` puts it back, so
 it is a claim like any other rather than a configuration:
 
 ```
-rule <referee> = implies( { +p(?x) }, { +dormant(<hot>) } )
+rule <referee> = implies( { +p($x) }, { +dormant(<hot>) } )
 ```
 
 Two moves, and the run reaches quiescence. What makes that safe is the same
@@ -135,15 +135,15 @@ at all. Chapter 26.
 
 The one case that genuinely resisted a premise: *the hero attacks by default
 when the player has declared nothing this round.* You cannot write
-`-declares(hero, ?what)`, because absence is not denial and you don't know what
+`-declares(hero, $what)`, because absence is not denial and you don't know what
 might have been said.
 
 There are two answers now, and it is worth knowing which applies.
 
-`no p(?x)` asks about absence directly — *nothing currently asserts this* — and
+`no p($x)` asks about absence directly — *nothing currently asserts this* — and
 it is a check rather than a binder, so every variable in it has to arrive bound
-from an earlier premise. `no hp(?x, 1)` works because `?x` is bound. *The player
-said nothing about anything* does not: it would mean *for no `?what`*, which is
+from an earlier premise. `no hp($x, 1)` works because `$x` is bound. *The player
+said nothing about anything* does not: it would mean *for no `$what`*, which is
 a negative existential and a member cannot mean that.
 
 The second answer is the one the dungeon actually uses, and it is a corpus's own

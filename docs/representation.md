@@ -144,9 +144,9 @@ re-read the document with the binding corrected.
 **A term is a rigid designator; a premise is a description.** Put the changeable
 part in the antecedent:
 
-    {+person(?p), +lives(?p, rome), +stabbed(?p)} => {+wounded(?p)}
+    {+person($p), +lives($p, rome), +stabbed($p)} => {+wounded($p)}
 
-`?p` carries the individual, so Paul stays wounded after moving to Florence.
+`$p` carries the individual, so Paul stays wounded after moving to Florence.
 Build the description into the term instead — `wounded(paul_from(rome))` — and
 you get a rigid name with a misleading spelling, and `paul_from(florence)` is a
 different individual you can never relate to it.
@@ -154,9 +154,9 @@ different individual you can never relate to it.
 **A rule may mint individuals, provided they are denoted.** A compound term over
 **bound** variables is legal in a consequent; only a free variable is refused.
 
-    {+room(?r)} => {+is_a(occupant(?r), orc), +inside(occupant(?r), ?r)}
+    {+room($r)} => {+is_a(occupant($r), orc), +inside(occupant($r), $r)}
 
-Several of a kind need a discriminator (`orc(?r, ?s)` over slots), which is
+Several of a kind need a discriminator (`orc($r, $s)` over slots), which is
 honest: things alike in every stated respect have no description that separates
 them.
 
@@ -176,8 +176,8 @@ register does not: `_apply` reseats on every `causes` application and nothing
 records that the register moved. **Position is where, and it is recorded; the
 seat is when, and it is not.**
 
-**Termination is a denial.** Every position-relative rule needs `at(?w, ?x)`, so
-one `-at(?w, ?x)` removes the walker from all of them at once. No scheduler, no
+**Termination is a denial.** Every position-relative rule needs `at($w, $x)`, so
+one `-at($w, $x)` removes the walker from all of them at once. No scheduler, no
 registry. It is not retroactive: what the walker already did, it did.
 
 **An expert is a premise, not a pool.** A pool is one rule set per *run*, so it
@@ -221,11 +221,11 @@ denial of `p`, because structure cannot be taken back — probed — so negating
 answers *ever mentioned* rather than *currently holds*. Resolving per moment
 (`holds_at`) and carrying the moment in the conclusion makes the answer
 permanently true **of that moment**, which is the same move `agreement.py` makes
-with `cand(?seat, ...)`, and it makes irrevocable structure harmless. Two
+with `cand($seat, ...)`, and it makes irrevocable structure harmless. Two
 moments give two answers, and choosing between them is the competence question
 above, made visible.
 
-**Reading the past needs `holds_at`, not `at ?m`.** `at ?m` binds the locus of
+**Reading the past needs `holds_at`, not `at $m`.** `at $m` binds the locus of
 the entry that *satisfied* a member, and the state keeps only the winner — so
 *p held then and does not now* was unwritable. `holds_at(p, m, sign)` resolves at
 a named moment, as believed *at* that moment.
@@ -267,7 +267,7 @@ the rule parses, `is_stratum0` quietly answers no, the member matches nothing,
 and nothing raises. Five occurrences on record.
 
 **A rule's own pattern is an instance of its relation.** `instances_of(said)`
-returns `said(?p)` alongside the real ones. Filter with `has_var`, or a count is
+returns `said($p)` alongside the real ones. Filter with `has_var`, or a count is
 wrong and a numeric read raises.
 
 **A variable-bearing structure is not a value.** Reading one as an index pivot

@@ -92,16 +92,16 @@ class Chain:
         # bounded and upward, and a stored transitive closure would be a cache
         # of something derived.
         self.SANC = g.atom("sanc")
-        # ...and the reflexive one. `anc(?m, ?m)` holds, which is what lets a
+        # ...and the reflexive one. `anc($m, $m)` holds, which is what lets a
         # read asked AT the seat find what the seat itself deposited -- the case
         # a strict walk silently drops. Both are walked rather than stored, for
         # `sanc`'s reason.
         self.ANC = g.atom("anc")
         self.IN_DELTA = g.atom("in_delta")
         # An entry's own three members, as a relation a rule may write:
-        # `entry_of(?e, ?prop, ?sign)`. Nothing is deposited for it --
+        # `entry_of($e, $prop, $sign)`. Nothing is deposited for it --
         # the entry node already IS `entry(proposition, sign)`, so this
-        # is `?t = entry(...)` prefix form arriving as a member instead of
+        # is `$t = entry(...)` prefix form arriving as a member instead of
         # as notation. The read could not be written without it: every rule
         # below `in_delta` needs an entry's locus and sign, and until now only a
         # second matcher's `capture` could reach them.

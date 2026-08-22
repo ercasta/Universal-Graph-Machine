@@ -233,7 +233,7 @@ Three ways out, and they are not equally good:
 
 | how | cost |
 |---|---|
-| write the denial in the same consequent — `{ -stage(?m, new), +stage(?m, handled) }` | ✅ works today, no engine change; the author must remember, and forgetting fails **silently** — both states hold and both listeners fire |
+| write the denial in the same consequent — `{ -stage($m, new), +stage($m, handled) }` | ✅ works today, no engine change; the author must remember, and forgetting fails **silently** — both states hold and both listeners fire |
 | one relation per state — `noticed(<m>)` / `handled(<m>)`, listener guards on `-handled` | ✅ works today; needs the negative written up front (§1's *write your negatives*), and the state space is now spread over N relations with nothing tying them together |
 | declare the relation **functional in an argument** — `functional(stage, 2)` | a real engine feature; per §20 the declaration must be data and per Part 1 it must be a fact a rule can read. Buys automatic supersession and a place to hang a check |
 
@@ -324,7 +324,7 @@ about the frame problem gets worse.
    cannot afford*. The three signs of §9 are a floor primitive; a convention that makes corpora stop
    using `-` does not remove it, it leaves it as a second, unused, still-matchable channel. **That is
    a real cost and the proposal should own it rather than route around it.**
-2. The same goes for `?`. *Unknown poison status* is `?poisoned(x)` today and would become a state,
+2. The same goes for `?`. *Unknown poison status* is `$poisoned(x)` today and would become a state,
    so §9's third sign gets the same treatment as the second.
 3. Population. Every property becomes a pair or a family, and every entity needs its starting state
    asserted. That is `-poisoned(b)` written by hand again under a different name — **unless** the
@@ -336,7 +336,7 @@ about the frame problem gets worse.
 first** — `resolve` is keyed on the proposition node and `g.rel` interns by `(relation, members)`.
 Both hold. A state machine whose states can all hold at once is not a state machine.
 
-So the convention needs, per transition, either an explicit `-poisoned(?x)` in the same consequent —
+So the convention needs, per transition, either an explicit `-poisoned($x)` in the same consequent —
 which is the denial the proposal set out to replace, now written twice — or the missing engine
 notion. That is not a reason to reject the proposal. It is the reason both proposals are one
 proposal.
@@ -449,8 +449,8 @@ poison state* — which means the corpus must be able to quantify over its own e
 
 ### What the proposal therefore requires and does not yet say
 
-1. **An extent to close over.** *If not bitten then healthy* is only writable for a `?x` drawn from
-   somewhere; the corpus has to name its universe (`creature(?x)`) and keep it complete. Closure is
+1. **An extent to close over.** *If not bitten then healthy* is only writable for a `$x` drawn from
+   somewhere; the corpus has to name its universe (`creature($x)`) and keep it complete. Closure is
    bounded quantification, and the bound is the corpus's to supply and to be wrong about.
 2. **A completeness claim, and it is a claim.** `closed(poison)` asserted by a rule is defeasible and
    can be wrong — which is correct and is the point, but it means *the world is closed* joins the list
@@ -609,8 +609,8 @@ full provenance and zero fuss simultaneously, and that is built, not proposed.
 The proposal's own example, written the obvious way:
 
 ```
-rule <legs> = implies( { +person(?x) }, { +has_legs(?x) } )
-rule <walk> = implies( { +has_legs(?x) }, { +can_walk(?x) } )
+rule <legs> = implies( { +person($x) }, { +has_legs($x) } )
+rule <walk> = implies( { +has_legs($x) }, { +can_walk($x) } )
 fact +person(ann)
 fact +person(bob)
 fact -has_legs(bob)                        # the exception, stated outright
@@ -643,8 +643,8 @@ about one direction and the other is just as available.**
 Adding the closure layer of 2.4 naively does not help — it reproduces the defect one level up:
 
 ```
-rule <close> = implies( { +person(?x) }, { -amputee(?x) } )
-rule <legs>  = implies( { +person(?x), -amputee(?x) }, { +has_legs(?x) } )
+rule <close> = implies( { +person($x) }, { -amputee($x) } )
+rule <legs>  = implies( { +person($x), -amputee($x) }, { +has_legs($x) } )
 fact +amputee(bob)
 ```
 
@@ -655,9 +655,9 @@ fact +amputee(bob)
 ```
 fact -veteran(ann)                                            # the leaf, stated by hand
 fact +veteran(bob)
-rule <close> = implies( { +person(?x), -veteran(?x) }, { -amputee(?x) } )
-rule <hurt>  = implies( { +veteran(?x) },              { +amputee(?x) } )
-rule <legs>  = implies( { +person(?x), -amputee(?x) }, { +has_legs(?x) } )
+rule <close> = implies( { +person($x), -veteran($x) }, { -amputee($x) } )
+rule <hurt>  = implies( { +veteran($x) },              { +amputee($x) } )
+rule <legs>  = implies( { +person($x), -amputee($x) }, { +has_legs($x) } )
 ```
 
 | | |
@@ -691,8 +691,8 @@ pattern for it.** *Nothing says ann is a veteran* is not `-veteran(ann)`; it is 
 explicit that a `−` member cannot express this, and `machine.py:93-98` records the engine's own
 remedy when it hit the same wall for root goals:
 
-> a root goal is a `goal(?w)` with **no** `subgoal(?p, ?w)`, which is a negative existential, and a
-> `-` member says *an entry denies this*, never *for no ?p*. So it gets the treatment `blocked` got —
+> a root goal is a `goal($w)` with **no** `subgoal($p, $w)`, which is a negative existential, and a
+> `-` member says *an entry denies this*, never *for no $p*. So it gets the treatment `blocked` got —
 > **a REQUEST the machinery answers by looking**, because an aggregate over what the rules produced is
 > the machinery's business and not a rule's.
 
@@ -734,7 +734,7 @@ broke.
 
 `unless` in the antecedent **is** a negated member. `unless-was-a-name-not-a-gap` recorded it —
 *"unless is if not"*, built since there were members, zero engine written — and §2.6's working corpus
-is it: `implies( { +person(?x), -veteran(?x) }, { -amputee(?x) } )`. `rules-design.md` says the same
+is it: `implies( { +person($x), -veteran($x) }, { -amputee($x) } )`. `rules-design.md` says the same
 in one line: *"if not over a proposition the corpus can name is a negated member."*
 
 So the proposal's mechanism needs nothing. What it needs is everything around it, below.
@@ -816,7 +816,7 @@ built. Per the standing convention: **the discipline is the claim, not the idea.
 A prediction worth falsifying, cheap: **take §2.6's failing corpus and lift the default into the
 structural layer instead of guarding it.** If a stratum-0 rule can conclude the default, then `-` on
 it means *not derived*, the stated exception is visible to it, and the hand-written leaf
-(`fact -veteran(ann)`) disappears. If it cannot — because `person(?x)` is an entry and reading it
+(`fact -veteran(ann)`) disappears. If it cannot — because `person($x)` is an entry and reading it
 drops the rule out of stratum 0 — then the gap is exactly *a corpus cannot author a definition*, and
 that, not `refutes` and not `functional`, is the engine change these five sections have been
 circling.
@@ -1079,9 +1079,9 @@ and for a told fact, which speaker. Both `Entry.licence` and `Entry.source` are 
 throughout*, *he was poisoned for three rounds* — and the rule it then shows does only the first:
 
 ```
-rule <r> = implies( { +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp),
-                      span_of(?s, ?mp, ?mq) },
-                   { +took_turns(?p, ?q) at ?s } )
+rule <r> = implies( { +acts($p) at $mp, +acts($q) at $mq, sanc($mq, $mp),
+                      span_of($s, $mp, $mq) },
+                   { +took_turns($p, $q) at $s } )
 ```
 
 That is a **recogniser**: it finds two events and mints the stretch they bound. It checks nothing
@@ -1100,10 +1100,10 @@ The two shapes are:
 transitions**. No span, no stratum-0 rule, no recursion. Measured, three ordinary rules:
 
 ```
-rule <begin> = causes( { +battle_starts(?b) },
-                       { -battle_starts(?b), +in_battle(?b), +buffed(hero) } )
-rule <end>   = causes( { +battle_ends(?b), +in_battle(?b) },
-                       { -in_battle(?b), -buffed(hero) } )
+rule <begin> = causes( { +battle_starts($b) },
+                       { -battle_starts($b), +in_battle($b), +buffed(hero) } )
+rule <end>   = causes( { +battle_ends($b), +in_battle($b) },
+                       { -in_battle($b), -buffed(hero) } )
 rule <swing> = causes( { +buffed(hero), +may(hero) }, { -may(hero), +strong_hit(hero) } )
 ```
 
@@ -1234,8 +1234,8 @@ asking layers *above* the write; it does not move it.
 ### And the composition already works, with no engine change — measured
 
 ```
-rule <seek> = implies( { +goal(know(?p)) },                        { +advice(?p) } )
-rule <take> = implies( { +answered(?who, advice(?p), ?y) },        { +believes(?p, ?y) } )
+rule <seek> = implies( { +goal(know($p)) },                        { +advice($p) } )
+rule <take> = implies( { +answered($who, advice($p), $y) },        { +believes($p, $y) } )
 fact +goal(know(depth))
 ```
 
@@ -1270,23 +1270,23 @@ There is no need for a collection term, because **the span already is one**: a n
 members. And the moments inside it are reachable with structural relations that already ship:
 
 ```
-span_of(<S>, ?a, ?b),  sanc(?b, ?m),  anc(?m, ?a)
+span_of(<S>, $a, $b),  sanc($b, $m),  anc($m, $a)
 ```
 
 Run against a six-moment chain with `<S>` = `S1..4`:
 
 | | |
 |---|---|
-| bindings for `?m` | **M3, M2, M1** |
+| bindings for `$m` | **M3, M2, M1** |
 
 So a rule can bind every moment of a stretch today. `sanc` is strict, so the end moment is
-excluded — `anc(?b, ?m)` includes it; which you want is already an authoring choice, which is the
+excluded — `anc($b, $m)` includes it; which you want is already an authoring choice, which is the
 section's point arriving early.
 
 ### What is missing is only the **aggregation**, and the design has already said whose job that is
 
 *For every such binding, p holds* is a negative existential — *no binding where `-p`* — and §12 is
-explicit that a `-` member says *an entry denies this*, never *for no `?m`*. The engine's own remedy,
+explicit that a `-` member says *an entry denies this*, never *for no `$m`*. The engine's own remedy,
 stated for `root` and `blocked`:
 
 > **a REQUEST the machinery answers by looking**, because an aggregate over what the rules produced is
@@ -1618,9 +1618,9 @@ Both readings run today. Neither unrolls.
 `3` is a **datum inside the rule**, not three chained members:
 
 ```
-rule <revenge> = implies( { +turn(?now), back(?now, 3) as ?then,
-                            +attacked(?g, hero, ?then) },
-                          { +doing(attack(?g)) } )
+rule <revenge> = implies( { +turn($now), back($now, 3) as $then,
+                            +attacked($g, hero, $then) },
+                          { +doing(attack($g)) } )
 fact +turn(7)   fact +attacked(gob_a, hero, 4)   fact +attacked(gob_b, hero, 5)
 ```
 
@@ -1635,10 +1635,10 @@ requirement says must also be the bundle's.
 **Recursion is not unrolling.** Written once, it handles any n:
 
 ```
-rule <b0> = implies( { +turn(?t) },                                       { +back(?t, 0, ?t) } )
-rule <bn> = implies( { +back(?t, ?n, ?u), +prev(?v, ?u), +succ(?n, ?m) }, { +back(?t, ?m, ?v) } )
-rule <revenge> = implies( { +turn(?now), +back(?now, 3, ?then),
-                            +attacked(?g, hero, ?then) }, { +doing(attack(?g)) } )
+rule <b0> = implies( { +turn($t) },                                       { +back($t, 0, $t) } )
+rule <bn> = implies( { +back($t, $n, $u), +prev($v, $u), +succ($n, $m) }, { +back($t, $m, $v) } )
+rule <revenge> = implies( { +turn($now), +back($now, 3, $then),
+                            +attacked($g, hero, $then) }, { +doing(attack($g)) } )
 ```
 
 | | |
@@ -1660,9 +1660,9 @@ because the corpus was not given its own ordinal to count in.
 
 And there is a recorded warning that points the same way, read backwards: `Member.locus`'s comment
 says a foreign corpus *"spent 24% of itself re-implementing a moment ordinal as a round counter"* —
-noted as waste, and `at ?m` was added to remove it. The measurement above suggests the round counter
+noted as waste, and `at $m` was added to remove it. The measurement above suggests the round counter
 was not waste at all: **turns are the corpus's unit and moments are the engine's, and the two should
-not be collapsed.** `at ?m` is the right feature; *use it instead of your own counter* would be the
+not be collapsed.** `at $m` is the right feature; *use it instead of your own counter* would be the
 wrong advice.
 
 ### What is still genuinely missing
@@ -1686,9 +1686,9 @@ Four layers, and they are not equally built. Measured.
 pre-existing rule reads it:
 
 ```
-rule <heard>   = implies( { +says(?who, revenge(?n), plus) }, { +policy(revenge, ?n) } )
-rule <revenge> = implies( { +policy(revenge, ?n), +turn(?now), +back(?now, ?n, ?then),
-                            +attacked(?g, hero, ?then) }, { +doing(attack(?g)) } )
+rule <heard>   = implies( { +says($who, revenge($n), plus) }, { +policy(revenge, $n) } )
+rule <revenge> = implies( { +policy(revenge, $n), +turn($now), +back($now, $n, $then),
+                            +attacked($g, hero, $then) }, { +doing(attack($g)) } )
 ```
 
 | | |
@@ -1713,8 +1713,8 @@ instruction** reading. Two readings again, both cheap — §2.10's pattern for t
 survives. But a corpus cannot **build** what `adopt` would read. Tested directly:
 
 ```
-rule <build> = implies( { +wanted_rule(?n) },
-                        { +rule(?n), +conn(?n, implies), +ant(?n, attacked(?g, hero, ?t), plus, 0) } )
+rule <build> = implies( { +wanted_rule($n) },
+                        { +rule($n), +conn($n, implies), +ant($n, attacked($g, hero, $t), plus, 0) } )
 ```
 
 ```
@@ -1759,15 +1759,15 @@ callers rather than one.
 an ordinary structured term and is walked by an interpreter that is **one rule per constructor**:
 
 ```
-rule <trust>  = implies( { +says(?who, command(?c), plus) },  { +command(?c) } )
-rule <i-cmd>  = implies( { +command(attack(?ref)) },          { +need_ref(?ref) } )
-rule <i-the>  = implies( { +need_ref(the(?kind, ?spec)) },    { +need_kind(?kind), +need_spec(?spec) } )
-rule <i-that> = implies( { +need_spec(attacked_at(?when)) },  { +need_when(?when) } )
-rule <i-ago>  = implies( { +need_when(ago(?n)), +turn(?now), +back(?now, ?n, ?then) },
-                        { +when_is(?then) } )
-rule <i-pick> = implies( { +when_is(?t), +need_kind(?k), +attacked(?g, hero, ?t), +is(?g, ?k) },
-                        { +ref_is(?g) } )
-rule <i-run>  = implies( { +command(attack(?ref)), +ref_is(?g) }, { +doing(attack(?g)) } )
+rule <trust>  = implies( { +says($who, command($c), plus) },  { +command($c) } )
+rule <i-cmd>  = implies( { +command(attack($ref)) },          { +need_ref($ref) } )
+rule <i-the>  = implies( { +need_ref(the($kind, $spec)) },    { +need_kind($kind), +need_spec($spec) } )
+rule <i-that> = implies( { +need_spec(attacked_at($when)) },  { +need_when($when) } )
+rule <i-ago>  = implies( { +need_when(ago($n)), +turn($now), +back($now, $n, $then) },
+                        { +when_is($then) } )
+rule <i-pick> = implies( { +when_is($t), +need_kind($k), +attacked($g, hero, $t), +is($g, $k) },
+                        { +ref_is($g) } )
+rule <i-run>  = implies( { +command(attack($ref)), +ref_is($g) }, { +doing(attack($g)) } )
 ```
 
 Delivered at runtime: `command(attack(the(goblin, attacked_at(ago(3)))))`
@@ -1796,14 +1796,14 @@ a branch anywhere in Python.
 ### The one real limit
 
 Every rule above matches a **known** constructor. A command language that is open in its *forms*, not
-just its vocabulary, would need `?r(?x, ?y)` — a variable relation — and §3's index has no bucket for
+just its vocabulary, would need `$r($x, $y)` — a variable relation — and §3's index has no bucket for
 one, so it degrades to a scan. Whether that matters depends on a question this document has not
 measured: **command forms are a much smaller open class than concepts**, and it may be that a corpus
 adding a row per form is the right answer rather than a limitation. That is the next thing to test if
 this direction is pursued.
 
 And one authoring trap, hit while writing the fixture: an arrival lands as `says(who, p, sign)`,
-never as `p`. The first version of the interpreter matched `command(?c)` directly and sat inert for
+never as `p`. The first version of the interpreter matched `command($c)` directly and sat inert for
 2 ticks with nothing saying why — §1's silent-failure shape, from the channel side.
 
 ### …and with the compositional form, unchanged
@@ -1812,14 +1812,14 @@ never as `p`. The first version of the interpreter matched `command(?c)` directl
 event** — needs five interpreter rules and one new relation, `denotes`:
 
 ```
-rule <i-need>  = implies( { +command(attack(?d)) },        { +need(?d) } )
-rule <i-turns> = implies( { +need(turns(?n, ago, ?ev)), +turn(?now), +back(?now, ?n, ?then) },
-                         { +ev_at(?ev, ?then), +via(turns(?n, ago, ?ev), ?ev) } )
-rule <i-ev>    = implies( { +ev_at(attack(?kind, ?whom), ?t), +refers(?whom, ?target),
-                           +attacked(?g, ?target, ?t), +is(?g, ?kind) },
-                         { +denotes(attack(?kind, ?whom), ?g) } )
-rule <i-lift>  = implies( { +via(?d, ?ev), +denotes(?ev, ?g) },   { +denotes(?d, ?g) } )
-rule <i-run>   = implies( { +command(attack(?d)), +denotes(?d, ?g) }, { +doing(attack(?g)) } )
+rule <i-need>  = implies( { +command(attack($d)) },        { +need($d) } )
+rule <i-turns> = implies( { +need(turns($n, ago, $ev)), +turn($now), +back($now, $n, $then) },
+                         { +ev_at($ev, $then), +via(turns($n, ago, $ev), $ev) } )
+rule <i-ev>    = implies( { +ev_at(attack($kind, $whom), $t), +refers($whom, $target),
+                           +attacked($g, $target, $t), +is($g, $kind) },
+                         { +denotes(attack($kind, $whom), $g) } )
+rule <i-lift>  = implies( { +via($d, $ev), +denotes($ev, $g) },   { +denotes($d, $g) } )
+rule <i-run>   = implies( { +command(attack($d)), +denotes($d, $g) }, { +doing(attack($g)) } )
 fact +refers(you, hero)
 ```
 
@@ -2015,9 +2015,9 @@ a phenomenon any corpus exhibits.
 Same generic interpreter, one member changed, and the corpus authored the way real ones are:
 
 ```
-rule <i-ev> = implies( { +ev_at(?v(?kind, ?whom), ?t), +refers(?whom, ?target),
-                         +?v(?g, ?target, ?t), +is(?g, ?kind) },
-                       { +denotes(?v(?kind, ?whom), ?g) } )
+rule <i-ev> = implies( { +ev_at($v($kind, $whom), $t), +refers($whom, $target),
+                         +$v($g, $target, $t), +is($g, $kind) },
+                       { +denotes($v($kind, $whom), $g) } )
 fact +attack(gob_a, hero, 4)     fact +insult(elf_e, hero, 5)
 ```
 
@@ -2102,9 +2102,9 @@ Silent again, but for an ordinary reason: `<i-subj>` fixes the referent at argum
 more rule for the other position:
 
 ```
-rule <i-obj> = implies( { +ev_at(?v(?whom, ?kind), ?t), +refers(?whom, ?target),
-                          +?v(?target, ?g, ?t), +is(?g, ?kind) },
-                        { +denotes(?v(?whom, ?kind), ?g) } )
+rule <i-obj> = implies( { +ev_at($v($whom, $kind), $t), +refers($whom, $target),
+                          +$v($target, $g, $t), +is($g, $kind) },
+                        { +denotes($v($whom, $kind), $g) } )
    -> emitted ['attack(elf_e)']
 ```
 
@@ -2117,7 +2117,7 @@ and asked about two.
 §0 says an occasion must be consumed, so the first attempt was to spend the command:
 
 ```
-rule <i-run> = causes( { +command(?verb(?d)), … }, { -command(?verb(?d)), +doing(?verb(?g)) } )
+rule <i-run> = causes( { +command($verb($d)), … }, { -command($verb($d)), +doing($verb($g)) } )
    -> attack(gob_b) × 250+   -- a runaway
 ```
 
@@ -2126,9 +2126,9 @@ denying `command` licenses `<trust>` to re-derive it, forever. *Consume what you
 you were told* — and `command` is one hop from a channel, which makes it the trap rather than the
 remedy.
 
-The stable shape §0 prescribes is a guard — `-handled(?d)` — and that is where it stops:
+The stable shape §0 prescribes is a guard — `-handled($d)` — and that is where it stops:
 
-> **`-handled(?d)` must be *denied* for a description that has not been seen yet, and §9 says `−`
+> **`-handled($d)` must be *denied* for a description that has not been seen yet, and §9 says `−`
 > means denied and never absent. There is no way to state it in advance, because the set of
 > descriptions is unbounded.**
 
@@ -2161,7 +2161,7 @@ this repository's oldest lesson arriving at the newest thing in it.
 
 **A rule's antecedent is existential.** Each member matches *an entry*, so a rule says *there is an
 entry such that…* and a `−` member says *there is an entry that denies…*. §12 states the limit
-outright: a `−` member says *an entry denies this*, **never** *for no `?x`*.
+outright: a `−` member says *an entry denies this*, **never** *for no `$x`*.
 
 **And a rule sees one binding at a time.** To know that no *other* binding exists you must have
 enumerated them all — and enumeration happens inside `match`, which is the floor. The fact *there are
@@ -2182,8 +2182,8 @@ So three things cannot be said, and they are one thing:
 
 `machine.py:93-98`, on root goals:
 
-> a root goal is a `goal(?w)` with **no** `subgoal(?p, ?w)`, which is a negative existential, and a
-> `-` member says *an entry denies this*, never *for no ?p*. So it gets the treatment `blocked` got —
+> a root goal is a `goal($w)` with **no** `subgoal($p, $w)`, which is a negative existential, and a
+> `-` member says *an entry denies this*, never *for no $p*. So it gets the treatment `blocked` got —
 > **a REQUEST the machinery answers by looking**, because an aggregate over what the rules produced is
 > the machinery's business and not a rule's.
 
@@ -2215,10 +2215,10 @@ meanings. That is *rows, not branches* at the level of the feature itself.
    the next entry. This is §3.1's finding 1 in a third place — *an answer computed once, from a world
    that then changed* — except here it is inherent rather than a bug. The retraction fix built in
    §3.1 is what a cached count must ride on, and that must be **checked, not assumed**.
-3. **The ask is generic, and the gate refuses generic propositions.** `count(veteran(?x))`
+3. **The ask is generic, and the gate refuses generic propositions.** `count(veteran($x))`
    contains a free variable, so both the parser's binding check and §13's gate refuse it — as they
    should. The precedent is `forbidden`: a corpus already writes
-   `fact forbidden(doing(harm(?x)))`, a **mentioned** generic fact the machinery unifies against.
+   `fact forbidden(doing(harm($x)))`, a **mentioned** generic fact the machinery unifies against.
    The count ask takes that shape, which means Part 1's `Entry.mention` stops being an audit item and
    becomes load-bearing.
 4. **Cost is the matcher, on demand.** Counting means running the pattern against the state. Bounded
@@ -2230,13 +2230,13 @@ meanings. That is *rows, not branches* at the level of the feature itself.
 interpreter broke.
 
 The simplest implicit state machine is *mark it done, and never work on done things*. Written the
-obvious way it fails, and §2.23 measured how: the guard is `-handled(?d)`, `−` means **denied and
-never absent**, and the set of `?d` is unbounded, so the negative cannot be stated in advance.
+obvious way it fails, and §2.23 measured how: the guard is `-handled($d)`, `−` means **denied and
+never absent**, and the set of `$d` is unbounded, so the negative cannot be stated in advance.
 Written with a count it needs no negative at all:
 
 ```
--handled(?d)                    requires a denial nobody can write
-counted(handled(?d), 0)         a claim about the set of matches
+-handled($d)                    requires a denial nobody can write
+counted(handled($d), 0)         a claim about the set of matches
 ```
 
 **And that repairs §2.1's other wall too.** §2.1 found that a state marker does not supersede its
@@ -2246,8 +2246,8 @@ state machine whose states can all hold at once is not one. §2.1 concluded that
 
 | §2.1 wanted | as a count |
 |---|---|
-| `functional(stage, 2)` — one value in this position | `counted(stage(m, ?s), 1)` |
-| an exclusive family | `counted(state(x, ?s), 1)` over the family |
+| `functional(stage, 2)` — one value in this position | `counted(stage(m, $s), 1)` |
+| an exclusive family | `counted(state(x, $s), 1)` over the family |
 | *not yet handled* | `counted(handled(d), 0)` |
 
 So **functionality stops being a declaration and becomes a claim** — dated, attributed, deniable,
@@ -2277,10 +2277,10 @@ standing `need`. The general shape of the failure:
 moment the need sits at, and spend it at the current one:
 
 ```
-rule <grant> = implies( { +need(?d) at ?m },  { +may_act(?d) at ?m } )
-rule <i-run> = causes(  { +command(?verb(?d)), +imperative(?verb),
-                          +denotes(?d, ?g), +may_act(?d) },
-                        { -may_act(?d), +doing(?verb(?g)) } )
+rule <grant> = implies( { +need($d) at $m },  { +may_act($d) at $m } )
+rule <i-run> = causes(  { +command($verb($d)), +imperative($verb),
+                          +denotes($d, $g), +may_act($d) },
+                        { -may_act($d), +doing($verb($g)) } )
 ```
 
 | | |
@@ -2343,7 +2343,7 @@ with an accumulator, is the next thing to test and has not been tested.
 | the tick | permitted by the author |
 | `Entry`, `Moment`, `Span` as **classes** | condemned. An entry is a node; these are typed records standing between a rule and the graph |
 | `Moment.at_or_after` | **logic** — inheritance, containment, and §11's rule that a span is at-or-before a moment once complete |
-| `Span.at_or_after` returning `other is self` | **logic** — a policy (no containment between spans) that the docstring itself tells a corpus to override with `during(?s2, ?s1)` |
+| `Span.at_or_after` returning `other is self` | **logic** — a policy (no containment between spans) that the docstring itself tells a corpus to override with `during($s2, $s1)` |
 | `Chain.resolve` | **logic** — the read: latest locus, then latest deposit |
 | `scope_of` | **logic** — what may supersede what |
 
@@ -2396,8 +2396,8 @@ better.** Baseline before and after: `python -m ugm.selftest` → **537 checks, 
 is negation as failure (§2.7), so this should read *nothing was told about this*:
 
 ```
-rule <told> = implies( { licensed_by(?e, loaded(?p)) }, { told(?p) } )
-rule <legs> = implies( { +person(?x), -told(has_legs(?x)) }, { +has_legs(?x) } )
+rule <told> = implies( { licensed_by($e, loaded($p)) }, { told($p) } )
+rule <legs> = implies( { +person($x), -told(has_legs($x)) }, { +has_legs($x) } )
 fact +person(ann)
 fact +person(bob)
 fact -has_legs(bob)
@@ -2412,9 +2412,9 @@ The trace is the whole argument:
 
 | tick | `told` instances | cached `<legs>` applications |
 |---|---|---|
-| 0 | `told(person(ann))` | **`{?x: bob}`, `{?x: ann}`** |
-| 1 | + `told(person(bob))` | `{?x: bob}`, `{?x: ann}` |
-| 2 | + **`told(has_legs(bob))`** | `{?x: bob}`, `{?x: ann}` |
+| 0 | `told(person(ann))` | **`{$x: bob}`, `{$x: ann}`** |
+| 1 | + `told(person(bob))` | `{$x: bob}`, `{$x: ann}` |
+| 2 | + **`told(has_legs(bob))`** | `{$x: bob}`, `{$x: ann}` |
 | 3 | — | `<legs>` **applies**, writes `+has_legs(bob)` |
 
 `<legs>` was matched at tick 0, when `told(has_legs(bob))` did not yet exist, and the application was
@@ -2451,10 +2451,10 @@ Instrumented, it fires every tick as designed:
 
 | tick | grown | `<legs>` cursor before | cached `<legs>` applications |
 |---|---|---|---|
-| 0 | — | None | `{?x: bob}`, `{?x: ann}` |
-| 1 | `told` | 121 → dropped | `{?x: bob}`, `{?x: ann}` |
-| 2 | `told` | 123 → dropped | `{?x: bob}`, `{?x: ann}` |
-| 3 | `told` | 124 → dropped | `{?x: bob}`, `{?x: ann}` |
+| 0 | — | None | `{$x: bob}`, `{$x: ann}` |
+| 1 | `told` | 121 → dropped | `{$x: bob}`, `{$x: ann}` |
+| 2 | `told` | 123 → dropped | `{$x: bob}`, `{$x: ann}` |
+| 3 | `told` | 124 → dropped | `{$x: bob}`, `{$x: ann}` |
 
 `told` is detected as grown, the cursor **is** dropped, the rule **is** re-matched in full — and the
 stale application survives anyway, because the merge is **add-only**:
@@ -2463,7 +2463,7 @@ stale application survives anyway, because the merge is **add-only**:
 for a in found:
     k = (r.node, frozenset(a.bindings.items()))
     if k in cache["apps"]:
-        continue          # a re-match that no longer yields {?x: bob} cannot remove it
+        continue          # a re-match that no longer yields {$x: bob} cannot remove it
     cache["apps"][k] = a
 ```
 
@@ -2489,17 +2489,17 @@ enumerate the history, so it finds nothing."* The test is
 if not any(not g.is_var(walk(g, a, bindings)) for a in args):
 ```
 
-Measured on `licensed_by(?e, loaded(?p))`:
+Measured on `licensed_by($e, loaded($p))`:
 
 | arg | `is_var` | `has_var` |
 |---|---|---|
-| `?e` | True | True |
-| `loaded(?p)` | **False** | True |
+| `$e` | True | True |
+| `loaded($p)` | **False** | True |
 
 So a **partially generic structure counts as an anchor**, the test passes, and the walk enumerates
 every `licensed_by` instance in the history — precisely the leak the docstring exists to prevent.
 `Graph.has_var` is the predicate that draws this distinction and is used for exactly this purpose
-elsewhere. Any corpus writing `rests_on(?e, foo(?p))` or `in_delta(?m, bar(?x))` gets a full history
+elsewhere. Any corpus writing `rests_on($e, foo($p))` or `in_delta($m, bar($x))` gets a full history
 scan today, silently.
 
 ### Status of experiment (a)
@@ -2516,9 +2516,9 @@ get a check or be reverted; it should not sit there green and unused.
 
 ```
 fact dormant(<legs>)                                   # action layer, shut
-rule <legs>  = implies( { +person(?x), -amputee(?x) }, { +has_legs(?x) } )
-rule <close> = implies( { +person(?x), -veteran(?x) }, { -amputee(?x) } )
-rule <hurt>  = implies( { +veteran(?x) },              { +amputee(?x) } )
+rule <legs>  = implies( { +person($x), -amputee($x) }, { +has_legs($x) } )
+rule <close> = implies( { +person($x), -veteran($x) }, { -amputee($x) } )
+rule <hurt>  = implies( { +veteran($x) },              { +amputee($x) } )
 rule <open>  = implies( { -amputee(ann), +amputee(bob) }, { +due(<legs>) } )
 ```
 
@@ -2546,7 +2546,7 @@ answer is what would make this a measurement rather than a demonstration.
 
 ```
 fact dormant(<legs>)
-rule <legs> = implies( { +person(?x) }, { +has_legs(?x) } )
+rule <legs> = implies( { +person($x) }, { +has_legs($x) } )
 rule <open> = implies( { +person(ann) }, { +due(<legs>) } )
 fact -has_legs(bob)
 ```
@@ -2569,7 +2569,7 @@ already records the refusal as `refused(<proposition>, <sign>, <what forbade it>
 ### First run: a false negative caused by the probe, not the engine
 
 ```
-rule <act> = implies( { +person(?x) }, { +greets(?x) } )
+rule <act> = implies( { +person($x) }, { +greets($x) } )
 fact <no-greet> = forbidden(greets(ann))
 fact +person(ann)
 ```
@@ -2580,7 +2580,7 @@ reported *refusal is not deferral, confirmed*.
 `greets(ann)` there was a different node and the prohibition was never actually withdrawn — the twin
 trap, which this repository has now recorded a dozen times, walked into by someone who had just
 finished writing about it. The tell was available and I did not read it: a companion rule matching
-`-forbidden(greets(ann))` derived nothing, while one matching `refused(?p, plus, ?w)` derived fine.
+`-forbidden(greets(ann))` derived nothing, while one matching `refused($p, plus, $w)` derived fine.
 One member failing and its neighbour succeeding is a *naming* symptom, not a semantics one.
 
 ### Re-run in one scope — and the answer is stronger than the proposal
@@ -2601,7 +2601,7 @@ rejected* holds at the gate as well as in the chooser, and nothing had to be bui
 So the position is right that it is not an engine issue, and understates the case: **it is not a
 limitation either, and needs no rules at all.** What rules are for here is *reacting* to a refusal —
 noticing it, reporting it, choosing something else — and that half is measured working:
-`refused(?p, plus, ?w)` matches and a corpus can read every refusal, its sign, and what forbade it.
+`refused($p, plus, $w)` matches and a corpus can read every refusal, its sign, and what forbade it.
 
 **What this does not yet show.** The recovery was measured for the **norm veto**, which is the only
 refusal path that exists today. An authority check at intake (§2.9) would be a *second* vetoer on the
@@ -2610,7 +2610,7 @@ an argument, not a measurement, until the vetoer exists.
 
 And one real limit is now visible: the prohibition was revisable only because its pattern is
 **ground**. `_forbid`'s docstring says so — a generic norm cannot be revised from the surface, because
-`-forbidden(doing(harm(?x)))` written twice denies a different node (§8 scopes variables to a
+`-forbidden(doing(harm($x)))` written twice denies a different node (§8 scopes variables to a
 statement). Ground norms are revisable; generic ones are not. §21.
 
 ## 3.4 What the experiments changed
@@ -2652,7 +2652,7 @@ missing aggregate. For quiescence the answer is no, and the reason is precise en
 
 **There are two different universals here and only one of them is the gap.** §4's is a claim about a
 set of *entries* — *nothing was told about this*, *exactly one thing answers this description* — and
-there a `-` member says *an entry denies this*, never *for no `?x`*. Quiescence's universal is *no
+there a `-` member says *an entry denies this*, never *for no `$x`*. Quiescence's universal is *no
 conclusion of this application would change anything*, and its members are **structure**: a
 structural fact has no entry, so a `-` on one can only mean *not derived*, which is exactly the
 universal wanted. It is the same line `agreement`'s `<best>` has relied on since stratum 0 arrived.
@@ -2661,16 +2661,16 @@ So quiescence is three rules:
 
 ```
 rule <holds> = implies(
-  { best(?seat, ?locus, ?prop, ?e), entry_of(?e, ?le, ?pe, ?sign) },
-  { holds_as(?seat, ?locus, ?prop, ?sign) } )
+  { best($seat, $locus, $prop, $e), entry_of($e, $le, $pe, $sign) },
+  { holds_as($seat, $locus, $prop, $sign) } )
 
 rule <changes> = implies(
-  { proposes(?a, ?seat, ?locus, ?prop, ?sign), -holds_as(?seat, ?locus, ?prop, ?sign) },
-  { would_change(?a) } )
+  { proposes($a, $seat, $locus, $prop, $sign), -holds_as($seat, $locus, $prop, $sign) },
+  { would_change($a) } )
 
 rule <quiet> = implies(
-  { candidate(?a), -would_change(?a) },
-  { settled(?a) } )
+  { candidate($a), -would_change($a) },
+  { settled($a) } )
 ```
 
 `<changes>` is the existential the loop actually filters on; `<quiet>` is the universal, and it costs
@@ -2687,7 +2687,7 @@ copied, because a second read would be a twin.
 
 Four branches of `_decide_change` are excluded and counted rather than left silent. Three are narrow:
 a stratum-0 rule's verdict is about the graph, not the read; a conclusion at a span needs a read that
-walks spans; and a **forbidden** conclusion needs `unifies(?pat, ?prop)`, since `_forbid` unifies a
+walks spans; and a **forbidden** conclusion needs `unifies($pat, $prop)`, since `_forbid` unifies a
 stored generic pattern against the proposition and no structural relation offers that. That last one
 is the only place in quiescence that would need something new, and it is not an aggregate.
 
@@ -2709,7 +2709,7 @@ rule's pattern; that pattern has variables; so the entry node has variables, and
 
 Every one of them was deposited by the chain, and none was authored as a pattern. This is why the
 mention half of quiescence cannot be written as rules: §14's inheritance test — *a conclusion drawn
-from a mentioned entry is itself a mention* — needs `consumed_by(?a, ?e), mentioned(?e)`, and the
+from a mentioned entry is itself a mention* — needs `consumed_by($a, $e), mentioned($e)`, and the
 `mentioned` facts it needs are exactly the ones the matcher will not show it.
 
 **And it breaks the read itself, which no existing gate could show.** `delta_next` is a chain, so
@@ -2777,7 +2777,7 @@ was changed, and everything below is what fell out. **549 checks 0 failing, `ugm
 
 §7 divides *generic* from *anchored*, and three pieces of machinery were asking it as `has_var` over
 a whole node — *does a variable appear anywhere inside this?* The question they meant is **did this
-member leave a variable of its OWN unbound?** A rule reading `con(?r, ?pat, +, ?i)` binds `?pat` to a
+member leave a variable of its OWN unbound?** A rule reading `con($r, $pat, +, $i)` binds `$pat` to a
 stored pattern, so its conclusion contains variables and every one of them is bound: a ground claim
 that happens to be about a generic thing. That is not the same as a consequent naming a variable
 nothing bound, and only the second has nothing to deposit.
@@ -2789,7 +2789,7 @@ nothing bound, and only the second has nothing to deposit.
 | `_ground` (the anchor test) | is the argument recursively ground? | a variable **bound to a value** anchors, whatever is inside the value |
 
 The third was the one actually severing deposit order, and it was invisible from the other two:
-`in_delta(?m, ?e)` bound `?e` to a reified entry, and `delta_next(?e, ?f)` then found no anchor and
+`in_delta($m, $e)` bound `$e` to a reified entry, and `delta_next($e, $f)` then found no anchor and
 enumerated nothing. Fixing the first two alone changed no answer at all — the same shape as the span
 work, where the write and quiescence were one defect twice.
 
@@ -2797,9 +2797,9 @@ work, where the write and quiescence were one defect twice.
 
 - **a member finding itself.** `g.rel` interns, so a rule's own member is among the instances of its
   relation, and `unify` returns early on identity — binding nothing, and therefore binding nothing to
-  a variable either. It walked straight past the test and derived `near(M, ?p)` with `?p` free.
-- **a rule reading its own reification.** `<echo>`'s antecedent `con(?r, ?pat, plus, ?i)` meets the
-  entry that reifies `<echo>`, whose stored pattern contains that very `?pat` node. Binding it builds
+  a variable either. It walked straight past the test and derived `near(M, $p)` with `$p` free.
+- **a rule reading its own reification.** `<echo>`'s antecedent `con($r, $pat, plus, $i)` meets the
+  entry that reifies `<echo>`, whose stored pattern contains that very `$pat` node. Binding it builds
   a structure that contains itself and every later walk runs for ever. `occurs` exists for exactly
   this and its docstring says match cannot produce it; once the chain's facts about mentions are
   visible, match can.
@@ -2860,8 +2860,8 @@ The ambiguity is gone: with `delta_next` visible across a reified entry, two rev
 proposition in one delta are ordered again and the rule-level read has one answer where it had two.
 
 **And the mention half of quiescence is now writable**, which §6.2 said it was not. §14's inheritance
-test — *a conclusion drawn from a mentioned entry is itself a mention* — is `consumed_by(?a, ?e),
-mentioned(?e)`, and it derives, because the `mentioned` facts it needs are the ones that were hidden.
+test — *a conclusion drawn from a mentioned entry is itself a mention* — is `consumed_by($a, $e),
+mentioned($e)`, and it derives, because the `mentioned` facts it needs are the ones that were hidden.
 So quiescence is six rules and every branch of `_decide_change` is compared except the three narrow
 ones (stratum 0, spans, and `_forbid`'s missing `unifies`).
 

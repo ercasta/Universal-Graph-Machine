@@ -84,7 +84,7 @@ argument on the other side.
 ### 1.2 Attention has no `LIFE`
 
 Recorded in HANDOFF 20f and repeated here because it is a release concern rather
-than a design note: `attend(?x)` accumulates and only an explicit `unattend`
+than a design note: `attend($x)` accumulates and only an explicit `unattend`
 takes it back, and `unattend` was removed from the learned focus lesson. Measured
 cost on the dungeon today: none. But nothing bounds the attended set, and the
 automatic half is not built. Ship it with the bound named, or ship it with the

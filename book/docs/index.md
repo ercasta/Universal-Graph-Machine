@@ -139,11 +139,11 @@ passenger when a flight is disrupted. Nobody ever wrote down that Ana is owed
 money.
 
 ```
-rule <cancel>     = implies( { +cancelled(?f) }, { +disrupted(?f) } )
-rule <crewing>    = implies( { +cause(?f, crew) }, { -extraordinary(?f) } )
+rule <cancel>     = implies( { +cancelled($f) }, { +disrupted($f) } )
+rule <crewing>    = implies( { +cause($f, crew) }, { -extraordinary($f) } )
 rule <compensate> = implies(
-    { +disrupted(?f), +booked(?p, ?f), -extraordinary(?f) },
-    { +owed(?p, money) } )
+    { +disrupted($f), +booked($p, $f), -extraordinary($f) },
+    { +owed($p, money) } )
 
 fact +cancelled(bl204)
 fact +cause(bl204, crew)

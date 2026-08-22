@@ -38,7 +38,7 @@ def substrate() -> None:
     check("§3", "a proposition has one identity however often it is built", p1 == p2)
     check("§3", "members are ordered", g.members(p1) == (a, b))
     check("§3", "on(a,b) and on(b,a) are different nodes", p1 != g.rel(on, b, a))
-    x = g.var("?x")
+    x = g.var("$x")
     check("§3", "a pattern containing a variable is generic", g.has_var(g.rel(on, x, b)))
     check("§3", "a ground proposition is not", not g.has_var(p1))
 
@@ -153,7 +153,7 @@ def gate() -> None:
 
     ok = False
     try:
-        gate_.write(g.rel(g.atom("rain"), g.var("?d")), PLUS)
+        gate_.write(g.rel(g.atom("rain"), g.var("$d")), PLUS)
     except ValueError:
         ok = True
     check("§13", "a generic proposition cannot be deposited", ok)
@@ -161,7 +161,7 @@ def gate() -> None:
     # ...unless it is MENTIONED (§14). The machinery reifying a rule is
     # mentioning; a rule's consequent is using. That distinction outlived the
     # frame because it was never about where anyone was standing.
-    e2 = gate_.write(g.rel(g.atom("rain"), g.var("?d")), PLUS, mention=True)
+    e2 = gate_.write(g.rel(g.atom("rain"), g.var("$d")), PLUS, mention=True)
     check("§14", "a mentioned generic proposition can be", e2.mention)
 
 
@@ -183,15 +183,15 @@ def uncertainty_is_a_proposition() -> None:
           _refuses("rule <r> = implies( { +p(a) }, { +q(a) @likely } )"))
 
     # Crossing: what a grade did for free, as corpus lines. ⚠ Since situations
-    # went, the rule is written ANCHORED -- `holds_in(?w, ...)` on both sides --
+    # went, the rule is written ANCHORED -- `holds_in($w, ...)` on both sides --
     # because there is no frame to unwrap the assumption into. The uncertainty
     # is still a proposition a rule can read; what changed is that carrying it
     # is the corpus's to write. See `docs/descriptions-to-rules.md` for the
     # five-rule compiler that writes the anchored twin from the bare rule.
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <wet> = implies( { +holds_in(?w, rain(?x)) },",
-        "                      { +holds_in(?w, wet(?x)) } )",
+        "rule <wet> = implies( { +holds_in($w, rain($x)) },",
+        "                      { +holds_in($w, wet($x)) } )",
         "fact +holds_in(likely, rain(street))", ""]))
     m.run(limit=80)
     check("§12", "an uncertain premise carries its uncertainty to the "
@@ -217,11 +217,11 @@ def uncertainty_is_a_proposition() -> None:
 def matching() -> None:
     g = Graph()
     on, a, b = g.atom("on"), g.atom("a"), g.atom("b")
-    x = g.var("?x")
+    x = g.var("$x")
     bound = unify(g, g.rel(on, x, b), g.rel(on, a, b), {})
     check("§14", "match binds a variable to what it met", bound is not None and bound[x] == a)
     check("§14", "match fails on a different relation", unify(g, g.rel(on, x, b), g.rel(g.atom("in"), a, b), {}) is None)
-    y = g.var("?y")
+    y = g.var("$y")
     check(
         "§14",
         "a variable used twice must bind consistently",
@@ -431,11 +431,11 @@ def surface() -> None:
     check("§6", "and a signed one", m.holds(kb.term("in(b, c)")) == MINUS)
     check("§13", "a loaded fact is stamped as having come from the KB", m.chain.resolve(kb.term("on(a, b)")).source == m.KB)
 
-    check("§4", "a fact may not contain a variable", _refuses("fact +on(?x, b)"))
+    check("§4", "a fact may not contain a variable", _refuses("fact +on($x, b)"))
     check(
         "§13",
         "a consequent naming a variable the antecedent never binds is refused",
-        _refuses("rule <r> = implies( { +p(?x) }, { +q(?y) } )"),
+        _refuses("rule <r> = implies( { +p($x) }, { +q($y) } )"),
     )
     check("§10", "a third connective is refused", _refuses("rule <r> = enables( { +p(a) }, { +q(a) } )"))
     check("§10", "`@` is refused: grades are gone, and a corpus written against "
@@ -444,10 +444,10 @@ def surface() -> None:
     check(
         "§8",
         "a locus member says slice one carries the one-locus case only",
-        _refuses("rule <r> = implies( { +p(a) @ ?m }, { +q(a) } )"),
+        _refuses("rule <r> = implies( { +p(a) @ $m }, { +q(a) } )"),
     )
 
-    toks = tokenise("rule <TT-base> = implies( { +acts(?a) }, { +done(?a) } )")
+    toks = tokenise("rule <TT-base> = implies( { +acts($a) }, { +done($a) } )")
     check("§3", "a hyphenated name is one token", any(t.text == "TT-base" for t in toks))
 
     m2, kb2 = _loads(
@@ -614,22 +614,22 @@ def denial_nests() -> None:
 def mention_propagates() -> None:
     """A rule's consequent can MENTION, and §14 said it could not.
 
-    +con(?r, ?pat, +) binds ?pat to a stored pattern, so anything concluded
-    about ?pat is a ground claim that happens to contain variables.
+    +con($r, $pat, +) binds $pat to a stored pattern, so anything concluded
+    about $pat is a ground claim that happens to contain variables.
 
     See docs/design/selftest.md#mention-propagates.
     """
     from .core.text import load
 
     m = Machine()
-    load(m, "rule <boil> = implies( { +heat(?w) }, { +boiling(?w) } )")
+    load(m, "rule <boil> = implies( { +heat($w) }, { +boiling($w) } )")
     m.reify_all()
     g = m.g
     concludes = g.atom("concludes")
-    r, pat = g.var("?r"), g.var("?pat")
+    r, pat = g.var("$r"), g.var("$pat")
     m.rules.rule(
         IMPLIES,
-        [Member(PLUS, g.rel(m.CON, r, pat, m.rules.SIGN[PLUS], g.var("?i")))],
+        [Member(PLUS, g.rel(m.CON, r, pat, m.rules.SIGN[PLUS], g.var("$i")))],
         [Member(PLUS, g.rel(concludes, r, pat))],
         "what-does-it-conclude",
     )
@@ -650,7 +650,7 @@ def mention_propagates() -> None:
     check(
         "§14",
         "including about the bundle -- the machinery's own rules are askable",
-        any("did(?what)" in g.show(e.proposition) for e in derived),
+        any("did($what)" in g.show(e.proposition) for e in derived),
     )
 
 
@@ -708,7 +708,7 @@ def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
     # arrival <intake> does.
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <watch> = implies( { +arrived(?c, ?p, ?s) }, { +noticed(?c) } )",
+        "rule <watch> = implies( { +arrived($c, $p, $s) }, { +noticed($c) } )",
         "",
     ]))
     # ⚠ Through the LOADER's table, both of them. The first version of this check
@@ -751,7 +751,7 @@ def the_surface_can_say_what_the_apparatus_is_made_of() -> None:
     # unable to say* unwritable.
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <vague> = implies( { +expects(?p, unsure) }, { +hedged(?p) } )",
+        "rule <vague> = implies( { +expects($p, unsure) }, { +hedged($p) } )",
         "fact +expects(raining(here), unsure)",
         "",
     ]))
@@ -808,33 +808,33 @@ def a_verdict_names_what_it_settled() -> None:
                        if m.g.show(e.proposition).startswith("blocked(")})
 
     one = blocked(chr(10).join([
-        "rule <unlock> = implies( { +have(?w, ?k), +opens(?k, ?d) }, { +open(?d) } )",
+        "rule <unlock> = implies( { +have($w, $k), +opens($k, $d) }, { +open($d) } )",
         "fact +opens(key1, door1)", "fact +goal(open(door1))", ""]))
     check("§19", "⭐⭐⭐ a verdict names what the plan had already bound -- the "
           "sibling premise was satisfied, so the key it was satisfied BY is in "
-          "the report", one == ["blocked(have(?w, key1))"])
+          "the report", one == ["blocked(have($w, key1))"])
 
     ground = blocked(chr(10).join([
-        "rule <unlock> = implies( { +opens(?k, ?d), +me(?w), +have(?w, ?k) },",
-        "                        { +open(?d) } )",
+        "rule <unlock> = implies( { +opens($k, $d), +me($w), +have($w, $k) },",
+        "                        { +open($d) } )",
         "fact +opens(key1, door1)", "fact +me(p1)", "fact +goal(open(door1))", ""]))
     check("§14", "...and with every variable bound it is GROUND, so the agent can "
           "utter it -- which is what turns *ask someone for help* from a special "
           "case into the general one", ground == ["blocked(have(p1, key1))"])
 
     # ⚠⚠⚠ **One report per PLAN.** A rule fitted to two goals shares its variable
-    # nodes, so both plans carry the same `?k` bound differently and subgoal the
-    # same `have(?w, ?k)` node. The first version of this collected every
+    # nodes, so both plans carry the same `$k` bound differently and subgoal the
+    # same `have($w, $k)` node. The first version of this collected every
     # relevant binding into one environment, let the last one win, and reported
     # ONE key: the agent was stuck on two and said one. Arbitrary and silent.
     two = blocked(chr(10).join([
-        "rule <unlock> = implies( { +have(?w, ?k), +opens(?k, ?d) }, { +open(?d) } )",
+        "rule <unlock> = implies( { +have($w, $k), +opens($k, $d) }, { +open($d) } )",
         "fact +opens(key1, door1)", "fact +opens(key2, door2)",
         "fact +goal(open(door1))", "fact +goal(open(door2))", ""]))
     check("§19", "⚠⚠⚠ ...and two plans give two reports, because one rule fitted "
           "twice shares its variables -- collapsing them lets the last binding "
           "win and the agent says one of the things it is stuck on",
-          two == ["blocked(have(?w, key1))", "blocked(have(?w, key2))"])
+          two == ["blocked(have($w, key1))", "blocked(have($w, key2))"])
 
 
 def the_tick_limit_is_on_the_record() -> None:
@@ -859,7 +859,7 @@ def the_tick_limit_is_on_the_record() -> None:
 
     m2 = Machine()
     kb2 = load(m2, chr(10).join([
-        "rule <spin>  = causes( { +quiet(?m) }, { +turn(?m) } )",
+        "rule <spin>  = causes( { +quiet($m) }, { +turn($m) } )",
         "rule <panic> = implies( { +bounded(ticks) }, { +noticed(runaway) } )", ""]))
     steps2 = m2.run(limit=40)
     check("§21", "⭐⭐⭐ ...and a run still working when the budget bites SAYS so, "
@@ -898,7 +898,7 @@ def silence_over_a_stretch_is_sayable() -> None:
 
     docs/dungeon-feedback.md §4 asked for negation as failure over an open
     domain: *the hero attacks by default when the player has declared nothing
-    this round*, which no corpus can write as -declares(hero, ?what), because
+    this round*, which no corpus can write as -declares(hero, $what), because
     §9's - needs an entry that DENIES and absence is not denial. ⚠ The channel
     is a ground atom here.
 
@@ -906,7 +906,7 @@ def silence_over_a_stretch_is_sayable() -> None:
     """
     from .core.text import load
 
-    # ⚠⚠⚠ `span_of(?s, ?a, ?b)` went with the locus, and it is NOT missed here.
+    # ⚠⚠⚠ `span_of($s, $a, $b)` went with the locus, and it is NOT missed here.
     # It minted one node standing for a stretch, because an entry could be dated
     # to a stretch and `Moment.at_or_after` had to decide whether such a claim
     # was visible. Nothing is dated to anything now, so the two endpoints are
@@ -916,19 +916,19 @@ def silence_over_a_stretch_is_sayable() -> None:
     # claim, rather than dated to the stretch.* This is that sentence, run.
     src = chr(10).join([
         "rule <round> = implies(",
-        "  { asking(?q), anc(?q, ?m), in_delta(?m, ?e),",
-        "    entry_of(?e, turn(hero, ?r), plus) },",
-        "  { round_span(?r, ?m, ?q) } )",
+        "  { asking($q), anc($q, $m), in_delta($m, $e),",
+        "    entry_of($e, turn(hero, $r), plus) },",
+        "  { round_span($r, $m, $q) } )",
         "rule <heard> = implies(",
-        "  { round_span(?r, ?a, ?b), anc(?b, ?m), anc(?m, ?a),",
-        "    in_delta(?m, ?e), entry_of(?e, arrived(?c, ?what, ?sign), plus) },",
-        "  { heard(?r, ?c) } )",
-        "rule <silent> = implies( { round_span(?r, ?a, ?b), -heard(?r, player) },",
-        "                        { silent(?r, player) } )",
-        "rule <hero-acts>  = implies( { silent(?r, player), +turn(hero, ?r) },",
-        "                             { +attacks(hero, ?r) } )",
-        "rule <hero-holds> = implies( { +says(player, hold(hero), ?g), +turn(hero, ?r) },",
-        "                             { +holds(hero, ?r) } )",
+        "  { round_span($r, $a, $b), anc($b, $m), anc($m, $a),",
+        "    in_delta($m, $e), entry_of($e, arrived($c, $what, $sign), plus) },",
+        "  { heard($r, $c) } )",
+        "rule <silent> = implies( { round_span($r, $a, $b), -heard($r, player) },",
+        "                        { silent($r, player) } )",
+        "rule <hero-acts>  = implies( { silent($r, player), +turn(hero, $r) },",
+        "                             { +attacks(hero, $r) } )",
+        "rule <hero-holds> = implies( { +says(player, hold(hero), $g), +turn(hero, $r) },",
+        "                             { +holds(hero, $r) } )",
         "fact +turn(hero, 1)", ""])
 
     def round_of(declare: bool):
@@ -984,7 +984,7 @@ def a_guard_is_an_ordinary_member() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )",
+        "rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )",
         "fact +wounded(hero)", "fact +wounded(ally)",
         "fact +poisoned(hero)", "fact -poisoned(ally)", ""]))
     m.run(limit=80)
@@ -1001,18 +1001,18 @@ def a_guard_is_an_ordinary_member() -> None:
     check("R3", "...and it is ASKABLE, which is all a separate `unless` relation "
           "would have bought: what would cancel a rule is a query over `ant` "
           "with a minus sign",
-          "ant(<regen>, poisoned(?x), -, 1)" in said)
+          "ant(<regen>, poisoned($x), -, 1)" in said)
 
     # ⚠⚠ Construction and behaviour are two properties and need two checks --
     # `adopt`'s lesson about a grade that was recorded and not obeyed.
     for where, ant_a, ant_b in (
-        ("the first", "{ +wounded(?x), -poisoned(?x) }", "{ +stable(?x) }"),
-        ("the second", "{ +wounded(?x) }", "{ +stable(?x), -poisoned(?x) }"),
+        ("the first", "{ +wounded($x), -poisoned($x) }", "{ +stable($x) }"),
+        ("the second", "{ +wounded($x) }", "{ +stable($x), -poisoned($x) }"),
     ):
         m2 = Machine()
         kb2 = load(m2, chr(10).join([
-            f"rule <a> = implies( {ant_a}, {{ +stable(?x) }} )",
-            f"rule <b> = implies( {ant_b}, {{ +heals(?x) }} )",
+            f"rule <a> = implies( {ant_a}, {{ +stable($x) }} )",
+            f"rule <b> = implies( {ant_b}, {{ +heals($x) }} )",
             "fact +wounded(hero)", "fact +wounded(ally)",
             "fact +poisoned(hero)", "fact -poisoned(ally)", ""]))
         ra = [r for r in m2.rules.rules if r.name == "a"][0]
@@ -1058,8 +1058,8 @@ def a_guard_is_an_ordinary_member() -> None:
 #   §10  ⭐⭐⭐ two recognitions over DIFFERENT stretches are both in view --
 #        `_state` was keyed by `(proposition, span)` for this, and its comment
 #        records the collapse to `proposition` alone
-#   §8   ⭐⭐⭐ a rule concludes at the locus its antecedent bound: `+noted(?p)
-#        at ?mp` lands where the act was, not where the frame is
+#   §8   ⭐⭐⭐ a rule concludes at the locus its antecedent bound: `+noted($p)
+#        at $mp` lands where the act was, not where the frame is
 #   §13  ⭐⭐⭐ **THE DESIGN DOCUMENT'S OWN WORKED EXAMPLE RAN HERE** -- *taking
 #        turns* recognised over all ten stretches it holds over, by a recursive
 #        stratum-0 definition whose base case is two turns and whose step
@@ -1123,9 +1123,9 @@ def rules_as_data() -> None:
     src = chr(10).join([
         "rule <a> = implies( { +p(x) }, { +q(x) } )",
         "rule <b> = implies( { +q(x) }, { +r(x) } )",
-        "rule <lift> = implies( { +likely(?u), +ant(?rl, ?u, plus, ?i), "
-        "+con(?rl, ?v, plus, ?j) },",
-        "                      { +likely(?v) } )",
+        "rule <lift> = implies( { +likely($u), +ant($rl, $u, plus, $i), "
+        "+con($rl, $v, plus, $j) },",
+        "                      { +likely($v) } )",
         "fact +likely(p(x))",
         "",
     ])
@@ -1133,7 +1133,7 @@ def rules_as_data() -> None:
     kb = load(m, src)
     # Reification used to be something a caller remembered to do. It is now a
     # subscription on rule authoring, because backward reading is rules and it
-    # enumerates `+rule(?r)` -- a rule loaded after a `reify_all()` would have
+    # enumerates `+rule($r)` -- a rule loaded after a `reify_all()` would have
     # been invisible to the reader with nothing reporting so.
     check("§14", "a rule is data the moment it is authored", m.holds(kb.term("rule(<a>)")) == PLUS)
     m.reify_all()
@@ -1147,7 +1147,7 @@ def rules_as_data() -> None:
 
     ok = False
     try:
-        m.gate.write(m.g.rel(m.g.atom("f"), m.g.var("?z")), PLUS)
+        m.gate.write(m.g.rel(m.g.atom("f"), m.g.var("$z")), PLUS)
     except ValueError:
         ok = True
     check("§13", "mention is a gate parameter, not a hole in the gate", ok)
@@ -1159,8 +1159,8 @@ def backward_reading() -> None:
     from .core.text import load
 
     src = chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
+        "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
+        "rule <pour> = implies( { +tap($t), +under($w, $t) },  { +water($w) } )",
         "fact +tap(sink)",
         "fact +under(kettle, sink)",
         "fact +goal(boiling(kettle))",
@@ -1177,7 +1177,7 @@ def backward_reading() -> None:
     goals, blocked, achieved = props(m.GOAL), props(m.BLOCKED), props(m.ACHIEVED)
 
     check("R1", "the same rule read backwards proposes subgoals", "goal(water(kettle))" in goals)
-    check("R1", "and recurses through a second rule", "goal(under(kettle, ?t))" in goals)
+    check("R1", "and recurses through a second rule", "goal(under(kettle, $t))" in goals)
     # R2 -- the reading stays recoverable -- but it moved from the licence to
     # the trail when the phase went, and that is worth stating rather than
     # noticing.
@@ -1198,12 +1198,12 @@ def backward_reading() -> None:
     check(
         "§15",
         "a goal nothing concludes is BLOCKED -- an action, not a failure",
-        "blocked(heat(?a, kettle))" in blocked,
+        "blocked(heat($a, kettle))" in blocked,
     )
     check(
         "§14",
         "*is this goal already met* is a match, not a lookup",
-        "achieved(tap(?t))" in achieved and "achieved(under(kettle, ?t))" in achieved,
+        "achieved(tap($t))" in achieved and "achieved(under(kettle, $t))" in achieved,
     )
     # The phase carried its own expansion counter because it ran outside
     # arbitration and nothing else could stop it. Backward reading is rules now,
@@ -1234,13 +1234,13 @@ def backward_reading() -> None:
         and "achieved(water(kettle))" not in achieved,
     )
 
-    # §14's printed backward reader cannot work: `con(?r, ?f, plus)` stores the
+    # §14's printed backward reader cannot work: `con($r, $f, plus)` stores the
     # rule's generic PATTERN, and a goal is ground, so one variable cannot bind
     # to both. Deciding they correspond is `match`, which no rule can call.
     m2 = Machine()
     kb2 = load(m2, chr(10).join([
-        "rule <boil2> = implies( { +heat(?a, ?w) }, { +boiling(?w) } )",
-        "rule <back>  = implies( { +goal(?f), +con(?r, ?f, plus) }, { +candidate(?r, ?f) } )",
+        "rule <boil2> = implies( { +heat($a, $w) }, { +boiling($w) } )",
+        "rule <back>  = implies( { +goal($f), +con($r, $f, plus) }, { +candidate($r, $f) } )",
         "fact +goal(boiling(kettle))",
         "",
     ]))
@@ -1262,8 +1262,8 @@ def plan_bindings() -> None:
     def world(facts):
         m = Machine()
         kb = load(m, chr(10).join([
-            "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-            "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
+            "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
+            "rule <pour> = implies( { +tap($t), +under($w, $t) },  { +water($w) } )",
         ] + facts + ["fact +goal(boiling(kettle))", ""]))
         m.run(limit=400)
         return m, kb
@@ -1274,9 +1274,9 @@ def plan_bindings() -> None:
 
     m, kb = world(["fact +tap(sink)", "fact +under(kettle, sink)"])
     check("§14", "bindings agree, so both siblings are achieved",
-          "achieved(tap(?t))" in props(m, m.ACHIEVED) and "achieved(under(kettle, ?t))" in props(m, m.ACHIEVED))
+          "achieved(tap($t))" in props(m, m.ACHIEVED) and "achieved(under(kettle, $t))" in props(m, m.ACHIEVED))
     check("R7", "and the binding is a fact on the graph, not an interpreter variable",
-          any("?t, sink" in x for x in props(m, m.BINDS)))
+          any("$t, sink" in x for x in props(m, m.BINDS)))
 
     m2, kb2 = world(["fact +tap(sink)", "fact +under(kettle, drain)"])
     # ⭐⭐⭐ And it NAMES the tap the plan committed to.
@@ -1285,7 +1285,7 @@ def plan_bindings() -> None:
           "and the report names the binding that made it fail",
           "blocked(under(kettle, sink))" in props(m2, m2.BLOCKED))
     check("§14", "and the false achievement does not appear",
-          "achieved(under(kettle, ?t))" not in props(m2, m2.ACHIEVED))
+          "achieved(under(kettle, $t))" not in props(m2, m2.ACHIEVED))
 
 
 def the_loop_closes() -> None:
@@ -1293,11 +1293,11 @@ def the_loop_closes() -> None:
     from .core.text import load
 
     src = chr(10).join([
-        "rule <boil>   = causes(  { +heat(?a, ?w), +water(?w) },   { +boiling(?w) } )",
-        "rule <do>     = implies( { +blocked(heat(?a, ?w)) },      { +doing(heat(anna, ?w)) } )",
-        "rule <trustT> = implies( { +says(gauge, ?p, plus) },      { +?p } )",
-        "rule <trustF> = implies( { +says(gauge, ?p, minus) },     { -?p } )",
-        "rule <why>    = implies( { +deviates(?p) },               { +goal(explain(?p)) } )",
+        "rule <boil>   = causes(  { +heat($a, $w), +water($w) },   { +boiling($w) } )",
+        "rule <do>     = implies( { +blocked(heat($a, $w)) },      { +doing(heat(anna, $w)) } )",
+        "rule <trustT> = implies( { +says(gauge, $p, plus) },      { +$p } )",
+        "rule <trustF> = implies( { +says(gauge, $p, minus) },     { -$p } )",
+        "rule <why>    = implies( { +deviates($p) },               { +goal(explain($p)) } )",
         "fact +water(kettle)",
         "fact +goal(boiling(kettle))",
         "",
@@ -1337,7 +1337,7 @@ def the_loop_closes() -> None:
     # backwards: it proposes itself for every goal, without end.
     m2 = Machine()
     kb2 = load(m2, chr(10).join([
-        "rule <trust> = implies( { +says(x, ?p, plus) }, { +?p } )",
+        "rule <trust> = implies( { +says(x, $p, plus) }, { +$p } )",
         "fact +goal(anything(here))",
         "",
     ]))
@@ -1357,11 +1357,11 @@ def recall_is_narrowable() -> None:
     from .core.text import load
 
     chain = chr(10).join([
-        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
-        "rule <c> = implies( { +r(?x) }, { +s(?x) } )",
-        "rule <d> = implies( { +u(?x) }, { +v(?x) } )",
-        "rule <e> = implies( { +m(?x) }, { +n(?x) } )",
+        "rule <a> = implies( { +p($x) }, { +q($x) } )",
+        "rule <b> = implies( { +q($x) }, { +r($x) } )",
+        "rule <c> = implies( { +r($x) }, { +s($x) } )",
+        "rule <d> = implies( { +u($x) }, { +v($x) } )",
+        "rule <e> = implies( { +m($x) }, { +n($x) } )",
         "fact +p(a)",
         "",
     ])
@@ -1393,8 +1393,8 @@ def recall_is_narrowable() -> None:
     # fits -- an aggregate over a finished search. A shortlist that ran dry has
     # finished a shortlist.
     goal = chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
+        "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
+        "rule <pour> = implies( { +tap($t), +under($w, $t) },  { +water($w) } )",
         "fact +tap(sink)",
         "fact +under(kettle, sink)",
         "fact +goal(boiling(kettle))",
@@ -1442,8 +1442,8 @@ def the_better_move_wins() -> None:
     src = chr(10).join([
         # Authored first, so authored order alone would pick it -- and it does
         # nothing for the goal.
-        "rule <wander> = implies( { +at(?x) }, { +wandered(?x) } )",
-        "rule <toward> = implies( { +at(?x) }, { +nearer(?x) } )",
+        "rule <wander> = implies( { +at($x) }, { +wandered($x) } )",
+        "rule <toward> = implies( { +at($x) }, { +nearer($x) } )",
         "fact +at(a)",
         "fact +goal(nearer(a))",
         "",
@@ -1485,11 +1485,11 @@ def an_action_is_substituted_by_its_outcome() -> None:
     call with the expected outcome** -- operator semantics, and it needs no plan
     machinery at all.
 
-        rule <outcome> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )
+        rule <outcome> = implies( { +did($a), +achieves($a, $y) }, { +$y } )
         fact achieves(travel(work), at(work))
 
     One rule and a fact per action. The bare-variable consequent is the same
-    shape `<assert-act>` uses and legal for the same reason: `?y` is bound by the
+    shape `<assert-act>` uses and legal for the same reason: `$y` is bound by the
     antecedent. Measured: a two-step plan runs to its end inside a hypothesis
     with nothing emitted, and the actions' effects rather than the actions carry
     it.
@@ -1499,7 +1499,7 @@ def an_action_is_substituted_by_its_outcome() -> None:
     src = chr(10).join([
         "rule <go>      = implies( { +at(home) }, { +doing(travel(work)) } )",
         "rule <enter>   = implies( { +at(work) }, { +doing(open(door)) } )",
-        "rule <outcome> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
+        "rule <outcome> = implies( { +did($a), +achieves($a, $y) }, { +$y } )",
         "fact achieves(travel(work), at(work))",
         "fact achieves(open(door), inside(work))",
         "",
@@ -1547,12 +1547,12 @@ def an_action_is_substituted_by_its_outcome() -> None:
     )
 
     # And what the corpus says instead, which needs no precedence at all.
-    # `<assert-act>` reads `no substituted(?what)`, so a corpus naming the acts
+    # `<assert-act>` reads `no substituted($what)`, so a corpus naming the acts
     # whose effect is supplied elsewhere qualifies the bundled rule per ACT
     # rather than per rule and per tick. `standing(<declared>)` is what settles
     # the tick they both match on -- the table, and nothing else.
     m5, kb5 = plan(chr(10).join([
-        "rule <declared> = implies( { +achieves(?a, ?y) }, { +substituted(?a) } )",
+        "rule <declared> = implies( { +achieves($a, $y) }, { +substituted($a) } )",
         "fact standing(<declared>)",
         "rule <wave> = implies( { +at(work) }, { +doing(greet(bo)) } )",
         "",
@@ -1597,15 +1597,15 @@ def an_agent_that_can_stop() -> None:
     from .core.text import load
 
     chain = chr(10).join([
-        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
-        "rule <far> = implies( { +q(?x) }, { +far(?x) } )",
-        "rule <far2> = implies( { +far(?x) }, { +far2(?x) } )",
+        "rule <a> = implies( { +p($x) }, { +q($x) } )",
+        "rule <b> = implies( { +q($x) }, { +r($x) } )",
+        "rule <far> = implies( { +q($x) }, { +far($x) } )",
+        "rule <far2> = implies( { +far($x) }, { +far2($x) } )",
         "fact +p(a)",
         "",
     ])
     stop = chr(10).join([
-        "rule <done> = implies( { +r(?x) }, { +enough(r(?x)) } )",
+        "rule <done> = implies( { +r($x) }, { +enough(r($x)) } )",
         "fact standing(<done>)",
         "",
     ])
@@ -1664,9 +1664,9 @@ def no_goal_is_dropped_silently() -> None:
     from .core.text import load
 
     world = [
-        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +s(?x) } )",
-        "rule <done> = implies( { +q(?x) }, { +enough(q(?x)) } )",
+        "rule <a> = implies( { +p($x) }, { +q($x) } )",
+        "rule <b> = implies( { +q($x) }, { +s($x) } )",
+        "rule <done> = implies( { +q($x) }, { +enough(q($x)) } )",
         "fact standing(<done>)",
         "fact +p(a)",
         "fact +goal(q(a))",
@@ -1698,10 +1698,10 @@ def no_goal_is_dropped_silently() -> None:
     # consulted again next tick would cut it off after one -- which is what the
     # first version did, and why the diagnosis below never used to appear.
     blocked = [
-        "rule <boil> = implies( { +heat(?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <ask> = implies( { +open(?w), +blocked(?w) }, { +doing(ask(?w)) } )",
+        "rule <boil> = implies( { +heat($w), +water($w) }, { +boiling($w) } )",
+        "rule <ask> = implies( { +open($w), +blocked($w) }, { +doing(ask($w)) } )",
         "fact standing(<ask>)",
-        "rule <trust> = implies( { +says(?c, ?p, plus) }, { +?p } )",
+        "rule <trust> = implies( { +says($c, $p, plus) }, { +$p } )",
         "fact +water(kettle)",  # ...and nothing anywhere concludes a `heat`
         "fact +goal(boiling(kettle))",
     ]
@@ -1743,14 +1743,14 @@ def experience_is_offline() -> None:
 
     # Two ways to get water, and the agent only needs one of them.
     kettle = chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) }, { +water(?w) } )",
-        "rule <fill> = implies( { +jug(?j), +near(?w, ?j) }, { +water(?w) } )",
+        "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
+        "rule <pour> = implies( { +tap($t), +under($w, $t) }, { +water($w) } )",
+        "rule <fill> = implies( { +jug($j), +near($w, $j) }, { +water($w) } )",
         # ...and one that runs, concludes, and contributes nothing. Without it
         # this fixture cannot tell a credit pass from a list of what applied --
         # `<fill>` never wins arbitration, so ANY scheme excludes it, and the
         # check below read as discrimination while testing something else.
-        "rule <idle> = implies( { +jug(?j) }, { +rinsed(?j) } )",
+        "rule <idle> = implies( { +jug($j) }, { +rinsed($j) } )",
         "fact +tap(sink)", "fact +under(kettle, sink)",
         "fact +jug(jug1)", "fact +near(kettle, jug1)",
         "fact +heat(anna, kettle)",
@@ -1810,7 +1810,7 @@ def experience_is_offline() -> None:
     check("§19", "and the lesson GENERALISES: a rule keyed on what plays the tap's "
           "part saves a jug in a world of objects it was never told about",
           fresh.harmed and not taught.harmed
-          and any("+attention(?" in r for r in generic))
+          and any("+attention($" in r for r in generic))
     # ⚠⚠⚠ **The second half of this check is DELETED with the option-set loop.**
     # It measured `_choose`'s recall budget -- how a narrowed shortlist ranked
     # the apparatus -- by spying on a method the table loop does not call, using
@@ -1821,9 +1821,9 @@ def experience_is_offline() -> None:
 def a_root_goal_is_askable() -> None:
     """§6's *a root goal is never checked*, closed the way `blocked` was (§12).
 
-    *A root goal is a `goal(?w)` with **no** `subgoal(?p, ?w)`* is a negative
+    *A root goal is a `goal($w)` with **no** `subgoal($p, $w)`* is a negative
     existential, and §12 says a `-` member cannot say it -- a `-` member says
-    *an entry denies this*, never *for no `?p`*. That is the same shape as
+    *an entry denies this*, never *for no `$p`*. That is the same shape as
     `blocked`, so it gets the same treatment: a REQUEST the machinery answers by
     looking, depositing only when the answer is yes.
 
@@ -1835,10 +1835,10 @@ def a_root_goal_is_askable() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
+        "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
+        "rule <ask-root> = implies( { +goal($w) }, { +root($w) } )",
         "fact standing(<ask-root>)",
-        "rule <done> = implies( { +goal(?w), +rooted(?w), +?w }, { +enough(?w) } )",
+        "rule <done> = implies( { +goal($w), +rooted($w), +$w }, { +enough($w) } )",
         "fact standing(<done>)",
         "fact +heat(anna, kettle)", "fact +water(kettle)",
         "fact +goal(boiling(kettle))", ""]))
@@ -1870,9 +1870,9 @@ def a_root_goal_is_askable() -> None:
     # rootedness.
     # → docs/design/selftest.md#and-what-rooted-does-not-unblock-which-is
     rc = [
-        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
+        "rule <ask-root> = implies( { +goal($w) }, { +root($w) } )",
         "fact standing(<ask-root>)",
-        "rule <check-root> = implies( { +goal(?w), +rooted(?w) }, { +check(?w, ?w) } )",
+        "rule <check-root> = implies( { +goal($w), +rooted($w) }, { +check($w, $w) } )",
         "fact standing(<check-root>)",
     ]
     now = Machine()
@@ -1907,9 +1907,9 @@ def a_request_can_be_re_asked() -> None:
     from .core.text import load
 
     ROOT = [
-        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
+        "rule <ask-root> = implies( { +goal($w) }, { +root($w) } )",
         "fact standing(<ask-root>)",
-        "rule <check-root> = implies( { +goal(?w), +rooted(?w) }, { +check(?w, ?w) } )",
+        "rule <check-root> = implies( { +goal($w), +rooted($w) }, { +check($w, $w) } )",
         "fact standing(<check-root>)",
     ]
     WORLD = ["rule <r> = implies( { +p(x) }, { +q(x) } )", "fact +p(x)"]
@@ -1923,12 +1923,12 @@ def a_request_can_be_re_asked() -> None:
     def recheck(connective):
         return [
             f"rule <recheck> = {connective}( "
-            "{ +unmet(?w, ?w), +quiet(?m) }, { +again(check(?w, ?w), ?m) } )",
+            "{ +unmet($w, $w), +quiet($m) }, { +again(check($w, $w), $m) } )",
             "fact standing(<recheck>)",
         ]
 
     # ⚠ Count the GROUND ones. `instances_of` returns the rule's own consequent
-    # pattern too -- `again(check(?w, ?w), ?m)` is an instance of the relation and
+    # pattern too -- `again(check($w, $w), $m)` is an instance of the relation and
     # holds nothing -- so a raw count reads one too many, which is what the first
     # version of this check did.
     minted = lambda mm: sum(1 for n in mm.g.instances_of(mm.AGAIN) if mm.holds(n) == PLUS)
@@ -2003,9 +2003,9 @@ def a_request_can_be_re_asked() -> None:
 
     tm = Machine()
     tkb = load(tm, chr(10).join([
-        "rule <ask> = implies( { +wondering(?x) }, { +guess(?x) } )",
+        "rule <ask> = implies( { +wondering($x) }, { +guess($x) } )",
         "fact standing(<ask>)",
-        "rule <retry> = implies( { +guess(?x), +quiet(?m) }, { +again(guess(?x), ?m) } )",
+        "rule <retry> = implies( { +guess($x), +quiet($m) }, { +again(guess($x), $m) } )",
         "fact standing(<retry>)",
         "fact +wondering(vessel)", ""]))
     scope.append(tkb)
@@ -2028,10 +2028,10 @@ def a_request_can_be_re_asked() -> None:
     am = Machine()
     am.actuator("hands")
     load(am, chr(10).join([
-        "rule <try> = implies( { +need_open(?d) }, { +doing(open(?d)) } )",
+        "rule <try> = implies( { +need_open($d) }, { +doing(open($d)) } )",
         "fact standing(<try>)",
-        "rule <retry> = implies( { +doing(open(?d)), +quiet(?m), +stuck(?d) },"
-        "                        { +again(doing(open(?d)), ?m) } )",
+        "rule <retry> = implies( { +doing(open($d)), +quiet($m), +stuck($d) },"
+        "                        { +again(doing(open($d)), $m) } )",
         "fact standing(<retry>)",
         "fact +need_open(door)", "fact +stuck(door)", ""]))
     am.run(limit=100)
@@ -2044,10 +2044,10 @@ def a_request_can_be_re_asked() -> None:
     cm = Machine()
     cm.actuator("hands")
     load(cm, chr(10).join([
-        "rule <try> = implies( { +need_open(?d) }, { +doing(open(?d)) } )",
+        "rule <try> = implies( { +need_open($d) }, { +doing(open($d)) } )",
         "fact standing(<try>)",
-        "rule <retry> = implies( { +doing(open(?d)), +quiet(?m), +stuck(?d) },"
-        "                        { +again(doing(open(?d)), ?m) } )",
+        "rule <retry> = implies( { +doing(open($d)), +quiet($m), +stuck($d) },"
+        "                        { +again(doing(open($d)), $m) } )",
         "fact standing(<retry>)",
         "fact +need_open(door)", ""]))
     cm.run(limit=100)
@@ -2069,8 +2069,8 @@ def a_domain_can_be_taken_out_of_mind() -> None:
     from .core.text import load
 
     corpus = [
-        "rule <r> = implies( { +owes(?c, ?n), +overdue(?c) }, { +chase(?c) } )",
-        "rule <s> = implies( { +late(?c, ?p) }, { +apologise(?c) } )",
+        "rule <r> = implies( { +owes($c, $n), +overdue($c) }, { +chase($c) } )",
+        "rule <s> = implies( { +late($c, $p) }, { +apologise($c) } )",
     ]
     billing = ["fact +owes(acme, 100)", "fact +overdue(acme)"]
     shipping = ["fact +late(acme, milan)"]
@@ -2148,7 +2148,7 @@ def a_domain_can_be_taken_out_of_mind() -> None:
     # two paths, and only a two-member rule can tell them apart.
     m6 = Machine()
     kb6 = load(m6, chr(10).join([
-        "rule <t> = implies( { +late(?c, ?p), +vip(?c) }, { +sorry(?c) } )", ""]),
+        "rule <t> = implies( { +late($c, $p), +vip($c) }, { +sorry($c) } )", ""]),
         scope="w6", domain="rules")
     load(m6, "fact +anchor(x)" + chr(10), scope="w6", domain="shipping")
     load(m6, "fact dormant(shipping)" + chr(10), scope="w6", domain="ctl")
@@ -2205,8 +2205,8 @@ def its_own_effort_is_reasonable_over() -> None:
     """
     from .core.text import load
 
-    chain = ["rule <a> = implies( { +p(?x) }, { +q(?x) } )",
-             "rule <b> = implies( { +q(?x) }, { +r(?x) } )", "fact +p(a)"]
+    chain = ["rule <a> = implies( { +p($x) }, { +q($x) } )",
+             "rule <b> = implies( { +q($x) }, { +r($x) } )", "fact +p(a)"]
 
     wide = Machine(); load(wide, chr(10).join(chain + [""])); wide.run(limit=200)
     tight = Machine()
@@ -2224,7 +2224,7 @@ def its_own_effort_is_reasonable_over() -> None:
     # Reaching for a domain that was put out of mind is the same kind of record.
     esc = Machine()
     kb_e = load(esc, chr(10).join([
-        "rule <r> = implies( { +owes(?c, ?n) }, { +chase(?c) } )", ""]),
+        "rule <r> = implies( { +owes($c, $n) }, { +chase($c) } )", ""]),
         scope="eff", domain="rules")
     load(esc, "fact +owes(acme, 100)" + chr(10), scope="eff", domain="billing")
     load(esc, chr(10).join(
@@ -2247,7 +2247,7 @@ def its_own_effort_is_reasonable_over() -> None:
     act.actuator("out")
     load(act, chr(10).join(chain + [
         "fact budget(1)",
-        "rule <patience> = implies( { +widened(?m) }, { +doing(ask(help)) } )",
+        "rule <patience> = implies( { +widened($m) }, { +doing(ask(help)) } )",
         "fact standing(<patience>)", ""]))
     act.run(limit=200)
     check("§19", "⭐ so a rule can act on how hard the agent had to try -- *I had "
@@ -2258,7 +2258,7 @@ def its_own_effort_is_reasonable_over() -> None:
     calm = Machine()
     calm.actuator("out")
     load(calm, chr(10).join(chain + [
-        "rule <patience> = implies( { +widened(?m) }, { +doing(ask(help)) } )",
+        "rule <patience> = implies( { +widened($m) }, { +doing(ask(help)) } )",
         "fact standing(<patience>)", ""]))
     calm.run(limit=200)
     check("§19", "...and an agent that never had to reach does not ask",
@@ -2301,8 +2301,8 @@ def the_knobs_are_claims() -> None:
     # ...and it really steers: a budget written as a fact narrows recall, which
     # is what `m.recall_budget = 3` did from Python and nothing could argue with.
     chain = chr(10).join([
-        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "rule <a> = implies( { +p($x) }, { +q($x) } )",
+        "rule <b> = implies( { +q($x) }, { +r($x) } )",
         "fact +p(a)", ""])
     wide = Machine(); load(wide, chain); wide.run(limit=400)
     tight = Machine(); load(tight, chain + "fact budget(1)" + chr(10))
@@ -2356,8 +2356,8 @@ def a_session_can_be_saved_and_resumed() -> None:
                 for mo in m.chain.moments for e in mo.delta]
 
     corpus = [
-        "rule <go> = implies( { +need(?d) }, { +doing(open(?d)) } )",
-        "rule <t> = implies( { +says(user, ?p, plus) }, { +?p } )",
+        "rule <go> = implies( { +need($d) }, { +doing(open($d)) } )",
+        "rule <t> = implies( { +says(user, $p, plus) }, { +$p } )",
         "fact standing(<t>)", "fact +need(door)", "",
     ]
     m = Machine()
@@ -2440,9 +2440,9 @@ def the_agent_can_say_what_became_of_it() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <boil> = implies( { +heated(?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <heat> = causes( { +doing(switch(?w)) }, { +heated(?w) } )",
-        "rule <intend> = implies( { +goal(doing(?a)) }, { +doing(?a) } )",
+        "rule <boil> = implies( { +heated($w), +water($w) }, { +boiling($w) } )",
+        "rule <heat> = causes( { +doing(switch($w)) }, { +heated($w) } )",
+        "rule <intend> = implies( { +goal(doing($a)) }, { +doing($a) } )",
         "fact standing(<intend>)",
         "fact +water(kettle)", "fact +goal(boiling(kettle))", ""]))
     m.run(limit=300)
@@ -2462,7 +2462,7 @@ def the_agent_can_say_what_became_of_it() -> None:
     # The one that matters, and the reason this exists: a typo diagnoses itself.
     bad = Machine()
     kb2 = load(bad, chr(10).join([
-        "rule <boil> = implies( { +heated(?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <boil> = implies( { +heated($w), +water($w) }, { +boiling($w) } )",
         "fact +heated(kettle)", "fact +watre(kettle)",
         "fact +goal(boiling(kettle))", ""]))
     bad.run(limit=300)
@@ -2478,7 +2478,7 @@ def the_agent_can_say_what_became_of_it() -> None:
 
     # The scoped door for channels, the last of the twin traps to get one.
     ch = Machine()
-    kb3 = load(ch, "rule <t> = implies( { +says(user, ?p, plus) }, { +?p } )"
+    kb3 = load(ch, "rule <t> = implies( { +says(user, $p, plus) }, { +$p } )"
                + chr(10))
     user = kb3.channel("user")
     ch.channels.deliver(user, kb3.term("raining"), "+")
@@ -2507,7 +2507,7 @@ def a_dry_search_reaches_for_what_is_out_of_mind() -> None:
     def run(dormant, goal):
         m = Machine()
         kb = load(m, chr(10).join([
-            "rule <r> = implies( { +owes(?c, ?n), +overdue(?c) }, { +chase(?c) } )",
+            "rule <r> = implies( { +owes($c, $n), +overdue($c) }, { +chase($c) } )",
             ""]), scope="esc", domain="rules")
         load(m, chr(10).join(
             ["fact +owes(acme, 100)", "fact +overdue(acme)", ""]),
@@ -2626,7 +2626,7 @@ def a_scope_can_span_documents() -> None:
     # ...and a rule authored in one document reasons over facts from the others,
     # which is the thing a book actually needs.
     m2 = Machine()
-    load(m2, "rule <r> = implies( { +red(?x), +hot(?x) }, { +dangerous(?x) } )"
+    load(m2, "rule <r> = implies( { +red($x), +hot($x) }, { +dangerous($x) } )"
          + chr(10), scope="book")
     d = load(m2, "fact +red(kettle)" + chr(10), scope="book")
     load(m2, "fact +hot(kettle)" + chr(10), scope="book")
@@ -2646,13 +2646,13 @@ def a_scope_can_span_documents() -> None:
 
 # ⚠⚠⚠ DELETED WITH THE LOCUS: `a_rule_can_relate_two_moments`.
 #
-# *The goblin acts after the hero* (§8, §12, §20), written as `at ?m`:
+# *The goblin acts after the hero* (§8, §12, §20), written as `at $m`:
 #
-#     rule <order> = implies( { +acts(hero) at ?mh, +acts(goblin) at ?mg },
-#                            { +sequence(?mh, ?mg) } )
+#     rule <order> = implies( { +acts(hero) at $mh, +acts(goblin) at $mg },
+#                            { +sequence($mh, $mg) } )
 #
 # It proved three things and each is gone for a different reason. That a member
-# says WHERE its entry sits, and the locus binds -- `at ?m` is not parseable,
+# says WHERE its entry sits, and the locus binds -- `at $m` is not parseable,
 # because an entry has no second time to bind to. That the two moments are
 # distinct rather than one bound twice. And, the part that would rot in silence,
 # that the locus SURVIVES the round trip through `reify`/`_read_rule` -- the
@@ -2663,12 +2663,12 @@ def a_scope_can_span_documents() -> None:
 # relations, so the same rule is writable in a corpus and answers the same. It
 # was PROBED before this was deleted, not assumed --
 #
-#     rule <after> = implies( { asking(?s), anc(?s, ?mq), in_delta(?mq, ?eq),
-#                               entry_of(?eq, acts(?q), plus),
-#                               anc(?s, ?mp), in_delta(?mp, ?ep),
-#                               entry_of(?ep, acts(?p), plus),
-#                               sanc(?mq, ?mp) },
-#                            { acted_after(?q, ?p) } )
+#     rule <after> = implies( { asking($s), anc($s, $mq), in_delta($mq, $eq),
+#                               entry_of($eq, acts($q), plus),
+#                               anc($s, $mp), in_delta($mp, $ep),
+#                               entry_of($ep, acts($p), plus),
+#                               sanc($mq, $mp) },
+#                            { acted_after($q, $p) } )
 #     → acted_after(goblin, hero)
 #
 # ⚠ What that version is NOT the same as: it is stratum 0, so its conclusion is
@@ -2689,14 +2689,14 @@ def a_computation_happens_inside_the_application() -> None:
     kb.computator("minus", lambda a, b: int(a) - int(b))
     kb.computator("plus", lambda a, b: int(a) + int(b))
     kb.load(chr(10).join([
-        "rule <watch> = implies( { +purse(hero, ?x), +purse(smith, ?y) },",
-        "                       { +total(?x, ?y) } )",
+        "rule <watch> = implies( { +purse(hero, $x), +purse(smith, $y) },",
+        "                       { +total($x, $y) } )",
         "fact standing(<watch>)",
         "rule <pay> = causes(",
-        "    { +pays(?a, ?b, ?n), +purse(?a, ?x), +purse(?b, ?y),",
-        "      minus(?x, ?n) as ?x2, plus(?y, ?n) as ?y2 },",
-        "    { ? purse(?a, ?x), +purse(?a, ?x2),",
-        "      ? purse(?b, ?y), +purse(?b, ?y2), -pays(?a, ?b, ?n) } )",
+        "    { +pays($a, $b, $n), +purse($a, $x), +purse($b, $y),",
+        "      minus($x, $n) as $x2, plus($y, $n) as $y2 },",
+        "    { ? purse($a, $x), +purse($a, $x2),",
+        "      ? purse($b, $y), +purse($b, $y2), -pays($a, $b, $n) } )",
         "fact +purse(hero, 10)", "fact +purse(smith, 5)",
         "fact +pays(hero, smith, 3)", ""]))
     m.run(limit=300)
@@ -2721,7 +2721,7 @@ def a_computation_happens_inside_the_application() -> None:
           bool(deposited) and len(deposited[0].consumed) == 3)
 
     # The arguments must be ground when it runs, so a computator member only
-    # computes once earlier members have bound them -- here n(?x) is DERIVED,
+    # computes once earlier members have bound them -- here n($x) is DERIVED,
     # so the rule matches from a delta rather than on the opening pass. ⚠ The
     # engine also skips pivoting on a computator, and that is an OPTIMISATION
     # rather than a correctness fix -- measured both ways, the results are
@@ -2730,8 +2730,8 @@ def a_computation_happens_inside_the_application() -> None:
     m2 = Machine(); kb2 = Loader(m2)
     kb2.computator("double", lambda a: int(a) * 2)
     kb2.load(chr(10).join([
-        "rule <mk> = implies( { +seed(?s) }, { +n(?s) } )",
-        "rule <d> = implies( { +n(?x), double(?x) as ?y }, { +twice(?x, ?y) } )",
+        "rule <mk> = implies( { +seed($s) }, { +n($s) } )",
+        "rule <d> = implies( { +n($x), double($x) as $y }, { +twice($x, $y) } )",
         "fact +seed(4)", ""]))
     m2.run(limit=60)
     check("§4", "...and it matches from a DELTA too, once earlier members have "
@@ -2740,13 +2740,13 @@ def a_computation_happens_inside_the_application() -> None:
 
 
 def a_member_can_name_what_it_matched() -> None:
-    """`+on(?x, ?y) as ?t` -- reference, not description. (§8, §12)
+    """`+on($x, $y) as $t` -- reference, not description. (§8, §12)
 
-    `at ?m` said WHERE an entry sits and went with the locus; `as ?t` says WHAT
+    `at $m` said WHERE an entry sits and went with the locus; `as $t` says WHAT
     it says, under a name, and stays -- it was never about a second time. Same
     one-line mechanism, and it answers a question that had two unsatisfying
-    answers before it. ⚠ And two members hoping to co-refer -- +tagged(?t),
-    +on(?x, ?y) -- is coincidence, not reference: nothing links them, and it
+    answers before it. ⚠ And two members hoping to co-refer -- +tagged($t),
+    +on($x, $y) -- is coincidence, not reference: nothing links them, and it
     appears to work only while there...
 
     See docs/design/selftest.md#a-member-can-name-what-it-matched.
@@ -2755,8 +2755,8 @@ def a_member_can_name_what_it_matched() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <r> = implies( { +on(?x, ?y) as ?t, +thing(?x) },",
-        "                   { +about(?t, ?x) } )",
+        "rule <r> = implies( { +on($x, $y) as $t, +thing($x) },",
+        "                   { +about($t, $x) } )",
         "fact +on(a, b)", "fact +thing(a)", ""]))
     m.run(limit=60)
     got = [e for e in m._state() if e.sign == PLUS
@@ -2780,15 +2780,15 @@ def a_member_can_name_what_it_matched() -> None:
 
 # ⚠⚠⚠ DELETED WITH THE LOCUS: `the_skeleton_is_an_ordinary_member`.
 #
-# Three fixtures (§5, §6, §11, §12), and all three bound a moment with `at ?m`:
+# Three fixtures (§5, §6, §11, §12), and all three bound a moment with `at $m`:
 #
-#     <after>  +acts(?p) at ?mp, +acts(?q) at ?mq, sanc(?mq, ?mp)
+#     <after>  +acts($p) at $mp, +acts($q) at $mq, sanc($mq, $mp)
 #              → acted_after(goblin, hero)   -- an ordinary rule matches the
 #                SKELETON directly: no request, no answerer, no second matcher
-#     <down>   +acts(?p) at ?mp, +step2(x), sanc(?any, ?mp)
+#     <down>   +acts($p) at $mp, +step2(x), sanc($any, $mp)
 #              → a DOWNWARD pattern is not refused: it loads and finds nothing
 #                even where descendants exist, so *nothing is prohibited* holds
-#     <reach>  +noted(?x) at ?mx, sanc(?mx, ?up)
+#     <reach>  +noted($x) at $mx, sanc($mx, $up)
 #              → and it holds STRUCTURALLY: every moment a structural member
 #                reached is on the walk of the entry its conclusion sits in
 #
@@ -2823,8 +2823,8 @@ def the_matchers_are_one() -> None:
     # structure, not entries*) charged by §6's own definition.
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <up> = implies( { asking(?s), anc(?s, ?a) }, { above(?s, ?a) } )",
-        "rule <ord> = implies( { +seen(?x) }, { +noted(?x) } )",
+        "rule <up> = implies( { asking($s), anc($s, $a) }, { above($s, $a) } )",
+        "rule <ord> = implies( { +seen($x) }, { +noted($x) } )",
         "fact +seen(a)", ""]))
     up = [r for r in m.rules.rules if r.name == "up"][0]
     ord_ = [r for r in m.rules.rules if r.name == "ord"][0]
@@ -2867,9 +2867,9 @@ def the_matchers_are_one() -> None:
     # only thing a sign can mean there is *not derived*.
     m2 = Machine()
     kb2 = load(m2, chr(10).join([
-        "rule <r1> = implies( { asking(?s), anc(?s, ?a) }, { reach(?s, ?a) } )",
-        "rule <r2> = implies( { asking(?s), pred(?s, ?p) }, { near(?s, ?p) } )",
-        "rule <r3> = implies( { reach(?s, ?a), -near(?s, ?a) }, { far(?s, ?a) } )",
+        "rule <r1> = implies( { asking($s), anc($s, $a) }, { reach($s, $a) } )",
+        "rule <r2> = implies( { asking($s), pred($s, $p) }, { near($s, $p) } )",
+        "rule <r3> = implies( { reach($s, $a), -near($s, $a) }, { far($s, $a) } )",
         ""]))
     a = m2.chain.succeed(m2.chain.root, None)
     b = m2.chain.succeed(a, None)
@@ -2902,8 +2902,8 @@ def the_matchers_are_one() -> None:
     # → docs/design/selftest.md#recursion-is-not-a-cycle-to-be-refused-dep
     m3 = Machine()
     load(m3, chr(10).join([
-        "rule <x> = implies( { asking(?s), anc(?s, ?a) }, { p(?s, ?a) } )",
-        "rule <y> = implies( { p(?s, ?a), -q(?s, ?a) }, { q(?s, ?a) } )",
+        "rule <x> = implies( { asking($s), anc($s, $a) }, { p($s, $a) } )",
+        "rule <y> = implies( { p($s, $a), -q($s, $a) }, { q($s, $a) } )",
         ""]))
     lone = [r for r in m3.rules.rules if r.name == "y"][0]
     check("§6", "⚠⚠ a relation that appears ONLY negated in its own definition "
@@ -2913,9 +2913,9 @@ def the_matchers_are_one() -> None:
 
     m3b = Machine()
     load(m3b, chr(10).join([
-        "rule <x> = implies( { asking(?s), anc(?s, ?a) }, { p(?s, ?a) } )",
-        "rule <q0> = implies( { p(?s, ?a) }, { q(?s, ?a) } )",
-        "rule <y> = implies( { p(?s, ?a), -q(?s, ?a) }, { q(?s, ?a) } )",
+        "rule <x> = implies( { asking($s), anc($s, $a) }, { p($s, $a) } )",
+        "rule <q0> = implies( { p($s, $a) }, { q($s, $a) } )",
+        "rule <y> = implies( { p($s, $a), -q($s, $a) }, { q($s, $a) } )",
         ""]))
     try:
         m3b.rules.strata()
@@ -2934,8 +2934,8 @@ def the_matchers_are_one() -> None:
     # trust it.
     m4 = Machine()
     kb4 = load(m4, chr(10).join([
-        "rule <p> = implies( { asking(?s), pred(?s, ?x) }, { parent(?s, ?x) } )",
-        "rule <a> = implies( { asking(?s), anc(?s, ?x) }, { ancestor(?s, ?x) } )",
+        "rule <p> = implies( { asking($s), pred($s, $x) }, { parent($s, $x) } )",
+        "rule <a> = implies( { asking($s), anc($s, $x) }, { ancestor($s, $x) } )",
         ""]))
     c0 = m4.chain.root
     c1 = m4.chain.succeed(c0, None)
@@ -2959,8 +2959,8 @@ def the_matchers_are_one() -> None:
     # → docs/design/selftest.md#a-fixpoint-has-to-be-shown-to-reach-one
     m6 = Machine()
     kb6 = load(m6, chr(10).join([
-        "rule <p1> = implies( { asking(?s), pred(?s, ?x) }, { step(?s, ?x) } )",
-        "rule <p2> = implies( { step(?a, ?b), pred(?b, ?c) }, { step(?a, ?c) } )",
+        "rule <p1> = implies( { asking($s), pred($s, $x) }, { step($s, $x) } )",
+        "rule <p2> = implies( { step($a, $b), pred($b, $c) }, { step($a, $c) } )",
         ""]))
     walk_up = [m6.chain.root]
     for _ in range(5):
@@ -2978,18 +2978,18 @@ def the_matchers_are_one() -> None:
     # → docs/design/selftest.md#a-fact-s-own-history-on-the-ordinary-loop
     m7 = Machine()
     kb7 = load(m7, chr(10).join([
-        # ⚠ The order used to be `sanc(?l2, ?l1)` over the two entries' LOCI.
+        # ⚠ The order used to be `sanc($l2, $l1)` over the two entries' LOCI.
         # An entry has no locus, so the order is over the moments they were
         # deposited in -- which is the only time there is now, and which is
         # exactly what `resolve` reads.
         "rule <flip> = implies(",
-        "  { asking(?s), anc(?s, ?d1), in_delta(?d1, ?e1),",
-        "    entry_of(?e1, ?p, plus),",
-        "    anc(?s, ?d2), in_delta(?d2, ?e2),",
-        "    entry_of(?e2, ?p, minus), sanc(?d2, ?d1) },",
-        "  { flipped(?p) } )",
-        "rule <note> = implies( { flipped(?p), +watching(x) },",
-        "                      { +changed(?p) } )",
+        "  { asking($s), anc($s, $d1), in_delta($d1, $e1),",
+        "    entry_of($e1, $p, plus),",
+        "    anc($s, $d2), in_delta($d2, $e2),",
+        "    entry_of($e2, $p, minus), sanc($d2, $d1) },",
+        "  { flipped($p) } )",
+        "rule <note> = implies( { flipped($p), +watching(x) },",
+        "                      { +changed($p) } )",
         "fact +watching(x)", ""]))
     door = m7.g.rel(m7.g.atom("open"), m7.g.atom("door"))
     d1 = m7.chain.succeed(m7.chain.root, None)
@@ -3019,7 +3019,7 @@ def the_matchers_are_one() -> None:
     # → docs/design/selftest.md#and-asking-must-not-answer-for-a-stratu
     m8 = Machine()
     kb8 = load(m8, chr(10).join([
-        "rule <up> = implies( { asking(?s), anc(?s, ?a) }, { above(?s, ?a) } )",
+        "rule <up> = implies( { asking($s), anc($s, $a) }, { above($s, $a) } )",
         ""]))
     m8.chain.succeed(m8.chain.root, None)
     m8.ask_read(m8.chain.moments[-1])
@@ -3041,12 +3041,12 @@ def the_matchers_are_one() -> None:
     # names an entry on its sibling -- measured on a fork rather than argued.
     m5 = Machine()
     kb5 = load(m5, chr(10).join([
-        "rule <mine> = implies( { asking(?s), anc(?s, ?d), in_delta(?d, ?e) },",
-        "                      { held(?s, ?e) } )",
+        "rule <mine> = implies( { asking($s), anc($s, $d), in_delta($d, $e) },",
+        "                      { held($s, $e) } )",
         # ⚠⚠⚠ The DISCRIMINATING case, and the check was vacuous without it.
         # → docs/design/selftest.md#the-discriminating-case-and-the-check-was-v
-        "rule <loose> = implies( { asking(?s), in_delta(?d, ?e) },",
-        "                       { anywhere(?s, ?e) } )", ""]))
+        "rule <loose> = implies( { asking($s), in_delta($d, $e) },",
+        "                       { anywhere($s, $e) } )", ""]))
     # ⚠ The two writes are INTERLEAVED with the forking, and they have to be:
     # a deposit lands at `chain.now`, which is the latest moment made, so both
     # writes issued after both `succeed`s would land on the right branch and
@@ -3107,24 +3107,24 @@ def a_half_finished_change_is_observable_and_actionable() -> None:
         return mm.g.atom(str(x - y if mm.g.show(op) == "sub" else x + y))
 
     BODY = chr(10).join([
-        "rule <debit>  = implies( { +pays(?a, ?b), +purse(?a, ?x) },"
-        " { +calc(sub, ?x, 3) } )",
-        "rule <take>   = causes(  { +pays(?a, ?b), +purse(?a, ?x),",
-        "                           +answered(<arith>, calc(sub, ?x, 3), ?r) },",
-        "                         { ? purse(?a, ?x), +purse(?a, ?r),"
-        " +owed(?b, 3), -pays(?a, ?b) } )",
-        "rule <credit> = implies( { +owed(?b, 3), +purse(?b, ?y) },"
-        " { +calc(add, ?y, 3) } )",
-        "rule <give>   = causes(  { +owed(?b, 3), +purse(?b, ?y),",
-        "                           +answered(<arith>, calc(add, ?y, 3), ?r) },",
-        "                         { ? purse(?b, ?y), +purse(?b, ?r), -owed(?b, 3) } )",
+        "rule <debit>  = implies( { +pays($a, $b), +purse($a, $x) },"
+        " { +calc(sub, $x, 3) } )",
+        "rule <take>   = causes(  { +pays($a, $b), +purse($a, $x),",
+        "                           +answered(<arith>, calc(sub, $x, 3), $r) },",
+        "                         { ? purse($a, $x), +purse($a, $r),"
+        " +owed($b, 3), -pays($a, $b) } )",
+        "rule <credit> = implies( { +owed($b, 3), +purse($b, $y) },"
+        " { +calc(add, $y, 3) } )",
+        "rule <give>   = causes(  { +owed($b, 3), +purse($b, $y),",
+        "                           +answered(<arith>, calc(add, $y, 3), $r) },",
+        "                         { ? purse($b, $y), +purse($b, $r), -owed($b, 3) } )",
         "fact +purse(hero, 10)", "fact +purse(smith, 5)",
         "fact +pays(hero, smith)", ""])
 
     m = Machine(); kb = Loader(m)
     kb.answerer("arith", "calc", calc)
-    kb.load("rule <watch> = implies( { +purse(hero, ?x), +purse(smith, ?y) },"
-            " { +total(?x, ?y) } )" + chr(10) + "fact standing(<watch>)"
+    kb.load("rule <watch> = implies( { +purse(hero, $x), +purse(smith, $y) },"
+            " { +total($x, $y) } )" + chr(10) + "fact standing(<watch>)"
             + chr(10) + BODY)
     m.run(limit=300)
     tot = [m.g.show(e.proposition) for e in m._state()
@@ -3139,12 +3139,12 @@ def a_half_finished_change_is_observable_and_actionable() -> None:
     # moment, so a transfer needing no tool cannot be caught half-done.
     m2 = Machine(); kb2 = Loader(m2)
     kb2.load(chr(10).join([
-        "rule <watch> = implies( { +purse(hero, ?x), +purse(smith, ?y) },"
-        " { +total(?x, ?y) } )",
+        "rule <watch> = implies( { +purse(hero, $x), +purse(smith, $y) },"
+        " { +total($x, $y) } )",
         "fact standing(<watch>)",
-        "rule <pay> = causes( { +pays(?a, ?b), +purse(?a, 10), +purse(?b, 5) },",
-        "                     { ? purse(?a, 10), +purse(?a, 7),"
-        " ? purse(?b, 5), +purse(?b, 8) } )",
+        "rule <pay> = causes( { +pays($a, $b), +purse($a, 10), +purse($b, 5) },",
+        "                     { ? purse($a, 10), +purse($a, 7),"
+        " ? purse($b, 5), +purse($b, 8) } )",
         "fact +purse(hero, 10)", "fact +purse(smith, 5)",
         "fact +pays(hero, smith)", ""]))
     m2.run(limit=200)
@@ -3166,7 +3166,7 @@ def a_reserved_name_no_longer_changes_meaning_silently() -> None:
     from .core.text import load
 
     m = Machine()
-    kb = load(m, "rule <sub> = implies( { +hp(?x,?h) }, { +calc(minus, ?h, 2) } )"
+    kb = load(m, "rule <sub> = implies( { +hp($x,$h) }, { +calc(minus, $h, 2) } )"
                  + chr(10) + "fact +hp(gob, 5)" + chr(10))
     check("§5", "a corpus naming a reserved node in an argument position is "
           "TOLD -- it used to change meaning in silence",
@@ -3179,14 +3179,14 @@ def a_reserved_name_no_longer_changes_meaning_silently() -> None:
           "the sign, not a fresh atom", landed and "calc(-," in landed[0])
 
     m2 = Machine()
-    kb2 = load(m2, "rule <ok> = implies( { +hp(?x,?h) }, { +calc(sub, ?h, 2) } )"
+    kb2 = load(m2, "rule <ok> = implies( { +hp($x,$h) }, { +calc(sub, $h, 2) } )"
                    + chr(10) + "fact cost(sword, 3)" + chr(10))
     check("§5", "...while a corpus that collides with nothing is not nagged, "
           "and a NUMERAL is sharing rather than shadowing", not kb2.shadowed)
 
 
 def a_relation_can_be_named_by_a_variable() -> None:
-    """`?p(?t)` -- the effect named by data. (§3, §5, §12)
+    """`$p($t)` -- the effect named by data. (§3, §5, §12)
 
     The substrate could always BUILD a relation instance whose relation slot is
     a variable; it is an ordinary generic node. ⚠ The cost is §3's index, and
@@ -3198,7 +3198,7 @@ def a_relation_can_be_named_by_a_variable() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <resolve> = implies( { +did(?a, ?t), +effect(?a, ?p) }, { +?p(?t) } )",
+        "rule <resolve> = implies( { +did($a, $t), +effect($a, $p) }, { +$p($t) } )",
         "fact effect(fireball, burned)",
         "fact effect(frostbolt, chilled)",
         "fact +did(fireball, goblin)",
@@ -3232,7 +3232,7 @@ def a_relation_can_be_named_by_a_variable() -> None:
     m2 = Machine()
     refused = False
     try:
-        load(m2, "rule <bad> = implies( { +go(?t) }, { +?p(?t) } )" + chr(10)
+        load(m2, "rule <bad> = implies( { +go($t) }, { +$p($t) } )" + chr(10)
              + "fact +go(x)" + chr(10))
     except ParseError:
         refused = True
@@ -3241,7 +3241,7 @@ def a_relation_can_be_named_by_a_variable() -> None:
     # An ANTECEDENT member may name one too -- it just cannot be indexed.
     m3 = Machine()
     kb3 = load(m3, chr(10).join([
-        "rule <flee> = implies( { +?p(?t), +dangerous(?p) }, { +run(?t) } )",
+        "rule <flee> = implies( { +$p($t), +dangerous($p) }, { +run($t) } )",
         "fact +dangerous(fire)",
         "fact +fire(room)",
         "fact +quiet_thing(room)", ""]))
@@ -3264,13 +3264,13 @@ def a_verb_is_defined_once_and_a_world_is_declared() -> None:
 
     VERB = chr(10).join([
         "rule <can-buy> = implies(",
-        "    { +wants(?b, ?item), +sells(?s, ?kind), +?kind(?item),",
-        "      +stocks(?s, ?item), +purse(?b, ?coin) },",
-        "    { +offer(?b, ?s, ?item) } )",
+        "    { +wants($b, $item), +sells($s, $kind), +$kind($item),",
+        "      +stocks($s, $item), +purse($b, $coin) },",
+        "    { +offer($b, $s, $item) } )",
         "rule <buy> = causes(",
-        "    { +offer(?b, ?s, ?item), +purse(?b, ?coin) },",
-        "    { +owns(?b, ?item), -stocks(?s, ?item),",
-        "      ? purse(?b, ?coin), +falls(purse(?b)) } )", ""])
+        "    { +offer($b, $s, $item), +purse($b, $coin) },",
+        "    { +owns($b, $item), -stocks($s, $item),",
+        "      ? purse($b, $coin), +falls(purse($b)) } )", ""])
 
     def world(extra):
         mm = Machine(); kk = load(mm, VERB + extra); mm.run(limit=200)
@@ -3285,7 +3285,7 @@ def a_verb_is_defined_once_and_a_world_is_declared() -> None:
           m.holds(kb.term("owns(hero, sword)")) == PLUS
           and m.holds(kb.term("stocks(smith, sword)")) == MINUS)
     # ⚠ And the purse is INVALIDATED, not silently stale -- §16's pair. The
-    # first version of this fixture wrote `? purse(?b)` against a `purse(b, n)`
+    # first version of this fixture wrote `? purse($b)` against a `purse(b, n)`
     # fact, so it invalidated a proposition nobody had ever asserted and the
     # old amount went on reading `+`. An arity slip is silent here.
     check("§16", "...and what changed is unreadable rather than stale, because "
@@ -3302,9 +3302,9 @@ def a_verb_is_defined_once_and_a_world_is_declared() -> None:
 
     m3, kb3 = world(chr(10).join([
         "rule <steal> = causes(",
-        "    { +covets(?b, ?item), +sells(?s, ?kind), +?kind(?item),",
-        "      +stocks(?s, ?item) },",
-        "    { +owns(?b, ?item), -stocks(?s, ?item), +angry(?s) } )",
+        "    { +covets($b, $item), +sells($s, $kind), +$kind($item),",
+        "      +stocks($s, $item) },",
+        "    { +owns($b, $item), -stocks($s, $item), +angry($s) } )",
         "fact sells(smith, weapon)", "fact +weapon(sword)",
         "fact +stocks(smith, sword)", "fact +covets(thief, sword)", ""]))
     check("§2", "...and a SECOND verb reuses the same declarations untouched, "
@@ -3313,7 +3313,7 @@ def a_verb_is_defined_once_and_a_world_is_declared() -> None:
           and m3.holds(kb3.term("angry(smith)")) == PLUS)
 
     m4, kb4 = world(chr(10).join([
-        "rule <blades> = implies( { +blade(?x) }, { +weapon(?x) } )",
+        "rule <blades> = implies( { +blade($x) }, { +weapon($x) } )",
         "fact sells(smith, weapon)", "fact +blade(dagger)",
         "fact +stocks(smith, dagger)", "fact +purse(hero, 20)",
         "fact +wants(hero, dagger)", ""]))
@@ -3343,10 +3343,10 @@ def an_amount_is_a_tool_and_an_unknown_amount_is_a_node() -> None:
 
     kb.answerer("calc", "minus", minus)
     kb.load(chr(10).join([
-        "rule <spend> = implies( { +purse(?b, ?n), +buying(?b, ?i), +cost(?i, ?c) },",
-        "                        { +minus(?b, ?n, ?c) } )",
-        "rule <apply-it> = implies( { +answered(<calc>, minus(?b, ?n, ?c), ?r) },",
-        "                        { +?r, ? purse(?b, ?n), -buying(?b, sword) } )",
+        "rule <spend> = implies( { +purse($b, $n), +buying($b, $i), +cost($i, $c) },",
+        "                        { +minus($b, $n, $c) } )",
+        "rule <apply-it> = implies( { +answered(<calc>, minus($b, $n, $c), $r) },",
+        "                        { +$r, ? purse($b, $n), -buying($b, sword) } )",
         "fact +purse(hero, 20)", "fact +buying(hero, sword)",
         "fact cost(sword, 3)", ""]))
     m.run(limit=200)
@@ -3360,9 +3360,9 @@ def an_amount_is_a_tool_and_an_unknown_amount_is_a_node() -> None:
 
     m2 = Machine(); kb2 = Loader(m2)
     kb2.load(chr(10).join([
-        "rule <pour> = causes( { +level(?g, ?v), +poured(?g) },",
-        "                      { ? level(?g, ?v), +greater(after(?g), ?v),",
-        "                        +rises(level(?g)) } )",
+        "rule <pour> = causes( { +level($g, $v), +poured($g) },",
+        "                      { ? level($g, $v), +greater(after($g), $v),",
+        "                        +rises(level($g)) } )",
         "fact +level(glass, 2)", "fact +poured(glass)", ""]))
     m2.run(limit=80)
     check("§13", "⭐ an UNKNOWN magnitude is a node, not a slot: name the "
@@ -3373,10 +3373,10 @@ def an_amount_is_a_tool_and_an_unknown_amount_is_a_node() -> None:
 
     m3 = Machine(); kb3 = Loader(m3)
     kb3.load(chr(10).join([
-        "rule <pour> = causes( { +level(?g, ?v), +poured(?g) },",
-        "                      { ? level(?g, ?v), +greater(after(?g), ?v) } )",
-        "rule <spill> = implies( { +greater(after(?g), ?v), +brim(?g, ?v) },",
-        "                        { +overflows(?g) } )",
+        "rule <pour> = causes( { +level($g, $v), +poured($g) },",
+        "                      { ? level($g, $v), +greater(after($g), $v) } )",
+        "rule <spill> = implies( { +greater(after($g), $v), +brim($g, $v) },",
+        "                        { +overflows($g) } )",
         "fact +level(glass, 2)", "fact +poured(glass)", "fact +brim(glass, 2)", ""]))
     m3.run(limit=80)
     check("§16", "...and it is REASONED WITH, not merely recorded -- a rule "
@@ -3389,7 +3389,7 @@ def an_amount_is_a_tool_and_an_unknown_amount_is_a_node() -> None:
     from .core.text import ParseError
     m4 = Machine(); kb4 = Loader(m4)
     try:
-        kb4.load("rule <p> = causes( { +level(?g, ?v) }, { +level(?g, ?w) } )" + chr(10))
+        kb4.load("rule <p> = causes( { +level($g, $v) }, { +level($g, $w) } )" + chr(10))
         refused = False
     except ParseError:
         refused = True
@@ -3416,8 +3416,8 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <s1> = implies( { +p1(?a,?b), +p2(?b,?c) }, { +i1(?a,?c) } )",
-        "rule <s2> = implies( { +i1(?a,?c), +p3(?c,?d) }, { +q(?a,?d) } )",
+        "rule <s1> = implies( { +p1($a,$b), +p2($b,$c) }, { +i1($a,$c) } )",
+        "rule <s2> = implies( { +i1($a,$c), +p3($c,$d) }, { +q($a,$d) } )",
         "fact +compose(<s1>, <s2>)",
         "fact +p1(a, b)", "fact +p2(b, c)", "fact +p3(c, d)", ""]))
     m.run(limit=80)
@@ -3426,7 +3426,7 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
           "composition has a trigger", len(made) == 1)
     # ⭐ Arity and the JOIN are what composition builds, and they are what no
     # schema rule could take as data -- a rule's antecedent is fixed structure,
-    # and there is no way to pass it *join member 0 with member 2 on `?c`*.
+    # and there is no way to pass it *join member 0 with member 2 on `$c`*.
     ant = made[0].antecedent if made else []
     check("§12", "...and it carries the union of the premises with the join "
           "threaded -- 2 + 2 members become 3, not 4",
@@ -3455,8 +3455,8 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
     # the composer. Membership of the live set is what tells them apart.
     m3 = Machine()
     kb3 = load(m3, chr(10).join([
-        "rule <s1> = implies( { +p1(?a) }, { +i1(?a) } )",
-        "rule <anything> = implies( { +go(?x, ?y) }, { +compose(?x, ?y) } )",
+        "rule <s1> = implies( { +p1($a) }, { +i1($a) } )",
+        "rule <anything> = implies( { +go($x, $y) }, { +compose($x, $y) } )",
         "fact +go(notarule, alsonot)", ""]))
     n3 = len(m3.rules.rules)
     m3.run(limit=60)
@@ -3473,9 +3473,9 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
     def reaches(compose: bool) -> bool:
         mm = Machine()
         kk = load(mm, chr(10).join([
-            "rule <a> = causes(  { +p(?x) },         { +q(?x) } )",
-            "rule <b> = implies( { +q(?x), +r(?x) }, { +s(?x) } )",
-            "rule <late> = implies( { +q(?x) }, { +r(?x) } )",
+            "rule <a> = causes(  { +p($x) },         { +q($x) } )",
+            "rule <b> = implies( { +q($x), +r($x) }, { +s($x) } )",
+            "rule <late> = implies( { +q($x) }, { +r($x) } )",
             "fact +p(t)", ""]))
         byy = {r.name: r for r in mm.rules.rules if r.name}
         if compose:
@@ -3494,8 +3494,8 @@ def a_corpus_can_shorten_its_own_reasoning() -> None:
     # composes across a `causes` soundly.
     m5 = Machine()
     kb5 = load(m5, chr(10).join([
-        "rule <a> = causes(  { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +s(?x) } )", ""]))
+        "rule <a> = causes(  { +p($x) }, { +q($x) } )",
+        "rule <b> = implies( { +q($x) }, { +s($x) } )", ""]))
     by5 = {r.name: r for r in m5.rules.rules if r.name}
     still = m5.rules.compose(by5["a"], by5["b"], name="ok")
     check("§14", "...and the refusal is exact, not cautious: a second rule "
@@ -3556,7 +3556,7 @@ def an_example_becomes_a_rule() -> None:
     shared: dict = {}
     same = generalise(g, g.rel(f, a, a), g.rel(f, b, b), shared)
     check("§7", "...and one disagreement is one variable however often it "
-          "appears: f(a,a) and f(b,b) generalise to f(?g, ?g), not to f(?1, ?2)",
+          "appears: f(a,a) and f(b,b) generalise to f($g, $g), not to f($1, $2)",
           len(g.members(same)) == 2 and g.member(same, 0) is g.member(same, 1))
 
     # Now the loop: two examples, a tool, the door, and a case neither example
@@ -3598,11 +3598,11 @@ def an_example_becomes_a_rule() -> None:
         return mm, kbb
 
     corpus = chr(10).join([
-        "rule <ask> = implies( { +example(?p1, ?c1), +example(?p2, ?c2),",
-        "                        +sooner(?p1, ?p2) },",
-        "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
-        "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
-        "                      { +adopt(?r) } )",
+        "rule <ask> = implies( { +example($p1, $c1), +example($p2, $c2),",
+        "                        +sooner($p1, $p2) },",
+        "                      { +generalise(pair($p1, $c1), pair($p2, $c2)) } )",
+        "rule <take> = implies( { +answered(<learner>, generalise($x, $y), $r) },",
+        "                      { +adopt($r) } )",
         "fact +example(seen(door), known(door))",
         "fact +example(seen(window), known(window))",
         "fact +sooner(seen(door), seen(window))",
@@ -3625,11 +3625,11 @@ def an_example_becomes_a_rule() -> None:
     # rule that fires on everything. The tool declines, which §17 says is an
     # answer and not a failure.
     junk, kb_j = build(chr(10).join([
-        "rule <ask> = implies( { +example(?p1, ?c1), +example(?p2, ?c2),",
-        "                        +sooner(?p1, ?p2) },",
-        "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
-        "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
-        "                      { +adopt(?r) } )",
+        "rule <ask> = implies( { +example($p1, $c1), +example($p2, $c2),",
+        "                        +sooner($p1, $p2) },",
+        "                      { +generalise(pair($p1, $c1), pair($p2, $c2)) } )",
+        "rule <take> = implies( { +answered(<learner>, generalise($x, $y), $r) },",
+        "                      { +adopt($r) } )",
         "fact +example(seen(door), known(door))",
         "fact +example(heard(bell), rang(bell))",
         "fact +sooner(seen(door), heard(bell))",
@@ -3661,7 +3661,7 @@ def a_rule_can_author_a_rule() -> None:
         kbb = Loader(mm)
 
         def compose(machine, entry):
-            """Builds `{+seen(?x)} => {+known(?x)}` and returns its node.
+            """Builds `{+seen($x)} => {+known($x)}` and returns its node.
 
             The variable is minted here, once, and used in both patterns --
             which is exactly what no corpus can do, and the whole reason this
@@ -3671,7 +3671,7 @@ def a_rule_can_author_a_rule() -> None:
             See docs/design/selftest.md#compose.
             """
             g = machine.g
-            x = g.var("?x")
+            x = g.var("$x")
             node = g.instance(kbb.atom("built"))
             w = lambda p: machine.gate.write(p, PLUS,
                                              licence=entry.node,
@@ -3680,7 +3680,7 @@ def a_rule_can_author_a_rule() -> None:
             w(g.rel(machine.CONN, node, machine.rules.IMPLIES))
             w(g.rel(machine.ANT, node, g.rel(kbb.atom("seen"), x),
                     machine.chain.SIGN[PLUS], machine._numeral(0)))
-            # ⚠ The conclusion is WRAPPED -- `likely(known(?x))` -- and that is
+            # ⚠ The conclusion is WRAPPED -- `likely(known($x))` -- and that is
             # the check rather than the flavour. A rule nobody authored should
             # not conclude as strongly as one that was told, and since grades
             # went that is said in the consequent itself, where a rule can read
@@ -3697,9 +3697,9 @@ def a_rule_can_author_a_rule() -> None:
         return mm, kbb
 
     src = chr(10).join([
-        "rule <ask> = implies( { +want(?w) }, { +build(?w) } )",
-        "rule <take> = implies( { +answered(<builder>, build(?w), ?r) },",
-        "                      { +adopt(?r) } )",
+        "rule <ask> = implies( { +want($w) }, { +build($w) } )",
+        "rule <take> = implies( { +answered(<builder>, build($w), $r) },",
+        "                      { +adopt($r) } )",
         "fact +want(a_rule)",
         "fact +seen(door)", ""])
 
@@ -3732,7 +3732,7 @@ def a_rule_can_author_a_rule() -> None:
     # the same offer is on the record and believed by nobody. `artefact`'s
     # measurement at the same boundary.
     inert, kb_i = build(chr(10).join([
-        "rule <ask> = implies( { +want(?w) }, { +build(?w) } )",
+        "rule <ask> = implies( { +want($w) }, { +build($w) } )",
         "fact +want(a_rule)", "fact +seen(door)", ""]))
     n_before = len(inert.rules.rules)
     inert.run(limit=80)
@@ -3758,7 +3758,7 @@ def a_rule_can_author_a_rule() -> None:
     # could never fail. Deposited out of order on purpose.
     from .core.text import load as _load
     back = Machine()
-    kb_b = _load(back, "rule <two> = implies( { +a(?x), +b(?x) }, { +c(?x) } )\n")
+    kb_b = _load(back, "rule <two> = implies( { +a($x), +b($x) }, { +c($x) } )\n")
     (two,) = [r for r in back.rules.rules if r.name == "two"]
     order = []
     for p in back.g.instances_of(back.ANT):
@@ -3792,9 +3792,9 @@ def the_agent_harmonizes_itself() -> None:
     # -- 1. a rule can take another rule out of the running -----------------
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <hot> = implies( { +go(?x) }, { +q(?x) } )",
-        "rule <cold> = implies( { +go(?x) }, { -q(?x) } )",
-        "rule <referee> = implies( { +p(?x) }, { +dormant(<hot>) } )",
+        "rule <hot> = implies( { +go($x) }, { +q($x) } )",
+        "rule <cold> = implies( { +go($x) }, { -q($x) } )",
+        "rule <referee> = implies( { +p($x) }, { +dormant(<hot>) } )",
         "fact standing(<referee>)",
         "fact +p(a)", "fact +go(a)", ""]))
     steps = m.run(limit=60)
@@ -3812,9 +3812,9 @@ def the_agent_harmonizes_itself() -> None:
     # settle it is starved. Same corpus, one word (`standing`) removed.
     loud = Machine()
     kb_loud = load(loud, chr(10).join([
-        "rule <hot> = implies( { +go(?x) }, { +q(?x) } )",
-        "rule <cold> = implies( { +go(?x) }, { -q(?x) } )",
-        "rule <referee> = implies( { +p(?x) }, { +dormant(<hot>) } )",
+        "rule <hot> = implies( { +go($x) }, { +q($x) } )",
+        "rule <cold> = implies( { +go($x) }, { -q($x) } )",
+        "rule <referee> = implies( { +p($x) }, { +dormant(<hot>) } )",
         "fact +p(a)", "fact +go(a)", ""]))
     noisy = loud.run(limit=60)
     check("§19", "...and a conflict no longer starves the rule that would "
@@ -3830,8 +3830,8 @@ def the_agent_harmonizes_itself() -> None:
     # anything else, which is what keeps *ordered* and *out* distinct.
     quiet = Machine()
     kb_q = load(quiet, chr(10).join([
-        "rule <one> = implies( { +p(?x) }, { +a(?x) } )",
-        "rule <two> = implies( { +p(?x) }, { +b(?x) } )",
+        "rule <one> = implies( { +p($x) }, { +a($x) } )",
+        "rule <two> = implies( { +p($x) }, { +b($x) } )",
         "fact +p(a)", ""]))
     quiet.run(limit=60)
     check("§14", "...while a rule that merely lost the tick is still in the "
@@ -3844,8 +3844,8 @@ def the_agent_harmonizes_itself() -> None:
     # -- 2. and it can be withdrawn ----------------------------------------
     undone = Machine()
     kb_u = load(undone, chr(10).join([
-        "rule <hot> = implies( { +go(?x) }, { +q(?x) } )",
-        "rule <cold> = implies( { +go(?x) }, { -q(?x) } )",
+        "rule <hot> = implies( { +go($x) }, { +q($x) } )",
+        "rule <cold> = implies( { +go($x) }, { -q($x) } )",
         "fact dormant(<hot>)",
         "rule <undo> = implies( { +oops }, { +due(<hot>) } )",
         "fact standing(<undo>)",
@@ -3897,17 +3897,17 @@ def the_agent_harmonizes_itself() -> None:
     kbb.answerer("learner", "generalise", make_learner(kbb))
     kbb.load(chr(10).join([
         # What it already knew, and what it is about to learn contradicts it.
-        "rule <secret> = implies( { +sealed(?x) }, { -open(?x) } )",
-        "rule <ask> = implies( { +example(?p1, ?c1), +example(?p2, ?c2),",
-        "                        +sooner(?p1, ?p2) },",
-        "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
-        "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
-        "                      { +adopt(?r) } )",
+        "rule <secret> = implies( { +sealed($x) }, { -open($x) } )",
+        "rule <ask> = implies( { +example($p1, $c1), +example($p2, $c2),",
+        "                        +sooner($p1, $p2) },",
+        "                      { +generalise(pair($p1, $c1), pair($p2, $c2)) } )",
+        "rule <take> = implies( { +answered(<learner>, generalise($x, $y), $r) },",
+        "                      { +adopt($r) } )",
         # ⭐ The corpus's standing policy about what it learns, written once and
         # applying to a rule that does not exist yet -- which is only sayable
         # because the precedence is concluded rather than parsed.
-        "rule <trust-what-i-was-told> = implies( { +rule(?r), +adopt(?r) },",
-        "                      { +dormant(?r) } )",
+        "rule <trust-what-i-was-told> = implies( { +rule($r), +adopt($r) },",
+        "                      { +dormant($r) } )",
         "fact standing(<trust-what-i-was-told>)",
         "fact +example(hinged(a), open(a))",
         "fact +example(hinged(b), open(b))",
@@ -3927,7 +3927,7 @@ def the_agent_harmonizes_itself() -> None:
     (secret,) = [r for r in mm.rules.rules if r.name == "secret"]
     # ⚠⚠ ...and the author does not have to know the order. Written the other
     # way round -- the precedence in the SAME consequent as the adoption, and
-    # before it -- the fact lands while `?r` is not yet a rule, so the write
+    # before it -- the fact lands while `$r` is not yet a rule, so the write
     # hook drops it. `_adopt` re-reads what the graph already says about the
     # rule it is making live. §16's ordering trap, and here the author has no
     # way to see it: both orders read the same.
@@ -3935,12 +3935,12 @@ def the_agent_harmonizes_itself() -> None:
     kbe = Loader(early)
     kbe.answerer("learner", "generalise", make_learner(kbe))
     kbe.load(chr(10).join([
-        "rule <secret> = implies( { +sealed(?x) }, { -open(?x) } )",
-        "rule <ask> = implies( { +example(?p1, ?c1), +example(?p2, ?c2),",
-        "                        +sooner(?p1, ?p2) },",
-        "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
-        "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
-        "                      { +dormant(?r), +adopt(?r) } )",
+        "rule <secret> = implies( { +sealed($x) }, { -open($x) } )",
+        "rule <ask> = implies( { +example($p1, $c1), +example($p2, $c2),",
+        "                        +sooner($p1, $p2) },",
+        "                      { +generalise(pair($p1, $c1), pair($p2, $c2)) } )",
+        "rule <take> = implies( { +answered(<learner>, generalise($x, $y), $r) },",
+        "                      { +dormant($r), +adopt($r) } )",
         "fact +example(hinged(a), open(a))",
         "fact +example(hinged(b), open(b))",
         "fact +sooner(hinged(a), hinged(b))",
@@ -3961,8 +3961,8 @@ def the_agent_harmonizes_itself() -> None:
 def what_a_learned_rule_may_conclude() -> None:
     """A learned rule that concludes WRAPPED cannot fight what it was told.
 
-    Acquisition's normal case: the agent generalises {+hinged(?x)} ⟹ open(?x)
-    from two examples, and it already knows {+sealed(?x)} ⟹ -open(?x).
+    Acquisition's normal case: the agent generalises {+hinged($x)} ⟹ open($x)
+    from two examples, and it already knows {+sealed($x)} ⟹ -open($x).
 
     See docs/design/selftest.md#what-a-learned-rule-may-conclude.
     """
@@ -3996,12 +3996,12 @@ def what_a_learned_rule_may_conclude() -> None:
 
         kb.answerer("learner", "generalise", learn)
         kb.load(chr(10).join([
-            "rule <secret> = implies( { +sealed(?x) }, { -open(?x) } )",
-            "rule <ask> = implies( { +example(?p1, ?c1), +example(?p2, ?c2),",
-            "                        +sooner(?p1, ?p2) },",
-            "                      { +generalise(pair(?p1, ?c1), pair(?p2, ?c2)) } )",
-            "rule <take> = implies( { +answered(<learner>, generalise(?x, ?y), ?r) },",
-            "                      { " + precedence + "+adopt(?r) } )",
+            "rule <secret> = implies( { +sealed($x) }, { -open($x) } )",
+            "rule <ask> = implies( { +example($p1, $c1), +example($p2, $c2),",
+            "                        +sooner($p1, $p2) },",
+            "                      { +generalise(pair($p1, $c1), pair($p2, $c2)) } )",
+            "rule <take> = implies( { +answered(<learner>, generalise($x, $y), $r) },",
+            "                      { " + precedence + "+adopt($r) } )",
             "fact +example(hinged(a), open(a))",
             "fact +example(hinged(b), open(b))",
             "fact +sooner(hinged(a), hinged(b))",
@@ -4010,7 +4010,7 @@ def what_a_learned_rule_may_conclude() -> None:
         steps = m.run(limit=300)
         return m, kb, steps
 
-    broad, kb_b, _ = episode(False, "+dormant(?r), ")
+    broad, kb_b, _ = episode(False, "+dormant($r), ")
     check("§14", "⚠ taking the rule out is too broad for what an agent learns: "
           "one sealed object suppresses the learned rule about every object, "
           "including the one it is right about",
@@ -4043,8 +4043,8 @@ def taking_a_rule_out_is_on_the_record() -> None:
     from .core.text import load
 
     src = chr(10).join([
-        "rule <hot> = implies( { +p(?x) }, { +q(?x) } )",
-        "rule <cold> = implies( { +p(?x) }, { -q(?x) } )",
+        "rule <hot> = implies( { +p($x) }, { +q($x) } )",
+        "rule <cold> = implies( { +p($x) }, { -q($x) } )",
         "fact dormant(<hot>)",
         "fact +p(a)", ""])
     m = Machine()
@@ -4062,7 +4062,7 @@ def taking_a_rule_out_is_on_the_record() -> None:
     # that two things it was told disagree, and asking.
     asked = Machine()
     load(asked, src + chr(10).join([
-        "rule <harmonize> = implies( { +dormant(?l) }, { +doing(ask(?l)) } )",
+        "rule <harmonize> = implies( { +dormant($l) }, { +doing(ask($l)) } )",
         "fact standing(<harmonize>)", ""]))
     asked.run(limit=60)
     check("§19", "⭐ and a corpus can act on it -- it decides to ask about the "
@@ -4082,7 +4082,7 @@ def taking_a_rule_out_is_on_the_record() -> None:
 def a_join_is_not_a_scan() -> None:
     """A rule joined against itself over one relation -- **what recognition is**.
 
-    rule <s1> = implies( { +child(?p, ?x), +child(?x, ?y) }, { +grand(?p, ?y) }
+    rule <s1> = implies( { +child($p, $x), +child($x, $y) }, { +grand($p, $y) }
     ) Reported by pystrider, who read the index and predicted the cause before
     measuring it, and it was a SECOND quadratic: quiet, weigh, heap and kept
     all address the option set -- n ticks, each weighing what could apply --
@@ -4096,8 +4096,8 @@ def a_join_is_not_a_scan() -> None:
 
     def counted(n: int):
         """(unifications, grandparent conclusions) over a binary tree."""
-        src = ["rule <s1> = implies( { +child(?p, ?x), +child(?x, ?y) }, "
-               "{ +grand(?p, ?y) } )"]
+        src = ["rule <s1> = implies( { +child($p, $x), +child($x, $y) }, "
+               "{ +grand($p, $y) } )"]
         src += [f"fact +child(n{i // 2}, n{i})" for i in range(1, n)]
         m = Machine()
         kb = load(m, chr(10).join(src) + chr(10))
@@ -4116,7 +4116,7 @@ def a_join_is_not_a_scan() -> None:
             # every later check in this run counting into a dead list.
             R.unify = original
         # ⚠ Ground instances that are CLAIMED, not `instances_of` -- the rule's
-        # own consequent `grand(?p, ?y)` is an instance of the relation and
+        # own consequent `grand($p, $y)` is an instance of the relation and
         # holds nothing, and counting it read 99 where the answer is 98. The
         # same miscount this file has recorded once already; and `g.atom` mints
         # rather than interns, so the relation is taken off a real term.
@@ -4147,7 +4147,7 @@ def a_join_is_not_a_scan() -> None:
     # the agent concludes.
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <j> = implies( { +a(?x), +b(?x) }, { +c(?x) } )",
+        "rule <j> = implies( { +a($x), +b($x) }, { +c($x) } )",
         "fact +a(t)", "fact +b(t)", ""]))
     state = m._situation()
     (rule,) = [r for r in m.rules.rules if r.name == "j"]
@@ -4197,10 +4197,10 @@ def the_apparatus_eats_its_own_cooking() -> None:
     # capability whose absence is the status quo ante is safe to retire.**
     off = Machine()
     kb_off = load(off, chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <ask-root> = implies( { +goal(?w) }, { +root(?w) } )",
+        "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
+        "rule <ask-root> = implies( { +goal($w) }, { +root($w) } )",
         "fact standing(<ask-root>)",
-        "rule <done> = implies( { +goal(?w), +rooted(?w), +?w }, { +enough(?w) } )",
+        "rule <done> = implies( { +goal($w), +rooted($w), +$w }, { +enough($w) } )",
         "fact standing(<done>)",
         "fact -answers(<root>, root)",
         "fact +heat(anna, kettle)", "fact +water(kettle)",
@@ -4221,7 +4221,7 @@ def the_apparatus_eats_its_own_cooking() -> None:
     # spent the design's vocabulary avoiding.
     keep = Machine()
     kb_keep = load(keep, chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
         "fact -answers(<fit>, fit)",
         "fact +water(kettle)", "fact +goal(boiling(kettle))", ""]))
     keep.run(limit=400)
@@ -4247,7 +4247,7 @@ def the_apparatus_eats_its_own_cooking() -> None:
     # and records no refusal, so the pair can fail.
     ctl = Machine()
     load(ctl, chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
+        "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
         "fact +water(kettle)", "fact +goal(boiling(kettle))", ""]))
     ctl.run(limit=400)
     check("§19", "...against a control that denies nothing: same reading, no "
@@ -4259,7 +4259,7 @@ def the_apparatus_eats_its_own_cooking() -> None:
     # moved it. The reasoning was *narrowing off means exhaustive recall, which
     # is the default* -- wrong about which thing this answers. `_remember` is not
     # the narrowing; it is the ANSWER to the recall request, and `<ask-fit>` keys
-    # on `recalled(?r, ?w)`, so nothing asks `fit` about anything without it.
+    # on `recalled($r, $w)`, so nothing asks `fit` about anything without it.
     check("§21", "⚠ `<remember>` answers the recall REQUEST, it is not recall's "
           "narrowing -- so it is standing too, and the criterion is only as good "
           "as knowing what a thing does",
@@ -4314,16 +4314,16 @@ def a_trigger_reads_what_a_rule_is_about_to_conclude() -> None:
     """
     from .core.text import load
 
-    boil = ["rule <boil> = implies( { +heat(?a, ?w), +water(?w) },",
-            "                      { +boiling(?w) } )",
+    boil = ["rule <boil> = implies( { +heat($a, $w), +water($w) },",
+            "                      { +boiling($w) } )",
             "fact +supposing(h1)",
             "fact +heat(anna, kettle)", "fact +water(kettle)", ""]
 
     # 1. adding -- what a supposition marks as it is produced
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <mark> = implies( { +supposing(?h), +producing(?r, ?p) },",
-        "                      { +hypothetical(?p, ?h) } )",
+        "rule <mark> = implies( { +supposing($h), +producing($r, $p) },",
+        "                      { +hypothetical($p, $h) } )",
         "fact intercepts(<mark>, after)"] + boil))
     m.run(limit=40)
     check("§16", "a trigger marks what a rule produces AS it is produced, so "
@@ -4335,8 +4335,8 @@ def a_trigger_reads_what_a_rule_is_about_to_conclude() -> None:
     # 2. replacing -- and no rule writes the wrapper
     w = Machine()
     kbw = load(w, chr(10).join([
-        "rule <wrap> = implies( { +supposing(?h), +producing(?r, ?p) },",
-        "                      { +instead(?p, likely(?p)) } )",
+        "rule <wrap> = implies( { +supposing($h), +producing($r, $p) },",
+        "                      { +instead($p, likely($p)) } )",
         "fact intercepts(<wrap>, after)"] + boil))
     w.run(limit=40)
     check("§12", "...and a trigger can REPLACE a conclusion: what a rule "
@@ -4353,10 +4353,10 @@ def a_trigger_reads_what_a_rule_is_about_to_conclude() -> None:
     # 3. dropping -- a safety trigger, and it is a QUERY rather than a pattern
     d = Machine()
     kbd = load(d, chr(10).join([
-        "rule <no-harm> = implies( { +producing(?r, doing(harm(?x))) },",
-        "                         { +drop(doing(harm(?x))) } )",
+        "rule <no-harm> = implies( { +producing($r, doing(harm($x))) },",
+        "                         { +drop(doing(harm($x))) } )",
         "fact intercepts(<no-harm>, after)",
-        "rule <act> = implies( { +angry(?x) }, { +doing(harm(?x)), +noted(?x) } )",
+        "rule <act> = implies( { +angry($x) }, { +doing(harm($x)), +noted($x) } )",
         "fact +angry(bo)", ""]))
     d.run(limit=40)
     check("§19", "...and a trigger can DROP one: the act never lands, so it "
@@ -4368,10 +4368,10 @@ def a_trigger_reads_what_a_rule_is_about_to_conclude() -> None:
     # 4. two triggers on one conclusion, and the order is the table's
     two = Machine()
     kb2 = load(two, chr(10).join([
-        "rule <wrap> = implies( { +supposing(?h), +producing(?r, ?p) },",
-        "                      { +instead(?p, likely(?p)) } )",
-        "rule <mark> = implies( { +supposing(?h), +producing(?r, ?p) },",
-        "                      { +hypothetical(?p, ?h) } )",
+        "rule <wrap> = implies( { +supposing($h), +producing($r, $p) },",
+        "                      { +instead($p, likely($p)) } )",
+        "rule <mark> = implies( { +supposing($h), +producing($r, $p) },",
+        "                      { +hypothetical($p, $h) } )",
         "fact intercepts(<wrap>, after)", "fact intercepts(<mark>, after)",
         "fact standing(<wrap>)"] + boil))
     two.run(limit=40)
@@ -4384,8 +4384,8 @@ def a_trigger_reads_what_a_rule_is_about_to_conclude() -> None:
     # 5. the fixture can fail: without the mark, nothing intercepts
     plain = Machine()
     kbp = load(plain, chr(10).join([
-        "rule <wrap> = implies( { +supposing(?h), +producing(?r, ?p) },",
-        "                      { +instead(?p, likely(?p)) } )"] + boil))
+        "rule <wrap> = implies( { +supposing($h), +producing($r, $p) },",
+        "                      { +instead($p, likely($p)) } )"] + boil))
     plain.run(limit=40)
     check("§14", "...and a rule is a trigger only because a corpus says so: "
           "unmarked, it never runs and the conclusion is the rule's own",
@@ -4415,8 +4415,8 @@ def the_gap_between_two_spans() -> None:
         "fact +delta(state(at(home), holds(p1, torch)),",
         "            wanted(at(work), holds(p1, key1), holds(p1, torch)),",
         "            gap1)",
-        "rule <want-what-is-missing> = implies( { +missing(gap1, ?p) },",
-        "                                      { +goal(?p) } )",
+        "rule <want-what-is-missing> = implies( { +missing(gap1, $p) },",
+        "                                      { +goal($p) } )",
         "fact standing(<want-what-is-missing>)", ""]))
     m.run(limit=60)
     held = lambda rel: sorted(m.g.show(p) for p in m.g.instances_of(rel)
@@ -4435,7 +4435,7 @@ def the_gap_between_two_spans() -> None:
           m.holds(kb.term("goal(at(work))")) == PLUS
           and m.holds(kb.term("goal(holds(p1, key1))")) == PLUS)
     # ...and the empty gap is said outright, which is what lets satisfaction be
-    # a rule. `no missing(?g, ?p)` is a negative existential -- *for no ?p* --
+    # a rule. `no missing($g, $p)` is a negative existential -- *for no $p* --
     # and the loader refuses it, so a rule reading differences one at a time
     # can never conclude that there were none.
     same = Machine()
@@ -4443,7 +4443,7 @@ def the_gap_between_two_spans() -> None:
         "fact +delta(state(at(work), holds(p1, key1)),",
         "            wanted(at(work), holds(p1, key1)),",
         "            gap1)",
-        "rule <done> = implies( { +matched(?g) }, { +enough(?g) } )",
+        "rule <done> = implies( { +matched($g) }, { +enough($g) } )",
         "fact standing(<done>)", ""]))
     ran = same.run(limit=60)
     check("§17", "two spans that differ in nothing get the aggregate a rule "
@@ -4537,7 +4537,7 @@ def a_tool_is_data() -> None:
     kb2.load(chr(10).join([
         "fact +achieves(smash(jug1), water(kettle))",
         "fact +intact(jug1)", "fact +goal(water(kettle))",
-        "rule <ask-route> = implies( { +goal(water(?w)) }, { +advice(?w) } )",
+        "rule <ask-route> = implies( { +goal(water($w)) }, { +advice($w) } )",
         ""]))
     m.run(limit=200)
     check("§12", "a tool PROPOSES and does not conclude: with no rule trusting it, "
@@ -4608,11 +4608,11 @@ def subgoals_make_blame_sayable() -> None:
     # blame. Sometimes the only way costs something, and that is the case blame
     # is for.
     src = chr(10).join([
-        "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
-        " { +doing(smash(?j)) } )",
-        "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
-        "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
-        "rule <squeeze> = implies( { +fruit(?f), +jug(?j), +intact(?j) }, { +juice(?j) } )",
+        "rule <use-jug> = implies( { +goal(water($w)), +jug($j), +holds($j, $w) },"
+        " { +doing(smash($j)) } )",
+        "rule <eff> = implies( { +did($a), +achieves($a, $y) }, { +$y } )",
+        "rule <cost> = implies( { +did(smash($j)) }, { -intact($j) } )",
+        "rule <squeeze> = implies( { +fruit($f), +jug($j), +intact($j) }, { +juice($j) } )",
         "fact +achieves(smash(jug1), water(kettle))",
         "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
         "fact +fruit(orange)",
@@ -4640,27 +4640,27 @@ def subgoals_make_blame_sayable() -> None:
     load(m2, src.replace(
         "fact +achieves(smash(jug1), water(kettle))",
         "fact +unused(smash(jug1))").replace(
-        "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
-        " { +doing(smash(?j)) } )", ""))
+        "rule <use-jug> = implies( { +goal(water($w)), +jug($j), +holds($j, $w) },"
+        " { +doing(smash($j)) } )", ""))
     m2.run(limit=4000)
     check("§19", "an episode that broke nothing blames nobody, so blame is not a second "
           "name for *applied*",
           not m2.blame())
 
     # ⚠ The trap, and it is why blame needs `-` rather than absence. Most
-    # unachieved subgoals in a run are GENERIC (`heat(?a, kettle)`) and were never
+    # unachieved subgoals in a run are GENERIC (`heat($a, kettle)`) and were never
     # meant to hold as stated. Counting those as failures blames every rule for
     # every search it ever ran.
     m3 = Machine()
     kb3 = load(m3, chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) }, { +water(?w) } )",
+        "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
+        "rule <pour> = implies( { +tap($t), +under($w, $t) }, { +water($w) } )",
         "fact +tap(sink)", "fact +under(kettle, sink)", "fact +heat(anna, kettle)",
         "fact +goal(boiling(kettle))", "",
     ]))
     m3.run(limit=4000)
     check("§19", "⚠ and a search that left generic subgoals unmet blames nobody -- "
-          "`heat(?a, kettle)` was never meant to hold as stated",
+          "`heat($a, kettle)` was never meant to hold as stated",
           m3.holds(kb3.term("boiling(kettle)")) == PLUS and not m3.blame())
 
 
@@ -4683,15 +4683,15 @@ def taking_one_way_passes_up_the_others() -> None:
     from .core.text import load
 
     def corpus(spend: bool) -> str:
-        served = "-goal(water(?w)), " if spend else ""
+        served = "-goal(water($w)), " if spend else ""
         return chr(10).join([
-            "rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
-            " { " + served + "+doing(fill(?w)) } )",
-            "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
-            " { " + served + "+doing(smash(?j)) } )",
-            "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
-            "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
-            "rule <squeeze> = implies( { +fruit(?f), +jug(?j), +intact(?j) }, { +juice(?j) } )",
+            "rule <use-tap> = implies( { +goal(water($w)), +tap($t), +under($w, $t) },"
+            " { " + served + "+doing(fill($w)) } )",
+            "rule <use-jug> = implies( { +goal(water($w)), +jug($j), +holds($j, $w) },"
+            " { " + served + "+doing(smash($j)) } )",
+            "rule <eff> = implies( { +did($a), +achieves($a, $y) }, { +$y } )",
+            "rule <cost> = implies( { +did(smash($j)) }, { -intact($j) } )",
+            "rule <squeeze> = implies( { +fruit($f), +jug($j), +intact($j) }, { +juice($j) } )",
             "fact +achieves(fill(kettle), water(kettle))",
             "fact +achieves(smash(jug1), water(kettle))",
             "fact +tap(sink)", "fact +under(kettle, sink)",
@@ -4734,7 +4734,7 @@ def taking_one_way_passes_up_the_others() -> None:
     # denied by the rule that acted on it. So the agent cannot tell that it
     # failed, and there is nothing for a retry rule to key on.
     retry = chr(10).join([
-        "rule <retry> = implies( { +open(?w) }, { +goal(?w) } )",
+        "rule <retry> = implies( { +open($w) }, { +goal($w) } )",
         "fact standing(<retry>)",
         "",
     ])
@@ -4750,7 +4750,7 @@ def taking_one_way_passes_up_the_others() -> None:
     # ...and the corpus that spends nothing gets the water, by doing the other
     # thing as well -- which is the trade stated in one line: passing up costs
     # the ability to notice that the way taken did not work.
-    m3, kb3, both3 = run_it(broken.replace("-goal(water(?w)), ", "") + retry)
+    m3, kb3, both3 = run_it(broken.replace("-goal(water($w)), ", "") + retry)
     check("§18", "...where an agent that spends nothing gets there, by doing "
           "BOTH -- so the trade is noticing against not over-doing",
           both3 == ["fill(kettle)", "smash(jug1)"]
@@ -4772,8 +4772,8 @@ def doubt_is_a_tie() -> None:
     from .core.text import load
 
     tie = chr(10).join([
-        "rule <byA> = implies( { +a(?x) }, { +at(?x) } )",
-        "rule <byB> = implies( { +b(?x) }, { +at(?x) } )",
+        "rule <byA> = implies( { +a($x) }, { +at($x) } )",
+        "rule <byB> = implies( { +b($x) }, { +at($x) } )",
         "fact +a(p)",
         "fact +b(p)",
         "fact +goal(at(p))",
@@ -4782,7 +4782,7 @@ def doubt_is_a_tie() -> None:
     # The control, and the reason the check above is not free: one candidate,
     # so nothing to be in two minds about.
     alone = chr(10).join([
-        "rule <byA> = implies( { +a(?x) }, { +at(?x) } )",
+        "rule <byA> = implies( { +a($x) }, { +at($x) } )",
         "fact +a(p)",
         "fact +goal(at(p))",
         "",
@@ -4870,7 +4870,7 @@ def support_can_be_withdrawn() -> None:
         "rule <recant> = implies( { +told(bad) }, { -p(a) } )",
         # Asked when the loop has stopped, which is the only moment at which
         # *nothing holds this up* is about a finished search.
-        "rule <ask>    = implies( { +quiet(?m) }, { +support(q(a)) } )",
+        "rule <ask>    = implies( { +quiet($m) }, { +support(q(a)) } )",
         "fact +p(a)",
         "fact +told(bad)",
         "",
@@ -4891,7 +4891,7 @@ def support_can_be_withdrawn() -> None:
     )
 
     # The reaction, which is one corpus line and could have been three others.
-    tear = base + "rule <tear> = implies( { +unsupported(?x) }, { -?x } )" + chr(10)
+    tear = base + "rule <tear> = implies( { +unsupported($x) }, { -$x } )" + chr(10)
     m2 = Machine()
     kb2 = load(m2, tear)
     m2.run(limit=200)
@@ -4915,7 +4915,7 @@ def support_can_be_withdrawn() -> None:
     # unsupported: it was asserted, so it rests on nothing and has not lost a
     # reason -- it has been contradicted, which is a different thing.
     m4 = Machine()
-    kb4 = load(m4, base + "rule <ask-p> = implies( { +quiet(?m) }, { +support(p(a)) } )" + chr(10))
+    kb4 = load(m4, base + "rule <ask-p> = implies( { +quiet($m) }, { +support(p(a)) } )" + chr(10))
     m4.run(limit=200)
     check(
         "§9",
@@ -4958,8 +4958,8 @@ def a_binding_can_be_reconsidered() -> None:
     from .core.text import load
 
     base = chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
+        "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
+        "rule <pour> = implies( { +tap($t), +under($w, $t) },  { +water($w) } )",
         "fact +tap(sink)",
         "fact +tap(butt)",
         "fact +under(kettle, sink)",
@@ -4971,9 +4971,9 @@ def a_binding_can_be_reconsidered() -> None:
     # Asked at `quiet`, which is where a recovery belongs: the loop has finished,
     # so reconsidering cannot starve anything that was still going to run.
     redo = chr(10).join([
-        "rule <redo> = implies( { +quiet(?m), +binds(?p, ?v, butt), +subgoal(?p, ?s) },",
-        "                      { +excluded(?p, ?v, butt), -binds(?p, ?v, butt),",
-        "                        +again(check(?p, ?s), ?m) } )",
+        "rule <redo> = implies( { +quiet($m), +binds($p, $v, butt), +subgoal($p, $s) },",
+        "                      { +excluded($p, $v, butt), -binds($p, $v, butt),",
+        "                        +again(check($p, $s), $m) } )",
         "",
     ])
 
@@ -4984,7 +4984,7 @@ def a_binding_can_be_reconsidered() -> None:
         got = [m.g.show(m.g.member(e.proposition, 2))
                for mm in m.chain.moments for e in mm.delta
                if m.g.relation_of(e.proposition) is m.BINDS and e.sign == PLUS
-               and m.g.show(m.g.member(e.proposition, 1)) == "?t"]
+               and m.g.show(m.g.member(e.proposition, 1)) == "$t"]
         return got, steps, m, kb
 
     plain, plain_steps, _, kb0 = taps(base)
@@ -5001,13 +5001,13 @@ def a_binding_can_be_reconsidered() -> None:
         and m_both.holds(kb_both.term("boiling(kettle)")) == PLUS,
     )
 
-    only_excl, _, _, _ = taps(base + redo.replace("-binds(?p, ?v, butt),", ""))
+    only_excl, _, _, _ = taps(base + redo.replace("-binds($p, $v, butt),", ""))
     check("§18", "⚠ excluding alone is inert -- the surviving binding pins the "
           "variable before the exclusion is consulted",
           only_excl == ["butt"])
 
     only_deny, deny_steps, _, _ = taps(
-        base + redo.replace("+excluded(?p, ?v, butt),", ""), limit=300)
+        base + redo.replace("+excluded($p, $v, butt),", ""), limit=300)
     check(
         "§15",
         "⚠⚠⚠ ...and denying alone RUNS AWAY: the same candidate is chosen again "
@@ -5018,11 +5018,11 @@ def a_binding_can_be_reconsidered() -> None:
     # The wall this ran into, kept as a check because it is the reason the
     # exclusion is concluded by a rule and never written as a fact.
     asfact, _, _, _ = taps(
-        base + "fact +excluded(plan(<pour>, water(kettle)), ?t, butt)" + chr(10))
+        base + "fact +excluded(plan(<pour>, water(kettle)), $t, butt)" + chr(10))
     check(
         "§8",
         "⚠⚠ and it cannot be a corpus FACT: a statement's variables are scoped "
-        "to it, so that `?t` is a different node and excludes nothing",
+        "to it, so that `$t` is a different node and excludes nothing",
         asfact == ["butt"],
     )
 
@@ -5040,8 +5040,8 @@ def withdrawing_a_binding_withdraws_what_used_it() -> None:
     from .core.text import load
 
     base = chr(10).join([
-        "rule <boil> = implies( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <pour> = implies( { +tap(?t), +under(?w, ?t) },  { +water(?w) } )",
+        "rule <boil> = implies( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
+        "rule <pour> = implies( { +tap($t), +under($w, $t) },  { +water($w) } )",
         "fact +tap(sink)",
         "fact +tap(butt)",
         "fact +under(kettle, sink)",
@@ -5050,16 +5050,16 @@ def withdrawing_a_binding_withdraws_what_used_it() -> None:
         "fact +goal(boiling(kettle))",
         "",
     ])
-    drop = ("rule <drop> = implies( { +quiet(?m), +binds(?p, ?v, butt) },"
-            " { -binds(?p, ?v, butt) } )" + chr(10))
+    drop = ("rule <drop> = implies( { +quiet($m), +binds($p, $v, butt) },"
+            " { -binds($p, $v, butt) } )" + chr(10))
     # ⚠ Asked on the DENIAL, not at `quiet`. Both rules key on the same occasion
     # otherwise, and the one authored first runs first -- so the question was
     # answered while the binding was still intact and reported nothing. §16's
     # ordering trap, in a fixture rather than in the engine.
-    ask = ("rule <ask> = implies( { -binds(?p, ?v, butt) },"
-           " { +support(achieved(under(kettle, ?v))) } )" + chr(10))
-    intact = ("rule <askq> = implies( { +quiet(?m), +binds(?p, ?v, butt) },"
-              " { +support(achieved(under(kettle, ?v))) } )" + chr(10))
+    ask = ("rule <ask> = implies( { -binds($p, $v, butt) },"
+           " { +support(achieved(under(kettle, $v))) } )" + chr(10))
+    intact = ("rule <askq> = implies( { +quiet($m), +binds($p, $v, butt) },"
+              " { +support(achieved(under(kettle, $v))) } )" + chr(10))
 
     def run(src):
         m = Machine()
@@ -5075,7 +5075,7 @@ def withdrawing_a_binding_withdraws_what_used_it() -> None:
         "§12",
         "⭐ withdraw a binding and what relied on it is unsupported -- the two "
         "halves of this arc join up",
-        "unsupported(achieved(under(kettle, ?t)))" in withdrawn,
+        "unsupported(achieved(under(kettle, $t)))" in withdrawn,
     )
     check("§15", "...and with the binding intact, the same question answers nothing",
           not held)
@@ -5102,7 +5102,7 @@ def withdrawing_a_binding_withdraws_what_used_it() -> None:
         "choice",
         ach is not None
         and all(
-            m2.g.show(m2.g.member(x.proposition, 1)) == "?t"
+            m2.g.show(m2.g.member(x.proposition, 1)) == "$t"
             for x in m2.chain.rests_on(ach)
             if m2.g.relation_of(x.proposition) is m2.BINDS
         ),
@@ -5135,10 +5135,10 @@ def prohibitions_are_not_recalled() -> None:
     from .core.text import load
 
     src = chr(10).join([
-        "rule <fix>  = implies( { +broken(?x) }, { +doing(repair(?x)) } )",
-        "rule <burn> = implies( { +broken(?x) }, { +doing(harm(?x)) } )",
-        "rule <no-harm> = implies( { +producing(?r, doing(harm(?x))) },",
-        "                         { +drop(doing(harm(?x))) } )",
+        "rule <fix>  = implies( { +broken($x) }, { +doing(repair($x)) } )",
+        "rule <burn> = implies( { +broken($x) }, { +doing(harm($x)) } )",
+        "rule <no-harm> = implies( { +producing($r, doing(harm($x))) },",
+        "                         { +drop(doing(harm($x))) } )",
         "fact intercepts(<no-harm>, after)",
         "fact +broken(pump)",
         "",
@@ -5182,9 +5182,9 @@ def prohibitions_are_not_recalled() -> None:
     # and a rule can retire one.
     m3 = Machine()
     kb3 = load(m3, chr(10).join([
-        "rule <burn> = implies( { +broken(?x) }, { +doing(harm(?x)) } )",
-        "rule <no-harm> = implies( { +producing(?r, doing(harm(?x))) },",
-        "                         { +drop(doing(harm(?x))) } )",
+        "rule <burn> = implies( { +broken($x) }, { +doing(harm($x)) } )",
+        "rule <no-harm> = implies( { +producing($r, doing(harm($x))) },",
+        "                         { +drop(doing(harm($x))) } )",
         "fact intercepts(<no-harm>, after)",
         "rule <emergency> = implies( { +says(fire, evacuate, plus) },",
         "                          { -intercepts(<no-harm>, after) } )",
@@ -5253,12 +5253,12 @@ def the_index_agrees_with_the_walk() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <a> = causes(  { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "rule <a> = causes(  { +p($x) }, { +q($x) } )",
+        "rule <b> = implies( { +q($x) }, { +r($x) } )",
         # ⚠ A third `causes` step, because supposing was what used to make this
         # chain deep. Without it the same fixture makes four moments where it
         # used to make more, and the breadth check below is what noticed.
-        "rule <c> = causes(  { +r(?x) }, { +s(?x) } )",
+        "rule <c> = causes(  { +r($x) }, { +s($x) } )",
         "fact +p(one)",
         "fact +p(two)",
         "",
@@ -5307,7 +5307,7 @@ def the_index_agrees_with_the_walk() -> None:
 #
 # §17 said *every seat move is a write*, and §21 carried it as owed for as long
 # as it existed. `Gate.reseat` paid it: advancing the register deposited
-# `moved(?from, ?to)`, licensed by the rule that moved it, so an ordinary rule
+# `moved($from, $to)`, licensed by the rule that moved it, so an ordinary rule
 # could read the move -- which was the point. The four checks were that the
 # entry exists, that it names the seat left and the seat taken, that its licence
 # is the application, and that a corpus rule matches it.
@@ -5315,7 +5315,7 @@ def the_index_agrees_with_the_walk() -> None:
 # ⭐ The debt is not paid off, it is DISSOLVED. There is no register to move.
 # `Chain.now` is the chain's own end and nothing assigns it, so a `causes`
 # application appends a moment and there is no second thing to keep in step with
-# it. What `moved(?from, ?to)` reported is `pred(?to, ?from)`, which is ordinary
+# it. What `moved($from, $to)` reported is `pred($to, $from)`, which is ordinary
 # skeleton and which every structural rule already reads.
 #
 # ⚠ `Gate.MOVED`, `Gate.FRAME` and `Gate.PROCESS` were left as dead atoms by
@@ -5340,8 +5340,8 @@ def reference_is_binding() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <boil> = implies( { +heat(?w) }, { +boiling(?w) } )",
-        "rule <p>    = implies( { +expands(?plan, ?w, ?r) }, { +noted(?plan) } )",
+        "rule <boil> = implies( { +heat($w) }, { +boiling($w) } )",
+        "rule <p>    = implies( { +expands($plan, $w, $r) }, { +noted($plan) } )",
         "fact +goal(boiling(kettle))",
         "",
     ]))
@@ -5352,7 +5352,7 @@ def reference_is_binding() -> None:
         m.holds(kb.term("noted(plan(<boil>, boiling(kettle)))")) == PLUS,
     )
 
-    # ⚠ **A hypothesis used to be referable the same way** -- `left(?frame, ?a)`
+    # ⚠ **A hypothesis used to be referable the same way** -- `left($frame, $a)`
     # bound the occasion of leaving one, so a corpus could name a hypothesis it
     # had never been given a name for. There are no frames to leave now, and the
     # `left`/`resume` vocabulary went with them.
@@ -5367,7 +5367,7 @@ def reference_is_binding() -> None:
         load(mm, chr(10).join([
             f"rule <one> = {conn}( {{ +trigger(a) }},    {{ +plan(first, x) }} )",
             f"rule <two> = {conn}( {{ +plan(first, x) }}, {{ +plan(second, x) }} )",
-            "rule <ref> = implies( { +plan(?p, x) },      { +chose(?p) } )",
+            "rule <ref> = implies( { +plan($p, x) },      { +chose($p) } )",
             "fact +trigger(a)",
             "",
         ]))
@@ -5400,8 +5400,8 @@ def the_chain_mirrors_nothing_of_its_own() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <boil> = causes( { +heat(?a, ?w), +water(?w) }, { +boiling(?w) } )",
-        "rule <warn> = implies( { +boiling(?w) }, { +doing(say(hot(?w))) } )",
+        "rule <boil> = causes( { +heat($a, $w), +water($w) }, { +boiling($w) } )",
+        "rule <warn> = implies( { +boiling($w) }, { +doing(say(hot($w))) } )",
         "fact +heat(anna, kettle)", "fact +water(kettle)", ""]))
     m.actuator("say")
     ch, g = m.chain, m.g
@@ -5498,7 +5498,7 @@ def a_cached_application_can_be_retracted() -> None:
     m.rules._skeleton = None
     m.reserved["blocks"] = BLOCK
     kb = load(m, chr(10).join([
-        "rule <act> = implies( { +person(?x), -blocks(?x) }, { +acted(?x) } )",
+        "rule <act> = implies( { +person($x), -blocks($x) }, { +acted($x) } )",
         "fact +person(ann)",
         "fact +person(bob)",
         "",
@@ -5523,19 +5523,19 @@ def a_cached_application_can_be_retracted() -> None:
 def a_structural_member_needs_a_ground_anchor() -> None:
     """§3, §12. `_stored` refuses an unanchored pattern because it would
     enumerate the history. The test asked `is_var`, which is False for every
-    relation instance -- so `licensed_by(?e, loaded(?p))` counted `loaded(?p)`
+    relation instance -- so `licensed_by($e, loaded($p))` counted `loaded($p)`
     as an anchor although nothing in it was known, and the walk read the whole
-    history. Any structured argument did it: `rests_on(?e, foo(?p))`.
+    history. Any structured argument did it: `rests_on($e, foo($p))`.
 
     ⚠ `has_var` is not the test either -- it cannot see through bindings, and
-    `loaded(?p)` with `?p` bound is ground in fact and generic in shape. So the
+    `loaded($p)` with `$p` bound is ground in fact and generic in shape. So the
     question is asked of the binding, recursively.
     """
     from .core.rules import _ground
 
     m = Machine()
     p = m.g.atom("p")
-    x = m.g.var("?x")
+    x = m.g.var("$x")
     loaded_x = m.g.rel(m.LOADED, x)
     check("§3", "a bare variable is not an anchor", not _ground(m.g, x, {}))
     check("§3", "an atom is", _ground(m.g, p, {}))
@@ -5560,15 +5560,15 @@ def quiescence_is_an_occasion() -> None:
     The cost, found by hitting it: **the occasion persists.** `quiet` is an
     entry, not an event, so a watchdog is armed from quiescence onwards rather
     than fired once. One whose conclusion creates new matches for itself --
-    `+quiet(?m), +blocked(?g) => +goal(ask(?g))`, where the new goal is blocked
+    `+quiet($m), +blocked($g) => +goal(ask($g))`, where the new goal is blocked
     in turn -- runs until its budget. Quiescence is what stops the honest ones,
     and it is not enough on its own.
     """
     from .core.text import load
 
     src = chr(10).join([
-        "rule <watch> = implies( { +quiet(?m), +blocked(?g) }, { +stuck(?g) } )",
-        "rule <escal> = implies( { +stuck(?g) },               { +doing(ask(user, ?g)) } )",
+        "rule <watch> = implies( { +quiet($m), +blocked($g) }, { +stuck($g) } )",
+        "rule <escal> = implies( { +stuck($g) },               { +doing(ask(user, $g)) } )",
         "fact +goal(fixed(pump))",
         "",
     ])
@@ -5635,7 +5635,7 @@ def an_unindexed_member_says_so() -> None:
           r.scans > 0 and r.scanned_nodes > 0)
     check("§3", "...and NAMES the member, which is what an author has to go and "
           "change",
-          any("(" in k or "?" in k for k in r.scanned))
+          any("(" in k or "$" in k for k in r.scanned))
 
     native = Machine()
     load(native, I.NATIVE, None, None)
@@ -5676,10 +5676,10 @@ def a_line_of_work_can_run_dry_unnoticed() -> None:
         "fact +tick(t0)",
         "fact +next(t0, t1)", "fact +next(t1, t2)", "fact +next(t2, t3)",
         "fact +next(t3, t4)", "fact +next(t4, t5)",
-        "rule <upkeep> = causes( { +tick(?a), +next(?a, ?b) },",
-        "                        { -tick(?a), +tick(?b) } )",
-        "rule <parse>  = implies( { +heard(?w), +word(?w) }, { +read(?w) } )",
-        "rule <repair> = implies( { +heard(?w) }, { +guessed(?w) } )",
+        "rule <upkeep> = causes( { +tick($a), +next($a, $b) },",
+        "                        { -tick($a), +tick($b) } )",
+        "rule <parse>  = implies( { +heard($w), +word($w) }, { +read($w) } )",
+        "rule <repair> = implies( { +heard($w) }, { +guessed($w) } )",
         "fact standing(<upkeep>)",
         "fact standing(<parse>)",
         "fact +heard(gobln)", ""])
@@ -5737,7 +5737,7 @@ def the_watcher_is_handed_the_move() -> None:
 
     m = Machine()
     load(m, chr(10).join([
-        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
+        "rule <a> = implies( { +p($x) }, { +q($x) } )",
         "fact +p(x)", ""]))
     table_run(m, limit=20, watch=watching)
 
@@ -5770,7 +5770,7 @@ def attention_is_about_a_node_not_a_rule() -> None:
     def order(extra):
         m = Machine()
         load(m, chr(10).join([
-            "rule <attack> = implies( { +enemy(?x) }, { +struck(?x) } )",
+            "rule <attack> = implies( { +enemy($x) }, { +struck($x) } )",
             "fact +enemy(goblin1)",
             "fact +enemy(goblin2)",
         ] + extra + [""]))
@@ -5792,7 +5792,7 @@ def attention_is_about_a_node_not_a_rule() -> None:
 
     # ...and the rule half, which needs a table deep enough for the shortlist to
     # be a real cut: twelve rules, of which only the last three can match at all.
-    rules = [f"rule <r{i}> = implies( {{ +a{i}(?x) }}, {{ +b{i}(?x) }} )"
+    rules = [f"rule <r{i}> = implies( {{ +a{i}($x) }}, {{ +b{i}($x) }} )"
              for i in range(12)]
     facts = [f"fact +a{i}(thing{i})" for i in (9, 10, 11)]
 
@@ -5866,7 +5866,7 @@ def attention_is_learned_from_what_the_move_bound() -> None:
     sixteen**, for a structural reason: in a one-move-per-tick loop, spending a
     move on recognising something competes with doing the work. A postcondition
     is evaluated for free after whatever applied, so that is where a lesson
-    about attention can live -- and `attend(?x)` says *think about what this
+    about attention can live -- and `attend($x)` says *think about what this
     move just bound*, in the host rule's own variables.
 
     ⚠ It is the first postcondition that DEPOSITS rather than moving a score, so
@@ -5877,8 +5877,8 @@ def attention_is_learned_from_what_the_move_bound() -> None:
     from .core.attention import run as table_run
 
     base = [
-        "rule <spot>   = implies( { +leader(?x) }, { +marked(?x) } )",
-        "rule <strike> = implies( { +enemy(?y) }, { +struck(?y) } )",
+        "rule <spot>   = implies( { +leader($x) }, { +marked($x) } )",
+        "rule <strike> = implies( { +enemy($y) }, { +struck($y) } )",
         "fact +enemy(goblin1)",
         "fact +enemy(goblin2)",
         "fact +leader(goblin1)",
@@ -5903,8 +5903,8 @@ def attention_is_learned_from_what_the_move_bound() -> None:
           plain == [("spot", "goblin1"), ("strike", "goblin1"),
                     ("strike", "goblin2")])
 
-    m, kb, taught = go(["after <spot> => attend(?x)"])
-    check("§19", "⭐⭐⭐ `after <spot> => attend(?x)` makes the next move about "
+    m, kb, taught = go(["after <spot> => attend($x)"])
+    check("§19", "⭐⭐⭐ `after <spot> => attend($x)` makes the next move about "
           "what the last one bound: the same rules, the other order, and no "
           "rule was named to say so",
           taught == [("spot", "goblin1"), ("strike", "goblin1"),
@@ -5913,7 +5913,7 @@ def attention_is_learned_from_what_the_move_bound() -> None:
           "asked about",
           m.holds(kb.term("attention(goblin1)")) == PLUS)
 
-    m2, kb2, both = go(["after <spot> => attend(?x)",
+    m2, kb2, both = go(["after <spot> => attend($x)",
                         "after <strike> => unattend"])
     check("§19", "⚠ `unattend` is `reset` for attention, and it DENIES rather "
           "than forgets -- so a focus that has moved on is on the record",
@@ -5928,7 +5928,7 @@ def attention_is_learned_from_what_the_move_bound() -> None:
     refused = None
     try:
         m3 = Machine()
-        load(m3, chr(10).join(base + ["when { +leader(?z) } => attend(?z)", ""]))
+        load(m3, chr(10).join(base + ["when { +leader($z) } => attend($z)", ""]))
     except ParseError as exc:
         refused = str(exc)
     check("§19", "⚠⚠⚠ a RANKING-time trigger is REFUSED, not quietly ignored -- "
@@ -5957,8 +5957,8 @@ def a_lesson_about_attention_is_learned_from_play() -> None:
     from .learning.teaching import Lesson, install_focuses
 
     src = chr(10).join([
-        "rule <spot>   = implies( { +leader(?x), +side(?s) }, { +marked(?x) } )",
-        "rule <strike> = implies( { +marked(?y), +side(?t) }, { +struck(?y) } )",
+        "rule <spot>   = implies( { +leader($x), +side($s) }, { +marked($x) } )",
+        "rule <strike> = implies( { +marked($y), +side($t) }, { +struck($y) } )",
         # ⚠ Was `after <spot> => boost(<strike>, 9)`. The buff's only job here
         # was to INTERLEAVE the two rules, so that what `<spot>` bound carried
         # into the next move and carry-over had something to count. `standing`
@@ -5977,14 +5977,14 @@ def a_lesson_about_attention_is_learned_from_play() -> None:
           played.applied == ["spot", "strike"] * 3)
     check("§19", "...and both of `<spot>`'s variables carried into the next "
           "move every time, so counting carry-over alone cannot choose",
-          lesson.carried[("spot", "?x")] == 3
-          and lesson.carried[("spot", "?s")] == 3)
+          lesson.carried[("spot", "$x")] == 3
+          and lesson.carried[("spot", "$s")] == 3)
 
     learned = lesson.focuses(m)
-    check("§19", "⭐ the variable that VARIES is the lesson: `?x` took three "
-          "goblins, `?s` was always `red`, and attention is for telling two of "
+    check("§19", "⭐ the variable that VARIES is the lesson: `$x` took three "
+          "goblins, `$s` was always `red`, and attention is for telling two of "
           "a kind apart",
-          learned["rules"]["spot"][0] == "?x")
+          learned["rules"]["spot"][0] == "$x")
 
     student = Machine()
     ldr = load(student, src)
@@ -6016,7 +6016,7 @@ def a_teacher_cannot_supervise_what_it_cannot_see() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "rule <strike> = implies( { +enemy(?y) }, { +struck(?y) } )",
+        "rule <strike> = implies( { +enemy($y) }, { +struck($y) } )",
         "fact +enemy(goblin1)",
         "fact +enemy(goblin2)", ""]))
     rule = kb.rules_by_name["strike"]
@@ -6080,8 +6080,8 @@ def a_recursion_can_be_learned_from_watching_it() -> None:
     """§17: two demonstrations in, the recursion out.
 
     ⭐⭐⭐ What is learned is the PERMUTATION, which is the whole insight of
-    Hanoi: `tower(?d,?f,?t,?s)` spawns `tower(?e,?f,?s,?t)` going down and
-    `tower(?e,?s,?t,?f)` coming back. `generalise` reads both off two examples;
+    Hanoi: `tower($d,$f,$t,$s)` spawns `tower($e,$f,$s,$t)` going down and
+    `tower($e,$s,$t,$f)` coming back. `generalise` reads both off two examples;
     nothing searches.
 
     ⚠ ONE demonstration is not experience -- rules that fire once are declined,
@@ -6107,7 +6107,7 @@ def a_recursion_can_be_learned_from_watching_it() -> None:
           "what they called a variable -- including <descend> and <ascend>, "
           "whose peg permutation is the whole of Hanoi",
           len(same) == 10 and "descend" in same and "ascend" in same)
-    check("§17", "⚠ and the two it misses are `d1` where a person wrote `?d`: "
+    check("§17", "⚠ and the two it misses are `d1` where a person wrote `$d`: "
           "the smallest disk is called d1 at EVERY size, so varying n never "
           "varies that argument -- what a demonstration holds constant is what "
           "a learner believes is necessary",
@@ -6129,7 +6129,7 @@ def a_recursion_can_be_learned_from_watching_it() -> None:
 def the_action_palette_is_declared_and_discoverable() -> None:
     """§4: what the agent may DO, as data.
 
-    ⭐⭐⭐ conn(?r, causes) was the nearest thing to an action palette and it
+    ⭐⭐⭐ conn($r, causes) was the nearest thing to an action palette and it
     answers a different question: how a rule relates to the world, not that the
     agent may deliberately do it. ⚠ The signature is generic, so it is
     MENTIONED rather than claimed -- the gate refuses to deposit a proposition
@@ -6141,9 +6141,9 @@ def the_action_palette_is_declared_and_discoverable() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "action move(?x, ?y)",
-        "action rest(?who)",
-        "rule <survey> = implies( { +afforded(?a) }, { +available(?a) } )",
+        "action move($x, $y)",
+        "action rest($who)",
+        "rule <survey> = implies( { +afforded($a) }, { +available($a) } )",
         ""]))
     m.run(limit=30)
     declared = [m.g.show(m.g.member(n, 0)) for n in m.g.instances_of(m.AFFORDED)
@@ -6151,32 +6151,32 @@ def the_action_palette_is_declared_and_discoverable() -> None:
     check("§4", "an action is declared as a SIGNATURE and lands in the graph, "
           "where the pattern is mentioned rather than claimed -- a proposition "
           "with a variable in it cannot be deposited at all",
-          sorted(declared) == ["move(?x, ?y)", "rest(?who)"])
+          sorted(declared) == ["move($x, $y)", "rest($who)"])
 
     found = [m.g.show(m.g.member(n, 0))
              for n in m.g.instances_of(kb.atoms["available"]) if m.holds(n) == PLUS]
     check("§4", "⭐ ...and a rule RANGES over the palette: one rule, every "
           "action, none of them named in it",
-          sorted(found) == ["move(?x, ?y)", "rest(?who)"])
+          sorted(found) == ["move($x, $y)", "rest($who)"])
 
     # ⭐⭐⭐ The round trip, which is the whole argument for reifying rather than
     # keeping the palette in Python: an action declared after the rule was
     # written is still found, so a new action needs no new fallback.
-    load(m, "action climb(?who, ?what)" + chr(10))
+    load(m, "action climb($who, $what)" + chr(10))
     m.run(limit=30)
     later = [m.g.show(m.g.member(n, 0))
              for n in m.g.instances_of(kb.atoms["available"]) if m.holds(n) == PLUS]
     check("§4", "⭐⭐⭐ an action declared AFTER the rule that ranges over the "
           "palette is found by it anyway -- which is what a corpus with a "
           "hand-written fallback per action can never have",
-          "climb(?who, ?what)" in later)
+          "climb($who, $what)" in later)
 
     # And the contrast that says the mention is doing real work: the surface
     # REFUSES the same term as a fact, and says why.
     from .core.text import ParseError
     refused = None
     try:
-        load(Machine(), "fact +move(?x, ?y)" + chr(10))
+        load(Machine(), "fact +move($x, $y)" + chr(10))
     except ParseError as e:
         refused = str(e)
     check("§4", "⚠ ...while the same generic term written as a FACT is refused "
@@ -6199,8 +6199,8 @@ def a_bad_attempt_is_declined_rather_than_ignored() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "action move(?x, ?y)",
-        "rule <policy> = implies( { +wants(?w) }, { +attempt(?w) } )",
+        "action move($x, $y)",
+        "rule <policy> = implies( { +wants($w) }, { +attempt($w) } )",
         "fact +wants(move(d1, z))",
         "fact +wants(teleport(ann, pet))", ""]))
     m.run(limit=60)
@@ -6220,8 +6220,8 @@ def a_bad_attempt_is_declined_rather_than_ignored() -> None:
     # accepted, and nothing said a word.
     greedy = Machine()
     kg = load(greedy, chr(10).join([
-        "action move(?x, ?y)",
-        "rule <grant> = implies( { +wants(?w) }, { +afforded(teleport(a, b)) } )",
+        "action move($x, $y)",
+        "rule <grant> = implies( { +wants($w) }, { +afforded(teleport(a, b)) } )",
         "fact +wants(anything)",
         "rule <try>   = implies( { +afforded(teleport(a, b)) },",
         "                       { +attempt(teleport(a, b)) } )", ""]))
@@ -6257,7 +6257,7 @@ def outstanding_business_is_not_dropped_in_silence() -> None:
     from .core.text import load
 
     m = Machine()
-    kb = load(m, "action move(?x, ?y)" + chr(10)
+    kb = load(m, "action move($x, $y)" + chr(10)
               + "fact +attempt(move(a, b))" + chr(10))
     m.run(limit=40)
     check("§9", "⭐ a run that RAN DRY with a request outstanding says so: "
@@ -6301,11 +6301,11 @@ def what_was_learned_is_a_document() -> None:
 
     m = M()
     kb = load(m, chr(10).join([
-        "rule <a> = implies( { +p(?x), +s(?y) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
-        "after <a> => attend(?x)",
-        "learned after <a> => attend(?y)",
-        "frozen after <a> => attend(?x)",
+        "rule <a> = implies( { +p($x), +s($y) }, { +q($x) } )",
+        "rule <b> = implies( { +q($x) }, { +r($x) } )",
+        "after <a> => attend($x)",
+        "learned after <a> => attend($y)",
+        "frozen after <a> => attend($x)",
         "fact +p(x)", "fact +s(y)", ""]))
     posts = m.rules.triggers[kb.rules_by_name["a"].node]
     check("§20", "⭐ the surface tells an authored lesson from a learned one "
@@ -6321,8 +6321,8 @@ def what_was_learned_is_a_document() -> None:
     table_run(m, limit=6, table=t)
     attended = {m.g.show(n) for n in m._attended()}
     check("§20", "⭐⭐⭐ ...and a learned lesson ADJUSTS the authored one rather "
-          "than replacing it -- the authored post attends `?x`, the learned one "
-          "attends `?y`, and the agent is thinking about BOTH",
+          "than replacing it -- the authored post attends `$x`, the learned one "
+          "attends `$y`, and the agent is thinking about BOTH",
           {"x", "y"} <= attended)
 
     # The round trip: emit, load into a machine that was never taught, and the
@@ -6331,8 +6331,8 @@ def what_was_learned_is_a_document() -> None:
     from .core.attention import run as loop
 
     src = chr(10).join([
-        "rule <spot>   = implies( { +leader(?x), +side(?s) }, { +marked(?x) } )",
-        "rule <strike> = implies( { +marked(?y), +side(?t) }, { +struck(?y) } )",
+        "rule <spot>   = implies( { +leader($x), +side($s) }, { +marked($x) } )",
+        "rule <strike> = implies( { +marked($y), +side($t) }, { +struck($y) } )",
         "fact standing(<strike>)",
         "fact +side(red)",
         "fact +leader(g1)", "fact +leader(g2)", "fact +leader(g3)", ""])
@@ -6344,7 +6344,7 @@ def what_was_learned_is_a_document() -> None:
     doc = emit(played, pldr, learned, "a note")
 
     check("§20", "what was learned is ORDINARY CORPUS TEXT -- `learned after "
-          "<R> ... => attend(?v)`, readable and editable",
+          "<R> ... => attend($v)`, readable and editable",
           "learned after <spot>" in doc and "attend(" in doc
           and "# a note" in doc)
 
@@ -6370,7 +6370,7 @@ def what_was_learned_is_a_document() -> None:
 def a_weight_may_be_NEGATIVE() -> None:
     """A lesson can say *not this*, and that is an ordering and not a removal.
 
-    Attention only ever lifted: `attend(?x, n)` raised the rules reachable from
+    Attention only ever lifted: `attend($x, n)` raised the rules reachable from
     a node and there was no way to lower one. Damping went with the buffs, and
     what replaced it for *take this rule out* is `dormant` -- which is per RULE
     and far too coarse for *that object is a bad idea here*.
@@ -6385,10 +6385,10 @@ def a_weight_may_be_NEGATIVE() -> None:
     from .core.text import load
 
     src = chr(10).join([
-        "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },",
-        "                        { +doing(smash(?j)) } )",
-        "rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },",
-        "                        { +doing(fill(?w)) } )",
+        "rule <use-jug> = implies( { +goal(water($w)), +jug($j), +holds($j, $w) },",
+        "                        { +doing(smash($j)) } )",
+        "rule <use-tap> = implies( { +goal(water($w)), +tap($t), +under($w, $t) },",
+        "                        { +doing(fill($w)) } )",
         "fact +tap(sink)", "fact +under(kettle, sink)",
         "fact +jug(jug1)", "fact +holds(jug1, kettle)",
         "fact +goal(water(kettle))", ""])
@@ -6482,7 +6482,7 @@ def attention_is_a_bounded_queue() -> None:
     # A standing claim still counts, and ranks below what is recent.
     m2 = Machine()
     kb2 = load(m2, chr(10).join([
-        "rule <r> = implies( { +enemy(?x) }, { +struck(?x) } )",
+        "rule <r> = implies( { +enemy($x) }, { +struck($x) } )",
         "fact +enemy(a)", "fact +enemy(b)",
         "fact +attention(a)", ""]))
     m2._push_attention(kb2.term("b"))
@@ -6540,10 +6540,10 @@ def attention_suspends_rather_than_filtering() -> None:
     # ...and the surface says it, in the one list that already had three rows.
     m2 = Machine()
     kb2 = load(m2, chr(10).join([
-        "rule <call> = implies( { +ask(?q), +known(?q) }, { +asking(?q) } )",
-        "after <call> => push(?q)",
-        "rule <work> = implies( { +asking(?q), +known(?q) }, { +done(?q) } )",
-        "after <work> => pop(?q)",
+        "rule <call> = implies( { +ask($q), +known($q) }, { +asking($q) } )",
+        "after <call> => push($q)",
+        "rule <work> = implies( { +asking($q), +known($q) }, { +done($q) } )",
+        "after <work> => pop($q)",
         "fact +ask(sum)", "fact +known(sum)", ""]))
     table_run(m2, limit=20)
     check("§5", "⭐⭐⭐ `push` and `pop` are ROWS, not branches: two more cases "
@@ -6592,12 +6592,12 @@ def an_expert_is_picked_from_what_the_frame_is_about() -> None:
     m = Machine()
     kb = Loader(m, scope="selftest-experts")
     kb.load(chr(10).join([
-        "rule <inherit> = implies( { +extends(?e, ?f), +knows(?f, ?r) },",
-        "                          { +knows(?e, ?r) } )",
+        "rule <inherit> = implies( { +extends($e, $f), +knows($f, $r) },",
+        "                          { +knows($e, $r) } )",
         "expert baker",
-        "rule <bake> = implies( { +dough(?d), +oven(?o) }, { +bread(?d) } )",
+        "rule <bake> = implies( { +dough($d), +oven($o) }, { +bread($d) } )",
         "expert smith",
-        "rule <forge> = implies( { +iron(?i), +forge(?f) }, { +blade(?i) } )",
+        "rule <forge> = implies( { +iron($i), +forge($f) }, { +blade($i) } )",
         "fact +dough(rye)", "fact +iron(ore)", ""]))
     kb.load(SETTLE)
     table_run(m, limit=20)
@@ -6623,7 +6623,7 @@ def an_expert_is_picked_from_what_the_frame_is_about() -> None:
           and any(m._claims(i) for i in m.g.instances_of(m.SUITS)
                   if m.g.member(i, 0) is kb.atom("baker")))
     check("§19", "⚠ a frame holds the expert by NAME and reads its pool on "
-          "demand, because `knows(?e, ?r)` can be CONCLUDED mid-run -- "
+          "demand, because `knows($e, $r)` can be CONCLUDED mid-run -- "
           "`<inherit>` derives more of them, and a pool frozen at push time "
           "could not see one",
           [r.name for r in m._expert_pool(kb.atom("smith"))] == ["forge"])
@@ -6636,9 +6636,9 @@ def a_saved_session_can_be_read_back() -> None:
     features added could not be rendered, and both were found by writing the
     guide rather than by a check -- so they get one. A labelless entity has no
     name, and `show` prints it `#1501`, which the tokeniser reads as a COMMENT:
-    the file took the rest of the document with it. And `no p(?x)` is a word in
-    sign position, so it needs the space `+p(?x)` must not have -- without it
-    the file said `noserved(?p)`, one atom, a different rule, and no error.
+    the file took the rest of the document with it. And `no p($x)` is a word in
+    sign position, so it needs the space `+p($x)` must not have -- without it
+    the file said `noserved($p)`, one atom, a different rule, and no error.
     """
     import json
     import tempfile
@@ -6648,11 +6648,11 @@ def a_saved_session_can_be_read_back() -> None:
 
     m = Machine()
     load(m, chr(10).join([
-        "alias sale(?s, ?b) = { +is(+e, sale), +seller(+e, ?s), +buyer(+e, ?b) }",
+        "alias sale($s, $b) = { +is(+e, sale), +seller(+e, $s), +buyer(+e, $b) }",
         "fact +sale(elara, brin)",
         "fact +is(brin, traveller)",
-        "rule <thirsty> = implies( { +is(?p, traveller), no served(?p) },",
-        "                          { +wants(?p, ale) } )", ""]))
+        "rule <thirsty> = implies( { +is($p, traveller), no served($p) },",
+        "                          { +wants($p, ale) } )", ""]))
     m.run(limit=40)
 
     rendered = chr(10).join(
@@ -6661,9 +6661,9 @@ def a_saved_session_can_be_read_back() -> None:
           "character that makes a file unreadable RATHER than wrong -- it "
           "opens a comment, so one entity would take the document with it",
           "#" not in rendered)
-    check("§2", "⚠ ...and an absence renders as the word it is: `no p(?x)`, "
-          "not `nop(?x)` -- which would have parsed, as a different rule",
-          "no served(?p)" in rendered)
+    check("§2", "⚠ ...and an absence renders as the word it is: `no p($x)`, "
+          "not `nop($x)` -- which would have parsed, as a different rule",
+          "no served($p)" in rendered)
 
     path = os.path.join(tempfile.gettempdir(), "ugm-selftest-session.json")
     try:
@@ -6710,8 +6710,8 @@ def a_table_can_outlive_a_run() -> None:
     from .core.attention import Table, run as table_run, _standing
 
     src = chr(10).join([
-        "rule <a> = implies( { +p(?x) }, { +q(?x) } )",
-        "rule <b> = implies( { +q(?x) }, { +r(?x) } )",
+        "rule <a> = implies( { +p($x) }, { +q($x) } )",
+        "rule <b> = implies( { +q($x) }, { +r($x) } )",
         "fact +p(x)", ""])
 
     m = Machine()
@@ -6758,9 +6758,9 @@ def the_aggregate_over_bindings_is_one_primitive() -> None:
         "fact +goblin(gob_a)",
         "fact +goblin(gob_b)",
         "fact +elf(elf_e)",
-        "fact <goblins> = count(goblin(?x))",
-        "fact <elves>   = count(elf(?x))",
-        "fact <trolls>  = count(troll(?x))",
+        "fact <goblins> = count(goblin($x))",
+        "fact <elves>   = count(elf($x))",
+        "fact <trolls>  = count(troll($x))",
         "rule <ambiguous> = implies( { +counted(<goblins>, 2) }, { +ambiguous(g) } )",
         "rule <definite>  = implies( { +counted(<elves>, 1) },   { +definite(e) } )",
         "rule <untold>    = implies( { +counted(<trolls>, 0) },  { +untold(t) } )",
@@ -6770,8 +6770,8 @@ def the_aggregate_over_bindings_is_one_primitive() -> None:
     m.run(limit=60)
 
     # ⚠ Named through `rule_nodes`, not rebuilt with `kb.term`: a statement's
-    # variables are scoped to it, so re-parsing `count(goblin(?x))` mints a
-    # fresh `?x` and asks about a different description. That is exactly what
+    # variables are scoped to it, so re-parsing `count(goblin($x))` mints a
+    # fresh `$x` and asks about a different description. That is exactly what
     # forced the answer to be keyed on the ask, and it catches a test author
     # the same way it catches a corpus author.
     def counted(name, n):
@@ -6817,7 +6817,7 @@ def a_count_is_not_monotone() -> None:
     kb = load(m, chr(10).join([
         "fact +goblin(gob_a)",
         "fact +goblin(gob_b)",
-        "fact <goblins> = count(goblin(?x))", ""]))
+        "fact <goblins> = count(goblin($x))", ""]))
     m.run(limit=20)
     ask = kb.rule_nodes["goblins"]
 
@@ -6858,7 +6858,7 @@ def a_computed_numeral_is_not_a_twin() -> None:
     from .core.text import load
 
     src = ["fact +thing(t%d)" % i for i in range(12)]
-    src += ["fact <things> = count(thing(?x))",
+    src += ["fact <things> = count(thing($x))",
             "rule <dozen> = implies( { +counted(<things>, 12) }, { +dozen(yes) } )",
             ""]
     m = Machine()
@@ -6975,7 +6975,7 @@ def two_things_can_turn_out_to_be_one() -> None:
     kbv = load(v, chr(10).join([
         "fact +owes(acme, 500)",
         "fact +debt(zeta, 900)",
-        "rule <chase> = implies( { +owes(?who, ?amt) }, { +chase(?who) } )", ""]))
+        "rule <chase> = implies( { +owes($who, $amt) }, { +chase($who) } )", ""]))
     v.run(limit=60)
     before = v.holds(kbv.term("chase(zeta)"))
     v.g.merge(kbv.atom("owes"), kbv.atom("debt"))
@@ -7003,8 +7003,8 @@ def a_rule_can_introduce_a_thing() -> None:
         "fact +said(u1, paul)",
         "fact +said(u2, paul)",
         "fact +said(u3, mary)",
-        "rule <name> = implies( { +said(?u, ?x) },",
-        "                       { +named(+person, ?x),",
+        "rule <name> = implies( { +said($u, $x) },",
+        "                       { +named(+person, $x),",
         "                         +is(+person, person) } )", ""]))
     m.run(limit=200)
     g = m.g
@@ -7061,17 +7061,17 @@ def a_relationship_is_among_ids_a_denotation_is_a_query() -> None:
         "fact +is(gob, goblin)",
         "fact +refers(you, hero)",
         # the entity is created and mapped by a rule, not by the name table
-        "rule <intro> = implies( { +said(?m, ?x) },",
-        "                        { +named(+person, ?x), +denotes(?m, +person) } )",
+        "rule <intro> = implies( { +said($m, $x) },",
+        "                        { +named(+person, $x), +denotes($m, +person) } )",
         # the denotation is MATCHED -- a query -- and what it resolves to fills",
         # the roles of a reified relationship with an id of its own",
-        "rule <reify> = implies( { +mention(?m, attack(?d, you)),",
-        "                          +is(?a, ?d), +refers(you, ?t) },",
-        "                        { +agent(+attack, ?a), +target(+attack, ?t),",
-        "                          +denotes(?m, +attack) } )",
+        "rule <reify> = implies( { +mention($m, attack($d, you)),",
+        "                          +is($a, $d), +refers(you, $t) },",
+        "                        { +agent(+attack, $a), +target(+attack, $t),",
+        "                          +denotes($m, +attack) } )",
         # the mistake the split exists to refuse: relating the denotation itself
-        "rule <smuggle> = implies( { +mention(?m, ?d) },",
-        "                          { +agent(+blob, ?d) } )", ""]))
+        "rule <smuggle> = implies( { +mention($m, $d) },",
+        "                          { +agent(+blob, $d) } )", ""]))
     m.run(limit=300)
     g = m.g
 
@@ -7130,7 +7130,7 @@ def a_relationship_is_among_ids_a_denotation_is_a_query() -> None:
 
 
 def an_alias_is_shorthand_for_structure() -> None:
-    """`alias attacks(?a, ?t) = { ... }`: a corpus defines its own shorthand
+    """`alias attacks($a, $t) = { ... }`: a corpus defines its own shorthand
     for a complex structure, and the loader expands it -- in facts, in
     antecedents and in consequents, at member level only. A `+kind` marker in
     the body is the entity the shorthand stands up: a load-minted entity in a
@@ -7141,13 +7141,13 @@ def an_alias_is_shorthand_for_structure() -> None:
 
     m = Machine()
     kb = load(m, chr(10).join([
-        "alias attacks(?a, ?t) = { +is(+e, attack),",
-        "                          +agent(+e, ?a), +target(+e, ?t) }",
+        "alias attacks($a, $t) = { +is(+e, attack),",
+        "                          +agent(+e, $a), +target(+e, $t) }",
         "fact +attacks(gob, hero)",
         "fact +attacks(orc, hero)",
         "fact +mention(m9, attacks(gob, hero))",
-        "rule <threat> = implies( { +attacks(?x, hero) }, { +threat(?x) } )",
-        "rule <seen> = implies( { +saw(?w, ?a, ?t) }, { +attacks(?a, ?t) } )",
+        "rule <threat> = implies( { +attacks($x, hero) }, { +threat($x) } )",
+        "rule <seen> = implies( { +saw($w, $a, $t) }, { +attacks($a, $t) } )",
         "fact +saw(scout, wolf, hero)", ""]))
     m.run(limit=300)
     g = m.g
@@ -7193,7 +7193,7 @@ def an_alias_is_shorthand_for_structure() -> None:
     refused_sign = False
     try:
         load(Machine(), chr(10).join([
-            "alias a(?x) = { +p(?x) }", "fact -a(q)", ""]))
+            "alias a($x) = { +p($x) }", "fact -a(q)", ""]))
     except ParseError:
         refused_sign = True
     check("world model", "⚠ a signed alias use is REFUSED rather than "
@@ -7203,7 +7203,7 @@ def an_alias_is_shorthand_for_structure() -> None:
 
 
 def absence_is_asked_never_asserted() -> None:
-    """`no p(?x)`: the absence mode, distinct from `-p(?x)` on purpose.
+    """`no p($x)`: the absence mode, distinct from `-p($x)` on purpose.
 
     §9's `-` means *an entry denies this*, never *absent* -- and it cannot
     mean absent, because the rule that MATERIALISES a denial has to ask about
@@ -7219,19 +7219,19 @@ def absence_is_asked_never_asserted() -> None:
         "fact +door(b)",
         "fact +open(a)",
         # absence read directly: b has no open() claim, a has one
-        "rule <shut> = implies( { +door(?d), no open(?d) }, { +closed(?d) } )",
+        "rule <shut> = implies( { +door($d), no open($d) }, { +closed($d) } )",
         # ...and the chicken-and-egg case: a denial MATERIALISED from absence
         "fact +lamp(l1)",
-        "rule <dark> = implies( { +lamp(?l), no lit(?l) }, { -lit(?l) } )", ""]))
+        "rule <dark> = implies( { +lamp($l), no lit($l) }, { -lit($l) } )", ""]))
     m.run(limit=200)
     g = m.g
     closed = {g.member(n, 0) for n in g.instances_of(kb.atoms["closed"])
               if m.holds(n) == PLUS}
-    check("world model", "⭐⭐⭐ `no p(?d)` holds where nothing asserts p(?d) -- "
+    check("world model", "⭐⭐⭐ `no p($d)` holds where nothing asserts p($d) -- "
           "b is closed, and a (whose open() stands) is not",
           closed == {kb.atom("b")})
     check("world model", "⭐⭐⭐ a denial can be MATERIALISED from absence: "
-          "<dark> asks `no lit(?l)` and concludes `-lit(?l)`, which `-` alone "
+          "<dark> asks `no lit($l)` and concludes `-lit($l)`, which `-` alone "
           "could never bootstrap",
           m.holds(g.rel(kb.atoms["lit"], kb.atom("l1"))) == MINUS)
 
@@ -7243,8 +7243,8 @@ def absence_is_asked_never_asserted() -> None:
         "fact +door(c)",
         "fact +open(c)",
         "fact +slam(c)",
-        "rule <shut> = implies( { +door(?d), no open(?d) }, { +closed(?d) } )",
-        "rule <slammed> = causes( { +slam(?d), +open(?d) }, { -open(?d) } )", ""]))
+        "rule <shut> = implies( { +door($d), no open($d) }, { +closed($d) } )",
+        "rule <slammed> = causes( { +slam($d), +open($d) }, { -open($d) } )", ""]))
     m2.run(limit=200)
     check("world model", "⭐⭐ an absence can COME TRUE: open(c) stood, <shut> "
           "waited, <slammed> denied it, and <shut> fired on the re-match -- "
@@ -7255,18 +7255,18 @@ def absence_is_asked_never_asserted() -> None:
     unbound = False
     try:
         load(Machine(), chr(10).join([
-            "rule <bad> = implies( { no p(?x) }, { +q(?x) } )", ""]))
+            "rule <bad> = implies( { no p($x) }, { +q($x) } )", ""]))
     except ParseError:
         unbound = True
-    check("world model", "⚠ `no p(?x)` with ?x unbound is REFUSED at load: "
-          "*for no ?x* is the negative existential a member cannot mean -- "
+    check("world model", "⚠ `no p($x)` with $x unbound is REFUSED at load: "
+          "*for no $x* is the negative existential a member cannot mean -- "
           "an absence checks things already picked out",
           unbound)
 
     concluded = False
     try:
         load(Machine(), chr(10).join([
-            "rule <bad> = implies( { +p(?x) }, { no q(?x) } )", ""]))
+            "rule <bad> = implies( { +p($x) }, { no q($x) } )", ""]))
     except ParseError:
         concluded = True
     check("world model", "⚠ a rule cannot CONCLUDE an absence -- absence is "
@@ -7282,7 +7282,7 @@ def absence_is_asked_never_asserted() -> None:
     m2 = Machine()
     kb2 = load(m2, chr(10).join([
         "fact +thing(a)",
-        "rule <spawn> = implies( { +thing(?x) }, { +thing(+thing) } )", ""]))
+        "rule <spawn> = implies( { +thing($x) }, { +thing(+thing) } )", ""]))
     m2.run(limit=40)
     check("§21", "⚠⚠⚠ ...but a GENERATIVE CHAIN is not bounded by refraction, and "
           "the run says so through the one record that can: `bounded(ticks)`",

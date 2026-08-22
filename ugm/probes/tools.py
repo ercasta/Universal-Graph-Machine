@@ -13,11 +13,11 @@ from ..core.machine import Machine
 from ..core.text import Loader
 
 WORLD = [
-    "rule <ask-route> = implies( { +goal(water(?w)) }, { +advice(?w) } )",
-    "rule <follow> = implies( { +answered(<oracle>, advice(?w), ?act) },"
-    " { +doing(?act) } )",
-    "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
-    "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
+    "rule <ask-route> = implies( { +goal(water($w)) }, { +advice($w) } )",
+    "rule <follow> = implies( { +answered(<oracle>, advice($w), $act) },"
+    " { +doing($act) } )",
+    "rule <eff> = implies( { +did($a), +achieves($a, $y) }, { +$y } )",
+    "rule <cost> = implies( { +did(smash($j)) }, { -intact($j) } )",
     "fact +achieves(fill(kettle), water(kettle))",
     "fact +achieves(smash(jug1), water(kettle))",
     "fact +intact(jug1)",
@@ -116,9 +116,9 @@ def main() -> int:
     kb3 = Loader(m3)
     kb3.answerer("oracle", "guess", lambda mach, e: kb3.atom("vessel"))
     kb3.load("\n".join([
-        "rule <ask> = implies( { +thing(?x) }, { +guess(?x) } )",
-        "rule <trust> = implies( { +answered(<oracle>, guess(?x), ?k) },"
-        " { +possible(kind(?x, ?k)) } )",
+        "rule <ask> = implies( { +thing($x) }, { +guess($x) } )",
+        "rule <trust> = implies( { +answered(<oracle>, guess($x), $k) },"
+        " { +possible(kind($x, $k)) } )",
         "fact +thing(kettle)", ""]))
     m3.run(limit=80)
     # ⚠ The corpus's WRAPPER, where this used to read the corpus's GRADE. Same

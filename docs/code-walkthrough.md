@@ -180,7 +180,7 @@ not a search that finished**, and `blocked` depends on the difference.
 
 `_apply` is the forward read: `implies` deposits into the *same* moment (derived — retract the
 antecedent and it goes), `causes` deposits into a *later* one (asserted — water you stopped heating
-stays boiled). `_conclude_at` decides the locus: a consequent's own `at ?m` when it has one, the
+stays boiled). `_conclude_at` decides the locus: a consequent's own `at $m` when it has one, the
 frame's topic otherwise. The register moves only on `causes` — and the move is itself a write now:
 `Gate.reseat` deposits `+moved(<from>, <to>)` with the licence that caused it, which was the oldest
 item on the acceptance section's owed list. *Position is where and was always recorded; the seat is
@@ -287,7 +287,7 @@ paid for at least once:
 
 - **`atom` does not intern.** See §5. Five occurrences.
 - **A rule's own pattern is an instance of its relation.** `instances_of(said)` returns the pattern
-  `said(?p)` alongside the real ones. Filter with `has_var`, or a count is wrong and a numeric read
+  `said($p)` alongside the real ones. Filter with `has_var`, or a count is wrong and a numeric read
   raises.
 - **A variable-bearing structure is not a value.** Using one as an index pivot asks for the bucket of
   the pattern node itself, which nothing is an instance against — so the member matches nothing,

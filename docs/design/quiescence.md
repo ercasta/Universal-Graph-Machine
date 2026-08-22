@@ -20,7 +20,7 @@ and the one the rewrite was blocked on:
 **They are two different aggregates, and only one of them is the gap.** §4's
 missing primitive is a claim about a set of ENTRIES -- *nothing was told about
 this*, *exactly one thing answers this description* -- and there a `-` member
-says only *something denies it*, never *for no `?x`*. Quiescence's universal
+says only *something denies it*, never *for no `$x`*. Quiescence's universal
 (*no conclusion of this application would change anything*) ranges over the
 application's own consequent members, which are **structure**: they have no
 entry, so a `-` on one can only mean *not derived*, which is exactly the
@@ -56,7 +56,7 @@ read as a fixture which agreed about it:
     consume its own answer -- so these are excluded rather than measured wrong.
   * **a forbidden conclusion**, whose verdict is about the refusal record.
     `_forbid` unifies a stored generic pattern against the proposition, and
-    `unifies(?pat, ?prop)` is not a structural relation, so a rule cannot ask
+    `unifies($pat, $prop)` is not a structural relation, so a rule cannot ask
     it.
   * **a conclusion at a span**, because the imported read walks `anc` over
     moments (§11).

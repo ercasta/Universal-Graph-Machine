@@ -105,7 +105,7 @@ class Frame:
     `_unattend` gives.
 
     ⚠ The expert is held by NAME -- a node -- never as a frozen rule list, and
-    `_expert_pool` is read on demand: `knows(?e, ?r)` can be CONCLUDED mid-run,
+    `_expert_pool` is read on demand: `knows($e, $r)` can be CONCLUDED mid-run,
     `<inherit>` derives more of them, and a pool frozen at push time could not
     see one. The same finding as `pool_of` is *read, never kept*.
     """
@@ -141,9 +141,9 @@ class Machine:
         # match rather than a licence only Python can read.
         self.EXERCISED = self.g.atom("exercised")
         # §6's *a root goal is never checked*, and §12's reason it could not be:
-        # a root goal is a `goal(?w)` with **no** `subgoal(?p, ?w)`, which is a
+        # a root goal is a `goal($w)` with **no** `subgoal($p, $w)`, which is a
         # negative existential, and a `-` member says *an entry denies this*,
-        # never *for no ?p*. So it gets the treatment `blocked` got -- a REQUEST
+        # never *for no $p*. So it gets the treatment `blocked` got -- a REQUEST
         # the machinery answers by looking, because an aggregate over what the
         # rules produced is the machinery's business and not a rule's.
         self.ROOT = self.g.atom("root")        # ask
@@ -182,7 +182,7 @@ class Machine:
         self.DID = self.g.atom("did")
         self.EXPECTS = self.g.atom("expects")
         self.DEVIATES = self.g.atom("deviates")
-        # Match, as a request (§21). A rule can HOLD a pattern -- `+con(?r, ?pat,
+        # Match, as a request (§21). A rule can HOLD a pattern -- `+con($r, $pat,
         # +)` binds one -- and cannot APPLY one, because applying is substitution
         # and substitution is floor. So the missing thing is a service, not a
         # capability: ask whether a rule could produce a goal, and be told what
@@ -193,14 +193,14 @@ class Machine:
         self.NEED = self.g.atom("need")  # one instantiated antecedent member
         # The second match a backward reader needs, and the one §18 warns about:
         # *is this goal already satisfied* must run inside the bindings that
-        # satisfied its siblings, or `tap(?t)` and `under(kettle, ?t)` are met by
+        # satisfied its siblings, or `tap($t)` and `under(kettle, $t)` are met by
         # different taps and the plan is wrong -- silently.
         self.CHECK = self.g.atom("check")  # the request
         self.UNMET = self.g.atom("unmet")  # nothing in the state answers it
         # The third request, and the one that retires the last phase. `blocked`
         # claims that NO rule fits -- an aggregate over a finished search, which
         # no positive rule can say and `-` cannot say either (§9's `-` is *an
-        # entry denies this*, not *for no ?r*). So a rule asks, at a moment it
+        # entry denies this*, not *for no $r*). So a rule asks, at a moment it
         # chooses, and the machinery answers by counting what the corpus already
         # produced. It runs no search of its own: `fits` entries are the rules'
         # own work, and this only reads them.
@@ -335,7 +335,7 @@ class Machine:
         # loop ended. `<unattended>` in the bundle concludes it, so it has to be
         # RESERVED -- a bundle rule's argument atom is a twin waiting to happen
         # exactly as its relation is, and this one was: the rule fired, and a
-        # corpus asking about `declined(?a, unattended)` built a second node
+        # corpus asking about `declined($a, unattended)` built a second node
         # with the same name and saw nothing.
         self.UNATTENDED = self.g.atom("unattended")
         self.CALL = self.g.atom("call")
@@ -436,8 +436,8 @@ class Machine:
         self.DROP = self.g.atom("drop")
         self.REWROTE = self.g.atom("rewrote")
         self.MISSING = self.g.atom("missing")
-        # ...and the aggregate a rule cannot state for itself. `no missing(?g,
-        # ?p)` is a negative existential -- *for no ?p* -- which a member may
+        # ...and the aggregate a rule cannot state for itself. `no missing($g,
+        # $p)` is a negative existential -- *for no $p* -- which a member may
         # not mean, so the tool that knows the answer says it: `matched(<gap>)`
         # when the two spans differ in nothing.
         self.MATCHED = self.g.atom("matched")
@@ -473,7 +473,7 @@ class Machine:
             "says": self.SAYS, "arrived": self.ARRIVED, "kb": self.KB,
             # §9's denial-as-a-term. Missing until the bundle moved into the
             # surface, which is how it was found: <denial> is written against
-            # `not(?p)`, so a corpus could not state, argue with or override the
+            # `not($p)`, so a corpus could not state, argue with or override the
             # one rule that reconciles the two ways of saying no.
             "not": self.NOT,
             "rule": self.RULE, "conn": self.CONN, "ant": self.ANT, "con": self.CON,
@@ -534,12 +534,12 @@ class Machine:
             "arrived_on": self.chain.ARRIVED_ON,
             "mentioned": self.chain.MENTIONED,
             "entry_of": self.chain.ENTRY_OF,
-            # ⚠ `span_of(?s, ?start, ?end)` was described here and is GONE with
+            # ⚠ `span_of($s, $start, $end)` was described here and is GONE with
             # the locus -- a stretch was a kind of locus, and an entry has none.
             # The comment outlived the row it documented; `ugm.gates.vocabulary`
             # is what proved the name was gone rather than merely unused.
             "asking": self.chain.ASKING, "asked": self.chain.ASKED,
-            # ⚠ Without this line `time(?m, ?t)` in a corpus is a FRESH
+            # ⚠ Without this line `time($m, $t)` in a corpus is a FRESH
             # atom -- `g.atom` does not intern -- so the rule is well
             # formed, `is_stratum0` says no, the member matches nothing,
             # and nothing raises. The name-identity trap, caught here on
@@ -566,7 +566,7 @@ class Machine:
             "plus": self.rules.SIGN["+"], "minus": self.rules.SIGN["-"],
             "unsure": self.rules.SIGN["?"],
             # ...and the absence mode's node, so a reified `no` member --
-            # `ant(?r, ?p, absent, ?i)` -- is a row a corpus can ask about.
+            # `ant($r, $p, absent, $i)` -- is a row a corpus can ask about.
             "absent": self.rules.SIGN[ABSENT],
         }
 
@@ -679,7 +679,7 @@ class Machine:
                              self.SPENT, self.PREMISES, self.CONTESTED}
 
         # A rule becomes data when it is authored, not when someone remembers to
-        # ask. Backward reading is rules now, and it enumerates `+rule(?r)` --
+        # ask. Backward reading is rules now, and it enumerates `+rule($r)` --
         # so a rule loaded after a call to `reify_all` would have been invisible
         # to the reader, with nothing anywhere saying so.
         self.rules.on_rule.append(self.reify)
@@ -852,12 +852,12 @@ class Machine:
     def reify(self, rule: Rule) -> None:
         """Deposit what a rule IS, so rules can be matched by rules.
 
-        This is §14's worked example made real -- `+rule(?r)`, `+conn(?r, causes)`
+        This is §14's worked example made real -- `+rule($r)`, `+conn($r, causes)`
         and the members of each side. Without it a rule is a node nobody asserted,
         so `match` (which walks entries) cannot see it, and R4's questions are
         answerable only by the engine.
 
-        The patterns are **mentioned**, not used: `+ant(<R>, heat(?a, ?w))` claims
+        The patterns are **mentioned**, not used: `+ant(<R>, heat($a, $w))` claims
         something about a rule and binds nothing.
         """
         if rule.node in self._reified:
@@ -967,13 +967,13 @@ class Machine:
         `+check(<plan>, goal)` asks it, and the answer must be computed **inside
         the plan's bindings**, which is what makes it a different service from
         `fit` rather than the same one pointed elsewhere. §18 states the failure
-        it prevents: satisfy `tap(?t)` with `tap(sink)` and the sibling goal
-        `under(kettle, ?t)` must be about *that* tap. Checked independently,
+        it prevents: satisfy `tap($t)` with `tap(sink)` and the sibling goal
+        `under(kettle, $t)` must be about *that* tap. Checked independently,
         `tap(sink)` and `under(kettle, drain)` both report achieved and the plan
         is wrong without anything saying so.
 
         A goal may be generic, which is why this cannot be a chain lookup: the
-        rule that proposed `tap(?t)` left `?t` unbound, and resolving by
+        rule that proposed `tap($t)` left `$t` unbound, and resolving by
         proposition identity would report a satisfiable goal as blocked.
         """
         if self.g.relation_of(e.proposition) is not self.CHECK or e.sign != PLUS:
@@ -1041,8 +1041,8 @@ class Machine:
         """Answer *is this what I was asked for, or something I asked myself?*
 
         §6 recorded the gap and §12 recorded why it could not be a rule: a root
-        goal is a goal(?w) with no subgoal(?p, ?w), and a - member says *an
-        entry denies this*, never *for no ?p*. ⚠ It is asked, not volunteered,
+        goal is a goal($w) with no subgoal($p, $w), and a - member says *an
+        entry denies this*, never *for no $p*. ⚠ It is asked, not volunteered,
         for the reason §19 gives about recall: this is a question about a
         search that has got somewhere, and asking it of every goal...
 
@@ -1065,7 +1065,7 @@ class Machine:
     def _count(self, e: Entry) -> None:
         """Answer *how many ground matches does this pattern have here?*
 
-        count(goblin(?x)) a REQUEST, asked by a corpus rule counted(goblin(?x),
+        count(goblin($x)) a REQUEST, asked by a corpus rule counted(goblin($x),
         2) the answer, and it always answers ⭐⭐⭐ The general case of the three
         asks above it, and the reason it is worth having is that they are three
         special cases of one question. ⚠ Answered at the ask, not at
@@ -1309,8 +1309,8 @@ class Machine:
     # about every rival way, and that deposit was what excluded the rival.
     #
     # Passing up is the corpus's now, and it is the first law rather than a
-    # mechanism: a rule that serves a want SPENDS it -- `{ +goal(open(?d)) } =>
-    # { -goal(open(?d)), +doing(unlock(?d)) }` -- so the other way has nothing
+    # mechanism: a rule that serves a want SPENDS it -- `{ +goal(open($d)) } =>
+    # { -goal(open($d)), +doing(unlock($d)) }` -- so the other way has nothing
     # left to match. Measured before deleting: with the goal spent, one act
     # leaves the agent where two did.
     #
@@ -1408,7 +1408,7 @@ class Machine:
                  if n is not None and not self.g.has_var(n)]
         if not nodes:
             # ⚠ Ground only, and silently so -- the same judgement `_spend_one`
-            # makes about `attend(?x)` naming a variable the move did not bind.
+            # makes about `attend($x)` naming a variable the move did not bind.
             # A frame about no one is not a frame.
             return None
         expert, scores = self._pick_expert(nodes)
@@ -1436,7 +1436,7 @@ class Machine:
         frame = Frame(expert, nodes)
         self._frames.append(frame)
         # Reversed, so the FIRST node named ends up at the front of the new
-        # queue: `push(?a, ?b)` reads left to right and position is the
+        # queue: `push($a, $b)` reads left to right and position is the
         # gradient, so the leftmost has to lift hardest.
         for node in reversed(nodes):
             self._attend(node, licence)
@@ -1450,7 +1450,7 @@ class Machine:
                    licence: Optional[NodeId] = None) -> bool:
         """Return to the frame below, attending `node` on it.
 
-        ⭐ `pop(?x)` carries one node back: the attention-level analogue of a
+        ⭐ `pop($x)` carries one node back: the attention-level analogue of a
         return value. Without it the agent returns from a sub-line with no idea
         it concluded anything and has to rediscover it by ordinary matching --
         which is what `probes/experts.py` does today, re-running the caller from
@@ -1577,7 +1577,7 @@ class Machine:
         here where a raw one was not.
 
         ⚠ Computed once, at the first pick, over the whole KB as loaded. Pools
-        are read and never kept, and `knows(?e, ?r)` can be concluded mid-run,
+        are read and never kept, and `knows($e, $r)` can be concluded mid-run,
         so an expert's actual pool can GROW after its scores were computed. The
         two facts are in tension by design rather than by oversight.
         """
@@ -1674,7 +1674,7 @@ class Machine:
         queue permanently full of undifferentiated nodes made the agent chase
         its own tail and quiesce 30 moves early.
 
-        ⭐ A learned `attend(?x, 3)` outweighs them. Weight 1 is *this is what
+        ⭐ A learned `attend($x, 3)` outweighs them. Weight 1 is *this is what
         just happened*; a multiplier is *and a lesson says this part mattered*.
         """
         for e in reversed(tuple(wrote or ())):
@@ -2017,7 +2017,7 @@ class Machine:
     def computator(self, name, fn) -> NodeId:
         """Register a function that is COMPUTED during a match (§12, §22).
 
-        { +purse(?a, ?x), +cost(?i, ?c), minus(?x, ?c) as ?new } ⭐⭐⭐ Purity is
+        { +purse($a, $x), +cost($i, $c), minus($x, $c) as $new } ⭐⭐⭐ Purity is
         structural here, not declared. ⚠ It is registered in the CORPUS's
         scope, for Loader.answerer's reason: a relation is a name, and a name
         minted beside the corpus's table is a relation nobody...
@@ -2188,7 +2188,7 @@ class Machine:
                           (held - wanted, self.EXTRA)):
             for p in sorted(prop):
                 if self.g.has_var(p):
-                    # A description is not a difference: `at(?x)` says which
+                    # A description is not a difference: `at($x)` says which
                     # states would count, not that one of them is absent.
                     continue
                 differed = True
@@ -2665,7 +2665,7 @@ class Machine:
             # ⭐ A `causes` rule lands in a LATER moment, so applying one advances
             # the chain. There is no register to move and nothing to say about
             # having moved it: the chain's end is where the next entry lands, and
-            # `succeed` is the whole of the move. `reseat` and its `moved(?a, ?b)`
+            # `succeed` is the whole of the move. `reseat` and its `moved($a, $b)`
             # record went with the frame that had a seat to move.
             self.chain.succeed(self.chain.now, licence)
         mention = self._is_mention(app)
@@ -3955,8 +3955,8 @@ class Machine:
         """Render ground propositions as one generic antecedent.
 
         Every constant becomes a variable, shared across the conjunction so
-        that completes(jug1, heirlooms), precious(jug1) becomes completes(?v0,
-        ?v1), precious(?v0) -- the join is what makes it a claim about a *kind*
+        that completes(jug1, heirlooms), precious(jug1) becomes completes($v0,
+        $v1), precious($v0) -- the join is what makes it a claim about a *kind*
         of situation rather than a longer way of naming this one. ⚠ names is an
         OUT parameter, and it is not a convenience.
 
@@ -3968,7 +3968,7 @@ class Machine:
             rel = self.g.relation_of(n)
             if rel is None:
                 if n not in names:
-                    names[n] = f"?v{len(names)}"
+                    names[n] = f"$v{len(names)}"
                 return names[n]
             return f"{self.g.show(rel)}(" + ", ".join(
                 render(m) for m in self.g.members(n)) + ")"
@@ -4131,7 +4131,7 @@ class Machine:
         rule_by_node = {r.node: r for r in self.rules.rules}
 
         # ⚠ `show` prints a sign atom as `+`, and the surface reads a sign in
-        # ARGUMENT position as `plus`. So a rendered `says(user, ?p, +)` does
+        # ARGUMENT position as `plus`. So a rendered `says(user, $p, +)` does
         # not reparse -- rendering has to speak the surface's language, not the
         # graph's printing convention. Found by reading the first save file.
         signs = {v: k for k, v in self.reserved.items()
@@ -4176,9 +4176,9 @@ class Machine:
             return f"{surface(rel)}({', '.join(surface(x) for x in self.g.members(n))})"
 
         def member_text(m) -> str:
-            # ⚠ `no p(?x)` is a WORD in sign position, so it needs the space
-            # that `+p(?x)` must not have. Without it the file said
-            # `noserved(?p)` -- one atom, a different rule, and no error.
+            # ⚠ `no p($x)` is a WORD in sign position, so it needs the space
+            # that `+p($x)` must not have. Without it the file said
+            # `noserved($p)` -- one atom, a different rule, and no error.
             sep = " " if m.sign == ABSENT else ""
             return f"{m.sign}{sep}{surface(m.pattern)}"
 
@@ -4296,7 +4296,7 @@ class Machine:
         out: List[str] = []
         holds = lambda p: self.holds(p)
         # ⚠ `has_var` is NOT a filter here. A subgoal backward reading has not
-        # bound yet -- `heat(?a, kettle)` -- is exactly what a reader needs to
+        # bound yet -- `heat($a, kettle)` -- is exactly what a reader needs to
         # see, and filtering it emptied the tree and left the subgoals looking
         # like roots. The guard belongs on `goal`, where a description is not a
         # claim (§15), and nowhere else.
@@ -4444,7 +4444,7 @@ def leaves(episode) -> List[Tuple[str, str, Tuple[str, ...]]]:
         # ⚠ Rendered TOGETHER, never separately. The tests and the binder share
         # variables wherever they share a constant, and that join is what makes
         # a leaf a claim about a kind of situation rather than a longer way of
-        # naming this one -- `precious(?v0), completes(?v0, ?v1), tap(?v2)`.
+        # naming this one -- `precious($v0), completes($v0, $v1), tap($v2)`.
         names: dict = {}
         members = episode._generalise(list(tests) + [binder], names)
         var = names.get(node)
@@ -4497,7 +4497,7 @@ def induce(episodes, cost, score: int = 3, hedge: bool = False) -> List[str]:
                 cand.append([name, key, list(tests), binder, var])
 
     def advice(name: str, var: str) -> str:
-        """`attention(?v, n)`, or `possible(...)` when nothing was observed.
+        """`attention($v, n)`, or `possible(...)` when nothing was observed.
 
         ⭐⭐⭐ How sure is a WRAPPER, not a field, and this was the argument that
         eventually deleted grades outright. ⚠ And the test is constant-free,

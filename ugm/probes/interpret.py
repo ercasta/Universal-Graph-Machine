@@ -18,25 +18,25 @@ from ..core.text import load
 # The system layer. Provided here as a bootstrap, which is the whole claim about
 # it: nothing below is privileged, and a learned one would be compared with it.
 SYSTEM = """
-rule <said>  = implies( { asking(?s), anc(?s, ?d), in_delta(?d, ?e),
-                          entry_of(?e, ?p, ?sg) },
-                        { said(?p, ?sg) } )
+rule <said>  = implies( { asking($s), anc($s, $d), in_delta($d, $e),
+                          entry_of($e, $p, $sg) },
+                        { said($p, $sg) } )
 
-rule <unmet> = implies( { said(implies(?a, ?c), plus),
-                          said(member(?a, ?p, ?sg), plus),
-                          -said(?p, ?sg) },
-                        { unmet(?a) } )
+rule <unmet> = implies( { said(implies($a, $c), plus),
+                          said(member($a, $p, $sg), plus),
+                          -said($p, $sg) },
+                        { unmet($a) } )
 
-rule <met>   = implies( { said(implies(?a, ?c), plus), -unmet(?a) },
-                        { met(?a) } )
+rule <met>   = implies( { said(implies($a, $c), plus), -unmet($a) },
+                        { met($a) } )
 
-rule <fire>  = implies( { met(?a), said(member(?c, ?q, plus), plus),
-                          +implies(?a, ?c) },
-                        { +?q } )
+rule <fire>  = implies( { met($a), said(member($c, $q, plus), plus),
+                          +implies($a, $c) },
+                        { +$q } )
 
-rule <deny>  = implies( { met(?a), said(member(?c, ?q, minus), plus),
-                          +implies(?a, ?c) },
-                        { -?q } )
+rule <deny>  = implies( { met($a), said(member($c, $q, minus), plus),
+                          +implies($a, $c) },
+                        { -$q } )
 """
 
 # Two rules-as-facts. The second is deliberately unsatisfiable -- `rich(anna)`

@@ -60,7 +60,7 @@ PULL = 6
 # resolved, because a settling rule fires. 
 # → docs/design/attention.md#the-default-doubt-settling-rule-and-the-author
 SETTLE = """
-rule <settle-doubt> = implies( { +close(?a, ?b) }, { +settled(?a, ?b) } )
+rule <settle-doubt> = implies( { +close($a, $b) }, { +settled($a, $b) } )
 """
 SETTLING = ("settle-doubt",)
 
@@ -229,7 +229,7 @@ def _by_relation(rules: Sequence[Rule], g) -> Dict[NodeId, List[NodeId]]:
     is what keeps it current when the rule set does.
 
     A member whose pattern is a bare variable or whose relation is a variable
-    is filed under nothing. `+?p` is a rule about anything, and lifting it
+    is filed under nothing. `+$p` is a rule about anything, and lifting it
     whenever anything is attended would lift it always -- which is the same
     thing as never, and costs a slot in every shortlist to say so.
     """
@@ -595,7 +595,7 @@ def _ground(m: Machine, table: Table, term, bindings):
     """What a spend NAMES, with the move's own bindings put in.
 
     `Table._target` answers for a bare variable and hands a COMPOUND back
-    unchanged, which reads as an answer and is not one: `push(area(?r))` came
+    unchanged, which reads as an answer and is not one: `push(area($r))` came
     back as the pattern, still generic, and was dropped as *ground only* one
     layer from the mistake. A spend may name a whole proposition -- that is what
     `push` is for -- so the bindings go in the way they go into a postcondition's
@@ -627,10 +627,10 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
             node = _ground(m, table, target.term, bindings)
             # Ground only, and silently so. A postcondition naming a variable
             # the move did not bind has nothing to attend TO, and depositing
-            # `attention(?x)` would be a claim about no one -- which `_attended`
+            # `attention($x)` would be a claim about no one -- which `_attended`
             # would then refuse to read, one layer further from the mistake.
             if node is not None and not m.g.has_var(node):
-                # The learned WEIGHT rides along: `attend(?x, 3)` says this
+                # The learned WEIGHT rides along: `attend($x, 3)` says this
                 # node matters more than whatever else is in the queue at the
                 # same depth -- a calibration that names a node instead of a
                 # rule.
@@ -671,7 +671,7 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
 
     The query is matched with the application's own bindings already
     substituted in, which is what makes it a POSTcondition rather than a second
-    rule: `after { +p(?x) }` asks about the `?x` this rule just bound. A
+    rule: `after { +p($x) }` asks about the `$x` this rule just bound. A
     bare `after` has no query and holds always.
     """
     name = chosen.rule.name or "?"

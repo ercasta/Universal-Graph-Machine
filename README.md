@@ -79,11 +79,11 @@ The loop knows a score, a match, and that a rule said stop — never what any of
 ## What it looks like
 
 ```
-rule <cancel>     = implies( { +cancelled(?f) }, { +disrupted(?f) } )
-rule <crewing>    = implies( { +cause(?f, crew) }, { -extraordinary(?f) } )
+rule <cancel>     = implies( { +cancelled($f) }, { +disrupted($f) } )
+rule <crewing>    = implies( { +cause($f, crew) }, { -extraordinary($f) } )
 rule <compensate> = implies(
-    { +disrupted(?f), +booked(?p, ?f), -extraordinary(?f) },
-    { +owed(?p, money) } )
+    { +disrupted($f), +booked($p, $f), -extraordinary($f) },
+    { +owed($p, money) } )
 
 fact +cancelled(bl204)
 fact +cause(bl204, crew)
@@ -127,7 +127,7 @@ time to be indexed by, so there is one order and no ancestry test. What the agen
 still findable, because a revision *adds* rather than overwriting.
 
 Signs are `+`, `−`, `?` — and **no entry at all**, which means *inherit*, not *unknown*. So `−` means
-denied, never absent. Asking the other question — *does anything assert this?* — is `no p(?x)`, a
+denied, never absent. Asking the other question — *does anything assert this?* — is `no p($x)`, a
 distinct member mode, because a rule that materialises a denial has to ask about absence first.
 
 ## What is taught

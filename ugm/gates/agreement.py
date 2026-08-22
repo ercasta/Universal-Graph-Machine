@@ -21,7 +21,7 @@ from ..core.text import load
 #
 # ⚠⚠⚠ **`<beaten-locus>` is GONE, and every remaining rule lost a key.** The
 # read used to be keyed by `(seat, locus, prop)` and ordered by locus FIRST --
-# `sanc(?lf, ?le)` -- with the deposit order only breaking ties within one
+# `sanc($lf, $le)` -- with the deposit order only breaking ties within one
 # locus. An entry has no locus, so there is one order left and it is the one
 # `<dep-within>`/`<dep-across>` already computed: **later supersedes earlier**.
 #
@@ -31,30 +31,30 @@ from ..core.text import load
 # made every rule here match nothing.
 READ = """
 rule <cand> = implies(
-  { asking(?seat), anc(?seat, ?d), in_delta(?d, ?e),
-    entry_of(?e, ?prop, ?sign), asked(?prop) },
-  { cand(?seat, ?prop, ?e) } )
+  { asking($seat), anc($seat, $d), in_delta($d, $e),
+    entry_of($e, $prop, $sign), asked($prop) },
+  { cand($seat, $prop, $e) } )
 
 rule <dep-within> = implies(
-  { cand(?seat, ?prop, ?e), delta_next(?e, ?f) },
-  { dep_after(?e, ?f) } )
+  { cand($seat, $prop, $e), delta_next($e, $f) },
+  { dep_after($e, $f) } )
 
 rule <dep-within-step> = implies(
-  { dep_after(?e, ?x), delta_next(?x, ?f) },
-  { dep_after(?e, ?f) } )
+  { dep_after($e, $x), delta_next($x, $f) },
+  { dep_after($e, $f) } )
 
 rule <dep-across> = implies(
-  { cand(?seat, ?prop, ?e), cand(?seat, ?prop, ?f),
-    in_delta(?m, ?e), in_delta(?n, ?f), sanc(?m, ?n) },
-  { dep_after(?e, ?f) } )
+  { cand($seat, $prop, $e), cand($seat, $prop, $f),
+    in_delta($m, $e), in_delta($n, $f), sanc($m, $n) },
+  { dep_after($e, $f) } )
 
 rule <beaten-deposit> = implies(
-  { cand(?seat, ?prop, ?e), cand(?seat, ?prop, ?f), dep_after(?f, ?e) },
-  { beaten(?seat, ?prop, ?e) } )
+  { cand($seat, $prop, $e), cand($seat, $prop, $f), dep_after($f, $e) },
+  { beaten($seat, $prop, $e) } )
 
 rule <best> = implies(
-  { cand(?seat, ?prop, ?e), -beaten(?seat, ?prop, ?e) },
-  { best(?seat, ?prop, ?e) } )
+  { cand($seat, $prop, $e), -beaten($seat, $prop, $e) },
+  { best($seat, $prop, $e) } )
 """
 
 class Ambiguous(Exception):
@@ -148,7 +148,7 @@ def _compare(drop: Tuple[str, ...] = ()) -> Tuple[int, List[str], int]:
     ⚠⚠⚠ **The native side is asked from the CHAIN'S END and the rule-level side
     from each seat, and that is not a mismatch -- it is the whole remaining
     content of the gate.** `Chain.resolve` takes no seat now: it answers about
-    the one standpoint there is. The rules still take one, because `asking(?s)`
+    the one standpoint there is. The rules still take one, because `asking($s)`
     is what BOUNDS the read, so they are compared at the seat that is the end.
     Every other seat is checked for a weaker property that still has teeth: the
     read anchored there must not reach past itself, so its answer is the last

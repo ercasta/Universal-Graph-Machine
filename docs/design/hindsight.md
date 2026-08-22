@@ -1,8 +1,8 @@
 # `hindsight.py` — the argument
 
 > ⚠⚠⚠ **The module is DELETED (2026-08-20).** It went with the locus, and every
-> one of its eight checks was about the second index: `at ?m`, which bound the
-> locus of the entry that satisfied a member, and `holds_at(p, ?m, ?sign)`,
+> one of its eight checks was about the second index: `at $m`, which bound the
+> locus of the entry that satisfied a member, and `holds_at(p, $m, $sign)`,
 > which resolved a proposition at a named moment. An entry has no locus, so
 > neither is expressible and `Chain.HOLDS_AT` does not exist.
 >
@@ -24,7 +24,7 @@ Reading a proposition's PAST, which a rule could not do at all.
 
     python -m ugm.probes.hindsight
 
-§12's `at ?m` looks like *evaluate this at m* and is not. It binds the LOCUS OF
+§12's `at $m` looks like *evaluate this at m* and is not. It binds the LOCUS OF
 THE ENTRY THAT SATISFIED the member -- and the resolved state keeps one entry
 per proposition, the winner. So a corpus can say
 
@@ -35,7 +35,7 @@ and cannot say
     p held then, and does not now            one proposition, two times
 
 because the earlier claim is not in the state to be matched against. Probed:
-`?then` bound to a real moment where `ill(paul)` held, and `+ill(?x) at ?then`
+`$then` bound to a real moment where `ill(paul)` held, and `+ill($x) at $then`
 matched nothing. That is the check below, kept as the motivation rather than
 described.
 
@@ -59,7 +59,7 @@ else.
 
 **An unanchored moment finds nothing**, for `_stored`'s reason: asking about
 every moment there is would walk the whole history, and containment holds
-compositionally -- `?m` can only be bound by a walk the frame could make, so a
+compositionally -- `$m` can only be bound by a walk the frame could make, so a
 sibling branch's moment is unreachable to bind in the first place.
 
 **Nothing is minted.** Building the answer as a node and unifying against it

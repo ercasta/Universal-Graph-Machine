@@ -51,8 +51,8 @@ identity, one level up from bindings, which is the defect this whole thread has
 been about. It now names a NODE:
 
     fact +attention(sink, 3)                    depth 0, and ground
-    { +tap(?v0) } => +attention(?v0, 3)         depth 0, generic
-    { +precious(?v1), +tap(?v0) } => ...        depth 1, and so on
+    { +tap($v0) } => +attention($v0, 3)         depth 0, generic
+    { +precious($v1), +tap($v0) } => ...        depth 1, and so on
 
 `sink` is what `Machine._salient` works out: the thing the passed-up route is
 about and the route that harmed is not. Everything else in this file is

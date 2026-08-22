@@ -74,7 +74,7 @@ Compare rendered text.
 
 **1. An agent cannot utter a time, and this is a second and different argument
 for the missing member kind.** `docs/authoring.md` §6 sizes *the goblin acts
-after the hero* as the cheap half, and `at ?m` has shipped. But that is
+after the hero* as the cheap half, and `at $m` has shipped. But that is
 intra-agent. Between agents, a moment cannot cross at all: every moment renders
 as `moment()`, so even a parser that accepted it would lose identity. **Two
 agents can never refer to the same time.** If a table is ever to agree on

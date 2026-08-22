@@ -4,7 +4,7 @@
 asked for:
   boiling(kettle)  [open]  via <boil>
     water(kettle)  [held]
-    heat(?a, kettle)  [BLOCKED]
+    heat($a, kettle)  [BLOCKED]
 ```
 
 `BLOCKED` is the machine reporting on **itself**. It means: I expanded this
@@ -17,7 +17,7 @@ It does not mean *there is no way*. It means *I found no way*.
 Here's the natural rule, and it's wrong:
 
 ```
-implies( { +goal(?w), +unfit(?r, ?w) }, { +blocked(?w) } )
+implies( { +goal($w), +unfit($r, $w) }, { +blocked($w) } )
 ```
 
 That fires when **some** rule doesn't fit. What `blocked` claims is that **no**
@@ -25,7 +25,7 @@ rule does.
 
 That's an aggregate over a *finished* search, and positive rules can't say it.
 Nor does a `−` member help: *an entry says this does not hold* and *no entry*
-are neither of them *for no `?r`*.
+are neither of them *for no `$r`*.
 
 So:
 
@@ -84,8 +84,8 @@ The useful thing about `blocked` being a deposited fact rather than an internal
 state is that a corpus can key on it.
 
 ```
-rule <ask-for-it> = implies( { +blocked(have(p1, ?k)) },
-                             { +doing(tell(dm, want(p1, ?k))) } )
+rule <ask-for-it> = implies( { +blocked(have(p1, $k)) },
+                             { +doing(tell(dm, want(p1, $k))) } )
 ```
 
 *When I have exhausted what I can do alone, ask somebody.* That's the one moment

@@ -20,17 +20,17 @@ Which means ordinary rules can read them. Here are two, over a corpus of two
 rules:
 
 ```
-rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
-rule <bleed> = causes(  { +wounded(?x) }, { -stable(?x) } )
+rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
+rule <bleed> = causes(  { +wounded($x) }, { -stable($x) } )
 
-rule <guarded> = implies( { +ant(?r, ?p, minus, ?i) }, { +has_a_guard(?r) } )
-rule <lasting> = implies( { +conn(?r, causes) },        { +persists(?r) } )
+rule <guarded> = implies( { +ant($r, $p, minus, $i) }, { +has_a_guard($r) } )
+rule <lasting> = implies( { +conn($r, causes) },        { +persists($r) } )
 ```
 
 ```
 why has_a_guard(<regen>)?
   +has_a_guard(<regen>), via kb, licensed by applied(<guarded>)
-    because +ant(<regen>, poisoned(?x), -, 1), via kb, licensed by reified(<regen>)
+    because +ant(<regen>, poisoned($x), -, 1), via kb, licensed by reified(<regen>)
 
 why persists(<bleed>)?
   +persists(<bleed>), via kb, licensed by applied(<lasting>)
@@ -46,13 +46,13 @@ survive their premises being withdrawn?* Ordinary queries, and the licence says
 There's a natural thing to want to write, and it does not work:
 
 ```
-fact unless(<regen>, poisoned(?x))
+fact unless(<regen>, poisoned($x))
 ```
 
 That parses. It does absolutely nothing.
 
 The reason is Chapter 2's rule about variables: a statement's variables belong
-to it. So the `?x` in that fact is a **different node** from the `?x` in the
+to it. So the `$x` in that fact is a **different node** from the `$x` in the
 rule — measured, verified, different. Nothing binds them, and nothing reads the
 relation anyway.
 
@@ -60,7 +60,7 @@ The guard has to be written where the rule's variables live, which is inside the
 rule, and there it's an ordinary negated member:
 
 ```
-rule <regen> = implies( { +wounded(?x), -poisoned(?x) }, { +heals(?x) } )
+rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
 ```
 
 That's *if not*, which is all `unless` ever meant. It has been available since
@@ -81,7 +81,7 @@ there were members.
 
 And moving it inside doesn't weaken *rules are subjects*, because reification
 deposits each member with its sign and position. *What would cancel `<regen>`?*
-is a query over `ant(<regen>, poisoned(?x), -, 1)` — which is exactly what the
+is a query over `ant(<regen>, poisoned($x), -, 1)` — which is exactly what the
 `<guarded>` rule above did.
 
 > **The guard is a fact about the rule. It simply is not a fact written beside
@@ -105,13 +105,13 @@ own variables*, it goes inside. Otherwise it goes beside.
 
 A rule can **name** a rule. A rule cannot **match** one.
 
-Reification stores generic patterns. `con(<boil>, boiling(?w), +, 0)` names a
+Reification stores generic patterns. `con(<boil>, boiling($w), +, 0)` names a
 node containing a variable. A goal, `+goal(boiling(kettle))`, is ground.
 Deciding that the two *correspond* is matching, and matching is a floor
 primitive no rule may call.
 
-Which is why, above, the `<guarded>` rule could bind `?p` to the pattern
-`poisoned(?x)` and conclude *that there is a guard* — but could not check
+Which is why, above, the `<guarded>` rule could bind `$p` to the pattern
+`poisoned($x)` and conclude *that there is a guard* — but could not check
 whether that guard is satisfied. It can talk about the pattern. It cannot apply
 it.
 
@@ -127,14 +127,14 @@ Three of them now have a resolution, and all three take the same shape.
 ## Use and mention
 
 Reification forces a distinction the design would otherwise not need.
-`+con(<R>, boiling(?w), +, 0)` is a **ground** claim about a rule that happens to
+`+con(<R>, boiling($w), +, 0)` is a **ground** claim about a rule that happens to
 name a node containing variables. It is not a generic claim — but structurally
 the two are identical, so nothing in the *shape* can tell them apart.
 
 An early attempt settled it by who was writing: the machinery *mentions*, a
 rule's consequent *uses*. That's too strong, and building it is how the gap
-showed. A rule whose antecedent matches `+con(?r, ?pat, +, ?i)` binds `?pat` to
-a stored pattern — so anything it concludes about `?pat` is a rule's consequent
+showed. A rule whose antecedent matches `+con($r, $pat, +, $i)` binds `$pat` to
+a stored pattern — so anything it concludes about `$pat` is a rule's consequent
 mentioning. Under the authorship rule that write is refused, and rules cannot
 reason about rules at all.
 

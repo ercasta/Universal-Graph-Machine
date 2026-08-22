@@ -24,8 +24,8 @@ ROLES: Dict[str, List[str]] = {
     # modifier and is gone with the locus; the parser refuses it by name rather
     # than dropping it, so it is a REFUSAL the surface knows about and not a
     # word it reserves.
-    # `absent` is the absence MODE's node -- `no p(?x)` reified as
-    # `ant(?r, ?p, absent, ?i)` -- beside the three signs for the same reason
+    # `absent` is the absence MODE's node -- `no p($x)` reified as
+    # `ant($r, $p, absent, $i)` -- beside the three signs for the same reason
     # they are here: the surface's own marks, spoken of in argument position.
     "the surface": ["causes", "implies", "not", "plus", "minus", "unsure",
                     "absent"],
@@ -80,7 +80,7 @@ ROLES: Dict[str, List[str]] = {
         # `child`/`done`/`then`, because reserving `child` takes it from every
         # corpus that has a family in it.
         "call", "stage", "spawn", "awaits", "returned", "advances", "closes",
-        # The action palette, declared rather than implied. `conn(?r, causes)`
+        # The action palette, declared rather than implied. `conn($r, causes)`
         # was the nearest thing and answers a different question -- how a rule
         # relates to the world, not that the agent may deliberately do it.
         "afforded",
@@ -381,8 +381,8 @@ def main() -> int:
     # detector reporting all-clear on every input is that trap with the numbers
     # already looking right.
     mm2, _, planted = corpus(
-        "rule <trade> = implies( { +owns(?s, ?i), +wants(?b, ?i) },\n"
-        "                       { +sells(?s, ?b, ?i) } )\n"
+        "rule <trade> = implies( { +owns($s, $i), +wants($b, $i) },\n"
+        "                       { +sells($s, $b, $i) } )\n"
         "fact +owns(smith, sword)\n"
         "fact +watns(hero, sword)\n")
     caught = unwebbed(mm2, planted, res)
@@ -409,8 +409,8 @@ def main() -> int:
         # ⚠ Not a failure. Nearly every one is correct about a deliberately
         # partial fixture, which is the same answer the load-time note gave.
         # What this gate asserts is that no VARIABLE is reported as a name --
-        # `+?kind(?item)` was, and a working corpus was called broken.
-        bogus = [n for n in flat if n.startswith("?")]
+        # `+$kind($item)` was, and a working corpus was called broken.
+        bogus = [n for n in flat if n.startswith("$")]
         if bogus:
             failures.append(f"a variable in relation position reported as a "
                             f"name: {bogus}")

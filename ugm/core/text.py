@@ -67,13 +67,29 @@ def tokenise(src: str) -> List[Tok]:
             toks.append(Tok("rulename", src[i + 1 : j], line))
             i = j + 1
             continue
-        if ch == "?" and i + 1 < n and (src[i + 1].isalnum() or src[i + 1] == "_"):
+        if ch == "$":
+            # A variable. `$` does one job and `?` does one job: before this
+            # split, `?` was BOTH the unsure sign and the variable sigil, and
+            # the lexer told them apart by a lookahead -- which is why the
+            # unsure member in `bundle.ugm` had to be written `? $p`, two
+            # meanings of one character a space apart.
+            if i + 1 >= n or not (src[i + 1].isalnum() or src[i + 1] == "_"):
+                raise ParseError(f"line {line}: `$` names a variable and needs "
+                                 f"a name after it")
             j = i + 1
             while j < n and (src[j].isalnum() or src[j] in "_-"):
                 j += 1
             toks.append(Tok("var", src[i:j], line))
             i = j
             continue
+        if ch == "?" and i + 1 < n and (src[i + 1].isalnum() or src[i + 1] == "_"):
+            # ...and the old spelling fails LOUDLY rather than lexing as the
+            # unsure sign followed by a name, which is what it would otherwise
+            # do: `+goal(?w)` would become a sign inside an argument list and
+            # the error would point at the bracket rather than at the sigil.
+            raise ParseError(f"line {line}: `{src[i:i+2]}...` -- a variable is "
+                             f"written `${src[i+1:i+2]}...` now; `?` is the "
+                             f"unsure sign only")
         if ch.isdigit():
             # Numerals. The design had no cardinal quantity until preference
             # strength became one, and a tolerance has to be writable in a
@@ -144,10 +160,10 @@ class RuleMember(NamedTuple):
 class PostClause(NamedTuple):
     """A postcondition, as written: a query, and what it spends if it holds.
 
-    rule <classify> = implies( { +asked(?x) }, { +considered(?x) } ) after {
-    +penguin(?x) } => attend(?x, 3) frozen after => unattend The query is an
+    rule <classify> = implies( { +asked($x) }, { +considered($x) } ) after {
+    +penguin($x) } => attend($x, 3) frozen after => unattend The query is an
     ordinary antecedent -- no new notation, and the same matcher -- and it is
-    matched with the rule's OWN bindings already in hand, so ?x above is the ?x
+    matched with the rule's OWN bindings already in hand, so $x above is the $x
     the rule bound.
 
     See docs/design/text.md#postclause.
@@ -240,7 +256,7 @@ class Parser:
                 base = b.text
             return Statement("expert", name.text, base, (), (), None, "", t.line)
         if t.text == "action":
-            # ⭐⭐⭐ The action palette, declared: action move(?x, ?y) A SIGNATURE
+            # ⭐⭐⭐ The action palette, declared: action move($x, $y) A SIGNATURE
             # and nothing else. ⚠ No angle brackets.
             # → docs/design/text.md#the-action-palette-declared
             return Statement("action", "", "", (), (), self.member(), "", t.line)
@@ -251,7 +267,7 @@ class Parser:
             # experience or does not.
             return self.trigger(t)
         if t.text == "alias":
-            # A shorthand the corpus defines: `alias attacks(?a, ?t) = { ... }`.
+            # A shorthand the corpus defines: `alias attacks($a, $t) = { ... }`.
             # The head is a plain term whose arguments are the variables the
             # body may use; the body is a block of ordinary members. Expansion
             # is the loader's -- by the time anything downstream looks, an
@@ -278,7 +294,7 @@ class Parser:
             # One statement in the other notation, inside an ordinary document.
             # The TOKEN STREAM is shared, so the s-expression reader picks up at
             # this position and hands back where it stopped -- no re-tokenising,
-            # and no second place for `?x` to stop meaning a variable.
+            # and no second place for `$x` to stop meaning a variable.
             self.next()
             from .sexpr import read_one
             stmt, self.i = read_one(self.toks, self.i)
@@ -318,7 +334,7 @@ class Parser:
                          line)
 
     def trigger(self, t: Tok) -> Statement:
-        """`after <A> { ... } => attend(?x, 3)`.
+        """`after <A> { ... } => attend($x, 3)`.
 
         after fires when its rule applies and its query holds. frozen marks
         what a calibration process may not touch. ⚠⚠⚠ when IS REFUSED, and that
@@ -341,7 +357,7 @@ class Parser:
                 f"line {t.line}: a ranking-time `when` trigger no longer reaches "
                 f"anything -- `_rerank` and the buffs it spent are retired. Hang "
                 f"the lesson off the rule that RUNS it: `after <R> {{ ... }} => "
-                f"attend(?x, n)`"
+                f"attend($x, n)`"
             )
         host = ""
         if t.text == "after":
@@ -370,7 +386,7 @@ class Parser:
         They named a RULE, which is what the whole retirement is about: a rule
         id goes stale the moment a rule is adopted, composed or renamed, and a
         corpus of experience written in them stops loading rather than going
-        quietly wrong. `attend(?x, n)` names a NODE the move itself bound.
+        quietly wrong. `attend($x, n)` names a NODE the move itself bound.
 
         ⚠ The delta in the return type is now always 0 and is kept only so the
         three surviving spends share one shape. Nothing reads it.
@@ -390,8 +406,8 @@ class Parser:
             # accumulates until it names everything.
             return (UNATTEND, 0)
         if t.kind == "name" and t.text == "attend":
-            # ⭐⭐⭐ **The learnable one.** `attend(?x)` says *think about what
-            # this move just bound to `?x`* -- and `?x` is the HOST RULE's own
+            # ⭐⭐⭐ **The learnable one.** `attend($x)` says *think about what
+            # this move just bound to `$x`* -- and `$x` is the HOST RULE's own
             # variable, because the loader seeds a trigger's scope from the rule
             # it hangs off. So the lesson is anchored to the move that produced
             # it without naming any individual.
@@ -400,7 +416,7 @@ class Parser:
             weight = 1
             if self.at(","):
                 # ⭐ The learned buff, and it weighs a NODE rather than a rule.
-                # `attend(?x, 3)` says *of what this move touched, that one
+                # `attend($x, 3)` says *of what this move touched, that one
                 # matters* -- a multiplier on its place in the attention queue.
                 self.next()
                 n = self.next()
@@ -419,7 +435,7 @@ class Parser:
             # instead: the outer frame is off the queue entirely.
             #
             # ⚠ It names NODES, variadically, and the leftmost lifts hardest --
-            # `attend(?x)` is the precedent, and the variables are the HOST
+            # `attend($x)` is the precedent, and the variables are the HOST
             # rule's own, bound by the move that spent it. What it does NOT name
             # is an expert: that is computed from the nodes.
             self.expect("(")
@@ -430,7 +446,7 @@ class Parser:
             self.expect(")")
             return (Push(terms), 0)
         if t.kind == "name" and t.text == "pop":
-            # ⭐ `pop(?x)` attends ?x on the RESTORED frame: the attention-level
+            # ⭐ `pop($x)` attends $x on the RESTORED frame: the attention-level
             # analogue of a return value. Without it the agent returns from a
             # sub-line with no idea it concluded anything.
             self.expect("(")
@@ -458,12 +474,12 @@ class Parser:
             raise ParseError("unexpected end of input in a member")
         sign = PLUS
         if t.kind == "punct" and t.text in SIGNS:
-            # `?` is the unsure sign here; `?x` tokenised as a var, never as this
+            # `?` is the unsure sign here; `$x` tokenised as a var, never as this
             sign = SIGNS[self.next().text]
         elif (t.kind == "name" and t.text == "no"
                 and self.i + 1 < len(self.toks)
                 and self.toks[self.i + 1].kind in ("name", "var", "rulename")):
-            # `no p(?x)` -- there is NO p(?x) -- the absence mode, in sign
+            # `no p($x)` -- there is NO p($x) -- the absence mode, in sign
             # position because it is one: a fourth way a member relates to the
             # state, beside asserted, denied and unsure. ⚠ The lookahead is
             # what keeps `no` an ordinary word everywhere else: `no(...)` is a
@@ -484,9 +500,9 @@ class Parser:
                 f"proposition now -- write `+likely(p)` in the consequent and let "
                 f"a rule cross it, rather than annotating how strongly `p` is held."
             )
-        # `as ?t` -- WHAT the member matched, named.
+        # `as $t` -- WHAT the member matched, named.
         #
-        # ⚠⚠⚠ `at ?m` was the other half and it is REFUSED rather than ignored,
+        # ⚠⚠⚠ `at $m` was the other half and it is REFUSED rather than ignored,
         # for `@`'s reason directly above: a notation that parses and is dropped
         # is a rule that means something other than what it says, and nothing
         # raises. It said WHERE the entry sits, and an entry has no locus.
@@ -494,10 +510,10 @@ class Parser:
         while True:
             if self.at("at"):
                 raise ParseError(
-                    f"line {t.line}: `at ?m` is gone with the locus. An entry "
+                    f"line {t.line}: `at $m` is gone with the locus. An entry "
                     f"has no second time to bind, so a member cannot say where "
-                    f"it sits -- read the chain instead: `in_delta(?m, ?e), "
-                    f"entry_of(?e, p, +)` is the same claim, and `anc`/`sanc` "
+                    f"it sits -- read the chain instead: `in_delta($m, $e), "
+                    f"entry_of($e, p, +)` is the same claim, and `anc`/`sanc` "
                     f"order the moments."
                 )
             if self.at("as"):
@@ -544,7 +560,7 @@ class Parser:
             return Term("-" + digits.text, (), False)
         t = self.next()
         if t.kind == "var":
-            # ⭐ `?p(?t)` -- a variable in the RELATION slot. The substrate has
+            # ⭐ `$p($t)` -- a variable in the RELATION slot. The substrate has
             # always been able to build one; `unify` learned to bind it, so the
             # surface stops being the thing that forbids it. This is what makes
             # *apply the effect named by this ability* one rule instead of one
@@ -748,8 +764,8 @@ class Loader:
         That is the whole of why this can move out of the rule declaration
         without changing what it means: an inline `after` clause shared the
         rule's scope because it was parsed inside the same statement, and here
-        the scope is handed to it instead. `?x` in the trigger is the rule's
-        `?x`, so the query still says *this orc* rather than *some orc*.
+        the scope is handed to it instead. `$x` in the trigger is the rule's
+        `$x`, so the query still says *this orc* rather than *some orc*.
 
         A name a rule does not use is an ordinary fresh variable, bound from the
         state like any other -- which is what a `when` trigger, belonging to no
@@ -778,7 +794,7 @@ class Loader:
             # `STOP` is a stop and `UNATTEND` a clearing; neither is a term, so
             # neither goes through `build`. An `attend` IS one, and it is built
             # in the host rule's scope like everything else here -- which is what
-            # makes `attend(?x)` *that* `?x`.
+            # makes `attend($x)` *that* `$x`.
             (t if t is STOP or t is UNATTEND
              else Push(tuple(self.build(x, scope) for x in t.terms))
              if isinstance(t, Push)
@@ -819,7 +835,7 @@ class Loader:
         return self.atoms[name]
 
     def var(self, name: str, scope: Dict[str, NodeId]) -> NodeId:
-        # Variables are scoped to a rule: `?w` in two rules is two variables,
+        # Variables are scoped to a rule: `$w` in two rules is two variables,
         # because a rule is a statement and not a fragment of a larger one.
         if name not in scope:
             scope[name] = self.m.g.var(name)
@@ -863,7 +879,7 @@ class Loader:
         if t.is_var:
             v = self.var(t.head, scope)
             # A variable with arguments is a relation instance whose relation is
-            # that variable -- `?p(?t)`. Without this it would silently drop the
+            # that variable -- `$p($t)`. Without this it would silently drop the
             # arguments and bind the bare variable, which is the shape of every
             # twin this repo has recorded.
             if t.args:
@@ -966,8 +982,8 @@ class Loader:
         return statements
 
     def _alias(self, s: Statement) -> None:
-        """Register a shorthand: `alias attacks(?a, ?t) = { +is(+e, attack),
-        +agent(+e, ?a), +target(+e, ?t) }`.
+        """Register a shorthand: `alias attacks($a, $t) = { +is(+e, attack),
+        +agent(+e, $a), +target(+e, $t) }`.
 
         The head's arguments are the ONLY names the use-site supplies; anything
         else in the body is the alias's own. A body variable that is not a
@@ -987,12 +1003,12 @@ class Loader:
         head = s.member.term
         if head.is_var or head.is_rule or head.fn is not None or head.mint:
             raise ParseError(
-                f"line {s.line}: an alias head is a plain `name(?params)`"
+                f"line {s.line}: an alias head is a plain `name($params)`"
             )
         if any((not a.is_var) or a.args or a.mint for a in head.args):
             raise ParseError(
                 f"line {s.line}: alias parameters are bare variables -- "
-                f"`{head.head}(?a, ?t)`, nothing structured"
+                f"`{head.head}($a, $t)`, nothing structured"
             )
         if len({a.head for a in head.args}) != len(head.args):
             raise ParseError(
@@ -1102,13 +1118,13 @@ class Loader:
     def _action(self, s: Statement) -> None:
         """Declare an action, and put it in the graph where a rule can find it.
 
-        ⚠⚠⚠ **Mentioned, not claimed.** `move(?x, ?y)` is generic and the gate
+        ⚠⚠⚠ **Mentioned, not claimed.** `move($x, $y)` is generic and the gate
         refuses to deposit a proposition with a variable in it -- correctly, and
         `a_rule_can_introduce_a_thing` is the same wall from the other side. So
-        what is deposited is `action(move(?x, ?y))`, a claim ABOUT a pattern,
-        exactly as `reify` deposits `ant(<R>, heat(?a, ?w))`.
+        what is deposited is `action(move($x, $y))`, a claim ABOUT a pattern,
+        exactly as `reify` deposits `ant(<R>, heat($a, $w))`.
 
-        ⭐ Which is what makes the palette DISCOVERABLE: `+action(?a)` is an
+        ⭐ Which is what makes the palette DISCOVERABLE: `+action($a)` is an
         ordinary premise, so one fallback rule can range over every action --
         including ones declared after it was written. Without the declaration a
         corpus needs one hand-written fallback per action, and a new action is a
@@ -1154,8 +1170,8 @@ class Loader:
         for i, m in enumerate(ant):
             if m.sign != ABSENT or not self.m.g.has_var(m.pattern):
                 continue
-            # An absence is a CHECK, not a binder: `no p(?x)` with ?x free is
-            # *for no ?x* -- the negative existential §9 says a member cannot
+            # An absence is a CHECK, not a binder: `no p($x)` with $x free is
+            # *for no $x* -- the negative existential §9 says a member cannot
             # mean -- so every variable must arrive bound, from members that
             # can bind (an earlier absence binds nothing either).
             binders = [a for a in ant[:i] if a.sign != ABSENT]
@@ -1170,7 +1186,7 @@ class Loader:
                       self.build(m.binds, scope) if m.binds else None)
                for m in s.consequent]
         # A consequent that NAMES a rule drags that rule's own variables in with
-        # it: `+resume(?h, <cb>)` is generic only because `<cb>`'s patterns are.
+        # it: `+resume($h, <cb>)` is generic only because `<cb>`'s patterns are.
         # Those are mentioned, not used, and no antecedent can or should bind
         # them -- so they are exempt, and every other variable is still checked.
         unbound = [
@@ -1381,7 +1397,7 @@ def _vars_in(g, node: NodeId) -> set:
 def _report_shadowed(ldr: "Loader") -> None:
     """Say when a corpus's name meant something the corpus did not choose.
 
-    Not an exception: `+expects(?p, plus)` is legitimate and there are twenty of
+    Not an exception: `+expects($p, plus)` is legitimate and there are twenty of
     them. Not silence either -- that is the failure being repaired. The author
     is looking at the load, so the load is where it is said.
     """

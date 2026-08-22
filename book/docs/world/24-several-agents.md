@@ -178,8 +178,8 @@ And because those are ordinary facts, inheritance is **one ordinary rule** —
 transitive for free, with no engine support at all:
 
 ```
-rule <inherit> = implies( { +extends(?e, ?f), +knows(?f, ?r) },
-                          { +knows(?e, ?r) } )
+rule <inherit> = implies( { +extends($e, $f), +knows($f, $r) },
+                          { +knows($e, $r) } )
 ```
 
 A corpus writes `expert geometry extends arithmetic` as a convenience over
@@ -272,7 +272,7 @@ at(<walker>, <node>)        where it stands
 child(<walker>, <node>)     one it spawned
 ```
 
-`child(?w, ?y)` is a compound term over **bound** variables, and that is legal in
+`child($w, $y)` is a compound term over **bound** variables, and that is legal in
 a consequent: a rule may introduce an individual as long as it is **denoted**.
 What a rule may not do is conclude about a variable nothing binds. That is the
 whole of spawning.
@@ -282,8 +282,8 @@ whole of spawning.
 The obvious design has a walker step and deny where it was:
 
 ```
-<step> = causes( { +at(?w,?x), +door(?x,?y) }, { -at(?w,?x), +at(?w,?y) } )
-<fork> = causes( { +at(?w,?x), +door(?x,?y) }, { +at(child(?w,?y), ?y) } )
+<step> = causes( { +at($w,$x), +door($x,$y) }, { -at($w,$x), +at($w,$y) } )
+<fork> = causes( { +at($w,$x), +door($x,$y) }, { +at(child($w,$y), $y) } )
 ```
 
 Both want `at(w, r2)`. Whichever applies first **denies** it, and the other is
@@ -324,7 +324,7 @@ are two walkers, each re-exploring everything below. Chained diamonds, measured:
 `2^(n+2) − 3` against `3n + 1`. Nothing errors and the treasure is still found;
 the run simply does exponentially more of the same work.
 
-`walker(?y)` fixes it in one word, and the fix is **interning** rather than a
+`walker($y)` fixes it in one word, and the fix is **interning** rather than a
 guard: the same relation over the same members is the same node, so two arrivals
 mint one walker and the second is not a new fact at all. No visited set and no
 negation — which matters, because the negation a visited set wants is over
@@ -352,25 +352,25 @@ applies to the walkers running E*. Scoping expertise by **premise** can, and it
 costs nothing beyond the `knows` and `extends` facts already above:
 
 ```
-rule <extend> = implies( { +extends(?e,?f), +knows(?f,?c) }, { +knows(?e,?c) } )
-rule <equip>  = implies( { +runs(?w,?e),    +knows(?e,?c) }, { +can(?w,?c)   } )
-rule <grab>   = implies( { +at(?w,?x), +can(?w, grabbing), +treasure(?x) },
-                         { +found(?w,?x) } )
+rule <extend> = implies( { +extends($e,$f), +knows($f,$c) }, { +knows($e,$c) } )
+rule <equip>  = implies( { +runs($w,$e),    +knows($e,$c) }, { +can($w,$c)   } )
+rule <grab>   = implies( { +at($w,$x), +can($w, grabbing), +treasure($x) },
+                         { +found($w,$x) } )
 ```
 
 Multiple inheritance falls out: a `raider` that extends a `scout` and a `looter`
 has `moving` from one and `grabbing` from the other, through one ordinary rule
 with no resolution order to declare. And the **spawning** rule chooses the
-child's expert — pass `?e` down and the child loots, spawn it as a `scout` and
+child's expert — pass `$e` down and the child loots, spawn it as a `scout` and
 the treasure is never taken, because a scout cannot.
 
 ### Termination is a denial, and it is not retroactive
 
-Every walker-relative rule needs `at(?w, ?x)`. So one denial removes the walker
+Every walker-relative rule needs `at($w, $x)`. So one denial removes the walker
 from all of them at once:
 
 ```
-rule <done> = implies( { +found(?w,?x) }, { -at(?w,?x) } )
+rule <done> = implies( { +found($w,$x) }, { -at($w,$x) } )
 ```
 
 No scheduler, no registry, no removal step — there is nothing holding a walker
@@ -416,8 +416,8 @@ Chapter 13 introduced `blocked` — the agent's report that it has exhausted wha
 it can do alone — and noted that a corpus can key on it:
 
 ```
-rule <ask-for-it> = implies( { +blocked(have(p1, ?k)) },
-                             { +doing(tell(dm, want(p1, ?k))) } )
+rule <ask-for-it> = implies( { +blocked(have(p1, $k)) },
+                             { +doing(tell(dm, want(p1, $k))) } )
 ```
 
 With one agent that's a little contrived. With several it is the whole point: a

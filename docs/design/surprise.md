@@ -20,7 +20,7 @@ where the apparatus can pay.
 ```
 fact +heating(k1)     fact +contains(k1, water)
 fact +heating(k2)     fact +contains(k2, sand)
-rule <boils> = causes( { +heating(?k) }, { +boiling(?k) } )
+rule <boils> = causes( { +heating($k) }, { +boiling($k) } )
 say world: -boiling(k2)
 ```
 

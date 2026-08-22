@@ -47,7 +47,7 @@ evidence it did not apply **in that state**. So a demonstration has to produce
 something CONDITIONAL, keyed on what was true at the time:
 
     rule <A> = ...
-      learned after <A> { ... } => attend(?x, n)
+      learned after <A> { ... } => attend($x, n)
 
 ⚠⚠⚠ **The bigram arms are gone, and the measurement is why.** The smallest
 conditional thing that carries a sequence used to be a bigram on the rule that
@@ -74,7 +74,7 @@ Three things are measured, and they are the three claims:
 ## ...and a fourth lesson, which is not about rules at all
 
 Every arm above teaches the table which RULE to reach for. `focus` teaches the
-agent what to think ABOUT -- `after <A> => unattend, attend(?x)`, keyed on a
+agent what to think ABOUT -- `after <A> => unattend, attend($x)`, keyed on a
 node -- and so it is the only one that can reach the BINDING, which no buff can
 name.
 
@@ -112,7 +112,7 @@ constructed case instead, which is the honest place for it.
 ## What the move just bound, and whether the
 
 ⭐⭐⭐ **What the move just bound, and whether the next move was about
-it too.** `(rule, "?x") -> times the value `?x` took carried into the
+it too.** `(rule, "$x") -> times the value `$x` took carried into the
 following move`, beside `values`, which is how many DISTINCT things
 that variable was ever bound to.
 
@@ -202,7 +202,7 @@ They are retired with the buffs, and with them `Lesson.lessons`,
 is the absence of `unattend`: the lesson says *and also think about this*,
 adding to whatever else is attended rather than clearing the field first.
 
-⚠ It was `unattend, attend(?v)` and the clearing was doing real work -- a
+⚠ It was `unattend, attend($v)` and the clearing was doing real work -- a
 claim has no `LIFE`, so attention accumulates without something to take it
 back. What replaces it is the automatic half, which is not built:
 `docs/HANDOFF.md` 20d records attending the last move's right-hand side being

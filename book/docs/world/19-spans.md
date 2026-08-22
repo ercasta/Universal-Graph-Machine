@@ -37,26 +37,26 @@ stretch itself — two moments, in a relation it names:
 
 ```
 rule <round> = implies(
-  { asking(?q), anc(?q, ?m), in_delta(?m, ?e),
-    entry_of(?e, turn(hero, ?r), plus) },
-  { round_span(?r, ?m, ?q) } )
+  { asking($q), anc($q, $m), in_delta($m, $e),
+    entry_of($e, turn(hero, $r), plus) },
+  { round_span($r, $m, $q) } )
 
 rule <heard> = implies(
-  { round_span(?r, ?a, ?b), anc(?b, ?m), anc(?m, ?a),
-    in_delta(?m, ?e), entry_of(?e, arrived(?c, ?what, ?sign), plus) },
-  { heard(?r, ?c) } )
+  { round_span($r, $a, $b), anc($b, $m), anc($m, $a),
+    in_delta($m, $e), entry_of($e, arrived($c, $what, $sign), plus) },
+  { heard($r, $c) } )
 
-rule <silent> = implies( { round_span(?r, ?a, ?b), -heard(?r, player) },
-                         { silent(?r, player) } )
+rule <silent> = implies( { round_span($r, $a, $b), -heard($r, player) },
+                         { silent($r, player) } )
 ```
 
-`round_span(?r, ?a, ?b)` is not engine vocabulary — it is a relation this
+`round_span($r, $a, $b)` is not engine vocabulary — it is a relation this
 corpus invented, holding two moments. Everything else is the chain read as
 ordinary structure:
 
-- **`anc(?a, ?b)`** — `?b` is an ancestor of `?a`; `sanc` is the strict version.
-- **`in_delta(?m, ?e)`** — entry `?e` was deposited in moment `?m`.
-- **`entry_of(?e, p, plus)`** — what `?e` actually claims.
+- **`anc($a, $b)`** — `$b` is an ancestor of `$a`; `sanc` is the strict version.
+- **`in_delta($m, $e)`** — entry `$e` was deposited in moment `$m`.
+- **`entry_of($e, p, plus)`** — what `$e` actually claims.
 
 Read together, those three are *walk the history between two moments and look
 at what was deposited there* — which is what a span-located entry was for, done

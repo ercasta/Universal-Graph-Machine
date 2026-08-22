@@ -55,11 +55,11 @@ What we wrote instead of *the goblin acts after the hero*:
 fact +follows(goblin1, hero)      fact +wraps(goblin2)
 fact +turn(hero, 1)               fact +may(hero, 1)
 
-rule <pass> = causes( { +done(?x,?r), +turn(?x,?r), +follows(?y,?x) },
-                      { -turn(?x,?r), -done(?x,?r), +turn(?y,?r), +may(?y,?r) } )
-rule <tick> = implies( { +turn(?x,?r), +wraps(?x) }, { +calc(add, ?r, 1) } )
-rule <wrap> = causes( { ..., +answered(<arith>, calc(add,?r,1), ?r2) },
-                      { -turn(?x,?r), -done(?x,?r), +turn(hero,?r2), +may(hero,?r2) } )
+rule <pass> = causes( { +done($x,$r), +turn($x,$r), +follows($y,$x) },
+                      { -turn($x,$r), -done($x,$r), +turn($y,$r), +may($y,$r) } )
+rule <tick> = implies( { +turn($x,$r), +wraps($x) }, { +calc(add, $r, 1) } )
+rule <wrap> = causes( { ..., +answered(<arith>, calc(add,$r,1), $r2) },
+                      { -turn($x,$r), -done($x,$r), +turn(hero,$r2), +may(hero,$r2) } )
 ```
 
 **5 of 21 rules — 24% of the corpus — are clock scaffold**, plus a `may(x, r)`
@@ -157,7 +157,7 @@ suppression happens once and *arbitration is scheduling* does the rest.
 seeds every corpus's table from it. So:
 
 ```
-rule <subtract> = implies( { ... }, { +calc(minus, ?h, ?n) } )
+rule <subtract> = implies( { ... }, { +calc(minus, $h, $n) } )
 ```
 
 resolves its *operator* to the minus sign. It prints as `calc(-, 5, 2)`, the tool
@@ -178,7 +178,7 @@ silence is the defect.
 
 ## 7. A bug class no outcome check can see
 
-`<halt>` written the obvious way — `{ +done(?x, ?r) }`, exactly what `<skip>`
+`<halt>` written the obvious way — `{ +done($x, $r) }`, exactly what `<skip>`
 writes for an absent combatant — fed `<pass>`, which let `<wrap>` count the round.
 The fight was **decided correctly**, the verdict was right, every check about the
 outcome was green, and the agent turned an empty room over to **round 417 across

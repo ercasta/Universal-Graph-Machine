@@ -27,9 +27,9 @@ fact penguin(pingu)
 fact asked(pingu)
 fact asked(tweety)
 
-rule <flies>      = implies( {{ +bird(?x), +considered(?x) }},    {{ +can_fly(?x) }} )
-rule <flightless> = implies( {{ +penguin(?x), +considered(?x) }}, {{ +grounded(?x) }} )
-rule <classify>   = implies( {{ +asked(?x) }},                    {{ +considered(?x) }} )
+rule <flies>      = implies( {{ +bird($x), +considered($x) }},    {{ +can_fly($x) }} )
+rule <flightless> = implies( {{ +penguin($x), +considered($x) }}, {{ +grounded($x) }} )
+rule <classify>   = implies( {{ +asked($x) }},                    {{ +considered($x) }} )
 {post}
 """
 
@@ -53,8 +53,8 @@ def penguin() -> int:
     DENIED = PENGUIN.replace(
         "fact penguin(pingu)",
         "fact penguin(pingu)" + chr(10) + "fact -penguin(tweety)").replace(
-        "+bird(?x), +considered(?x) }}",
-        "+bird(?x), +considered(?x), -penguin(?x) }}")
+        "+bird($x), +considered($x) }}",
+        "+bird($x), +considered($x), -penguin($x) }}")
     cases = (
         ("declaration order alone", PENGUIN.format(post="")),
         ("standing(<flightless>)",
@@ -93,24 +93,24 @@ def penguin() -> int:
 # -- stopping, which is what makes a score mean anything --------------------
 
 _IDLE = "\n".join(
-    "rule <f%d> = implies( { +wood(?x) }, { +step%d(?x) } )" % (i, i)
+    "rule <f%d> = implies( { +wood($x) }, { +step%d($x) } )" % (i, i)
     for i in range(1, 13))
 _DEEP = "\n".join(
-    "rule <g%d> = implies( { +step%d(?x) }, { +after%d(?x) } )" % (i, i, i)
+    "rule <g%d> = implies( { +step%d($x) }, { +after%d($x) } )" % (i, i, i)
     for i in range(1, 13))
 
 # `want`, not `goal`: `goal` is the apparatus's own relation and the backward
-# reader deposits its own, so a completion check written over `goal(?w)` fires
+# reader deposits its own, so a completion check written over `goal($w)` fires
 # on the machinery's subgoals and reports the thing finished before it is built.
 # A corpus's vocabulary is not the apparatus's.
 STOPPING = """
 fact +want(assembled(cart))
 fact +wood(cart)
-rule <wheel> = implies( { +wood(?x) },       { +have(wheel) } )
+rule <wheel> = implies( { +wood($x) },       { +have(wheel) } )
 rule <axle>  = implies( { +have(wheel) },    { +have(axle) } )
 rule <bed>   = implies( { +have(axle) },     { +have(bed) } )
 rule <build> = implies( { +have(bed) },      { +assembled(cart) } )
-rule <done>  = implies( { +want(?w), +?w },  { +finished(?w) } )
+rule <done>  = implies( { +want($w), +$w },  { +finished($w) } )
 """ + _IDLE + "\n" + _DEEP + "\n"
 
 # Two things wanted, one reachable: the stop fires on the one that was built
@@ -119,9 +119,9 @@ OPEN_WANT = """
 fact +want(assembled(cart))
 fact +want(painted(cart))
 fact +wood(cart)
-rule <wheel> = implies( { +wood(?x) },       { +have(wheel) } )
+rule <wheel> = implies( { +wood($x) },       { +have(wheel) } )
 rule <build> = implies( { +have(wheel) },    { +assembled(cart) } )
-rule <done>  = implies( { +want(?w), +?w },  { +finished(?w) } )
+rule <done>  = implies( { +want($w), +$w },  { +finished($w) } )
 after <done> => stop
 """
 
