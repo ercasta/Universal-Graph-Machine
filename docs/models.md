@@ -420,6 +420,223 @@ The residual leak, once the relation atom is gone, is the shared entity: a concl
 arguments are attended, and `d1` really is an argument of something the agent concluded. That
 is the modelling omission again, arriving from the attention side.
 
+## 12c. Named slots on a global anchor — expressible today, entirely
+
+The author's, 2026-08-22, after the pointer-list proposal was scored against §4's register:
+*instead of positions, named slots — `+game(_attention, $x)` in the RHS, with `_attention` a
+global-variable-like node.* `ugm.probes.slots`, 9/0.
+
+**Nothing here needs an engine change.** A slot is an ordinary proposition whose first argument
+is an ordinary atom. `_attention` is not a reserved name and does not have to become one; the
+`attention` relation the machinery writes is a different node and there is no collision. No
+notation, no branch, no row.
+
+Three things it buys, measured:
+
+- **It does not read position.** Writing two slots in either order gives the same answer. The
+  contrast is against the real alternative rather than a straw one: `push($a, $b)` reads left
+  to right and position is the gradient, so naming the same two nodes the other way puts a
+  different node in front. Both measured side by side.
+- **It fuels the attention stack that exists rather than sitting beside it.** A rule that
+  writes a slot puts the VALUE on the queue, through `_attend_written`, with nothing added for
+  the purpose.
+- **The fixed-arity antecedent is available now.** A competence rule rewritten slot-relative —
+  `+at(agent, $r)` becoming `+here(_attention, $r)` — answers identically on the same world.
+  That is the property the learning proposal needs, and it needs no build to have it.
+
+Three things it costs, and the third is the one to decide deliberately:
+
+- **A slot is not single-valued.** Two writes leave two values held; nothing in the notation
+  says otherwise. The discipline is a rule the corpus writes — a three-member setter that binds
+  the old value and denies it, with a distinctness computator the corpus registers. Measured
+  working. That is the right home for it, but it is a rule per slot.
+- **The anchor riding the queue costs nothing where it is scored.** This was written up
+  first as a leak, and the author's objection was right and is sharper than *almost zero*.
+  `_idf` is `log(total/df)`, so a term in EVERY expert's pool has idf **exactly 0.0**, and the
+  anchor is in every pool by construction — that is what makes it an anchor. Measured beside
+  the discriminating terms:
+
+      idf  0.000   here          <- the slot relation, shared by both experts
+      idf  0.000   _attention
+      idf  0.693   wet / slip / dark / trip
+
+  **And it does not reach the shortlist at all**, which is the stronger half. `_attention_asked`
+  is claimed-vs-derived, not weighted-vs-plain — *someone saying attend to this is a reason to
+  bring rules to mind; the machinery noticing this just happened is not*, and conflating them is
+  what quiesced the dungeon 32 moves early. `_attend_written` pushes without claiming, so every
+  node a slot write puts on the queue is invisible to what decides which rules are matched:
+  queue `['chess', '_attention', 'game', 'game(_attention, chess)']`, shortlist `[]`.
+
+  So §12b's relation-atom leak does NOT arrive from a third direction here. What is left is
+  arithmetic rather than credit: queue **space**. `_push_attention` moves a repeat rather than
+  adding it, so the anchor costs exactly **one** slot however often it is written — measured —
+  though each distinct slot relation costs one more, against a span of 7.
+- **Scope is traded, not gained.** The queue is per-frame — a push suspends it, measured — and
+  a slot is global, readable from inside any frame. Two lines of work naming one slot share one
+  cell. That is §12's *share only what every expert shares* one construct along: a slot name
+  every expert uses the same way is free, and a slot name two experts mean differently makes
+  the borrower read the lender's value. **Decided: global.** See below.
+
+### Global was chosen, and what the mitigation actually is
+
+The author's call, 2026-08-22, and the argument is from expressibility, which is this
+repository's standing criterion:
+
+> *Rules have no notion of local. When a rule queries something, it always queries global.
+> Global makes nothing impossible; per-frame might. It only poses an increased risk of confusion
+> or conflict, even between multiple instances of the same expert.*
+
+That is the right shape of argument — a mechanism that forecloses is worse than one that
+confuses, because confusion is a modelling problem and foreclosure is not. What follows measures
+the risk and the mitigation, because a mitigation that is assumed is a mitigation that is not
+there. `ugm.probes.slots`, checks 9 through 13.
+
+**The risk, plainly.** A lone slot member fires on every value in the cell — `visited(hall)` and
+`visited(cave)` from one rule — because nothing in the rule tells one value from another.
+
+**The obvious mitigation is not the one.** *Join the slot to something anchored* — which is
+`_stored`'s own discipline, **bounded by something already known** — does **not** isolate over a
+shared world, because the foreign value has something to join to as well:
+
+    rule <joined> = implies( { +here(_attention, $r), +wet($r) }, { +slip($r) } )
+    ->  slip(hall) AND slip(cave)
+
+Measured, because it is the first answer anyone reaches for. It isolates only when the foreign
+value has nothing in the world to join to, which is a much weaker guarantee than it sounds.
+
+**The mitigation that does work is the expert pick**, which is what the author named. Two experts
+using the same slot name are still told apart, because what discriminates is the rest of their
+pools — and the anchor and the shared slot name, both at idf zero, do not blunt it:
+
+    pick on wet(hall)     safety 69, gloom 0
+
+So **isolation moves from the data to the pool.** The value is global; which rules may read it is
+not. That is a coherent division rather than a concession: the slot is shared state, the pool is
+per-frame, and the frame was never the thing being given up.
+
+**And it cannot help two instances of the same expert**, which the author named as the residual.
+One pool, one set of rules, one cell — and the instance is nowhere in the answer:
+
+    two instances, one cell     may(hall, north), may(cave, down)
+
+**The crossroad pattern, and why it needs nothing built.** The anchor is an ARGUMENT, so a
+private space is the same construct with a different first argument. One rule takes from the
+crossroad and denies it:
+
+    rule <take> = implies(
+        { +arriving($who, $r), +here(_attention, $r) },
+        { -here(_attention, $r), +here($who, $r) } )
+
+    ->  may(inst1, north), may(inst2, down)      and the crossroad left holding: - , -
+
+That is the author's *temporary value-passing crossroad, moved to a private space almost
+immediately*, and it costs one rule. **The healthy pattern is not joining, it is moving** — and
+the crossroad ending EMPTY is what makes it a crossroad rather than a second home for the value.
+
+**On the phrase *the anchor is an argument*, which was not clear.** It means only this:
+`_attention` sits in an ordinary argument position, so `here(inst1, hall)` is the same
+proposition with a different first argument and needs nothing new. It says nothing about how
+anything is anchored across ticks, and reading it that way would be reading a claim it does not
+make.
+
+### What bridges ticks is `_attended_first`, and it is already built
+
+The author's, on being asked exactly that: *only attention bridges over ticks, and my solution was
+to choose the bindings of rules to actual graph nodes based on attention partial overlap — so if
+there are two `game` nodes, one attended and the other not, the next tick should bind the rule
+application to the attended one.*
+
+**That is `_attended_first`, in `core/attention.py`, and it ships.** It sorts a rule's
+applications by the summed, position-weighted overlap of the values an application **binds** — not
+of the rule's terms — and the loop's own comment says what it repairs: *it takes the first
+survivor and breaks, so the binding was decided by the walk.* Measured on the author's own
+fixture, two `game` nodes and one attended:
+
+    nothing attended    moves(bob), moves(alice)
+    attend chess        moves(alice), moves(bob)      <- the binding flipped
+
+And a slot WRITE is enough to do it, with nothing attending explicitly, because `_attended()` is
+the whole queue and derived pushes are in it — the asymmetry that makes named slots work, since
+the same push is invisible to the shortlist (4c) and visible to the binding.
+
+**And ordering IS selection once the world moves — which the first write-up of this got
+backwards.** On a frozen world run to quiescence both bindings are eventually taken, and *so
+attention does not isolate a global cell* was concluded from exactly that: a fixture that cannot
+move, measuring a mechanism whose whole subject is movement. The author's correction: *if the
+world and the attention move, the loser will never be chosen; it will only be chosen if the other
+node is attended.* Both halves measured, by letting the rule spend a shared premise:
+
+    world FROZEN  attend chess    moves(alice), moves(bob)     <- the fixture, not the mechanism
+    world MOVES   attend chess    moves(alice)                 <- the loser is never chosen
+    world MOVES   attend go       moves(bob)
+    ...premise returns, attend go   moves(alice) -> moves(alice), moves(bob)
+
+So *attention orders and cannot gate* and *the other one never runs* are both true at once, and
+there is no contradiction: **the exclusion is the world's, not the mechanism's** — which is why
+none of the four retired gating mechanisms was needed to get it. For a global slot this is the
+whole isolation story: a stale value is not read because nothing is attending it, and it becomes
+readable again exactly when something does.
+
+**The one real limit** is that attention can only move a binding **that has not happened yet**.
+With the reader rule authored before the writer, the reader applies on the first tick and the
+slot write changes nothing. The two halves of that check differ only in authoring order, and a
+check written in one order alone would have measured the order and reported the mechanism.
+
+### The queue is empty only at the very start, because computation begins with an ARRIVAL
+
+The author's, on the tick-1 limit: *in real situations computation would usually start because
+something has arrived on a channel, and those nodes should be attended — guiding the selection of
+the first expert.* Half of that is already true and the other half is one rule, so it is worth
+being exact. Measured, `slots` 19-20:
+
+    queue at delivery       []
+    queue after intake ran  ['+', 'chess', 'game', 'game(chess)', 'user', 'says']
+
+**An arrival does not attend when it lands.** `_report` writes `arrived(...)` straight through
+the gate, and that is not a move's `wrote`, so `_attend_written` never sees it. One tick later the
+intake rule turns the report into an utterance, and THAT write attends every node the arrival was
+made of. So the channel does seed attention, at the cost of a tick — and the *empty queue orders
+nothing* limit bites only at the very start of a run, not wherever a fixture happens to begin.
+
+**What no arrival does by itself is choose the first EXPERT**, and that is deliberate rather than
+missing. The engine's only `_push_frame` call is a rule spending `push`, whose own comment says
+why: *the nodes are the host rule's own variables, bound by the move that spent this — and the
+expert is computed from them, never named.* A rule that had to name an expert would be choosing
+the callee, which is the thing selection exists to do. So an arrival steers the first pick exactly
+when a corpus rule pushes on the nodes it seeded — one rule, not an engine change — and the pick
+over those nodes does discriminate (safety 69, gloom 0).
+
+**And *authored first* is a symptom, not the cause — nothing is pre-bound.** Asked whether
+binding happens during the tick or before it, the trace answers: `match` runs INSIDE the per-tick
+loop and `_attended_first` reorders what it returns, every tick.
+
+    tick 1: <focus>  binds=[chess]         attention=[]
+    tick 2: <focus>  binds=[chess]         attention=[]
+    tick 3: <play>   binds=[alice, chess]  attention=[chess, _attention]
+    tick 4: <play>   binds=[bob, go]       attention=[alice, moves]
+
+The same rule binds `chess/alice` on one tick and `go/bob` on the next, which no cached binding
+could do. What the authoring order decides is only **which rule gets tick 1**, and tick 1 is
+walk-ordered whatever runs there, because `_attended_first` carries its own guard — *nothing
+attended is in play here; do not touch the order.* **An empty queue orders nothing.** So the limit
+is not pre-binding, it is that attention cannot rank what has not been attended yet — which is
+*only attention bridges ticks* read from the start of the run rather than the middle.
+
+**What is still open, and it is small.** The take rule binds `$who` from `arriving($who, $r)`, so
+the instance comes from the premise that occasioned the work rather than from anything the
+machinery holds. Whether an instance can always name itself that way is a modelling question, and
+§12b's answer to the last four of those was that the mechanism was never the missing piece — so
+the burden is on a corpus that cannot do it, not on a mechanism to prevent it.
+
+**The correction is worth keeping as a correction.** The first write-up of this section called
+the anchor a leak and cited `_attend_written`'s *queue permanently full of undifferentiated
+nodes*. That docstring is about a queue that decided which rules were matched, and the
+claimed-vs-derived split was the repair for exactly that. Quoting the disease after the cure
+shipped is how a retired hazard gets re-argued — the check that measures it is `slots` 4b/4c,
+and both had to be run before the sentence was safe to write.
+
+**~~What this does not settle.~~ Settled below: global.**
+
 ## 13. What is settled
 
 - An illegal move is a classification, not a prohibition. The core model deposits a verdict

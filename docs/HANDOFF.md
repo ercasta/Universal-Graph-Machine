@@ -1,10 +1,11 @@
-# Handoff — 2026-08-22 (the `-` / `?` COLLAPSE, and `context: believed` WITHDRAWN)
+# Handoff — 2026-08-22 (the COLLAPSE, `context: believed` WITHDRAWN, and NAMED SLOTS)
 
     python -m ugm.selftest        558 checks, 0 failing   <- was 557; one control
                                                              the suite never had
     python -m ugm.probes.collapse  10 checks, 0 failing   <- new
     python -m ugm.probes.anchors    8 checks, 0 failing   <- new
-    ./tools_sweep.sh                1 failing, 32 run     <- 32 is two more than
+    python -m ugm.probes.slots     26 checks, 0 failing   <- new
+    ./tools_sweep.sh                1 failing, 33 run     <- 33 is three more than
                                                              any sweep has run,
                                                              and the 1 is
                                                              `quiescence` at 5/6,
@@ -123,6 +124,177 @@ it passes as a deposited fact. Kill-probed: delete `<never>` and the reader bind
 What the guard wants to ask is *was this deposited*; the two coincide for every pattern with
 a variable in it, which is why nothing has caught it. **Independent of anchors, and it grows
 under them**, because more reads become structural.
+
+## Named slots: expressible today, entirely — `models.md` 12c
+
+The author's proposal, arrived at in two steps. First an unbounded list of node pointers rules
+could push and repoint; scored against §4's register, which argues that exact case and refuses
+it — *an unbounded set of privileged slots and R7 would fail for the machinery's own control
+state.* Then the sharper form, which is not that: **named slots on a global anchor node**,
+`+game(_attention, $x)` in a consequent and the same as a member.
+
+`ugm/probes/slots.py`, 9/0, and the headline is that **nothing needs an engine change**. A slot
+is an ordinary proposition whose first argument is an ordinary atom. `_attention` is not a
+reserved name and need not become one.
+
+- **It does not read position**, measured against the real alternative: `push($a, $b)` reads
+  left to right and position is the gradient, so the same two nodes named the other way put a
+  different node in front. A slot written in either order answers the same.
+- **It fuels the stack that exists.** A rule writing a slot puts the value on the queue through
+  `_attend_written`, with nothing added for it.
+- **The fixed-arity antecedent is available now** — a competence rule rewritten
+  `+at(agent, $r)` → `+here(_attention, $r)` answers identically. That is the property the
+  learning proposal needs, with no build in front of it.
+
+Two costs and one decision. A slot is **not single-valued** (two writes leave two values held;
+the discipline is a three-member setter the corpus writes, measured working). And **scope is
+traded rather than gained** — the queue is per-frame and a slot is global, so two lines of work
+naming one slot share one cell, which is *share only what every expert shares* one construct
+along. That last is the decision.
+
+**The anchor riding the queue is not a cost, and the first write-up of this said it was.** The
+author's objection — many rules use `_attention`, so TF-IDF gives it almost no credit — is right
+and sharper than *almost*: `_idf` is `log(total/df)`, so a term in every expert's pool has idf
+**exactly 0.0**, measured at 0.000 beside 0.693 for the discriminating terms. And it does not
+reach the **shortlist** at all, which is the stronger half: `_attention_asked` is claimed vs
+derived, and `_attend_written` pushes without claiming, so queue
+`['chess', '_attention', 'game', 'game(_attention, chess)']` yields shortlist `[]`. What is left
+is arithmetic rather than credit — one queue slot of a span of 7, however often it is written,
+because a repeat moves rather than adds.
+
+⚠ The bad citation is worth naming, because it is a shape that will recur: the first write-up
+quoted `_attend_written`'s *queue permanently full of undifferentiated nodes made the agent
+chase its own tail* — a docstring describing a queue that decided which rules were matched,
+which is precisely what the claimed-vs-derived split was built to repair. **Quoting the disease
+after the cure has shipped is how a retired hazard gets re-argued.**
+
+### Global was CHOSEN, and the mitigation is not the obvious one
+
+The author's call, from expressibility: *rules have no notion of local — when a rule queries
+something it always queries global. Global makes nothing impossible; per-frame might. It only
+poses an increased risk of confusion, even between multiple instances of the same expert.* A
+mechanism that forecloses is worse than one that confuses, because confusion is a modelling
+problem and foreclosure is not.
+
+Measured, checks 9-13, because a mitigation that is assumed is a mitigation that is not there:
+
+- **The risk is real**: a lone slot member fires on every value in the cell.
+- **Joining the slot to an anchored member does NOT isolate** over a shared world — the foreign
+  value has something to join to as well. `{ +here(_attention, $r), +wet($r) }` gives BOTH
+  `slip(hall)` and `slip(cave)`. This is the first answer anyone reaches for and it is wrong,
+  which is why it is a check rather than a remark.
+- **The expert pick DOES** — two experts sharing a slot name are still told apart
+  (`safety 69, gloom 0`), and the idf-zero anchor does not blunt it. **So isolation moves from
+  the DATA to the POOL**: the value is global, which rules may read it is not.
+- **It cannot separate two instances of one expert** — one pool, one cell, and the instance is
+  nowhere in the answer.
+- **The crossroad pattern needs nothing built**, because the anchor is an ARGUMENT: a private
+  space is the same construct with a different first argument, and one rule takes and denies.
+  `{ +arriving($who, $r), +here(_attention, $r) } -> { -here(_attention, $r), +here($who, $r) }`
+  gives `may(inst1, north)`, `may(inst2, down)`, with the crossroad left holding `-`.
+
+**The healthy pattern is not joining, it is MOVING**, and the crossroad ending empty is what
+makes it a crossroad rather than a second home for the value.
+
+### What bridges ticks is `_attended_first`, and it already ships
+
+Asked what actually anchors anything across ticks, the author: *only attention bridges over
+ticks, and my solution was to choose the bindings of rules to actual graph nodes based on
+attention partial overlap — if there are two `game` nodes, one attended and one not, the next
+tick should bind to the attended one.*
+
+**That mechanism is built.** `_attended_first` sorts a rule's applications by the summed,
+position-weighted overlap of the values an application **binds** — not of the rule's terms — and
+the loop's own comment says what it repairs: *it takes the first survivor and breaks, so the
+binding was decided by the walk.* On the author's own fixture:
+
+    nothing attended    moves(bob), moves(alice)
+    attend chess        moves(alice), moves(bob)      <- the binding flipped
+
+A slot WRITE is enough to do it with nothing attending explicitly, because `_attended()` is the
+whole queue and derived pushes are in it. That asymmetry is what makes named slots work: the same
+push is invisible to the shortlist and visible to the binding.
+
+**And ordering IS selection once the world moves.** The first write-up said it orders and does
+not exclude, and concluded that attention therefore does not isolate a global cell — drawn from a
+frozen fixture run to quiescence, which is a fixture that cannot move measuring a mechanism whose
+whole subject is movement. The author's correction, both halves measured by letting the rule
+spend a shared premise:
+
+    world FROZEN  attend chess    moves(alice), moves(bob)     <- the fixture, not the mechanism
+    world MOVES   attend chess    moves(alice)                 <- the loser is NEVER chosen
+    world MOVES   attend go       moves(bob)
+    ...premise returns, attend go   moves(alice) -> moves(alice), moves(bob)
+
+**The exclusion is the world's, not the mechanism's** — which is how *attention orders and cannot
+gate* and *the other one never runs* are both true, and why none of the four retired gating
+mechanisms was needed to get it. For a global slot that is the whole isolation story: a stale
+value is not read because nothing attends it, and becomes readable exactly when something does.
+
+The one real limit is that attention can only move a binding **that has not happened yet**: with
+the reader authored before the writer, the reader applies on the first tick and the slot write
+changes nothing. The two halves of that check differ only in authoring order, and **a check
+written in one order alone would have measured the order and reported the mechanism** — it failed
+that way first.
+
+### The queue is empty only at the very start, because computation begins with an ARRIVAL
+
+The author's, on the tick-1 limit: *in real situations computation would usually start because
+something has arrived on a channel, and those nodes should be attended — guiding the selection of
+the first expert.* Half of that is already true and the other half is one rule, so it is worth
+being exact. Measured, `slots` 19-20:
+
+    queue at delivery       []
+    queue after intake ran  ['+', 'chess', 'game', 'game(chess)', 'user', 'says']
+
+**An arrival does not attend when it lands.** `_report` writes `arrived(...)` straight through
+the gate, and that is not a move's `wrote`, so `_attend_written` never sees it. One tick later the
+intake rule turns the report into an utterance, and THAT write attends every node the arrival was
+made of. So the channel does seed attention, at the cost of a tick — and the *empty queue orders
+nothing* limit bites only at the very start of a run, not wherever a fixture happens to begin.
+
+**What no arrival does by itself is choose the first EXPERT**, and that is deliberate rather than
+missing. The engine's only `_push_frame` call is a rule spending `push`, whose own comment says
+why: *the nodes are the host rule's own variables, bound by the move that spent this — and the
+expert is computed from them, never named.* A rule that had to name an expert would be choosing
+the callee, which is the thing selection exists to do. So an arrival steers the first pick exactly
+when a corpus rule pushes on the nodes it seeded — one rule, not an engine change — and the pick
+over those nodes does discriminate (safety 69, gloom 0).
+
+### *Authored first* is a symptom, and NOTHING IS PRE-BOUND
+
+Asked whether binding happens during the tick or before it — *if we have pre-bound rules, then we
+have a problem* — the trace answers, and there is no problem. `match` runs INSIDE the per-tick
+loop and `_attended_first` reorders what it returns, every tick:
+
+    tick 1: <focus>  binds=[chess]         attention=[]
+    tick 2: <focus>  binds=[chess]         attention=[]
+    tick 3: <play>   binds=[alice, chess]  attention=[chess, _attention]
+    tick 4: <play>   binds=[bob, go]       attention=[alice, moves]
+
+The same rule binds `chess/alice` on one tick and `go/bob` on the next, which no cached binding
+could do. What the authoring order decides is only **which rule gets tick 1**, and tick 1 is
+walk-ordered whatever runs there, because `_attended_first` carries its own guard — *nothing
+attended is in play here; do not touch the order.* **An empty queue orders nothing.** So the
+limit is not pre-binding: it is that attention cannot rank what has not been attended yet, which
+is *only attention bridges ticks* read from the start of the run rather than from the middle.
+
+⚠ And *the anchor is an argument*, in the section above, was an unclear phrase for a small claim:
+`_attention` sits in an ordinary argument position, so `here(inst1, hall)` is the same
+proposition with a different first argument. It says nothing about cross-tick anchoring.
+
+### One correction to the reply that preceded it
+
+Two things in this session's own answer were aimed at the wrong object and are corrected here.
+§4's register argument is about the **current-frame pointer** — one privileged slot,
+irreducible because finding it requires a read — and not about the attention queue, which is
+ordinary working state that happens to live in a Python `__slots__`. And **the queue's ORDER is
+not on the graph**: `attention(node)` is deposited and licensed, but which slot a node occupies
+is state the machinery knows and no rule can ask about. That is R7's recurring failure mode
+with the repair already named — deposit the record — so making positions addressable is that
+repair rather than a new privilege. The 367-fallback measurement is not evidence against any of
+this: it says attention **orders and cannot gate**, and ordering is the whole of what is
+proposed.
 
 ## Where to pick up
 
