@@ -4665,63 +4665,100 @@ def subgoals_make_blame_sayable() -> None:
 
 
 def taking_one_way_passes_up_the_others() -> None:
-    """Forgoing: the thing arbitration was assumed to do and did not (§14, §18).
+    """Taking one way of getting something is passing up the others (§14, §18).
 
-    Arbitration is described as choosing one rule among those that matched.
+    Arbitration is described as choosing one rule among those that matched, and
+    it is not: a loser is DEFERRED, so an agent with two ways to do something
+    does both -- including the destructive one. The engine used to answer that
+    by depositing `forgone(<other>, w)` about every rival way. It does not any
+    more, and this holds what replaced it.
+
+    ⭐ The corpus passes up, and it is the first law rather than a mechanism:
+    **an occasion is consumed, and a goal is an occasion.** A rule that serves a
+    want denies it in the same breath, so the other way has nothing left to
+    match.
 
     See docs/design/selftest.md#taking-one-way-passes-up-the-others.
     """
     from .core.text import load
 
-    src = chr(10).join([
-        "rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
-        " { +doing(fill(?w)) } )",
-        "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
-        " { +doing(smash(?j)) } )",
-        "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
-        "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
-        "rule <squeeze> = implies( { +fruit(?f), +jug(?j), +intact(?j) }, { +juice(?j) } )",
-        "fact +achieves(fill(kettle), water(kettle))",
-        "fact +achieves(smash(jug1), water(kettle))",
-        "fact +tap(sink)", "fact +under(kettle, sink)",
-        "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
-        "fact +fruit(orange)",
-        "fact +goal(water(kettle))",
-        "fact +goal(juice(jug1))",
-        "",
-    ])
-    m = Machine()
-    m.actuator("hands")
-    kb = load(m, src)
-    m.run(limit=4000)
-    emitted = [m.g.show(n) for n in m.emitted]
+    def corpus(spend: bool) -> str:
+        served = "-goal(water(?w)), " if spend else ""
+        return chr(10).join([
+            "rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
+            " { " + served + "+doing(fill(?w)) } )",
+            "rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
+            " { " + served + "+doing(smash(?j)) } )",
+            "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
+            "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
+            "rule <squeeze> = implies( { +fruit(?f), +jug(?j), +intact(?j) }, { +juice(?j) } )",
+            "fact +achieves(fill(kettle), water(kettle))",
+            "fact +achieves(smash(jug1), water(kettle))",
+            "fact +tap(sink)", "fact +under(kettle, sink)",
+            "fact +jug(jug1)", "fact +holds(jug1, kettle)", "fact +intact(jug1)",
+            "fact +fruit(orange)",
+            "fact +goal(water(kettle))",
+            "fact +goal(juice(jug1))",
+            "",
+        ])
 
-    passed_up = next(r for r in m.rules.rules if r.name == "use-jug")
-    taken = next(r for r in m.rules.rules if r.name == "use-tap")
-    # The learning consequence, which is why this sits beside `review`. Before
-    # forgoing, credit recommended the jug-smasher because smashing was on the
-    # support of the water it got.
+    def run_it(src: str):
+        m = Machine()
+        m.actuator("hands")
+        kb = load(m, src)
+        m.run(limit=4000)
+        return m, kb, [m.g.show(n) for n in m.emitted]
 
-    # ⚠ The judgement, stated as a check because it is the one place this could
-    # be wrong: forgoing is the DEFAULT, so an agent that should have done both
-    # under-does.
-    # → docs/design/selftest.md#the-judgement-stated-as-a-check-because-it-is
+    m, kb, emitted = run_it(corpus(spend=True))
+    check("§18", "one way is taken and the other is not: the want it served is "
+          "spent, so the second route never matches",
+          emitted == ["fill(kettle)"])
+    check("§19", "...and the thing the other way would have cost is still here, "
+          "which is what passing up is FOR",
+          m.holds(kb.term("intact(jug1)")) == PLUS
+          and m.holds(kb.term("juice(jug1)")) == PLUS)
+
+    # ⚠ The control, and it is the whole judgement: without the denial the
+    # agent does BOTH, including the destructive one. Nothing in the engine
+    # stops it, and that is deliberate -- a loser is deferred, not rejected.
+    loose, kb_l, both = run_it(corpus(spend=False))
+    check("§14", "and an agent that spends nothing does BOTH, so the fixture is "
+          "measuring the denial and not the arbitration",
+          len(both) == 2 and loose.holds(kb_l.term("intact(jug1)")) == MINUS)
+
+    # ⚠⚠⚠ What spending COSTS, measured rather than conceded. Passing up used
+    # to be revisable: the chosen way did not deliver, the apparatus noticed the
+    # want was still open, and a corpus rule handed the alternative back by
+    # denying the `forgone` deposit. A spent want cannot be noticed at all --
+    # `open(...)` is deposited about goals that still STAND, and this one was
+    # denied by the rule that acted on it. So the agent cannot tell that it
+    # failed, and there is nothing for a retry rule to key on.
     retry = chr(10).join([
-        "rule <retry> = implies( { +open(?w), +forgone(?r, ?w) }, { -forgone(?r, ?w) } )",
+        "rule <retry> = implies( { +open(?w) }, { +goal(?w) } )",
         "fact standing(<retry>)",
-        "rule <done> = implies( { +juice(?j) }, { +enough(juice(?j)) } )",
-        "fact standing(<done>)",
         "",
     ])
-    m2 = Machine()
-    m2.actuator("hands")
-    kb2 = load(m2, src.replace(
-        "fact +achieves(fill(kettle), water(kettle))", "") + retry)
-    m2.run(limit=4000)
-    check("§18", "⚠ and passing up is REVISABLE: the chosen way did not deliver, so the "
-          "goal stayed open and one corpus rule handed the alternative back",
-          [m2.g.show(n) for n in m2.emitted] == ["fill(kettle)", "smash(jug1)"]
-          and m2.holds(kb2.term("water(kettle)")) == PLUS)
+    broken = corpus(spend=True).replace(
+        "fact +achieves(fill(kettle), water(kettle))", "")
+    m2, kb2, tried = run_it(broken + retry)
+    noticed = [pp for pp in m2.g.instances_of(m2.OPEN) if m2.holds(pp) == PLUS]
+    check("§18", "a SPENT want cannot be noticed as unmet -- nothing deposits "
+          "`open`, so the retry rule never fires and the alternative is not "
+          "handed back",
+          tried == ["fill(kettle)"] and not noticed
+          and m2.holds(kb2.term("water(kettle)")) is None)
+    # ...and the corpus that spends nothing gets the water, by doing the other
+    # thing as well -- which is the trade stated in one line: passing up costs
+    # the ability to notice that the way taken did not work.
+    m3, kb3, both3 = run_it(broken.replace("-goal(water(?w)), ", "") + retry)
+    check("§18", "...where an agent that spends nothing gets there, by doing "
+          "BOTH -- so the trade is noticing against not over-doing",
+          both3 == ["fill(kettle)", "smash(jug1)"]
+          and m3.holds(kb3.term("water(kettle)")) == PLUS)
+    # Which is the argument for computing wanting from the state instead of
+    # asserting it: a gap recomputed at a settled world closes when the want is
+    # met and STAYS OPEN when the act did not deliver, so revisability needs
+    # nothing to be un-said. `ugm.probes.alternation` measures that.
 
 
 def doubt_is_a_tie() -> None:

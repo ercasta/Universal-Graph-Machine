@@ -53,7 +53,7 @@ ROLES: Dict[str, List[str]] = {
         "verdict", "blocked", "pursued", "expands", "need", "recall",
         "recalled", "achieved", "enough", "stopped", "quiet", "open",
         "again", "budget",
-        "close", "forgone", "helped", "harmed",
+        "close", "helped", "harmed",
         # The gap between two spans, which a rule cannot compute because it
         # cannot speak about a set: `<difference>` materialises it.
         "delta", "missing", "extra", "matched", "now",

@@ -35,11 +35,18 @@ from ..core.text import load
 #
 # Both are fixed by the same thing: the choosing rules name `in` in their own
 # antecedents, which puts it in `_circumstances`'s `required` set.
+# ...and both SPEND the want they serve. Nothing in the engine passes up the
+# other route any more: an occasion is consumed, a goal is an occasion, and a
+# rule that serves one denies it in the same breath. Without the denial both
+# routes run, the agent fills the kettle AND smashes the jug, and a rehearsal
+# has no choice in it to be measured.
 ROUTES = [
     "rule <use-jug> = implies( { +goal(in(?s, water(?v))), +in(?s, jug(?j)),"
-    "                           +holds(?j, ?v) }, { +in(?s, doing(smash(?j))) } )",
+    "                           +holds(?j, ?v) },"
+    "                         { -goal(in(?s, water(?v))), +in(?s, doing(smash(?j))) } )",
     "rule <use-tap> = implies( { +goal(in(?s, water(?v))), +in(?s, tap(?t)),"
-    "                           +under(?v, ?t) }, { +in(?s, doing(fill(?v))) } )",
+    "                           +under(?v, ?t) },"
+    "                         { -goal(in(?s, water(?v))), +in(?s, doing(fill(?v))) } )",
 ]
 PHYSICS = [
     "rule <eff>  = implies( { +in(?s, did(?a)), +achieves(?a, ?y) }, { +in(?s, ?y) } )",
@@ -195,8 +202,14 @@ def main() -> int:
     # -- the proposer ------------------------------------------------------
     print("A goal nobody authored, raised from what the corpus says acts achieve:\n")
     m, lost = rehearse()
-    raised = [m.g.show(n) for n in m.g.instances_of(m.GOAL)
-              if m.holds(n) == "+" and not m.g.has_var(n)]
+    # ⚠ What was RAISED, not what still stands. A route spends the want it
+    # serves, so by the end of a rehearsal every goal the proposer raised has
+    # been denied -- and reading the current state reports that the proposer
+    # never ran. The claim here is about history, so it is asked of history.
+    raised = sorted({m.g.show(e.proposition) for mo in m.chain.moments
+                     for e in mo.delta
+                     if e.sign == "+" and m.g.relation_of(e.proposition) is m.GOAL
+                     and not m.g.has_var(e.proposition)})
     for r in raised:
         print(f"    {r}")
     print()
@@ -207,8 +220,10 @@ def main() -> int:
          "goal(in(r1, water(kettle)))" in raised)
 
     multi, _ = rehearse(extra=SECOND, scene_extra=SECOND_SCENE, losses=WIDER)
-    mraised = {multi.g.show(n) for n in multi.g.instances_of(multi.GOAL)
-               if multi.holds(n) == "+" and not multi.g.has_var(n)}
+    mraised = {multi.g.show(e.proposition) for mo in multi.chain.moments
+               for e in mo.delta
+               if e.sign == "+" and multi.g.relation_of(e.proposition) is multi.GOAL
+               and not multi.g.has_var(e.proposition)}
     gate("one goal per achievable relation, so the proposer is not a one-trick",
          "goal(in(r1, water(kettle)))" in mraised
          and "goal(in(r1, lit(room)))" in mraised)
@@ -242,15 +257,18 @@ def main() -> int:
          and m.holds(m.kb.term("in(r1, water(kettle))")) == "+")
 
     # -- it is still a choice ---------------------------------------------
+    # The choice, read off what the rehearsal DID rather than off a deposit
+    # about what it did not: one route acted, and the want it served is spent.
     forgone = {m.g.show(e.proposition) for mo in m.chain.moments for e in mo.delta
-               if m.g.show(e.proposition).startswith("forgone(")}
+               if e.sign == "-" and m.g.show(e.proposition).startswith("goal(in(r1, water(")}
     did = [m.g.show(e.proposition) for mo in m.chain.moments for e in mo.delta
            if m.g.show(e.proposition).startswith("in(r1, did(")]
     print(f"  did     {did}")
-    print(f"  forgone {sorted(forgone)}")
+    print(f"  spent   {sorted(forgone)}")
     print()
-    gate("⭐ forgoing works in a rehearsal, so it is a CHOICE -- one route taken, "
-         "the other passed up and named", len(did) == 1 and len(forgone) == 1)
+    gate("⭐ passing up works in a rehearsal, so it is a CHOICE -- one route "
+         "taken, and the want it served spent so the other cannot run",
+         len(did) == 1 and len(forgone) == 1)
 
     # -- practice, and the exploration nobody wrote ------------------------
     print("\nFour rehearsals, each loading what the last one worked out:\n")

@@ -111,10 +111,13 @@ def _no_promotion():
     return original
 
 
+# Spending the want, for the third time in this file and the same reason: with
+# both routes live the agent takes both, every start costs the same, and *which
+# start you had* -- the thing this fixture varies -- stops being measurable.
 HARM_JUG = ("rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
-            " { +doing(smash(?j)) } )")
+            " { -goal(water(?w)), +doing(smash(?j)) } )")
 HARM_VASE = ("rule <use-vase> = implies( { +goal(water(?w)), +vase(?v), +holds(?v, ?w) },"
-             " { +doing(shatter(?v)) } )")
+             " { -goal(water(?w)), +doing(shatter(?v)) } )")
 HARM_BASE = [
     "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
     "rule <cost-j> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
@@ -192,10 +195,14 @@ def a_lesson_outlives_its_rule() -> dict:
     return out
 
 
+# ...and these spend the want they serve too, for the reason `ROUTES` does: with
+# nothing passing up the other way the agent takes BOTH in every world, every
+# world costs the same, and a fixture about which advice is worth having has
+# nothing left to measure. Measured: all four rows scored 2 3 1 without it.
 TREE_JUG = ("rule <use-jug> = implies( { +goal(water(?w)), +jug(?j), +holds(?j, ?w) },"
-            " { +doing(smash(?j)) } )")
+            " { -goal(water(?w)), +doing(smash(?j)) } )")
 TREE_TAP = ("rule <use-tap> = implies( { +goal(water(?w)), +tap(?t), +under(?w, ?t) },"
-            " { +doing(fill(?w)) } )")
+            " { -goal(water(?w)), +doing(fill(?w)) } )")
 TREE_CORE = [
     "rule <eff> = implies( { +did(?a), +achieves(?a, ?y) }, { +?y } )",
     "rule <cost> = implies( { +did(smash(?j)) }, { -intact(?j) } )",
@@ -393,7 +400,7 @@ def main() -> int:
     gate("and what it kept is one test, not zero -- pruning to nothing would be "
          "the unconditional row it was supposed to improve on",
          any(r.startswith("rule <learned-") for r in refined))
-    gate("⚠ and marked `standing`, without which forgoing passes it up as a rival "
+    gate("⚠ and marked `standing`, without which it is passed up as a rival "
          "way of getting the same want, before it can advise",
          any(r.startswith("fact standing(<learned-") for r in cond))
 
