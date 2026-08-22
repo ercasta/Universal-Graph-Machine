@@ -43,6 +43,13 @@ class Gate:
         # decline -- the agent would not act, and would not know it had not.
         self.REFUSED = g.atom("refused")
         self.refusals = 0
+        # ...and what an ERASURE is, gate vocabulary for the same reason
+        # `refused` is: it is the record of a gate decision. `Graph.delete` sits
+        # BELOW the gate -- no entry, no licence, no trail, no hooks -- so an
+        # erasure was the one thing the agent could do that left nothing anyone
+        # could read or argue with. This is where that stops.
+        self.ERASED = g.atom("erased")
+        self.erasures = 0
 
     def write(
         self,
@@ -100,4 +107,50 @@ class Gate:
         )
         for hook in self.on_write:
             hook(e)
+        return e
+
+    def erase(
+        self,
+        node: NodeId,
+        licence: NodeId,
+        entity: Optional[NodeId] = None,
+        source: Optional[NodeId] = None,
+        consumed: Tuple[Entry, ...] = (),
+    ) -> Entry:
+        """Take `node` out of the graph, and say so on the log.
+
+        Three things follow from putting this here rather than on `Graph`.
+
+        **The licence is required.** An erasure with no reason is the case this
+        exists to remove: `Graph.delete` could always be called, and afterwards
+        nothing anywhere said that anything had gone, let alone why. `refused`
+        is the precedent for the shape -- it carries `forbidding` as a member
+        AND as the entry's licence -- so a reader can ask either way, and
+        neither reading is the privileged one.
+
+        **What is deleted and what is NAMED are two different nodes.** Only an
+        anchor is ever a safe deletion target (`probes/erase.py`, check 4: a
+        deleted individual hides nothing, because nothing removes a node from
+        the buckets of the nodes that mention it). What the log names is the
+        **entity** -- the desire, not its description -- because a term is a
+        rigid designator and a premise is a description. `entity` defaults to
+        `node` for the case where they coincide, and the caller that knows
+        better says so.
+
+        **A refused erasure does not happen.** The record goes through `write`,
+        so it meets the vetoes first; if one refuses, the deletion is not
+        performed and the refusal is what lands. An erasure that could not be
+        recorded is an erasure that did not occur -- which is the whole content
+        of *through the gate*, and is not a property `Graph.delete` could have
+        had.
+        """
+        entity = node if entity is None else entity
+        e = self.write(
+            self.g.rel(self.ERASED, entity, licence), "+",
+            licence=licence, source=source, consumed=consumed, mention=True,
+        )
+        if self.g.relation_of(e.proposition) is self.REFUSED:
+            return e
+        self.erasures += 1
+        self.g.delete(node)
         return e

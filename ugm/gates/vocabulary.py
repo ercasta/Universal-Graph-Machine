@@ -120,6 +120,10 @@ ROLES: Dict[str, List[str]] = {
                             # the act itself is not assumed.
                             "substituted",
                             "refused",
+                            # ...and the other gate record: an erasure
+                            # is a gate decision, so it says so on the
+                            # log where `Graph.delete` said nothing.
+                            "erased",
                             # The world model's split (docs/world-model.md):
                             # declaring `relationship(<rel>)` is what makes the
                             # gate refuse a denotation in one of its argument

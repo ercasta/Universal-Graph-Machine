@@ -113,6 +113,73 @@ def main() -> int:
          after != "+" and lives == "+")
     print("    consequence: the only safe deletion target is the ANCHOR.")
     print("    Delete anchors; never propositions, never individuals.")
+    print()
+
+    # 5. The gate-level erase (docs/wanting.md §9.2). `Graph.delete` sits below
+    #    the gate -- no entry, no licence, no trail, no hooks -- so an erasure
+    #    was the one thing the agent could do that left nothing to read. The
+    #    control is the SAME deletion done the old way, on a second machine, so
+    #    the check measures the record and not the deletion.
+    m5 = Machine()
+    kb5 = load(m5, "\n".join([
+        "fact +is(d1, want)",
+        "fact +about(d1, restaurant)",
+        "fact +closed(restaurant)", ""]))
+    anchor, why, ent = (kb5.term("is(d1, want)"), kb5.term("closed(restaurant)"),
+                        kb5.term("d1"))
+    seen = []
+    m5.gate.on_write.append(lambda e: seen.append(e))
+    e5 = m5.gate.erase(anchor, licence=why, entity=ent)
+    record = m5.g.rel(m5.ERASED, ent, why)
+
+    m5b = Machine()
+    kb5b = load(m5b, "\n".join(["fact +is(d1, want)", ""]))
+    m5b.g.delete(kb5b.term("is(d1, want)"))
+    bare = [n for n in m5b.g.instances_of(m5b.ERASED)]
+
+    print(f"    through the gate        erased(d1, closed(restaurant)) = "
+          f"{m5.holds(record)}, licence = {m5.g.show(e5.licence)}")
+    print(f"    Graph.delete direct     anything on the log = {bare or 'nothing'}")
+    print(f"    the node itself         {m5.g.show(anchor)}")
+    print()
+    gate("an erasure through the gate is ON THE LOG, so *what went, and why* "
+         "is a question with an answer -- where `Graph.delete` leaves nothing "
+         "anyone can read or argue with",
+         m5.holds(record) == "+" and not bare)
+    gate("...and the licence is carried BOTH ways, as `refused` carries "
+         "`forbidding`: as a member, and as the entry's own licence",
+         e5.licence == why and m5.g.member(record, 1) == why)
+    gate("...and it names the ENTITY, not the anchor it deleted -- a term is a "
+         "rigid designator and a premise is a description, so the log names the "
+         "thing that cannot be revised",
+         m5.g.member(record, 0) == ent and ent != anchor)
+    gate("⚠ and the deletion still HAPPENED, so this is a record of something "
+         "rather than a record instead of it",
+         m5.g.find_rel(kb5.term("is"), ent, kb5.term("want")) is None)
+    gate("...and the on_write hooks saw it, which `Graph.delete` sits below: "
+         "an erasure is now an occasion like any other write",
+         any(e.proposition == record for e in seen))
+
+    # 6. The property that makes it a GATE rather than a logger: a refused
+    #    erasure does not happen. ⚠ Without this the class is a decoration --
+    #    it would record what it was going to do and then do it regardless.
+    m6 = Machine()
+    kb6 = load(m6, "\n".join(["fact +is(d1, want)", ""]))
+    keep = kb6.term("is(d1, want)")
+    m6.gate.veto.append(
+        lambda prop, sign: kb6.term("d1")
+        if m6.g.relation_of(prop) is m6.ERASED else None)
+    m6.gate.erase(keep, licence=kb6.term("d1"), entity=kb6.term("d1"))
+    survived = m6.g.find_rel(kb6.term("is"), kb6.term("d1"), kb6.term("want"))
+    print(f"    vetoed erasure          the node survives = {survived is not None}")
+    print(f"    refusals                {m6.gate.refusals}")
+    print()
+    gate("⭐⭐⭐ a refused erasure DOES NOT HAPPEN: the record meets the vetoes "
+         "first, so an erasure that could not be recorded is one that did not "
+         "occur -- which is the whole content of *through the gate*, and is not "
+         "a property `Graph.delete` could have had",
+         survived is not None and m6.gate.refusals == 1
+         and m6.gate.erasures == 0)
 
     print(f"\n{ran} checks, {failing} failing")
     return 1 if failing else 0

@@ -453,6 +453,7 @@ class Machine:
         # like `forbidden`, so adding a relation adds a row.
         self.RELATIONSHIP = self.g.atom("relationship")
         self.REFUSED = self.gate.REFUSED
+        self.ERASED = self.gate.ERASED
 
         # The knowledge base is a channel like any other (§13). Reading it
         # faithfully is guaranteed; what it *says* -- the rules -- stays as
@@ -506,7 +507,7 @@ class Machine:
             "call": self.CALL, "stage": self.STAGE, "spawn": self.SPAWN,
             "awaits": self.AWAITS, "returned": self.RETURNED,
             "advances": self.ADVANCES, "closes": self.CLOSES,
-            "refused": self.REFUSED,
+            "refused": self.REFUSED, "erased": self.ERASED,
             "delta": self.DELTA, "missing": self.MISSING,
             "matched": self.MATCHED, "now": self.NOW,
             "intercepts": self.INTERCEPTS, "producing": self.PRODUCING,

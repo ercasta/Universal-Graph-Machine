@@ -448,8 +448,24 @@ and change nothing.
 
 `no_more(because(hungry, eat))` is the correct form and is better than sign-denial would
 have been, because it is an ordinary claim — dated, attributable, deniable in turn,
-defeasible, learnable. Everything structure deliberately is not. Whether it survives at all
-is settled in §7.
+defeasible, learnable. Everything structure deliberately is not.
+
+**Whether it survives was said to be settled in §7, and now that the gate-level erase is
+built, it is not — the question changed shape instead.** The erasure records the ending and
+names it with a licence, which is what `no_more` was doing, so on that axis it is redundant.
+On one axis it is not, and it is the axis this document keeps arriving at from other
+directions: **`no_more` can be denied, and an erasure cannot.** Re-creating an erased thing
+does not undo the erasure — §7's own position is that the new wanting is a new entity that
+happens to be about the same content, and §12.2's is that *reading the past is not returning
+to it*, with the engine having already moved away from undo-as-restore once. So the two are
+not competing spellings of one thing:
+
+    a cut that might be revised      a claim — `no_more`, deniable in turn
+    a cut that is final              an event — an erasure, recorded and not undoable
+
+`no_more` survives for the first and is genuinely redundant for the second, and which a
+given cut is, is a question about the corpus rather than about the engine. What the
+gate-level erase settled is that the second column now exists at all.
 
 ---
 
@@ -507,12 +523,28 @@ That gap is now closed as a measurement: check 4 runs the two erasures side by s
 probe is 6/0, and the consequence is stated in the module's own docstring. The behaviour is
 unchanged — what changed is that it is no longer unmeasured.
 
-**Erasure records nothing and bypasses the gate.** `Graph.delete` writes no chain entry, no
-licence, no trail, and its only callers are inside the probe. Writes go through `gate.write`
-with licence, consumed and source, and run the `on_write` hooks; erasure sits below all of
-it. An erasure has no entry by construction, so recording it needs its own deposit on the
-log, made through a gate-level erase. Until that exists, `no_more(...)` is not redundant —
-the licence on the erasure is what would name the ending.
+~~**Erasure records nothing and bypasses the gate.**~~ **Built.** `Graph.delete` wrote no
+chain entry, no licence, no trail and ran no hooks, so an erasure was the one thing the
+agent could do that left nothing anyone could read or argue with. `Gate.erase` is now the
+way it is done, and the probe is 12/0:
+
+    through the gate     erased(d1, closed(restaurant)) = +   licence = closed(restaurant)
+    Graph.delete direct  anything on the log = nothing
+    the node itself      #1245(erased)
+
+Three properties, each with a check that fails without it (all four kill-probes caught):
+
+- **The licence is required, and carried both ways** — as a member and as the entry's own
+  licence. `refused` is the precedent for the shape: it carries `forbidding` twice for the
+  same reason, so neither reading is the privileged one.
+- **What is deleted and what is NAMED are two different nodes.** The anchor is deleted; the
+  log names the **entity**, because a term is a rigid designator and a premise is a
+  description. `entity` defaults to the deleted node for the case where they coincide.
+- **A refused erasure does not happen.** The record meets the vetoes first, and a veto means
+  the deletion is not performed. *An erasure that could not be recorded is one that did not
+  occur* — which is the whole content of *through the gate*, and is not a property
+  `Graph.delete` could have had. Without this the class would be a logger: it would record
+  what it was about to do and then do it regardless.
 
 ### The desire is an entity
 
@@ -578,8 +610,8 @@ Four constraints, three of them already precedented:
   identity: all of that was a workaround for an append-only chain.
 - Node-keyed, never path-keyed. That measurement is about the closure, not about walkers, so
   it survives them.
-- Removing a mark the world invalidated is licensed per link, not swept. It waits on the
-  gate-level erase.
+- Removing a mark the world invalidated is licensed per link, not swept. The gate-level
+  erase it waited on is built.
 - Satisfaction is `no $p`, asked at match time. Nothing is maintained.
 - Only the anchor is ever deleted. The log names the entity.
 - Belief-wrapping is `context: believed`, applied to every component at load.
@@ -590,8 +622,13 @@ Four constraints, three of them already precedented:
    6/0: the two erasures are run side by side, and only the erased premise hides anything.
    The behaviour is unchanged — what changed is that the tree now measures it, and says in
    its own docstring that the only safe deletion target is the anchor.
-2. A licensed erase through the gate, depositing `erased(<entity>, <licence>)` on the log. A
-   precondition for deciding whether `no_more` survives.
+2. ~~A licensed erase through the gate, depositing `erased(<entity>, <licence>)` on the
+   log.~~ **Done.** `Gate.erase`, probe 12/0, four kill-probes caught. The licence is
+   required and carried both ways; the log names the entity and never the anchor it deleted;
+   a refused erasure does not happen, which is what makes it a gate rather than a logger.
+   The `no_more` question it was a precondition for is answered in §6, and the answer is
+   *not redundant, but for a narrower reason than expected* — an erasure cannot be denied,
+   and `no_more` can.
 3. ~~`_root` looks deletable now that `no` exists.~~ **Half right, and not the half
    stated.** `no` is a member mode requiring a ground proposition absent, not an
    existential: both forms of the proposed rule are refused at load, by a check written
