@@ -35,15 +35,6 @@ from ..core.text import Loader, load
 # test cannot see -- the pair is different every time.
 DEPTH = 8
 
-# The inheritance rule, shipped rather than left to every corpus, because it is
-# the whole of what `extends` means and a corpus that forgot it would silently
-# have an expert with no inherited rules.
-INHERIT = """
-rule <inherit> = implies( { +extends($e, $f), +knows($f, $r) },
-                          { +knows($e, $r) } )
-"""
-
-
 def pool_of(m: Machine, kb: Loader, expert: str) -> List[Rule]:
     """The rules this expert may consider, read off the graph.
 
@@ -250,9 +241,11 @@ expert arithmetic
 rule <double> = implies( { +question(twice($n)), +num($n, $v), +plus($v, $v, $s) },
                          { +reply(twice($n), $s) } )
 
-# `geometry` inherits arithmetic's rules and adds its own. It cannot do the
-# addition itself and does not need to: `extends` is one fact.
-expert geometry extends arithmetic
+# `geometry` does its own thing and holds none of arithmetic's rules. Under the
+# no-inheritance discipline (docs/models.md 12) that is the point: an expert
+# that needs another's work HANDS OFF, and the pools stay disjoint so the
+# selector has something to discriminate on.
+expert geometry
 rule <area> = implies( { +question(area($r)), +wide($r, $w), +tall($r, $h),
                          +times($w, $h, $a) },
                        { +reply(area($r), $a) } )
@@ -297,11 +290,13 @@ expert responder
 rule <replied> = implies( { +question($q), +reply($q, $a) }, { +answered($q) } )
 after <replied> => pop($a)
 
-expert arithmetic extends responder
+expert arithmetic
+fact +knows(arithmetic, <replied>)
 rule <double> = implies( { +question(twice($n)), +num($n, $v), +plus($v, $v, $s) },
                          { +reply(twice($n), $s) } )
 
-expert geometry extends arithmetic
+expert geometry
+fact +knows(geometry, <replied>)
 rule <area> = implies( { +question(area($r)), +wide($r, $w), +tall($r, $h),
                          +times($w, $h, $a) },
                        { +reply(area($r), $a) } )
@@ -313,7 +308,8 @@ rule <perim-done> = implies( { +reply(twice($w), $s), +wide($r, $w) },
 
 # ⚠ The surveyor no longer knows that geometry exists. It deposits the QUESTION
 # and pushes a frame on it; who answers is computed from the question.
-expert surveyor extends responder
+expert surveyor
+fact +knows(surveyor, <replied>)
 rule <ask-area>  = implies( { +survey($r) }, { +question(area($r)) } )
 after <ask-area> => push(area($r))
 rule <record>    = implies( { +reply(area($r), $a) }, { +plot($r, $a) } )
@@ -349,25 +345,11 @@ def ported(m: Machine, kb: Loader, first: str, limit: int = 200):
     return run(m, limit=limit, pool=pool_of(m, kb, first), watch=watch), trace
 
 
-def _settle(m: Machine) -> None:
-    """Let `<inherit>` fill the pools, and NOTHING else.
-
-    ⚠⚠⚠ A whole-pool settling run does the entire consultation itself -- every
-    expert's rules are in one table, so routing never happens and the probe
-    measures nothing while printing that it passed. `work()` survives it only
-    because `consult(...)` is inert without the Python stack; the ported corpus
-    does not, which is how this was found.
-    """
-    run(m, limit=40, pool=[r for r in m.rules.rules if r.name == "inherit"])
-
-
 def _ported_fixture():
     m = Machine()
     kb = Loader(m, scope="ported")
-    kb.load(INHERIT)
     kb.load(PORTED)
     kb.load(SETTLE)
-    _settle(m)
     return m, kb
 
 
@@ -381,7 +363,6 @@ def _fixture():
     """
     m = Machine()
     kb = Loader(m, scope="experts")
-    kb.load(INHERIT)
     kb.load(CORPUS)
     kb.load(SETTLE)
     return m, kb
@@ -409,9 +390,11 @@ def main() -> int:
 
     m, kb = _fixture()
 
-    # The pools. `<inherit>` has to have applied for geometry to hold
-    # arithmetic's rules, and `<inherit>` is nobody's rule -- it belongs to the
-    # machinery, so it is run over the whole pool once rather than by an expert.
+    # The pools, and every one of them is read off `knows` alone. Expert
+    # inheritance was deleted on 08-22: `extends` let one expert absorb
+    # another's rules, and `docs/models.md` 12 measures what that costs --
+    # the borrower wins the question it borrowed, and terms shared with anyone
+    # lose weight for everyone.
     run(m, limit=40)
     names = {e: sorted(r.name for r in pool_of(m, kb, e))
              for e in ("arithmetic", "geometry", "surveyor")}
@@ -422,11 +405,24 @@ def main() -> int:
 
     gate("an expert's rules are its own -- the surveyor cannot do geometry",
          "area" not in names["surveyor"])
-    gate("⭐ `extends` is one ordinary rule: geometry inherited <double> "
-         "without naming it",
-         "double" in names["geometry"])
-    gate("...and it did not inherit in the other direction",
-         "area" not in names["arithmetic"])
+    # ⭐⭐⭐ The discipline, stated as a property of the pools rather than
+    # as an absence of a feature. Disjointness is what leaves the selector
+    # something to discriminate ON: a term in every pool has df == total and
+    # therefore idf zero, so shared rules are invisible to the pick and an
+    # expert that absorbed another's would win its questions.
+    pools = [set(v) for v in names.values()]
+    disjoint = all(not (a & b) for i, a in enumerate(pools) for b in pools[i + 1:])
+    gate("⭐⭐⭐ no expert holds another's rules: the pools are DISJOINT, "
+         "which is what the selector discriminates on",
+         disjoint and all(pools))
+    # ⚠ ...and the cost, which is the half that keeps the check honest. A
+    # probe that only asserted disjointness would pass on three EMPTY pools and
+    # on a corpus where nobody ever needed anybody.
+    gate("⚠ ...and it is a cost rather than free: geometry cannot double, so "
+         "an expert needing another's work must HAND OFF rather than absorb it "
+         "-- which is the architecture, not a limitation of it",
+         "double" not in names["geometry"] and "area" in names["geometry"]
+         and "double" in names["arithmetic"])
 
     m, kb = _fixture()
     run(m, limit=40)          # let <inherit> settle the pools first
@@ -464,7 +460,6 @@ def main() -> int:
     # The cycle test, with a corpus built to loop.
     m = Machine()
     kb = Loader(m, scope="cycle")
-    kb.load(INHERIT)
     kb.load("""
 expert a
 rule <a-asks> = implies( { +question(loop($x)) }, { +consult(b, loop($x)) } )
@@ -552,10 +547,12 @@ rule <splint> = implies( { +broken($p), +stick($s) }, { +set($p) } )
 expert responder
 rule <replied> = implies( { +asked($p), +set($p) }, { +answered($p) } )
 after <replied> => pop($p)
-expert medic extends responder
+expert medic
+fact +knows(medic, <replied>)
 rule <treat> = implies( { +hurt($p), +bandage($b) }, { +treated($p) } )
 rule <learn> = implies( { +treated($p), +taught($r) }, { +knows(medic, $r) } )
-expert nurse extends responder
+expert nurse
+fact +knows(nurse, <replied>)
 rule <call> = implies( { +ward($p), +admitted($p) }, { +asked($p) } )
 after <call> => push(hurt($p))
 fact +hurt(bob)
@@ -568,10 +565,8 @@ fact +taught(<splint>)
 """
     sm = Machine()
     sk = Loader(sm, scope="stale")
-    sk.load(INHERIT)
     sk.load(stale)
     sk.load(SETTLE)
-    _settle(sm)
     srep = run(sm, limit=40, pool=pool_of(sm, sk, "nurse"))
     print(f"    a rule learned inside the frame: {srep.applied}")
     gate("⭐⭐⭐ ...and this is where a resume could have been WORSE than the "

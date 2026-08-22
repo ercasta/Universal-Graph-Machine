@@ -105,9 +105,9 @@ class Frame:
     `_unattend` gives.
 
     ⚠ The expert is held by NAME -- a node -- never as a frozen rule list, and
-    `_expert_pool` is read on demand: `knows($e, $r)` can be CONCLUDED mid-run,
-    `<inherit>` derives more of them, and a pool frozen at push time could not
-    see one. The same finding as `pool_of` is *read, never kept*.
+    `_expert_pool` is read on demand: `knows($e, $r)` can be CONCLUDED mid-run
+    by an ordinary rule, and a pool frozen at push time could not see one. The
+    same finding as `pool_of` is *read, never kept*.
     """
 
     __slots__ = ("queue", "expert", "table", "on", "claimed")
@@ -293,14 +293,14 @@ class Machine:
         # two bound the same thing from opposite ends: the span says how much
         # one frame holds, the depth says how many frames there may be.
         self.DEPTH = self.g.atom("frame_depth")
-        # ⭐⭐⭐ Which expert holds which rule, and which expert inherits which.
-        # These are the SURFACE's names -- `expert geometry extends arithmetic`
-        # writes them -- and they are reserved here because the engine now reads
-        # them too: `push` picks an expert, and a name minted beside the loader's
-        # table would be a second `knows` that never meets the corpus's. The
-        # twin trap, and `reserved` is the standing answer to it.
+        # ⭐⭐⭐ Which expert holds which rule. This is the SURFACE's name --
+        # `expert geometry` writes it -- and it is reserved here because the
+        # engine now reads it too: `push` picks an expert, and a name minted
+        # beside the loader's table would be a second `knows` that never meets
+        # the corpus's. The twin trap, and `reserved` is the standing answer.
+        # (`extends` sat beside it until 08-22, when expert inheritance was
+        # deleted: docs/models.md 12.)
         self.KNOWS = self.g.atom("knows")
-        self.EXTENDS = self.g.atom("extends")
         # A frame was opened, and on what. `pushed(<expert>, <node>)` -- or
         # `pushed(<node>)` where nothing discriminated an expert.
         self.PUSHED = self.g.atom("pushed")
@@ -498,7 +498,7 @@ class Machine:
             "attention": self.ATTENTION,
             "attention_span": self.SPAN,
             "frame_depth": self.DEPTH,
-            "knows": self.KNOWS, "extends": self.EXTENDS,
+            "knows": self.KNOWS,
             "pushed": self.PUSHED, "popped": self.POPPED,
             "suits": self.SUITS,
             "afforded": self.AFFORDED, "attempt": self.ATTEMPT,
@@ -1508,8 +1508,8 @@ class Machine:
     def _expert_pool(self, expert: Optional[NodeId]) -> List["Rule"]:
         """The rules this expert may consider, read off the graph.
 
-        ⚠ Read, never kept: a registry built at load could not see a `knows` a
-        rule concluded, and `<inherit>` concludes them.
+        ⚠ Read, never kept: a registry built at load could not see a `knows`
+        a rule concluded, and an ordinary rule can conclude one.
         """
         if expert is None:
             return list(self.rules.rules)

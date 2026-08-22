@@ -293,20 +293,33 @@ Read the other way this is an argument *for* narrow experts rather than merely a
 inheritance: more experts means a larger `total` in `log(total/df)` and a smaller `df` per
 term, so discrimination sharpens as they are added.
 
-**It costs nothing to adopt, because inheritance was never in the engine.** `extends` is a
-reserved name and a piece of surface sugar (`expert geometry extends arithmetic`), but the
-semantics is one corpus rule living in a probe:
+**Done, 08-22.** `extends` is deleted — the reserved name, the surface sugar
+(`expert geometry extends arithmetic`), the vocabulary-gate entry, and the `<inherit>` rule
+in two probes. The old spelling now fails at load with a message naming the replacement
+rather than parsing into something subtly different. Suite 557/0, experts 15/0, frames 21/0.
 
-    rule <inherit> = implies( { +extends($e, $f), +knows($f, $r) }, { +knows($e, $r) } )
+What the probes lost was three checks about inheritance; what replaced them is a check that
+the pools are **disjoint**, plus its other half — *and that is a cost, not free: geometry
+cannot double, so an expert needing another's work must hand off rather than absorb it.*
+The second half is what keeps the first honest, since disjointness alone passes on three
+empty pools. Kill-probed: giving geometry `<double>` back fails both.
 
-Do not write that rule and there is no inheritance. The sugar's own comment already says it
-declares nothing the surface could not otherwise write.
+**An earlier draft of this section said the discipline was "minimise overlap", and that was
+too blunt.** Measured, and the correction matters for how corpora get written:
 
-**The discipline is stronger than "no `extends`".** Listing one shared rule in three narrow
-experts' `knows` facts rebuilds the same dilution by hand — `_terms_of` counts that rule's
-terms in three documents, so its terms lose weight everywhere. The clean form is *narrow
-experts should overlap as little as possible*, of which inheritance is the loud case. This
-follows from the `df` mechanism rather than from a separate measurement.
+    narrow only                    hanoi 220, safety 81, timing 81
+    + a universal rule in all 3    hanoi 220, safety 81, timing 81    unchanged
+    + safety's own rule in timing  hanoi 220, safety 81, timing 162   timing now beats safety
+
+**Sharing a rule every expert holds is free.** Its terms get `df == total`, so
+`idf = log(total/total)` is zero and they contribute nothing to any pick. **Sharing a
+discriminating rule is the inheritance problem in miniature** — the borrower wins the
+question it borrowed, and here `timing` ends up outscoring `safety` on safety's own subject.
+
+So the rule is not *overlap as little as possible*; it is **share only what everybody
+shares**. That is also what made the deletion cheap: `extends responder` existed so every
+expert could return, and `<replied>` is universal, so writing `fact +knows(X, <replied>)`
+three times costs exactly nothing.
 
 **Frequent handoffs are free; deep ones are not.** The frame stack is bounded at 8 and the
 refusal is deposited, so nothing fails silently. Push, resolve, pop, push again never
@@ -334,8 +347,9 @@ is depth, and that is the one shape this architecture could walk into the wall w
 - There is no right answer to expert selection, and that is the design. Competence and
   findability are one currency, so discrimination rules are both the epistemic and the
   mechanical answer.
-- No inheritance between experts, and more generally minimal overlap. It was never in the
-  engine.
+- No inheritance between experts. Share only what EVERY expert shares — a universal rule
+  has idf zero and is free; a discriminating one duplicated makes the borrower win the
+  question it borrowed. `extends` is deleted.
 
 ## 14. What is open
 

@@ -76,11 +76,6 @@ def _survey(push: str, pop: str):
     return m, kb, report, seen
 
 
-INHERIT = """
-rule <inherit> = implies( { +extends($e, $f), +knows($f, $r) },
-                          { +knows($e, $r) } )
-"""
-
 # Three experts over one graph, lifted verbatim from `probes/experts.py` so the
 # selection is measured against a corpus that already exists rather than one
 # written to be selectable.
@@ -89,7 +84,7 @@ expert arithmetic
 rule <double> = implies( { +question(twice($n)), +num($n, $v), +plus($v, $v, $s) },
                          { +reply(twice($n), $s) } )
 
-expert geometry extends arithmetic
+expert geometry
 rule <area> = implies( { +question(area($r)), +wide($r, $w), +tall($r, $h),
                          +times($w, $h, $a) },
                        { +reply(area($r), $a) } )
@@ -213,10 +208,9 @@ def main() -> int:
     print()
     em = Machine()
     ekb = Loader(em, scope="frames-experts")
-    ekb.load(INHERIT)
     ekb.load(EXPERTS)
     ekb.load(SETTLE)
-    run(em, limit=40)          # let <inherit> settle the pools first
+    run(em, limit=40)
     picks = {}
     for q in ("area(plot1)", "twice(3)", "survey(plot1)"):
         who, scores = em._pick_expert([ekb.term(q)])

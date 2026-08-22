@@ -130,3 +130,10 @@ The implication for us: even if we are alway talking about the Hanoi Tower, what
 What I am saying is that the ENGINE should have no "hardcoded" handling or forbidden, invalid, refused. It's all in the models. The interesting thing is: HOW DO THEY COMPOSE? HOW do i create a "playing imaginary games with a friend" model that is able to handle all games, no matter of the rules? My hypothesis is that there are "bridge" concepts. The "tower of hanoi" model, if handed an "invalid" move, should simply state "this is an invalid move", and do nothing. 
 Now also imagine we play "explosive hanoi tower", a physical version of the game, where an invalid move makes the toy literally explode. I could still leverage the "core" hanoi tower model, but i'd have to reason about the consequences more carefully.
 What do you think?  
+
+- ~~expert inheritance (`extends`)~~ **Deleted 08-22.** Measured in `docs/models.md` 12: an
+  expert that absorbs another's rules wins the questions it borrowed, and duplicating a
+  discriminating term raises its document frequency so it loses weight for every expert,
+  including ones that inherited nothing. Sharing a rule everybody holds stays free (idf
+  zero), which is why writing `fact +knows(X, <replied>)` out cost nothing. The old spelling
+  now fails at load with a message naming the replacement.

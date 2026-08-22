@@ -6592,13 +6592,23 @@ def an_expert_is_picked_from_what_the_frame_is_about() -> None:
     m = Machine()
     kb = Loader(m, scope="selftest-experts")
     kb.load(chr(10).join([
-        "rule <inherit> = implies( { +extends($e, $f), +knows($f, $r) },",
-        "                          { +knows($e, $r) } )",
+        # A rule belonging to NOBODY, and one that gives it away mid-run.
+        # Declared BEFORE the first `expert`, which is what makes the last
+        # check below able to fail: inside an expert block they would be that
+        # expert's by declaration and the pool would never have to grow.
+        # This used to be `<inherit>` over `extends`, which was decoration --
+        # the fixture had no `extends` fact, so the rule never applied and the
+        # check asserted a pool that had never grown. Expert inheritance was
+        # deleted on 08-22 (docs/models.md 12); what the check was FOR, a pool
+        # read on demand rather than frozen at push time, is measured here
+        # properly for the first time.
+        "rule <polish> = implies( { +blade($b) }, { +shiny($b) } )",
+        "rule <learn> = implies( { +iron($i) }, { +knows(smith, <polish>) } )",
         "expert baker",
         "rule <bake> = implies( { +dough($d), +oven($o) }, { +bread($d) } )",
         "expert smith",
         "rule <forge> = implies( { +iron($i), +forge($f) }, { +blade($i) } )",
-        "fact +dough(rye)", "fact +iron(ore)", ""]))
+        "fact +dough(rye)", "fact +iron(ore)", "fact +forge(f1)", ""]))
     kb.load(SETTLE)
     table_run(m, limit=20)
 
@@ -6623,10 +6633,14 @@ def an_expert_is_picked_from_what_the_frame_is_about() -> None:
           and any(m._claims(i) for i in m.g.instances_of(m.SUITS)
                   if m.g.member(i, 0) is kb.atom("baker")))
     check("§19", "⚠ a frame holds the expert by NAME and reads its pool on "
-          "demand, because `knows($e, $r)` can be CONCLUDED mid-run -- "
-          "`<inherit>` derives more of them, and a pool frozen at push time "
-          "could not see one",
-          [r.name for r in m._expert_pool(kb.atom("smith"))] == ["forge"])
+          "demand, because `knows($e, $r)` can be CONCLUDED mid-run -- here "
+          "`<learn>` gives smith a rule that belonged to nobody, and a pool "
+          "frozen at push time could not see it",
+          sorted(r.name for r in m._expert_pool(kb.atom("smith")))
+          == ["forge", "polish"]
+          # ...and the control: the rule really did arrive by CONCLUSION, so it
+          # is not smith's by declaration and baker never gets it either.
+          and "polish" not in [r.name for r in m._expert_pool(kb.atom("baker"))])
 
 
 def a_saved_session_can_be_read_back() -> None:

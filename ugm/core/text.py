@@ -227,13 +227,19 @@ class Parser:
         if t.text == "rule":
             return self.rule(t.line)
         if t.text == "expert":
-            # ⭐ Which expert the rules below belong to, and optionally which
-            # other expert's rules it inherits: expert geometry expert geometry
-            # extends arithmetic It declares nothing the surface could not
-            # already write -- knows(geometry, <R>) and extends(geometry,
-            # arithmetic) are ordinary facts, and staying ordinary facts is
-            # what makes *which rules does this expert have* an ordinary query
-            # (R4).
+            # ⭐ Which expert the rules below belong to. It declares nothing
+            # the surface could not already write -- knows(geometry, <R>) is an
+            # ordinary fact, and staying an ordinary fact is what makes *which
+            # rules does this expert have* an ordinary query (R4).
+            #
+            # `expert geometry extends arithmetic` was here, and inheritance
+            # with it. Deleted 08-22: an expert that absorbs another's rules
+            # wins the questions it borrowed, and duplicating a DISCRIMINATING
+            # term raises its document frequency so it loses weight for
+            # everyone -- including experts that inherited nothing. Measured in
+            # docs/models.md 12. Sharing a rule every expert holds stays free,
+            # because df == total gives it idf zero, so the replacement is to
+            # write the `knows` fact out.
             # →
             # docs/design/text.md#which-expert-the-rules-below-belong-to-and-op
             name = self.next()
@@ -243,18 +249,16 @@ class Parser:
                     f"is an ordinary atom rather than a statement -- so it is "
                     f"written without angle brackets"
                 )
-            base = ""
             nxt = self.peek()
             if nxt is not None and nxt.kind == "name" and nxt.text == "extends":
-                self.next()
-                b = self.next()
-                if b.kind != "name":
-                    raise ParseError(
-                        f"line {b.line}: `extends` names the expert whose rules "
-                        f"are inherited"
-                    )
-                base = b.text
-            return Statement("expert", name.text, base, (), (), None, "", t.line)
+                raise ParseError(
+                    f"line {nxt.line}: expert inheritance was deleted. Write "
+                    f"the rules out with `fact +knows({name.text}, <R>)` -- "
+                    f"which is free for a rule every expert holds, and is the "
+                    f"thing you do not want for one that discriminates "
+                    f"(docs/models.md 12)"
+                )
+            return Statement("expert", name.text, "", (), (), None, "", t.line)
         if t.text == "action":
             # ⭐⭐⭐ The action palette, declared: action move($x, $y) A SIGNATURE
             # and nothing else. ⚠ No angle brackets.
@@ -938,8 +942,6 @@ class Loader:
         for s in statements:
             if s.kind == "expert":
                 current = s.name
-                if s.connective:
-                    self._expert_extends(s.name, s.connective)
             elif s.kind == "rule" and current:
                 owner[s.name] = current
         for s in statements:
@@ -1289,7 +1291,7 @@ class Loader:
         )
 
     def _expert_fact(self, rel: str, a: NodeId, b: NodeId) -> None:
-        """`knows` and `extends`, written the way any other fact is written.
+        """`knows`, written the way any other fact is written.
 
         ⭐ Through the gate, mentioning, and stamped like everything else --
         because *which rules does this expert have* has to be an ordinary query
@@ -1310,9 +1312,6 @@ class Loader:
 
     def _expert_knows(self, expert: str, rule_name: str) -> None:
         self._expert_fact("knows", self.atom(expert), self.rule_nodes[rule_name])
-
-    def _expert_extends(self, expert: str, base: str) -> None:
-        self._expert_fact("extends", self.atom(expert), self.atom(base))
 
     # `_maybe_precedence` was here: it read `overrides(A, B)` off a statement as
     # the loader parsed it and seeded §14's precedence table. It is gone, and

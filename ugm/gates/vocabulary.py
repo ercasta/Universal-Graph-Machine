@@ -98,13 +98,13 @@ ROLES: Dict[str, List[str]] = {
         # up. `pushed`/`popped` are the record of a focus change; `frame_depth`
         # is its knob, beside `attention_span`.
         "pushed", "popped", "frame_depth",
-        # ...and which expert a frame belongs to. ⚠ `knows` and `extends` are
-        # the SURFACE's words -- `expert geometry extends arithmetic` has
-        # written them since experts existed -- and they arrived in this census
-        # only when the engine started reading them, because `push` picks an
-        # expert. They were loader-scoped names before, which is to say a second
-        # `knows` waiting to happen.
-        "knows", "extends",
+        # ...and which expert a frame belongs to. ⚠ `knows` is the SURFACE's
+        # word -- `expert geometry` has written it since experts existed -- and
+        # it arrived in this census only when the engine started reading it,
+        # because `push` picks an expert. It was a loader-scoped name before,
+        # which is to say a second `knows` waiting to happen. `extends` sat
+        # beside it until 08-22, when expert inheritance was deleted.
+        "knows",
         # ⭐ ...and how WELL each expert suits what a frame is about, in
         # hundredths: the pick and the scores it beat, deposited, because an
         # unarguable step cannot buy back vetoability and must not lose
