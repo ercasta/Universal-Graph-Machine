@@ -1,5 +1,9 @@
 # Working on this repository
 
+## Documentation
+
+Keep documentation short, synthetic. Prefer bullet points. Never cite paragraph numbers. Avoid jargon / obscure, methaporical-like enunciated principles like "rows, not branches" cited as if it were an absolute truth.
+
 ## Commits
 
 **Antonio Castaldo D'Ursi is the sole author of every commit.** Never append a `Co-Authored-By:` or
@@ -28,16 +32,7 @@ The old commit stays reachable from `refs/remotes/origin/*` until the push lands
 Force-pushing to tidy history is welcome here. But *squashing is not implied by "fix the authors"* —
 ask first, or do the minimal thing and say plainly what was left alone.
 
-## Where to start
-
-Read `docs/rules-design.md`. It is the whole design and the only doc — self-contained, argued from
-seven requirements, with every representation decision scored in a table before it is taken.
-
-The previous implementation (`ugm/`, ~30k lines, 46 modules) and all other docs were **deleted
-deliberately**, not lost. They implemented a different floor — an ISA with opcodes and registers —
-which the design in `rules-design.md` rejects: its floor is four primitives, and its test is that
-adding a connective adds *rows, not branches*. Everything is in git history if a finding needs
-recovering; nothing should be ported without re-deriving it from the design.
+## Verification
 
 Verification is `python -m ugm.selftest`: one runner that prints every check's named observations and
 counts any `False` as a failure. Not pytest.
