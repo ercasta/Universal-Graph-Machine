@@ -30,6 +30,10 @@
 # not what to do about it. A channel that wants to report a denial reports
 # `not($p)`, which is an ordinary term and says the same thing without needing
 # a third argument nobody could argue with.
+#  The guard is the corpus's, not the engine's. There is no inert set: an
+# application that changed nothing is offered again, so a rule that does not
+# stop itself never stops. `no says(...)` is the whole of the stopping, and it
+# is a premise -- readable, overridable, and wrong out loud if it is wrong.
 rule <intake> = implies(
-    { +arrived($channel, $said) },
+    { +arrived($channel, $said), no says($channel, $said) },
     { +says($channel, $said) } )

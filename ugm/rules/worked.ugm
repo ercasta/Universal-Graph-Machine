@@ -14,7 +14,7 @@
 # The `-liquid($w)` is now an ERASURE, which is what it always wanted to be:
 # the water stops being liquid, and afterwards nothing anywhere says it is.
 rule <boil> = implies(
-    { +heat($a, $w), +water($w) },
+    { +heat($a, $w), +water($w), no boiling($w) },
     { +boiling($w), -liquid($w) } )
 
 # §8 <R2>. Written as `implies` so that the backward reader could not produce a
@@ -26,7 +26,7 @@ rule <boil> = implies(
 # can read it. Nothing believes `rain(monday, afternoon)` bare until something
 # crosses the modality, which is a rule a corpus writes.
 rule <weather> = implies(
-    { +cloudy($day, morning) },
+    { +cloudy($day, morning), no likely(rain($day, afternoon)) },
     { +likely(rain($day, afternoon)) } )
 
 # §13. The consequent is a bare variable: whatever the channel says, believe it
@@ -36,7 +36,7 @@ rule <weather> = implies(
 #
 # The sign went out of `says` with the entry: a channel reports what it heard.
 rule <trust_user> = implies(
-    { +says(user, $p) },
+    { +says(user, $p), no likely($p) },
     { +likely($p) } )
 
 fact +liquid(kettle)

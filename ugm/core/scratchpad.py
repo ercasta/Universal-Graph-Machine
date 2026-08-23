@@ -139,6 +139,17 @@ class Scratchpad:
         """Is this believed? One dict lookup, and it is the whole of belief."""
         return self.anchor(proposition) is not None
 
+    def holds_any(self, proposition: NodeId) -> bool:
+        """Is ANY instance of this proposition believed?
+
+        `holds` asks about one node, which is right when the node is the
+        subject -- an entity, a relationship someone is making claims about.
+        Absence is not that question. `no p($x)` asks whether anything says
+        `p(x)`, and a second instance of `p(x)` sitting anchored beside the
+        canonical one makes it say so.
+        """
+        return any(self.anchor(p) is not None for p in self.g.like(proposition))
+
     def believed(self) -> List[NodeId]:
         """Every believed proposition, newest first.
 

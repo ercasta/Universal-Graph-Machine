@@ -293,23 +293,22 @@ class Machine:
         self._widened = False
         self._reified: set = set()
         self._marker_cache: Dict[NodeId, Tuple[NodeId, ...]] = {}
-        # Applications that were tried and changed nothing. The scratchpad
-        # makes this the whole of quiescence: applying a rule whose conclusion
-        # is already anchored writes the anchor that is already there, so
-        # nothing moves. That is OBSERVED rather than predicted -- the engine
-        # used to compute a verdict per candidate ahead of time, which was a
-        # second implementation of what applying does and had to be kept equal
-        # to it.
+        #  There is no inert set. It used to live here: applications that
+        # were tried and changed nothing, keyed on the propositions they named
+        # and revoked when one of them moved. It was removed deliberately --
+        # deciding that a rule has nothing further to give is a judgement, and
+        # a judgement the engine makes is one no rule can ask about, override
+        # or be wrong about out loud.
         #
-        # ...and it is REVOKED when the world moves under it, which is the half
-        # a plain set got wrong: `<boil>` concluded `boiling(k)`, went inert
-        # because the conclusion was already there, and then stayed inert after
-        # another rule erased `boiling(k)` -- so the agent would not re-derive
-        # something it still had every reason to believe. Keyed by the
-        # propositions an application named, and dropped when any of them
-        # changes.
-        self._inert: set = set()
-        self._inert_on: Dict[NodeId, set] = {}
+        # What replaces it is the corpus's own first law: **an occasion is
+        # consumed, and a fact is not.** A rule stops itself by spending what
+        # it matched -- the dungeon's `-may(hero)` -- or by asking for the
+        # absence of what it wrote. Both are ordinary premises.
+        #
+        # The obligation this puts on an author is real and it is sharp. `+p`
+        # is idempotent, so an unguarded rule is merely wasteful; a rule that
+        # MINTS is not, and an unguarded one breeds -- ten identical people
+        # from one `seen(alice)`, to the run limit.
         self._evicted: set = set()
         self._readmitted = 0
         self._frames: List[Frame] = [Frame()]
@@ -330,8 +329,6 @@ class Machine:
         self.rules.DORMANT = self.DORMANT
         self.rules.on_rule.append(self.reify)
         self.channels.sink = self._deliver
-        self.gate.on_write.append(self._revive)
-        self.gate.on_erase.append(self._revive)
         self.gate.on_write.append(self._answer)
         self.gate.on_write.append(self._count)
         self.gate.on_write.append(self._remember)
@@ -1156,70 +1153,6 @@ class Machine:
             got = tuple(found)
             self._marker_cache[rule.node] = got
         return got
-
-    def _revive(self, proposition: NodeId) -> None:
-        """A belief moved, so anything that went inert on account of it is in
-        the running again.
-
-        The counterpart to `_inert`, and without it quiescence is a one-way
-        door: an application that changed nothing once would never be tried
-        again, however far the world moved afterwards.
-        """
-        held = self._inert_on.pop(proposition, None)
-        if not held:
-            return
-        for key in held:
-            self._inert.discard(key)
-
-    def _went_inert(self, app: Application) -> None:
-        """Remember that this application has nothing further to give, and on
-        what that depends.
-
-        Called after EVERY apply, not only after one that changed nothing, and
-        that is what stops the loop offering each move twice. Doing it once is
-        knowing what you just did rather than predicting it: the conclusions
-        are in their target state now, because putting them there is what
-        applying was. Measured before the change -- every rule in a
-        consultation chain fired twice, once to write and once to discover it
-        had nothing left to write.
-
-        Registered against the propositions it named, so `_revive` can find it
-        when one of them moves. A MINTING rule is keyed on its bindings instead
-        (see `_instantiation`), and those are not propositions, so there is
-        nothing to register and nothing that should revive it: the same
-        premises minting again would be a duplicate rather than a discovery.
-        """
-        key = self._instantiation(app)
-        self._inert.add(key)
-        if self._markers(app.rule):
-            return
-        for prop, _sign in key[1]:
-            self._inert_on.setdefault(prop, set()).add(key)
-
-    def _instantiation(self, app: Application) -> tuple:
-        """What identifies this application for the inert set.
-
-        Normally the rule and what it would CONCLUDE, never the bindings: two
-        ways of binding the same conclusion are one act, and keying on the
-        conclusion is also what lets `_revive` find it again when that
-        conclusion moves.
-
-        A MINTING rule is the exception, and it has to be. `+person(+k)`
-        concludes about something that does not exist until the rule fires, so
-        every firing concludes about a different thing and no conclusion could
-        ever identify a repeat. Measured before it was fixed: `<meet>` minted a
-        fresh person every tick to the run limit, ten identical people from one
-        `seen(alice)`. What identifies such an application is the rule and what
-        its ANTECEDENT bound -- fire once per set of premises, because a second
-        firing on the same premises is a duplicate rather than a discovery.
-        """
-        if self._markers(app.rule):
-            return (app.rule.node, frozenset(app.bindings.items()))
-        return (app.rule.node, tuple(sorted(
-            (substitute(self.g, m.pattern, app.bindings), m.sign)
-            for m in app.rule.consequent
-            if not _left_open(self.g, m.pattern, app.bindings)
-        )))
 
     def _apply(self, app: Application) -> Tuple[NodeId, ...]:
         """Write what the rule concluded into the scratchpad.

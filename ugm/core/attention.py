@@ -462,16 +462,18 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 if attended:
                     found = _attended_first(found, attended,
                                             m._attention_weights())
-                # Quiescence, and under the scratchpad it is the only
-                # per-candidate filter left: an application that has already
-                # been tried and changed nothing is inert, and trying it again
-                # would change nothing again.
+                #  There is NO per-candidate filter left. An application
+                # that was tried and changed nothing is offered again, because
+                # deciding that a rule has nothing further to give is the
+                # corpus's judgement and not the engine's. A rule stops itself
+                # by spending what it matched -- `-may(hero)` -- or by asking
+                # for the absence of what it wrote. An occasion is consumed,
+                # and a fact is not.
                 for a in found:
-                    if m._instantiation(a) not in m._inert:
-                        window.append(a)
-                        if top is None:
-                            top = table.score[r.node]
-                        break
+                    window.append(a)
+                    if top is None:
+                        top = table.score[r.node]
+                    break
                 if len(window) >= WINDOW:
                     break
         if not window:
@@ -523,12 +525,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # docs/design/attention.md#and-the-backstop-the-doubt-already-stands-an
         m._widened = False
         wrote = m._apply(chosen)
-        # This move has nothing further to give: whatever it concluded is in
-        # its target state now, because putting it there is what applying was.
-        # AFTER the apply and not before, so the writes and erasures it made
-        # have already revived whatever they invalidated -- including, for a
-        # rule that erases what it matched, this application itself.
-        m._went_inert(chosen)
         m._attend_written(wrote)
         applied.append(chosen.rule.name or "?")
         steps.append(Step(arrivals, len(window), tried, chosen,

@@ -652,7 +652,11 @@ def match(
                 grounded = substitute(g, want.pattern, bindings)
                 if g.has_var(grounded):
                     return
-                if pad.holds(grounded):
+                if pad.holds_any(grounded):
+                    #  `holds_any`, not `holds`. A relationship may be an
+                    # ENTITY, so `instance` can mint a second `p(x)` beside the
+                    # one `rel` returns, and asking the canonical node alone
+                    # reports *nothing says it* while something does.
                     return  # something anchors it: the absence fails
                 b = bindings
                 if want.binds is not None:

@@ -18,6 +18,22 @@ class Graph:
         self._rel: Dict[NodeId, Optional[NodeId]] = {}
         self._members: Dict[NodeId, Tuple[NodeId, ...]] = {}
         self._name: Dict[NodeId, str] = {}
+        # -- labels ---------------------------------------------------------
+        # A label is a NAME THAT PICKS OUT A NODE, and a node may have several.
+        # Several labels on one node means those labels are aliases: `loves` and
+        # `adores` name one relation, so `adores(x, z)` interns to the node
+        # `loves(x, z)` already made, through `_key`'s identities. Nothing in
+        # the interning key changes to get that.
+        #
+        # This is what `_name` is NOT. `_name` is display -- a rule minted as
+        # ninety characters of its own structure prints as `<boil>` -- and the
+        # docstring on `name` says so: it cannot make two nodes one. A label
+        # can, and that is the difference.
+        #
+        # Ordered, first attached first, because printing needs one canonical
+        # answer and mint order is the tiebreak everywhere else in the engine.
+        self._labels: Dict[NodeId, List[str]] = {}
+        self._by_label: Dict[str, NodeId] = {}
         self._is_var: Dict[NodeId, bool] = {}
         #  Whether a node is generic, decided at MINT rather than on every
         # ask.
@@ -62,6 +78,18 @@ class Graph:
         # POSITION.
         # → docs/design/graph.md#and-a-third-over-the-same-instances-by-what
         self._by_arg: Dict[Tuple[NodeId, int, NodeId], List[NodeId]] = {}
+        # ...and a fourth: every instance sharing one key, canonical first.
+        #
+        # `_interned` says which node `rel(on, a, b)` RETURNS. It does not say
+        # that node is the only one: `instance` mints a distinct node for the
+        # same relation over the same members, because a relationship may be an
+        # ENTITY and two of them are two things. Interning is therefore the
+        # write policy of `rel`, not a law of the substrate.
+        #
+        # This index is what keeps ABSENCE honest under that. `no p($x)` asks
+        # whether anything says `p(x)`, and asking the canonical node alone
+        # answers about one entity while another sits believed beside it.
+        self._by_key: Dict[Tuple, List[NodeId]] = {}
         # Which variables are in a node, memoised. Immutable for `_has_var`'s
         # reason -- a node's relation and members are fixed when it is built.
         #  It lives HERE and not beside its one reader, because a node id means
@@ -124,6 +152,12 @@ class Graph:
                 continue
             self._identity[y] = x
             self._merges += 1
+            # Labels follow identity: everything `y` answered to, `x` answers
+            # to now. That is what makes two labels on one node aliases.
+            for text in self._labels.pop(y, ()):
+                if text not in self._labels.setdefault(x, []):
+                    self._labels[x].append(text)
+                self._by_label[text] = x
             # Everything whose key mentioned `y` now keys on `x` instead.
             for n in list(self._mentions.get(y, ())):
                 old = self._keyed.get(n)
@@ -144,6 +178,7 @@ class Graph:
                 else:
                     self._interned[(kr, km)] = n
                     self._by_rel.setdefault(kr, []).append(n)
+                    self._by_key.setdefault((kr, km), []).append(n)
                     for i, mm in enumerate(km):
                         self._by_arg.setdefault((kr, i, mm), []).append(n)
                     self._keyed[n] = (kr, km)
@@ -191,6 +226,9 @@ class Graph:
                       else self._key(rel, members))
             self._drop_from_index(n, kr, km)
             self._keyed.pop(n, None)
+        for text in self._labels.pop(n, ()):
+            if self._by_label.get(text) == n:
+                del self._by_label[text]
         for d in (self._rel, self._members, self._name, self._is_var,
                   self._has_var, self._vars_in):
             d.pop(n, None)
@@ -202,6 +240,9 @@ class Graph:
         b = self._by_rel.get(kr)
         if b and n in b:
             b.remove(n)
+        b = self._by_key.get((kr, km))
+        if b and n in b:
+            b.remove(n)
         for i, mm in enumerate(km):
             b = self._by_arg.get((kr, i, mm))
             if b and n in b:
@@ -209,12 +250,77 @@ class Graph:
 
     # -- minting ----------------------------------------------------------
 
+    # -- labels ---------------------------------------------------------------
+
+    def label(self, n: NodeId, text: str) -> NodeId:
+        """Give `n` the label `text`, and return what `text` now names.
+
+        If nothing carried the label, `n` carries it. If another node did, the
+        two are ALIASES and this merges them -- which is the whole content of
+        *several labels on one node*, read from the other side.
+
+        Irreversible without an unmerge, because it is a merge.
+        """
+        n = self.identity_of(n)
+        if n not in self._labels and n in self._name and not self._is_var.get(n):
+            #  The first label makes the node's existing name a label too, or
+            # `labels_of` would report that a node called `loves` answers only
+            # to `adores`. Seeded HERE and not at mint, so a corpus atom never
+            # enters the table by being written -- only by being labelled.
+            self._labels[n] = [self._name[n]]
+            self._by_label.setdefault(self._name[n], n)
+        held = self._by_label.get(text)
+        if held is not None:
+            held = self.identity_of(held)
+            if held != n:
+                #  The older node is kept, which is `merge`'s own rule for a
+                # key collision: it is the one anything else already points at.
+                lo, hi = (held, n) if held < n else (n, held)
+                self.merge(lo, hi)
+                return lo
+            return n
+        self._labels.setdefault(n, []).append(text)
+        self._by_label[text] = n
+        return n
+
+    def unlabel(self, n: NodeId, text: str) -> bool:
+        """Take a label off. Does NOT undo a merge the label caused: the nodes
+        are already one, and only an unmerge could separate them."""
+        n = self.identity_of(n)
+        got = self._labels.get(n)
+        if not got or text not in got:
+            return False
+        got.remove(text)
+        if self._by_label.get(text) == n:
+            del self._by_label[text]
+        return True
+
+    def labels_of(self, n: NodeId) -> Tuple[str, ...]:
+        """Every label `n` answers to, first attached first."""
+        return tuple(self._labels.get(self.identity_of(n), ()))
+
+    def labelled(self, text: str) -> Optional[NodeId]:
+        """What this label names, or None. The inverse of `label`."""
+        got = self._by_label.get(text)
+        return None if got is None else self.identity_of(got)
+
     def atom(self, name: str) -> NodeId:
         """A node with no relation and no members: an individual, or a relation
         to be used by others. Nothing structural tells the two apart, which is
-        correct -- the difference is how they are used."""
-        n = self._mint(None, (), name)
-        return n
+        correct -- the difference is how they are used.
+
+        **Deliberately NOT resolved through the label table.** Making this
+        return the node that already carries the name was tried and reverted:
+        it globally interns every atom by spelling, and the loader's per-corpus
+        table exists on an argued position -- *two corpora may be about
+        different kettles and are never about different 2s* (`text.py:823`).
+        A name a corpus writes is local. A LABEL is a claim of identity, and it
+        is made by calling `label`.
+
+        Measured before reverting: on `delay.ugm` the change removed zero twins,
+        because the loader's table was already doing the work.
+        """
+        return self._mint(None, (), name)
 
     def entity(self) -> NodeId:
         """A labelless node: nothing but an id.
@@ -267,6 +373,21 @@ class Graph:
             relation, members = self._key(relation, members)
         return self._interned.get((relation, members))
 
+    def like(self, n: NodeId) -> Tuple[NodeId, ...]:
+        """Every instance sharing `n`'s key -- itself included, canonical first.
+
+        `rel(on, a, b)` returns one node; `instance(on, a, b)` mints another.
+        Both are `on(a, b)`. Anything asking a question about the PROPOSITION
+        rather than about one entity has to ask it of all of them, and absence
+        is that question.
+        """
+        rel = self._rel.get(n)
+        if rel is None:
+            return (n,)
+        kr, km = ((rel, self._members[n]) if not self._merges
+                  else self._key(rel, self._members[n]))
+        return tuple(self._by_key.get((kr, km), (n,)))
+
     def instance(self, relation: NodeId, *members: NodeId) -> NodeId:
         """A relation instance that is *not* interned: a distinct node every time.
 
@@ -298,6 +419,7 @@ class Graph:
             kr, km = ((relation, members) if not self._merges
                       else self._key(relation, members))
             self._by_rel.setdefault(kr, []).append(n)
+            self._by_key.setdefault((kr, km), []).append(n)
             for i, mm in enumerate(km):
                 self._by_arg.setdefault((kr, i, mm), []).append(n)
             #  **Only once something has merged.** Maintaining these at

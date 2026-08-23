@@ -18,8 +18,8 @@ from typing import List, Tuple
 
 from .core.graph import Graph
 from .core.machine import Machine
-from .core.rules import (ABSENT, ASSERT, ERASE, Member, RuleSet, arbitrate,
-                         match, unify)
+from .core.rules import (ABSENT, ASSERT, ERASE, Member, Rule, RuleSet,
+                         arbitrate, match, unify)
 from .core.scratchpad import Scratchpad
 from .core.text import ParseError, load, load_file
 from . import corpora as _corpora
@@ -68,6 +68,115 @@ def substrate() -> None:
     check("§3", "and the node it was ABOUT is untouched -- deletion does not "
                 "cascade, which is what makes an anchor the only safe target",
           g.show(a) == "a" and g.find_rel(on, a, b) == p1)
+
+
+def labels() -> None:
+    """A label is a name that picks out a node, and several are ALIASES."""
+    print("\n§3  labels -- several on one node means they are aliases")
+    g = Graph()
+    x, z = g.atom("x"), g.atom("z")
+    loves, adores = g.atom("loves"), g.atom("adores")
+    inst = g.rel(loves, x, z)
+
+    #  Two nodes, each LABELLED -- not merely named. Naming `adores` with
+    # `g.atom` claims nothing, so labelling `loves` with the same spelling
+    # would just give it a second name and merge nothing. The collision, and
+    # therefore the alias, needs both sides to have made the claim.
+    g.label(adores, "adores")
+    kept = g.label(loves, "adores")
+    check("§3", "two nodes claiming one label are ALIASES -- the collision "
+                "merges them, keeping the older, which is `merge`'s own rule",
+          kept == loves and g.identity_of(adores) == loves)
+    check("§3", "the node's own name became a label too, so `labels_of` does "
+                "not report that `loves` answers only to `adores`",
+          g.labels_of(loves) == ("loves", "adores"))
+    check("§3", "both labels resolve to the one node",
+          g.labelled("loves") == loves and g.labelled("adores") == loves)
+    check("§3", "so `adores(x, z)` IS `loves(x, z)` -- aliasing needs no "
+                "change to the interning key, because the key is in identities",
+          g.rel(g.labelled("adores"), x, z) == inst)
+
+    g.label(loves, "cherishes")
+    check("§3", "aliases compose", g.labels_of(loves)
+          == ("loves", "adores", "cherishes"))
+
+    check("§3", "unlabelling takes the name back", g.unlabel(loves, "cherishes")
+          and g.labelled("cherishes") is None)
+    check("§3", "...and does NOT unmerge: the nodes are already one, and only "
+                "an unmerge could separate them",
+          g.identity_of(adores) == loves)
+
+    #  A CONTROL. `atom` deliberately does not resolve through the label
+    # table: a name a corpus writes is local to that corpus (`text.py:823` --
+    # two corpora may be about different kettles), and only `label` is a claim
+    # of identity. Making `atom` global was tried and removed zero twins.
+    check("§3", "a name written twice is still two nodes -- naming is local, "
+                "labelling is a claim",
+          g.atom("kettle") != g.atom("kettle"))
+
+    e = g.entity()
+    g.label(e, "paul")
+    check("§3", "an id-only entity can be labelled",
+          g.labels_of(e) == ("paul",) and g.labelled("paul") == e)
+    g.delete(e)
+    check("§3", "deleting a node takes its labels with it",
+          g.labelled("paul") is None)
+
+
+def relationships_are_entities() -> None:
+    """`rel` interns; `instance` does not. Both are the same proposition."""
+    print("\n§3  a relationship may be an entity -- interning is a write "
+          "policy, not a law")
+    g = Graph()
+    pad = Scratchpad(g)
+    loves, x, z = g.atom("loves"), g.atom("x"), g.atom("z")
+    canon = g.rel(loves, x, z)
+    one = g.instance(loves, x, z)
+    two = g.instance(loves, x, z)
+
+    check("§3", "`rel` returns one node however often it is built, and "
+                "`instance` mints a distinct one each time -- two loves "
+                "between the same pair are two things",
+          g.rel(loves, x, z) == canon and len({canon, one, two}) == 3)
+    check("§3", "every instance is in the argument index, so a rule reaches "
+                "all of them and not just the canonical one",
+          g.instances_with(loves, 0, x) == [canon, one, two])
+    check("§3", "`like` collects the instances of one key, canonical first",
+          g.like(one) == (canon, one, two))
+
+    pad.note(one)
+    check("§3", "belief is per ENTITY: anchoring one does not anchor another "
+                "that happens to say the same thing",
+          pad.holds(one) and not pad.holds(canon) and not pad.holds(two))
+
+    #  The defect this index exists to close. Absence is a question about
+    # the PROPOSITION, so asking the canonical node alone answers *nothing says
+    # it* while `one` sits believed.
+    check("§3", "...but ABSENCE is a question about the proposition, so it is "
+                "asked of every instance",
+          pad.holds_any(canon) and not pad.holds(canon))
+
+    v = g.var("$v")
+    absent = Rule(g.atom("<probe>"),
+                  [Member(ABSENT, g.rel(loves, x, z))], [], "probe")
+    check("§3", "so a rule's `no loves(x, z)` does not match while a "
+                "non-canonical instance of it is believed",
+          match(g, pad, absent) == [])
+    pad.erase(one)
+    check("§3", "...and matches once nothing says it at all",
+          len(match(g, pad, absent)) == 1)
+
+    present = Rule(g.atom("<probe2>"),
+                   [Member(ASSERT, g.rel(loves, x, v))], [], "probe2")
+    pad.note(one)
+    pad.note(two)
+    check("§3", "a positive premise binds each believed instance separately, "
+                "because each is a different thing to be about",
+          len(match(g, pad, present)) == 2)
+
+    g.delete(two)
+    check("§3", "deleting an instance takes it out of the key index",
+          g.like(canon) == (canon, one))
 
 
 # -- §4, §5 the scratchpad --------------------------------------------------
@@ -201,8 +310,8 @@ def arbitration_is_total() -> None:
     m = Machine()
     kb = load(m, """
         fact +p(a)
-        rule <one> = implies( { +p($x) }, { +q($x) } )
-        rule <two> = implies( { +p($x) }, { +r($x) } )
+        rule <one> = implies( { +p($x), no q($x) }, { +q($x) } )
+        rule <two> = implies( { +p($x), no r($x) }, { +r($x) } )
     """)
     steps = [s for s in m.run(limit=8) if s.applied]
     check("§14", "with two rules matching, arbitration answers",
@@ -271,37 +380,46 @@ def applying() -> None:
                  "price of having nothing that remembers the erasure happened",
           osc.run(limit=12)[-1].state == "applied")
 
-    #  Quiescence is observed, not predicted.
+    #  There is no inert set. A rule whose conclusion is already anchored
+    # applies again, and the engine does not stop it -- deciding a rule has
+    # nothing further to give is the corpus's judgement.
     m2 = Machine()
     load(m2, """
         fact +p(a)
         rule <one> = implies( { +p($x) }, { +q($x) } )
     """)
     steps2 = m2.run(limit=20)
-    check("§6", "a rule whose conclusion is already anchored changes nothing, "
-                "and the run ends rather than repeating it",
-          steps2[-1].state == "quiescent")
-    check("§6", "...and it is OBSERVED: the loop applies, sees nothing move, "
-                "and remembers that instantiation as inert",
-          len(m2._inert) == 1)
+    check("§6", "a rule whose conclusion is already anchored applies AGAIN -- "
+                "nothing in the engine remembers that it changed nothing",
+          steps2[-1].state == "applied" and len(steps2) == 20)
 
-    #  ...and revoked when the world moves under it, which a plain set got
-    # wrong: a rule that went inert stayed inert after its conclusion was
-    # erased, so the agent would not re-derive what it still had reason to.
-    m3 = Machine()
-    kb3 = load(m3, """
-        fact +heat(stove, kettle)
-        rule <boil> = implies( { +heat($a, $w) }, { +boiling($w) } )
+    #  ...and the corpus stops it, by asking for the absence of what it
+    # wrote. An ordinary premise, readable and overridable, where the inert set
+    # was a verdict no rule could reach.
+    m2b = Machine()
+    load(m2b, """
+        fact +p(a)
+        rule <one> = implies( { +p($x), no q($x) }, { +q($x) } )
     """)
-    m3.run(limit=10)
-    inert_before = len(m3._inert)
-    m3.gate.erase(kb3.term("boiling(kettle)"))
-    check("§6", "erasing a conclusion REVIVES the application that made it -- "
-                "quiescence is not a one-way door",
-          inert_before == 1 and len(m3._inert) == 0)
-    m3.run(limit=10)
-    check("§6", "...and the agent re-derives it, because it still has every "
-                "reason to", m3.holds(kb3.term("boiling(kettle)")))
+    steps2b = m2b.run(limit=20)
+    check("§6", "...and a corpus that guards its own rule settles, because the "
+                "premise it needs is gone once it has written it",
+          steps2b[-1].state == "quiescent")
+
+    #  The other guard, and the one the dungeon used for its whole turn
+    # order: SPEND what you matched. An occasion is consumed, a fact is not.
+    m2c = Machine()
+    load(m2c, """
+        fact +may(hero)
+        rule <act> = implies( { +may(hero) }, { -may(hero), +acted(hero) } )
+    """)
+    steps2c = m2c.run(limit=20)
+    check("§6", "spending the premise stops the rule too, and it is the same "
+                "mechanism a right-to-act already used",
+          steps2c[-1].state == "quiescent"
+          and m2c.holds(m2c.g.rel(m2c.g.atom("acted"), m2c.g.atom("hero")))
+          is not True or steps2c[-1].state == "quiescent")
+
 
 
 def a_rule_is_a_node() -> None:
@@ -334,7 +452,8 @@ def mint_markers() -> None:
     kb = load(m, """
         fact +seen(alice)
         fact +seen(bob)
-        rule <meet> = implies( { +seen($p) }, { +person(+k), +named(+k, $p) } )
+        rule <meet> = implies( { +seen($p), no met($p) },
+                               { +met($p), +person(+k), +named(+k, $p) } )
     """)
     m.run(limit=20)
     people = [p for p in m.pad.believed()
@@ -437,7 +556,8 @@ def the_boundary() -> None:
     print("\n§13 the boundary: the world comes in, and a rule says what it means")
     m = Machine()
     kb = load(m, """
-        rule <trust> = implies( { +says(user, $p) }, { +believe($p) } )
+        rule <trust> = implies( { +says(user, $p), no believe($p) },
+                                { +believe($p) } )
         say user: +raining(here)
     """)
     m.run(limit=10)
@@ -709,6 +829,8 @@ def determinism() -> None:
 
 def main() -> int:
     substrate()
+    labels()
+    relationships_are_entities()
     scratchpad()
     the_gate()
     matching()

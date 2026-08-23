@@ -306,14 +306,6 @@ def main() -> int:
         if label == "the bundle itself":
             mm = Machine()          # it is already loaded; re-loading redeclares
             rules = list(mm.rules.rules)
-        elif label == "a D&D fight":
-            #  It registers three computators, so it cannot be loaded from its
-            # text alone -- and it is the one corpus written by another session,
-            # which makes it the false-positive test that actually counts.
-            from ..probes.dungeon import fight
-            bundled = {r.node for r in Machine().rules.rules}
-            mm, _, _ = fight(seed=1, limit=60)
-            rules = [r for r in mm.rules.rules if r.node not in bundled]
         else:
             try:
                 mm, _, rules = corpus(src)
