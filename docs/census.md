@@ -64,11 +64,14 @@ on a product path calls them.
 is not an oversight: the table loop became the kernel and applies dormancy itself. Which
 leads to the finding worth acting on.
 
+> Since this census: that gate is gone, `_recall` had no callers left at all, and it was
+> deleted (2026-08-23). The dormancy predicate below is now written twice, not three times.
+
 **The dormant-and-not-due predicate is written three times, identically:**
 
     core/attention.py:209    _dormant(m, r)          the loop's copy, and the live one
     core/machine.py:1237     inside _answer_recall
-    core/machine.py:2499     inside _recall
+    core/machine.py:2499     inside _recall          (deleted 2026-08-23)
 
     m._claims(m.g.rel(m.DORMANT, r.node)) and not m._claims(m.g.rel(m.DUE, r.node))
 
@@ -94,7 +97,7 @@ verified `_count` route could retire.
 
 ## Candidates, ordered by evidence
 
-1. **The dormancy predicate, written three times.** Deduplicate, and settle whether
+1. **The dormancy predicate, written twice** (three at census time). Deduplicate, and settle whether
    `rules.py`'s `DUE`-less variant is a fourth site or a different question wearing the same
    clothes. Small, and it removes a way to drift rather than lines.
 2. **`root` / `rooted`.** `docs/wanting.md` 9.3 verified `_count` reproduces `_root`,
@@ -104,7 +107,7 @@ verified `_count` route could retire.
 3. **The 145 inspection-only lines.** Not a deletion candidate on this evidence — a
    verification apparatus may legitimately have handles nothing else uses. Worth revisiting
    only if one of them turns out to duplicate something the loop does, which is how `_recall`
-   surfaced.
+   surfaced -- and it has since gone from 5 functions to 4.
 
 ## What this census does not answer
 

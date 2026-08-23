@@ -42,8 +42,8 @@ ROLES: Dict[str, List[str]] = {
     # The agent reasoning about its own reasoning: what comes to mind, what is
     # worth thinking about, and how much of either there may be.
     "the agent's deliberation": [
-        "recall", "recalled", "dormant", "due", "standing", "budget",
-        "close", "bounded", "widened", "ticks",
+        "recall", "recalled", "dormant", "due", "standing",
+        "close", "bounded", "ticks",
         # The aggregate over bindings. A rule sees one binding at a time, so
         # *how many* is the machinery's to answer -- and it is the one thing
         # `no` cannot do, because a consequent may carry an unbound variable.

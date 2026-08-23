@@ -6,9 +6,8 @@
 > `ugm.arbitration`, `ugm.modality` and `ugm.workload` were deleted. Every
 > `python -m ugm.<name>` below needs the subpackage path now (`ugm.probes.dungeon`),
 > two of the four commands name modules that no longer exist, every count and
-> line number has moved, and §4 walks the retired option-set loop,
-> which has since been deleted outright — `Machine.tick` is now one bounded
-> step of the table loop. The
+> line number has moved. §4 was rewritten on 2026-08-23 and does describe the
+> table loop as it stands; the rest is the old map. The
 > *shape* of the map is still roughly right; trust nothing quantitative. The
 > current entry points: `python -m ugm.selftest`, `./tools_sweep.sh`, and
 > `docs/design/*.md` per module.
@@ -132,7 +131,7 @@ graph, and `−` on it means *not derived* rather than *someone denied it*. That
 where negation as failure lives, and `structural_relations(chain)` is the table of what a structural
 member may ask the chain (`anc`, `pred`, `in_delta`, `entry_of`, `span_of`, `holds_at`, …).
 
-### `gate.py` — the one place a stamp is applied, 232 lines
+### `gate.py` — the one place a stamp is applied, 78 lines
 
 ```
 Proposition and sign come from the rule.
@@ -144,7 +143,7 @@ A rule may not name the second four.
 not even briefly), then the deposit, then `on_write` hooks — which is where effects leave the agent.
 If you are looking for "where does the agent act", it is here, not in a phase of the loop.
 
-### `machine.py` — the interpreter, 5592 lines
+### `machine.py` — the interpreter, 1280 lines
 
 Big, and the last thousand lines are instruments hanging off the loop rather than loop: `report`,
 `why`, `review`, `blame`, `refine`, `save`/`replay`, and the induction helpers at the bottom. The loop
@@ -154,37 +153,30 @@ itself is one method, and `_install_bundle` is four lines that load a corpus.
 
 ## 4. One tick, end to end
 
-`Machine.tick()` is worth reading in full once — 130 lines, and the comments are the design.
-The claim it exists to make is that **the step has no phases**: nothing in it decides anything a rule
-could have decided.
+The loop is `attention.run` in `core/attention.py`, not a method on `Machine`. `Machine.tick()`
+and `Machine.run()` both delegate to it. The claim it exists to make is that **the step has no
+phases**: nothing in it decides anything a rule could have decided.
 
 ```
-tick()
-  g.rel(ASKING, seat)          # the seat is askable, so chain-reading rules have an anchor
-  channels.since_last_tick()   # how much of the world arrived since the last step
-  _enough()                    # the second way to be over: a corpus said stop
-  _recall()                    # which rules come to mind -- a function, not a search
-  _situation()                 # ONE walk, resolving the state for this tick
-  _applications(...)           # match each recalled rule against it
-  _in_play() / _rank()         # what the table recommends now
-  _choose()                    # defeat -> quiescence -> passing-up -> arbitration, lazily
-  _note_defeat() / _note_doubt() / _forgo()      # what lost, on the record, BEFORE the move
-  _apply(chosen)               # write the consequent
-  _spend(chosen, wrote)        # refraction, and the table's cost
+for each tick:
+  m._frames[-1]                # whose line of work this is -- a pushed frame brings its own table
+  table.absorb(...)            # a rule authored since the last tick enters the table now
+  channels.since_last_tick()   # how much of the world arrived
+  table.order(lift)            # the table's order, minus rules claimed dormant and not due
+  chunk by SHORTLIST           # match a shortlist at a time; a rule below the cut costs nothing
+  window                       # the first WINDOW applications found
+  chooser(m, table, window)    # the table picks by default; a caller may pick instead
+  m._apply(chosen)             # write the consequent
+  m._attend_written(wrote)     # what was written becomes what is attended to
 ```
 
-When nothing is chosen, the escalation order is the interesting part: `_widen` (the shortlist ran
-dry, so recall harder), `_recover` (look again at what was put out of mind), `_leave` (a hypothesis
-ran out of work — carry its conclusions out), `_wake`, then `quiescent`. **A shortlist that ran dry is
-not a search that finished**, and `blocked` depends on the difference.
+The shortlist walk widens by itself: it takes `SHORTLIST` rules at a time and keeps going until
+something matches or the ordered list runs out. So an empty window at the end of that walk means
+every non-dormant rule was matched and none applied — the run is `quiescent`, and there is nothing
+left to look harder at.
 
-`_apply` is the forward read: `implies` deposits into the *same* moment (derived — retract the
-antecedent and it goes), `causes` deposits into a *later* one (asserted — water you stopped heating
-stays boiled). `_conclude_at` decides the locus: a consequent's own `at $m` when it has one, the
-frame's topic otherwise. The register moves only on `causes` — and the move is itself a write now:
-`Gate.reseat` deposits `+moved(<from>, <to>)` with the licence that caused it, which was the oldest
-item on the acceptance section's owed list. *Position is where and was always recorded; the seat is
-when and was not.*
+`_apply` is the forward read, and `implies` deposits into the same moment: retract the antecedent
+and the conclusion goes.
 
 ---
 

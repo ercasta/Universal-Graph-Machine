@@ -3,6 +3,9 @@
 Moved out of the module so the code reads as code. Each section is the
 prose that stood at the place the module now points from.
 
+- Stale as of 2026-08-23: 40 of its 53 sections name a function `machine.py` no
+  longer has. The prose is kept as argument; do not read it as a map of the module.
+
 ## Module overview
 
 The interpreter (§14, §16).
@@ -323,7 +326,7 @@ conclusion is `drop(p)`. It is never recalled and never ranked: the loop
 consults the triggers directly, which is what keeps *what you must not do*
 complete while *what to do* stays incomplete-able.
 
-Recall, as a request -- the fourth. `_recall` narrows which rules are
+Recall, as a request -- the fourth. The shortlist narrows which rules are
 PROPOSED, and that cannot reach a cross product written inside an
 antecedent: `<ask-fit>` used to say `+goal($w), +rule($r)` and matched
 |goals| x |rules| ways however few rules were proposed. Measured, it
@@ -1044,8 +1047,8 @@ Taking one way of getting something is passing up the others.
 Does any rule say that `a` reaches `b`? (§11's containment, moved.)
 
         The machinery consulting a corpus's rules, on demand, with both
-        arguments already bound -- the door `_forbid`, `precedence()` and
-        `_recall` already use, given a general name. It is ONE backward step and
+        arguments already bound -- the door `_forbid` and `precedence()`
+        already use, given a general name. It is ONE backward step and
         not a fixpoint: the consequent is unified with the question, those
         bindings are substituted into the antecedent, and the antecedent is
         matched. Nothing has to be selected, which is the whole point -- a rule
@@ -1705,28 +1708,6 @@ except `close` and `forgone`.
  The import is local because `attention` imports this module. The
 cycle is real, and the alternative -- moving the loop in here -- would
 put the table back inside the engine, which is the thing this undoes.
-
-## `_recall`
-
-Never complete, by design (§15). Exhaustive here, which is the
-        deliberate-reasoning setting: recall with the budget removed -- with one
-        exception, and the exception is the first thing a corpus has ever been
-        able to say to this step.
-
-        A rule claimed `dormant` is not proposed until something claims it `due`.
-        That is all a callback is. §15 argues recall is where experience belongs
-        and where being wrong is recoverable; a pointer hung on a hypothesis is
-        experience the corpus supplies instead of learns, arriving at exactly the
-        seam that was reserved for it.
-
-        Both are ordinary facts, so both are askable, defeasible and attributable
-        -- *which rules is this hypothesis carrying?* is a query, not a field. And
-        both are read at the register's own position, so a callback attached
-        inside a hypothesis wakes only there.
-
-        Cost, stated rather than discovered: two resolves per rule per tick.
-        Cheap now because the rule set is small and `resolve` is a walk; the
-        moment it is not, this is an index over two relations, not a redesign.
 
 ## Nothing DERIVED narrows this step, and finding o
 

@@ -1,17 +1,9 @@
 """The interpreter (§14, §16).
 
-Recall proposes, match filters, arbitration commits. Only the last is total,
-and the step is *select a rule, apply it* -- object-rules and meta-rules
+The step is *select a rule, apply it* -- object-rules and meta-rules
 indistinguishable to it, a flat tower rather than a stacked one.
 
-What this file used to also be is worth saying, because most of it is gone.
-It managed goals -- fit, plan, expand, check, achieved, blocked, verdict,
-enough, open -- and it held a palette of affordances, a list of vetoes, a
-supposition stack, an expectation ledger, a premise economy, and the whole of
-credit assignment: review, blame, regret, induction, forests. Every one of
-those is a policy about how an agent should conduct itself, which is a corpus's
-business, or a claim about the past, which needs a memory this engine does not
-have. The engine's business is: what is believed, which rules match it, which
+The engine's business is: what is believed, which rules match it, which
 one goes next, and what happens to the scratchpad when it does.
 
 See docs/design/machine.md.
@@ -52,7 +44,7 @@ class Step(NamedTuple):
     matched: int
     applied: Optional[Application]
     wrote: Tuple[NodeId, ...]
-    state: str  # applied | widened | quiescent
+    state: str  # applied | quiescent
 
 
 class Answerer(NamedTuple):
@@ -79,6 +71,10 @@ ATTENTION_SPAN = 7
 #: its way down for ever on ever-changing nodes, which the cycle test cannot
 #: see -- the nodes are different every time.
 FRAME_DEPTH = 8
+
+# REVIEW NOTE: at each step the engine should activate the winning expert based on the attention, 
+# not only on frame pushing. 
+
 
 
 class Frame:
@@ -174,8 +170,6 @@ class Machine:
         self.DUE = self.g.atom("due")
         # Which rules are in the table at the default rather than at the floor.
         self.STANDING = self.g.atom("standing")
-        self.BUDGET = self.g.atom("budget")
-        self.WIDENED = self.g.atom("widened")
         self.BOUNDED = self.g.atom("bounded")
         self.TICKS = self.g.atom("ticks")
         # Two rules matched and nothing separates them -- deposited rather than
@@ -249,7 +243,6 @@ class Machine:
             "recall": self.RECALL, "recalled": self.RECALLED,
             "dormant": self.DORMANT, "due": self.DUE,
             "standing": self.STANDING,
-            "budget": self.BUDGET, "widened": self.WIDENED,
             "bounded": self.BOUNDED, "ticks": self.TICKS,
             "close": self.CLOSE,
             "attention": self.ATTENTION,
@@ -292,8 +285,8 @@ class Machine:
         self._bookkeeping = {
             self.RULE, self.ANT, self.CON, self.NAMES,
             self.COUNT, self.COUNTED, self.RECALL, self.RECALLED,
-            self.DORMANT, self.DUE, self.STANDING, self.BUDGET,
-            self.WIDENED, self.BOUNDED, self.CLOSE,
+            self.DORMANT, self.DUE, self.STANDING,
+            self.BOUNDED, self.CLOSE,
             self.ATTENTION, self.SPAN, self.DEPTH, self.KNOWS,
             self.PUSHED, self.POPPED, self.SUITS, self.DECLINED,
             self.ANSWERS, self.ANSWERED, self.COMPUTES,
@@ -306,29 +299,11 @@ class Machine:
         self.answerers: List[Answerer] = []
         self.selections = 0
         self.exhausted = 0
-        self.widenings = 0
         self.matched = 0
         self.considered = 0
-        self.recall_budget: Optional[int] = None
-        self._widened = False
         self._reified: set = set()
         self._marker_cache: Dict[NodeId, Tuple[NodeId, ...]] = {}
-        #  There is no inert set. It used to live here: applications that
-        # were tried and changed nothing, keyed on the propositions they named
-        # and revoked when one of them moved. It was removed deliberately --
-        # deciding that a rule has nothing further to give is a judgement, and
-        # a judgement the engine makes is one no rule can ask about, override
-        # or be wrong about out loud.
-        #
-        # What replaces it is the corpus's own first law: **an occasion is
-        # consumed, and a fact is not.** A rule stops itself by spending what
-        # it matched -- the dungeon's `-may(hero)` -- or by asking for the
-        # absence of what it wrote. Both are ordinary premises.
-        #
-        # The obligation this puts on an author is real and it is sharp. `+p`
-        # is idempotent, so an unguarded rule is merely wasteful; a rule that
-        # MINTS is not, and an unguarded one breeds -- ten identical people
-        # from one `seen(alice)`, to the run limit.
+        
         self._evicted: set = set()
         self._readmitted = 0
         self._frames: List[Frame] = [Frame()]
@@ -370,13 +345,6 @@ class Machine:
     def _install_bundle(self) -> None:
         """Load the conventions that ship as rules rather than as branches (§4).
 
-        There is one left, and that is a finding rather than an oversight.
-        Everything else the bundle carried -- what an emission means, how a
-        goal is expanded, when to give up, what a disappointed expectation
-        looks like, the call stack -- was a policy about how to conduct
-        oneself, and each went with the machinery it served. What is left is
-        the one thing that really is a convention of READING rather than of
-        conduct: an arrival is a saying.
         """
         from .text import load_file  # deferred: `text` imports `Machine`
 
@@ -864,20 +832,6 @@ class Machine:
                 best = int(name)
         return default if best is None else best
 
-    def _widen(self) -> bool:
-        """A shortlist that ran dry is not a search that finished (§15, §19).
-
-        The exhaustive pass is not a fallback: it is the only thing injecting
-        candidates a narrowed recall would never produce, and training recall
-        on its own accepted outputs narrows it monotonically otherwise.
-        """
-        if self._knob(self.BUDGET, self.recall_budget) is None or self._widened:
-            return False
-        self._widened = True
-        self.widenings += 1
-        self._note(self.g.rel(self.WIDENED, self.NOW))
-        return True
-
     # -- the tool seams ----------------------------------------------------
 
     def computator(self, name, fn) -> NodeId:
@@ -1082,34 +1036,6 @@ class Machine:
         self.gate.write(self.g.rel(self.ARRIVED, a.channel, a.proposition))
 
     # -- the loop ----------------------------------------------------------
-
-    def _recall(self) -> List[Rule]:
-        """Never complete, by design (§15). Exhaustive here, which is the
-        deliberate-reasoning setting: recall with the budget removed -- with
-        one exception, and the exception is the first thing a corpus has ever
-        been able to say to this step."""
-        live: List[Rule] = []
-        for r in self.rules.rules:
-            if self._claims(self.g.rel(self.DORMANT, r.node)) and not self._claims(
-                self.g.rel(self.DUE, r.node)
-            ):
-                continue
-            live.append(r)
-        if self._widened:
-            return live
-        budget = self._knob(self.BUDGET, self.recall_budget)
-        if budget is None:
-            return live
-        out = list(live[:budget])
-        for r in live:
-            # What a cap may not starve, and it is §19's carve-out: a woken
-            # callback, because a pointer recall can drop is not a pointer.
-            if r not in out and (
-                self._claims(self.g.rel(self.DUE, r.node))
-                or self._claims(self.g.rel(self.STANDING, r.node))
-            ):
-                out.append(r)
-        return out
 
     def tick(self) -> Step:
         """One move of the loop, for a caller that wants to step and look.

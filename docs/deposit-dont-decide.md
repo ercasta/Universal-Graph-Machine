@@ -27,7 +27,7 @@ tool's answer is a premise like any other.
 
 The machinery also deposits what only it can know, and the list is long:
 `arrived`, `emitted`, `answered`, `expects`, `exercised`, `spent`, `forgone`,
-`close`, `defeated`, `quiet`, `blocked`, `bounded`, `widened`, `reached`.
+`close`, `defeated`, `quiet`, `blocked`, `bounded`, `reached`.
 Each is one fact and no interpretation.
 
 **The gap, already recorded as debt rather than hidden.** `gate.reseat` moves a

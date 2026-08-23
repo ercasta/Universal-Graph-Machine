@@ -479,12 +479,9 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 if len(window) >= WINDOW:
                     break
         if not window:
-            # Nothing in the table matched. These are NOT ported logic.
-            # →
-            # docs/design/attention.md#nothing-in-the-table-matched-the-engine-says-so
-            if m._widen():
-                steps.append(Step(arrivals, 0, tried, None, (), "widened"))
-                continue
+            # Nothing in the table matched, and the shortlist walk above has
+            # already been through every non-dormant rule -- so there is
+            # nothing left to widen to.
             # The run is over, and WHICH silence it was goes on the record: the
             # option-set loop's callers read `steps[-1].state` in 33 places to
             # tell a finished search from one that hit the limit.
@@ -525,7 +522,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # Something applied, so the shortlist is trusted again.
             # →
             # docs/design/attention.md#and-the-backstop-the-doubt-already-stands-an
-        m._widened = False
         wrote = m._apply(chosen)
         m._attend_written(wrote)
         applied.append(chosen.rule.name or "?")
