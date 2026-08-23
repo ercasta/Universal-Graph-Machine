@@ -1,4 +1,129 @@
-# Handoff — 2026-08-22 (the COLLAPSE, `context: believed` WITHDRAWN, and NAMED SLOTS)
+# Handoff — 2026-08-23 (the new substrate: identity, predicates, the RHS, and the dungeon recovered)
+
+    python -m ugm.selftest             161 checks, 0 failing   <- was 125 at session start
+    python -m ugm.probes.dungeon        (14 seeds, always quiescent, always resolves)
+    python -m ugm.probes.dungeon_micro  (same 14 seeds, 0 mismatches against the control)
+
+Everything below is `docs/new_substrate.md`, in the order it was built, with the seams
+between build and design conversation kept -- the doc has the exact code-level detail
+(kill-probe results, member counts, the shape of every fix); this is the narrative and the
+place-to-pick-up.
+
+## Where this session started and what changed the shape of it
+
+`docs/new_substrate.md` was a design sketch with almost nothing built under it -- entities,
+labels, a proposed LHS/RHS microprogram syntax, none of it running. The session's own
+inventory kept finding that less was missing than the doc implied: `$z = p(...)` turned out
+to already exist as `as $t`; `no`/computators were already exact matches; `call <tool>`
+needed no mechanism at all, because an ordinary `+` write already triggers an answerer
+synchronously. The pattern held all day: **check what's built before designing what isn't.**
+
+The other shape-changer was a user correction mid-session (see "attention is engine state"
+below) that reversed something I'd built minutes earlier without being asked to reconsider
+it -- worth reading if `attention($x, n)`-as-belief ever looks tempting again.
+
+## Built, in order
+
+**`Graph.unmerge`** -- reverses the top-of-record merge only, refuses (loudly) anything
+cascaded or non-top. Found and fixed a real bug along the way: `unmerge` putting the live
+merge counter back to zero reopened a gap in `_mint`/`_index_for_merge`, both keyed on that
+counter instead of on *has indexing ever started* -- a node minted in that window silently
+fell out of the cascade index. Fixed with a dedicated `_merge_indexed` flag that only ever
+gets set, never unset.
+
+**`RuleSet.predicates`** -- a computator's cousin: filters over bound NODES (identity
+questions) rather than computing a value over shown strings (a computator's `g.show`
+round-trip is wrong for identity). Ships `attentioned($x)` (reads `Machine._attended()`) and
+a label test (reads `Graph.labels_of`). Reserved vocabulary, not corpus-registered -- every
+corpus gets them, the way every corpus gets `no`.
+
+**RHS supersedes triggers** -- a real architectural decision, asked and answered plainly.
+Today's rule body was purely declarative; `attend`/`push`/`pop`/`stop` lived only in a
+separate `after <R> => ...` trigger statement, kept apart on the argument *the split is the
+design, not plumbing*. Checked the risk first: nothing in the shipped tree used a live
+trigger, so superseding it cost no migration. Built the unconditional case --
+`rule <r> = implies({ant},{con}) => attend($x,3)` -- reusing the trigger backend as-is (an
+empty-query entry on the rule's own node), so almost no executor code was new.
+
+**Five RHS graph ops** -- `merge`, `unmerge`, `destroy`, `label`, `unlabel`, closing the
+doc's own repeated finding *no rule can call merge at all*. Found a real bug testing
+`destroy`: `Graph.has_var` indexed its dict directly, and `delete` clears that entry, so an
+unguarded rule regrounding a binding to a node it had just destroyed got `KeyError` instead
+of an answer -- the same contract `relation_of` already keeps (`.get(n, False)` now). Also
+caught, by kill-probing my OWN tests: two checks that could not fail (a bare atom's
+`relation_of` is `None` either way; `label` then `unlabel` in one tail has no observable
+middle if both are silently disabled).
+
+**Attention is engine state, not belief** -- the one correction this session needed from the
+user. I'd described `+attention(x, n)` as an ordinary believed proposition; the user said
+plainly that's wrong, attention should be managed by the engine, in frames. Checking found it
+was worse than a style question: `_attend` (which the RHS `attend` op calls) wrote the belief
+WITHOUT the weight, so the weighted form the read side actually used was reachable only by a
+rule authoring `+attention($x,n)` directly -- `attend($x,3)` in the RHS never touched the
+standing weight at all. Fixed: `Frame.weights`, a plain per-frame dict; a pop discards it for
+free with the Frame object, no erase loop, because there is nothing believed to erase. The old
+code's own justification (*not readable by any rule*) is answered differently now:
+`attentioned($x)`, a predicate, lets a rule ask without the state living in the graph.
+Negative weights (only reachable via the belief path before) got a widened `attend(...)`
+grammar so the one remaining path keeps that capability.
+
+**`$z = p(...)`** -- the microprogram's own prefix spelling of `as`. Built to translate a
+"judger" rule the user proposed as an expressiveness stress test:
+`(want(x), current(y)) => missing(z)`, generalized over the RELATION itself
+(`$r($a,$x)`) -- which worked with ZERO new engine features (a variable in the relation slot
+already unifies). The stress test found one real gap: when NOTHING holds about a wanted
+slot at all (not even a wrong value), the judger can't fire, and the obvious second rule
+needs a wildcard (`no $r($a, *)`) that `wanting.md` §9 already designed and never built.
+Still open.
+
+**The dungeon, recovered** -- `15d0ed2:ugm/rules/dungeon.ugm` (deleted at `4c69f0a`), ported
+to today's syntax as the CONTROL step. Three mechanical fixes (`causes`→`implies`, a `-`
+antecedent → `no`, and one the doc's own inventory missed: `says($ch,$said,plus)` →
+`says($ch,$said)`, since an arrival carries no sign any more). Then SIX behavioral fixes
+nothing anticipated: the corpus predates this session's own `_inert` removal, and porting it
+is where *an unguarded rule doesn't waste ticks, it starves* met a real corpus for the first
+time -- 6 of 19 rules (32%) needed an explicit `no <own-conclusion>` guard. One of the six
+taught something: spending `<trust-player>`'s `says(...)` fact (matching the corpus's own
+*an occasion is consumed* law) made things WORSE, because `bundle.ugm`'s `<intake>` treats
+`says` as an evergreen reading it re-derives from `arrived` whenever absent -- erasing it
+just made `<intake>` remanufacture it next tick. The fix was guarding the result
+(`no intends(...)`), not spending the reading. Verified across 14 seeds: always quiescent,
+zero wasted applications.
+
+**`no <computator>(...)`, `forget`, `alt(...)`** -- the three pieces the microprogram port
+actually needed. The computator-absence bug was real and latent (the computator branch ran
+before the sign check could ever see it) -- found while planning the port, fixed rather than
+routed around with the doc's other option (comparison operators lost on inspection: `<`/`>`
+are already claimed by `<rulename>` brackets). `forget` is a new RHS op, not load-time sugar,
+because it decomposes a dynamically-bound node's structure. `alt(...)` is a third argument to
+`implies`, compiled at LOAD into one Rule per branch (never a runtime branch), with "every
+branch must bind what the consequent uses" checked per branch and naming which one failed.
+
+**The dungeon, microprogram-shaped** -- `ugm/rules/dungeon_micro.ugm`. 19 rules → 16
+authored (17 compiled), matching this doc's own "Count" section prediction from before any
+of it was built. Verified against the control across the same 14 seeds: identical outcome
+every time.
+
+## What is still open
+
+- The wildcard absence member (`no p(*)`), `wanting.md` §9's own design, never built -- found
+  twice this session (the judger stress test, and it was already on the list).
+- `.out`/`.in` path operators, `for` loops, per-line score contributions
+  (`[+7, m:1.2]`), and the line-based grammar itself (`rule <name>` / lines / `->`, no braces
+  or commas) -- all still unbuilt, and none of them were needed to port the dungeon.
+- The old `after`/trigger statement is not deleted -- nothing depends on it any more, so it
+  is a deletion candidate, not a live one.
+- Calibration (the user's actual destination before the dungeon detour): the mechanism side
+  is fully built already -- `Frame.weights` → `_pull` → per-rule lift → `Table.order` is
+  node-keyed attention already driving rule selection, end to end. What's still missing is
+  the calibration POLICY: corpus rules that read a feedback signal (the user's proposal: want
+  satisfaction) and conclude/revise `attend(...)`. Credit assignment -- which node gets the
+  boost -- is the open design question, explicitly the corpus's business and not the
+  engine's.
+
+## Everything below is the 2026-08-22 session, unchanged
+
+
 
     python -m ugm.selftest        558 checks, 0 failing   <- was 557; one control
                                                              the suite never had
