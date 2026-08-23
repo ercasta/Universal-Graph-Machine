@@ -663,3 +663,83 @@ unreachable since the dungeon corpus was deleted.
 An unguarded MINTING rule now breeds rather than spins -- `+p` is idempotent and `new` is not.
 No diagnostic exists for it yet. The load-time note (a minting body whose antecedent has no
 absence premise and consumes nothing) is still the cheapest catch.
+
+## Built: `unmerge`, revisable only at the top of the record, 2026-08-23
+
+Suite 134/0. Nine new checks, kill-probed.
+
+`Graph.unmerge(keep, drop)` reverses a `merge` call. It is not general reversal -- it is
+scoped to exactly what can be undone without guessing, and refuses (`ValueError`, naming the
+reason) otherwise. Two conditions, both checked before anything is touched:
+
+    the most recent merge     a merge is a claim and the chain is the record of the order
+                               the claims were made in (`identity_of`'s own docstring); a
+                               later merge may already rest on this one
+    no cascade                a merge that collapses two OTHER nodes onto one key made a
+                               decision on its own -- which claim survives -- and splitting
+                               that back apart means guessing which claim the collapsed node
+                               still stands for. Refused rather than guessed, the same
+                               position the engine takes everywhere else: it computes a
+                               consequence, it does not make the choice.
+
+Both are things a caller can check in advance (`g._merge_log[-1]`), not surprises.
+
+### The bug `unmerge` found in what was already there
+
+`unmerge` puts `self._merges` back toward zero. Two places in `_mint` and `_index_for_merge`
+were keyed on that live count as a stand-in for *has identity-indexing started*, which was a
+safe equivalence right up until a count could go DOWN. A node minted in the window between an
+unmerge and the next merge fell out of `_keyed`/`_mentions` silently -- indexed as though no
+merge had ever happened -- so the next merge's cascade never found it and under-reported,
+which is a wrong answer rather than a crash and exactly the shape this package's traps
+section warns about. Fixed with a dedicated `_merge_indexed` flag that `_index_for_merge`
+sets once and `unmerge` never touches. Caught by the kill-probe for `unmerge` itself before
+`unmerge` was even the thing under test -- the cascade-refusal check went from failing to
+passing only once this was fixed, so the fix is confirmed load-bearing rather than incidental.
+
+### What this does not settle
+
+Unmerging anything but the top of the record is still not possible, by design rather than by
+gap -- reaching further back means deciding what a chain of dependent claims still means once
+one in the middle is retracted, which is a modelling question and not a mechanical one. The
+doc's own open question (*is a merge revisable, and does it belong under the gate like
+erasure?*) is answered for the mechanism -- yes, narrowly -- and left open for the second
+half: nothing routes `merge`/`unmerge` through `Gate` yet, so neither is licensed, logged, or
+callable from a rule. That is still the doc's standing finding: *no rule can call `merge` at
+all.*
+
+## Built: two LHS predicate lines, `attentioned($x)` and a label test, 2026-08-23
+
+Suite 139/0. Five new checks under §20, kill-probed.
+
+The inventory before writing anything found more of the LHS already shipped than this doc
+credited it with, under different spelling: `$z = p($x, $y)` **is** `p($x, $y) as $t`
+(`Member.binds`, already built); `no p($x)` and inline computators (`$n = calc(...)`) are
+exact matches already. What was actually missing was `attentioned($x)` and the label test,
+and both landed as one new mechanism: a **predicate**, `RuleSet.predicates`, a computator's
+cousin registered the same way (`rel -> function`) but answering a bool over the bound NODES
+rather than a value over their shown strings -- a computator's `g.show(arg)` round-trip is
+fine for arithmetic and wrong for identity, which is exactly what `attentioned`/`label` ask
+about. A predicate filters; it never binds, and `match` never pivots on one, for the
+computator's own reason (nothing to enumerate FROM).
+
+Both are reserved, not corpus-registered the way a `<dice>` computator is -- every corpus
+gets them, the way every corpus gets `no`. `attentioned` reads `Machine._attended()`, which
+already existed; `label` reads `Graph.labels_of`, which §3's build already shipped. No parser
+change was needed for either: `attentioned($x)` and `label($x, paul)` are ordinary relation
+calls, and the surface already parses those.
+
+**Not built**: `$x.label = "Paul"` dotted-attribute syntax and string literals. `label($x,
+paul)` was used instead -- an atom argument, in the corpus's existing bare-name style, with
+zero lexer changes. `.label`/`.out`/`.in` dotted access stay open, and widening them is the
+same question as the doc's own path-operator item.
+
+### The test that found its own bug
+
+The first version of the label check called `g.atom("label")` twice -- once to build the
+predicates dict key, once to build the rule's pattern -- and failed silently: `atom` does not
+intern (§3's own rule, deliberately), so the two calls mint two different nodes and the
+predicate is never found. Not an engine defect; a probe re-deriving the exact trap §10 of this
+doc already named for `g.atom("x")`. Fixed by minting each reserved atom once and reusing it,
+which is what a corpus gets for free from the loader's name table and what raw construction
+does not.

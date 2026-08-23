@@ -63,6 +63,25 @@ class Graph:
         # single boolean test rather than a dict get per member per `rel`, and
         # `rel` is the hottest call in the engine.
         self._merges = 0
+        # Whether `_keyed`/`_mentions` have started being maintained -- set
+        # once, by `_index_for_merge`, and NEVER by `unmerge`. This is
+        # deliberately not the same question as `self._merges`, which
+        # `unmerge` can put back to zero: a node minted while merges happen to
+        # be at zero (between an unmerge and the next merge) still has to be
+        # indexed, because a LATER merge needs `_mentions` to find it. Keying
+        # that on the live count instead of on *has indexing ever started* is
+        # exactly the bug `unmerge` exposed -- a node minted in that window
+        # went missing from the very index the next merge's cascade depends
+        # on, and the cascade silently under-reported.
+        self._merge_indexed = False
+        # One entry per `merge()` call, in order -- *a merge is a claim and the
+        # chain is the record of the order the claims were made in*
+        # (`identity_of`'s own docstring). This is what lets `unmerge` ask
+        # *is this the top of the record* instead of guessing. Each entry
+        # carries enough to invert the DIRECT pair's re-keying; a cascaded
+        # merge carries `None` there instead, because splitting two collapsed
+        # claims back apart is a decision the engine does not get to make.
+        self._merge_log: List[dict] = []
 
         # One index, over what was asserted rather than over what was derived
         # (§12): relation instances keyed by (rel, members) so the same
@@ -146,10 +165,21 @@ class Graph:
         self._index_for_merge()
         moved = 0
         work = [(keep, drop)]
+        # The DIRECT pair is the first thing popped. Everything pushed after
+        # that is a cascade -- a key collision `merge` decided on its own,
+        # never the caller's claim -- and `unmerge` refuses to touch it.
+        direct_seen = False
+        cascaded = False
+        direct_labels: List[str] = []
+        direct_nodes: List[Tuple[NodeId, object, object, object, object]] = []
         while work:
             x, y = work.pop()
             if x == y:
                 continue
+            is_direct = not direct_seen
+            direct_seen = True
+            if not is_direct:
+                cascaded = True
             self._identity[y] = x
             self._merges += 1
             # Labels follow identity: everything `y` answered to, `x` answers
@@ -158,6 +188,8 @@ class Graph:
                 if text not in self._labels.setdefault(x, []):
                     self._labels[x].append(text)
                 self._by_label[text] = x
+                if is_direct:
+                    direct_labels.append(text)
             # Everything whose key mentioned `y` now keys on `x` instead.
             for n in list(self._mentions.get(y, ())):
                 old = self._keyed.get(n)
@@ -175,6 +207,8 @@ class Graph:
                     # anything else already points at.
                     lo, hi = (already, n) if already < n else (n, already)
                     work.append((lo, hi))
+                    if is_direct:
+                        cascaded = True
                 else:
                     self._interned[(kr, km)] = n
                     self._by_rel.setdefault(kr, []).append(n)
@@ -184,7 +218,68 @@ class Graph:
                     self._keyed[n] = (kr, km)
                     for c in (kr,) + tuple(km):
                         self._mentions.setdefault(c, []).append(n)
+                    if is_direct:
+                        direct_nodes.append((n, okr, okm, kr, km))
                 moved += 1
+        self._merge_log.append({
+            "keep": keep, "drop": drop, "cascaded": cascaded,
+            "labels": direct_labels, "nodes": direct_nodes,
+        })
+        return moved
+
+    def unmerge(self, keep: NodeId, drop: NodeId) -> int:
+        """Undo `merge(keep, drop)`, if it is the record's own top.
+
+        Reversible only when it is the MOST RECENT merge and it caused no
+        cascade -- *a merge is a claim and the chain is the record of the
+        order the claims were made in* (`identity_of`), so undoing anything
+        but the top rests a later claim on a premise this call would remove.
+        A cascade means some OTHER pair of nodes collapsed into one as a
+        consequence of this merge; splitting that back apart means deciding
+        which of two claims a now-single node stands for, and the engine's
+        rule everywhere else is that it computes a consequence, it does not
+        make the choice (`merge`'s own docstring says the same of merging
+        itself). So a cascaded merge is refused rather than guessed at.
+
+        Refuses loudly -- `ValueError`, naming which condition failed -- on
+        the same argument as the loader's refusals: doing nothing silently
+        and doing the wrong thing silently are both worse than stopping.
+        """
+        if not self._merge_log or (self._merge_log[-1]["keep"], self._merge_log[-1]["drop"]) != (keep, drop):
+            top = self._merge_log[-1] if self._merge_log else None
+            if top is None:
+                raise ValueError("nothing has been merged")
+            raise ValueError(
+                f"can only unmerge the most recent merge, "
+                f"merge({self.show(top['keep'])}, {self.show(top['drop'])}); "
+                f"a later merge may rest on this one"
+            )
+        entry = self._merge_log[-1]
+        if entry["cascaded"]:
+            raise ValueError(
+                f"merge({self.show(keep)}, {self.show(drop)}) collapsed other "
+                "nodes together as a side effect; unmerging it would mean "
+                "deciding which claim the collapsed node still stands for, "
+                "which this engine leaves to whoever wrote the claim"
+            )
+        self._merge_log.pop()
+        moved = 0
+        for n, okr, okm, nkr, nkm in entry["nodes"]:
+            self._drop_from_index(n, nkr, nkm)
+            self._interned[(okr, okm)] = n
+            self._by_rel.setdefault(okr, []).append(n)
+            self._by_key.setdefault((okr, okm), []).append(n)
+            for i, mm in enumerate(okm):
+                self._by_arg.setdefault((okr, i, mm), []).append(n)
+            self._keyed[n] = (okr, okm)
+            moved += 1
+        for text in entry["labels"]:
+            if text in self._labels.get(keep, ()):
+                self._labels[keep].remove(text)
+            self._labels.setdefault(drop, []).append(text)
+            self._by_label[text] = drop
+        del self._identity[drop]
+        self._merges -= 1
         return moved
 
     def _index_for_merge(self) -> None:
@@ -195,7 +290,7 @@ class Graph:
         first wanted*. Maintaining it always taxed every corpus that never
         corefers; this pays O(nodes) once, for the corpus that does.
         """
-        if self._keyed:
+        if self._merge_indexed:
             return
         for n, r in self._rel.items():
             if r is None:
@@ -204,6 +299,7 @@ class Graph:
             self._keyed[n] = (kr, km)
             for x in (kr,) + tuple(km):
                 self._mentions.setdefault(x, []).append(n)
+        self._merge_indexed = True
 
     def delete(self, n: NodeId) -> None:
         """Take `n` out of the graph. The scratchpad's erase.
@@ -429,7 +525,12 @@ class Graph:
             # merge instead (`_index_for_merge`), and maintained from then on.
             # Measured rather than reasoned about: the fast path in `_key` was
             # already free, and this was the half that was not.
-            if self._merges:
+            #
+            # `_merge_indexed`, not `self._merges` -- a node minted while
+            # `unmerge` has put the live count back to zero still needs to be
+            # here for the NEXT merge's cascade to find. See the field's own
+            # comment.
+            if self._merge_indexed:
                 self._keyed[n] = (kr, km)
                 for x in (kr,) + tuple(km):
                     self._mentions.setdefault(x, []).append(n)

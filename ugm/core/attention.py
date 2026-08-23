@@ -455,7 +455,8 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 if top is not None and table.score[r.node] < top - TOLERANCE:
                     break  # the prefix ends here, and the rest is not matched
                 tried += 1
-                found = match(m.g, m.pad, r, computes=m.rules.computes)
+                found = match(m.g, m.pad, r, computes=m.rules.computes,
+                              predicates=m.rules.predicates)
                 # ...and WHICH of them, which the loop has never chosen. It
                 # takes the first survivor and breaks, so the binding was
                 # decided by the walk. Free: `found` is already here.
@@ -660,7 +661,8 @@ def _spend_posts(m: Machine, table: Table, chosen: Application,
                     mm.binds) for mm in query],
             [], f"{name}-after",
         )
-        for hit in match(m.g, m.pad, probe, computes=m.rules.computes):
+        for hit in match(m.g, m.pad, probe, computes=m.rules.computes,
+                         predicates=m.rules.predicates):
             bound = dict(chosen.bindings)
             bound.update(hit.bindings)
             _spend_one(m, table, tick, name, spends, frozen, bound,

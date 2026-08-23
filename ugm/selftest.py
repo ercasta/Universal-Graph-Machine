@@ -123,6 +123,72 @@ def labels() -> None:
           g.labelled("paul") is None)
 
 
+def unmerging() -> None:
+    """`unmerge` -- reversible only at the top of the record, and only when
+    the merge caused no cascade."""
+    print("\n§3  unmerge -- a merge is a claim, and only the record's own top "
+          "can be taken back")
+    g = Graph()
+    loves, paul, mary = g.atom("loves"), g.atom("paul"), g.atom("mary")
+    paulb = g.atom("paul-b")
+    r1 = g.rel(loves, paulb, mary)   # built off the SECOND name, before any merge
+
+    moved = g.merge(paul, paulb)
+    check("§3", "merging re-keys the relation built off the dropped name",
+          moved == 1 and g.find_rel(loves, paul, mary) == r1)
+
+    reverted = g.unmerge(paul, paulb)
+    check("§3", "unmerging puts the identity back",
+          reverted == 1 and g.identity_of(paulb) == paulb)
+    check("§3", "...and every index the merge touched, not just identity -- "
+                "the relation is findable under the ORIGINAL name again and "
+                "not under the merged one",
+          g.find_rel(loves, paulb, mary) == r1
+          and g.find_rel(loves, paul, mary) is None)
+
+    #  A CASCADE: merging `a` into `c` makes `loves(a, b)` and `loves(c, b)`
+    # collapse onto one node. That is a decision `merge` made on its own --
+    # which of two claims survives -- and `unmerge` refuses to guess it back.
+    a, b, c = g.atom("a"), g.atom("b"), g.atom("c")
+    r_ab = g.rel(loves, a, b)
+    r_cb = g.rel(loves, c, b)
+    g.merge(a, c)
+    check("§3", "a merge that collapses two OTHER nodes together is a cascade",
+          g.find_rel(loves, a, b) == g.find_rel(loves, c, b))
+    threw = False
+    try:
+        g.unmerge(a, c)
+    except ValueError:
+        threw = True
+    check("§3", "...and unmerging it is refused, loudly, rather than guessing "
+                "which claim the collapsed node still stands for",
+          threw)
+
+    #  NOT THE TOP. A later merge may already rest on an earlier one.
+    p, q, s, t = g.atom("p"), g.atom("q"), g.atom("s"), g.atom("t")
+    g.merge(p, q)
+    g.merge(s, t)
+    threw = False
+    try:
+        g.unmerge(p, q)
+    except ValueError:
+        threw = True
+    check("§3", "unmerging anything but the most recent merge is refused",
+          threw)
+    check("§3", "...and the actual top still unmerges cleanly afterwards",
+          g.unmerge(s, t) == 0 and g.identity_of(t) == t)
+
+    #  Labels move with a merge and move back with its unmerge.
+    x, y = g.atom("x"), g.atom("y")
+    g.label(x, "romance")
+    g.label(y, "romance")   # collides -- merges y into x
+    check("§3", "a label collision merged the two nodes",
+          g.labels_of(x) == ("x", "romance", "y") and g.identity_of(y) == x)
+    g.unmerge(x, y)
+    check("§3", "unmerging gives each node back its own label",
+          g.labels_of(x) == ("x", "romance") and g.labels_of(y) == ("y",))
+
+
 def relationships_are_entities() -> None:
     """`rel` interns; `instance` does not. Both are the same proposition."""
     print("\n§3  a relationship may be an entity -- interning is a write "
@@ -670,6 +736,70 @@ def attention() -> None:
           len(m2._attention) == 2)
 
 
+def reference_lines() -> None:
+    """`attentioned($x)` and a label test -- PREDICATES (`new_substrate.md`):
+    filters over an already-bound node, never matched, never bound to."""
+    print("\n§20 reference lines -- attentioned($x) is deixis (which one), "
+          "not a relevance gate")
+    corpus = ("fact +happy(paul)\nfact +happy(mary)\n"
+              "rule <r1> = implies({+happy($x), attentioned($x)}, "
+              "{+noticed($x)})")
+
+    m = Machine()
+    kb = load(m, corpus)
+    m.run(limit=5)
+    check("§20", "with nothing attended, the predicate never opens -- it "
+                 "filters a reference, it does not gate on relevance out of "
+                 "nothing",
+          not m.holds(m.g.rel(kb.atom("noticed"), kb.atom("paul")))
+          and not m.holds(m.g.rel(kb.atom("noticed"), kb.atom("mary"))))
+
+    m2 = Machine()
+    kb2 = load(m2, corpus)
+    m2._attend(kb2.atom("paul"))
+    m2.run(limit=5)
+    check("§20", "attending paul picks him out -- only the attended one is "
+                 "noticed, the other stays merely happy",
+          m2.holds(m2.g.rel(kb2.atom("noticed"), kb2.atom("paul")))
+          and not m2.holds(m2.g.rel(kb2.atom("noticed"), kb2.atom("mary"))))
+
+    #  `label`, built directly (no corpus surface for `Graph.label` yet).
+    #  `atom` never interns (§3 -- naming is local), so LABEL, the-kettle
+    #  and not-it are each minted ONCE and reused, exactly the discipline a
+    #  loader's name table exists to give a corpus for free.
+    g3 = Graph()
+    happy, kettle, paul = g3.atom("happy"), g3.atom("kettle"), g3.atom("paul")
+    g3.label(kettle, "the-kettle")
+    x = g3.var("$x")
+    LABEL = g3.atom("label")
+    the_kettle, not_it = g3.atom("the-kettle"), g3.atom("not-it")
+    pad3 = Scratchpad(g3)
+    pad3.note(g3.rel(happy, kettle))
+    pad3.note(g3.rel(happy, paul))
+    predicates = {LABEL: lambda a, b: g3.show(b) in g3.labels_of(a)}
+    r = Rule(g3.atom("<r>"),
+             [Member(ASSERT, g3.rel(happy, x)),
+              Member(ASSERT, g3.rel(LABEL, x, the_kettle))],
+             [], "r")
+    found = match(g3, pad3, r, predicates=predicates)
+    check("§20", "label($x, the-kettle) filters to the labelled one",
+          len(found) == 1 and found[0].bindings[x] == kettle)
+
+    wrong = Rule(g3.atom("<wrong>"),
+                 [Member(ASSERT, g3.rel(happy, x)),
+                  Member(ASSERT, g3.rel(LABEL, x, not_it))],
+                 [], "wrong")
+    check("§20", "...and refuses a label the node does not carry -- control",
+          match(g3, pad3, wrong, predicates=predicates) == [])
+
+    open_var = Rule(g3.atom("<open>"),
+                     [Member(ASSERT, g3.rel(LABEL, x, the_kettle))],
+                     [], "open")
+    check("§20", "a predicate whose argument nothing bound answers nothing -- "
+                 "the computator's own rule, not a special case for this one",
+          match(g3, pad3, open_var, predicates=predicates) == [])
+
+
 def frames() -> None:
     print("\n§20 frames: the attention stack and the consultation stack are "
           "one construct")
@@ -830,6 +960,7 @@ def determinism() -> None:
 def main() -> int:
     substrate()
     labels()
+    unmerging()
     relationships_are_entities()
     scratchpad()
     the_gate()
@@ -847,6 +978,7 @@ def main() -> int:
     tools()
     triggers()
     attention()
+    reference_lines()
     frames()
     experts()
     surface()

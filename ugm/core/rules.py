@@ -212,6 +212,11 @@ class RuleSet:
         # Set by the Machine, which owns the registry; a bare RuleSet has none,
         # which is what a rule set with no host functions should say.
         self.computes: Dict[NodeId, Callable] = {}
+        # Relations that are FILTERED rather than matched -- a computator's
+        # cousin, over nodes rather than shown strings, answering a bool
+        # rather than a value (`new_substrate.md`'s `attentioned($x)` and a
+        # label test). Also set by the Machine.
+        self.predicates: Dict[NodeId, Callable] = {}
         self.by_node: Dict[NodeId, "Rule"] = {}
         # Authoring a rule is an event, the way a write is. The machine
         # subscribes so that a rule becomes DATA the moment it exists rather
@@ -587,6 +592,7 @@ def match(
     rule: Rule,
     computes: Optional[Dict[NodeId, Callable]] = None,
     fresh: Optional[Sequence[NodeId]] = None,
+    predicates: Optional[Dict[NodeId, Callable]] = None,
 ) -> List[Application]:
     """Unify a rule's generic antecedent against what is anchored.
 
@@ -595,8 +601,17 @@ def match(
     whole state -- so a pass costs what changed rather than what is known. It
     is the same walk either way; only where the first member's candidates come
     from differs.
+
+    `predicates` is a computator's cousin: evaluated, not matched, arguments
+    ground by now, and the arguments are NODES rather than `computes`'s
+    strings -- a predicate is a question about identity (is this node in the
+    attention pool, does this node carry that label) that a shown-and-rebuilt
+    string cannot answer honestly. It returns a bool rather than a value: a
+    predicate line filters, it does not bind (`new_substrate.md`'s
+    `attentioned($x)` and a label test are the two this shipped for).
     """
     computes = computes or {}
+    predicates = predicates or {}
     results: List[Application] = []
     seen: set = set()
     width = len(rule.antecedent)
@@ -641,6 +656,24 @@ def match(
                     b = unify(g, want.binds, got, bindings)
                 if b is not None:
                     step(j + 1, b)
+                return
+            pfn = predicates.get(rel)
+            if pfn is not None:
+                # A predicate: same shape as a computator's ground-and-call,
+                # but it answers a bool over the NODES themselves rather than
+                # over their shown names, and it never binds -- it filters an
+                # already-bound reference, which is what a reference line is
+                # for. `as` on a predicate member is refused at load, not
+                # ignored here: see `text.py`.
+                args = [walk(g, a, bindings) for a in g.members(want.pattern)]
+                if any(g.is_var(a) for a in args):
+                    return
+                try:
+                    ok = pfn(*args)
+                except Exception:
+                    ok = False  # a predicate that raises answers no
+                if ok:
+                    step(j + 1, bindings)
                 return
             if want.sign == ABSENT:
                 # Absence, asked rather than matched: holds when nothing
@@ -692,6 +725,11 @@ def match(
             # the absent relation lands, which is this pass's job done
             # elsewhere.
             if rule.antecedent[pivot].sign == ABSENT:
+                continue
+            #  Never pivot on a predicate, for the computator's own reason: a
+            # predicate has nothing to enumerate FROM, only a reference to
+            # check once its argument is already bound.
+            if g.relation_of(rule.antecedent[pivot].pattern) in predicates:
                 continue
             run(pivot)
     return results

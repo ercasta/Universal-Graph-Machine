@@ -181,6 +181,14 @@ class Machine:
         self.SUITS = self.g.atom("suits")
         self.DECLINED = self.g.atom("declined")
         self.UNATTENDED = self.g.atom("unattended")
+        # -- reference lines (`new_substrate.md`) --------------------------
+        # `attentioned($x)` -- which one, not a relevance gate (the 08-22
+        # finding is about ORDERING moves and does not apply to picking a
+        # referent). `label($x, paul)` -- does $x carry this label. Both are
+        # PREDICATES (see `rules.match`): filters over an already-bound node,
+        # never matched, never bound to.
+        self.ATTENTIONED = self.g.atom("attentioned")
+        self.LABEL = self.g.atom("label")
 
         # -- the tool seams ------------------------------------------------
         self.ANSWERS = self.g.atom("answers")
@@ -240,6 +248,7 @@ class Machine:
             "pushed": self.PUSHED, "popped": self.POPPED,
             "suits": self.SUITS,
             "declined": self.DECLINED, "unattended": self.UNATTENDED,
+            "attentioned": self.ATTENTIONED, "label": self.LABEL,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "computes": self.COMPUTES,
             "loaded": self.LOADED, "scoped": self.SCOPED,
@@ -324,6 +333,14 @@ class Machine:
         # installs it -- a bundle rule is nameable from the corpus that is
         # loading it, including the bundle itself.
         self.bundle: List[Rule] = []
+
+        #  Not corpus-registered, the way a `<dice>` computator is -- these
+        # are language, not a tool: every corpus gets them, the way every
+        # corpus gets `no`.
+        self.rules.predicates[self.ATTENTIONED] = (
+            lambda x: x in self._attended())
+        self.rules.predicates[self.LABEL] = (
+            lambda x, text: self.g.show(text) in self.g.labels_of(x))
 
         self.rules.claims = self._claims
         self.rules.DORMANT = self.DORMANT
@@ -1233,7 +1250,8 @@ class Machine:
                 continue  # a trigger does not intercept itself
             asked = self._producing(app, pending)
             try:
-                found = match(self.g, self.pad, t, computes=self.rules.computes)
+                found = match(self.g, self.pad, t, computes=self.rules.computes,
+                              predicates=self.rules.predicates)
             finally:
                 for node in asked:
                     self.gate.erase(node)
