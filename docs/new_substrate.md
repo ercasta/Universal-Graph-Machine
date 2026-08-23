@@ -876,3 +876,48 @@ Both are the same species as the label-predicate test's own `g.atom`
 double-mint earlier this session: the code was right and the harness
 was not, and the fix each time was to make the check FAIL when the
 feature is disabled, not merely pass when it works.
+
+## Fixed: attention was two mechanisms, one of them wrong, 2026-08-23
+
+Suite 149/0 -> 150/0. Three checks rewritten, one added, both fixes
+kill-probed.
+
+Caught in review, not found by measurement: `+attention(x, n)` was a
+BELIEVED PROPOSITION, read generically by `_claimed_attention` alongside
+the RHS's own frame-local queue. Two problems, not one.
+
+**Category error.** Attention is control -- which rule runs next -- not
+world knowledge, the same distinction the RHS/trigger split exists to keep
+(`new_substrate.md`, this session, earlier). A rule could write
+`+attention($x, 5)` directly in its own declarative consequent and it would
+silently affect arbitration, with no imperative op involved at all -- a
+second, ungoverned door into scheduling state beside the RHS's `attend`.
+
+**It was already broken on its own terms.** `_attend` (which the RHS
+`attend($x, n)` op calls) wrote the belief WITHOUT the weight --
+`self.g.rel(self.ATTENTION, node)`, one argument -- so the weighted,
+2-argument form `_claimed_attention` reads was reachable ONLY by a rule
+authoring `+attention($x, n)` directly. `attend($x, 3)` in the RHS tail
+affected the QUEUE's position weight and never the standing one at all.
+
+**Fixed: attention is engine state, scoped to the frame, full stop.**
+`Frame.weights: Dict[NodeId, int]` replaces the belief. `_attend` sets it
+directly; popping a frame discards it for free along with the Frame object
+-- no erase loop, because there is nothing believed to erase. The
+"not readable by any rule" argument the old code made for using belief is
+answered differently now than it could have been when written:
+`attentioned($x)` (built this session, a PREDICATE) lets a rule ask without
+the engine's scheduling state living in the graph.
+
+**A capability that was belief-only survived the move.** Negative weights
+(*a reason not to think about that*) were only reachable by directly
+authoring `+attention($x, -5)`; the RHS `attend(...)` grammar only parsed a
+bare digit. Widened to accept a signed numeral, so the one remaining path
+can say everything the two paths together used to.
+
+Three existing checks in `attention()`/`frames()` asserted on the belief
+directly and were rewritten to assert on `Frame.weights`; a fourth checks
+the negative-weight parse. Kill-probed: disabling the `weights` write and
+disabling the `-` parse both fail their checks (the parse kill-probe
+crashes the loader outright, the same strong signal the tail syntax's own
+kill-probe produced).

@@ -435,11 +435,21 @@ class Parser:
                 # `attend($x, 3)` says *of what this move touched, that one
                 # matters* -- a multiplier on its place in the attention queue.
                 self.next()
+                sign = 1
+                if self.at("-"):
+                    # A NEGATIVE weight -- *this is a reason not to think about
+                    # that*, read by magnitude at the standing side and never
+                    # reaching the queue (`_push_attention` floors it at 1;
+                    # only `Frame.weights` sees the sign). It cannot push a
+                    # rule out -- a lift orders and never removes, and that is
+                    # `dormant`'s job.
+                    self.next()
+                    sign = -1
                 n = self.next()
                 if not n.text.isdigit():
                     raise ParseError(
                         f"line {n.line}: how much to attend is a numeral")
-                weight = int(n.text)
+                weight = sign * int(n.text)
             self.expect(")")
             return (Attend(target, weight), 0)
         if t.kind == "name" and t.text == "push":

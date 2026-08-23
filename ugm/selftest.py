@@ -708,12 +708,16 @@ def triggers() -> None:
 
 
 def attention() -> None:
-    print("\n§20 attention: a queue, and a claim rather than a field")
+    print("\n§20 attention: a queue, and engine state rather than a belief")
     m = Machine()
     kb = load(m, "fact +p(a)\nfact +p(b)")
     m._attend(kb.atom("a"))
-    check("§20", "attending is a CLAIM, so *why am I thinking about this* is "
-                 "answerable", m.holds(m.g.rel(m.ATTENTION, kb.atom("a"))))
+    check("§20", "attending is frame-scoped ENGINE state, not a proposition "
+                 "the graph believes -- attention is control, not world "
+                 "knowledge, and `attentioned($x)` is how a rule asks "
+                 "without it being one",
+          kb.atom("a") in m._frames[-1].weights
+          and not m.holds(m.g.rel(m.ATTENTION, kb.atom("a"))))
     m._attend(kb.atom("b"))
     check("§20", "the queue is newest first -- position is the gradient",
           m._attended()[:2] == [kb.atom("b"), kb.atom("a")])
@@ -722,9 +726,11 @@ def attention() -> None:
           m._attended()[:2] == [kb.atom("a"), kb.atom("b")]
           and len(m._attention) == 2)
     dropped = m._unattend()
-    check("§20", "unattending ERASES the claims -- dropping a Python set is "
-                 "not readable by any rule and cannot be argued with",
-          dropped >= 2 and not m.holds(m.g.rel(m.ATTENTION, kb.atom("a"))))
+    check("§20", "unattending clears both the queue and the standing "
+                 "weights -- a plain dict/list clear now, not an erase loop, "
+                 "because there is no belief left to erase",
+          dropped >= 2 and not m._frames[-1].weights
+          and not m._attention)
 
     #  The span is a knob a corpus turns.
     m2 = Machine()
@@ -826,6 +832,18 @@ def rhs_tail() -> None:
     check("§20", "...and a rule with no tail attends nothing beyond what the "
                  "loop attends on its own -- control",
           (kb2.atom("paul"), 3) not in m2._attention)
+
+    m1b = Machine()
+    kb1b = load(m1b, "fact +bad(x)\n"
+                     "rule <r1> = implies({+bad($z)}, {+seen($z)}) "
+                     "=> attend($z, -5)")
+    m1b.run(limit=3)
+    check("§20", "a NEGATIVE weight parses too -- *a reason not to think "
+                 "about that*, read by magnitude on the standing side and "
+                 "never reaching the queue position (`_push_attention` "
+                 "floors it at 1)",
+          m1b._frames[-1].weights.get(kb1b.atom("x")) == -5
+          and dict(m1b._attention).get(kb1b.atom("x"), 0) >= 1)
 
     m3 = Machine()
     kb3 = load(m3, "fact +happy(paul)\nfact +happy(mary)\n"
@@ -953,12 +971,14 @@ def frames() -> None:
           and any(m.g.relation_of(p) is m.DECLINED for p in m.pad.believed()))
     m._pop_frame(kb.atom("answer"))
     check("§20", "a pop returns to the frame below", len(m._frames) == depth)
-    check("§20", "...and the frame's own attention claims are ERASED, or a "
-                 "suspension would leak the thing it exists to put away",
-          not m.holds(m.g.rel(m.ATTENTION, kb.atom("a"))))
-    check("§20", "...while the node it carried back IS attended, which is the "
-                 "attention-level analogue of a return value",
-          m.holds(m.g.rel(m.ATTENTION, kb.atom("answer"))))
+    check("§20", "...and the popped frame's own standing weights are GONE "
+                 "with it -- discarded along with the Frame object, not "
+                 "erased from a belief -- or a suspension would leak the "
+                 "thing it exists to put away",
+          kb.atom("a") not in m._frames[-1].weights)
+    check("§20", "...while the node it carried back IS attended, which is "
+                 "the attention-level analogue of a return value",
+          kb.atom("answer") in m._frames[-1].weights)
     m._pop_frame()
     check("§20", "the root is not popped; it is declined",
           len(m._frames) == depth)

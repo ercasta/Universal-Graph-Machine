@@ -93,14 +93,15 @@ class Frame:
     The graph is untouched by push and pop. This is not a transaction, there is
     no rollback, and nothing derived inside a frame stops existing when it is
     popped. Attention management is the whole of this. The one thing a pop does
-    take back is the frame's own `attention` claims, and it ERASES them.
+    take back is the frame's own STANDING weights, and it does so simply by
+    being discarded with the frame -- there is nothing to erase separately.
 
     The expert is held by NAME -- a node -- never as a frozen rule list, and
     `_expert_pool` is read on demand: `knows($e, $r)` can be CONCLUDED mid-run
     by an ordinary rule, and a pool frozen at push time could not see one.
     """
 
-    __slots__ = ("queue", "expert", "table", "on", "claimed")
+    __slots__ = ("queue", "expert", "table", "on", "weights")
 
     def __init__(self, expert: Optional[NodeId] = None, on=()) -> None:
         self.queue: List[Tuple[NodeId, int]] = []
@@ -110,9 +111,19 @@ class Frame:
         self.expert = expert
         self.table = None
         self.on: Tuple[NodeId, ...] = tuple(on)
-        # What this frame claimed `attention` of, so a pop can take back
-        # exactly what it claimed and nothing the frame below claimed.
-        self.claimed: List[NodeId] = []
+        # STANDING attention, by MAGNITUDE rather than position -- what
+        # `attend($x, n)` means beside pushing `$x` onto `queue`. This used to
+        # be a believed `attention(x, n)` proposition, argued for on the
+        # ground that *dropping a Python set is not readable by any rule and
+        # cannot be argued with*. It is engine state instead: attention is
+        # control, not world knowledge, the same category error the RHS/
+        # trigger split exists to keep out of a rule's declarative side
+        # (`new_substrate.md`), and the "not readable" objection is answered
+        # differently now -- `attentioned($x)` (a PREDICATE, not a belief)
+        # lets a rule ask without the engine's scheduling state living in the
+        # graph. Popped for free: this dict goes with the Frame object, no
+        # erase loop needed.
+        self.weights: Dict[NodeId, int] = {}
 
 
 class Machine:
@@ -548,11 +559,11 @@ class Machine:
         `pop($x)` carries one node back: the attention-level analogue of a
         return value.
 
-        The frame's own `attention` claims are ERASED, and nothing else is
+        The frame's own standing weights go with it, and nothing else is
         touched. Everything the frame concluded stands -- popping a set of
         graph changes is a different feature, it does not exist, and it is not
-        wanted. Erased rather than left standing, because a claim the frame
-        made would go on lifting rules from the bottom of `_attended()` for the
+        wanted. Gone rather than left standing, because a weight the frame set
+        would go on lifting rules from the bottom of `_attended()` for the
         rest of the run, and the suspension would leak the very thing it exists
         to put away.
         """
@@ -563,8 +574,6 @@ class Machine:
             self._declined_frame(self.POPPED, node, "at_root")
             return False
         frame = self._frames.pop()
-        for n in frame.claimed:
-            self.gate.erase(self.g.rel(self.ATTENTION, n))
         if node is not None and not self.g.has_var(node):
             self._attend(node)
         if frame.expert is not None and node is not None:
@@ -707,16 +716,14 @@ class Machine:
 
     def _attend(self, node: NodeId, weight: int = 1) -> bool:
         """*Think about this one.* -- what a postcondition spends when it
-        attends, and an ordinary claim when it lands. A claim rather than a
-        field on the loop, so *why am I thinking about this* is answerable."""
+        attends, and an ordinary claim when it lands. Engine state, scoped to
+        the frame -- see `Frame.weights`'s own comment for why this is not a
+        believed proposition. True if this changed the standing weight."""
         self._push_attention(node, weight)
-        prop = self.g.rel(self.ATTENTION, node)
-        if self._claims(prop):
+        weights = self._frames[-1].weights
+        if weights.get(node) == weight:
             return False
-        self._note(prop)
-        # Recorded against the frame that made it, so a pop takes back exactly
-        # what its own line of work claimed.
-        self._frames[-1].claimed.append(node)
+        weights[node] = weight
         return True
 
     def _attend_written(self, wrote) -> None:
@@ -777,16 +784,15 @@ class Machine:
     def _unattend(self) -> int:
         """Stop thinking about whatever it was -- `reset`, for attention.
 
-        ERASED, not dropped in Python: dropping a Python set is not readable by
-        any rule and cannot be argued with. And something must say it --
-        attention accumulates otherwise, and attention that names everything
-        narrows nothing.
+        Both the queue and the standing weights, cleared -- something must say
+        it, or attention accumulates and attention that names everything
+        narrows nothing. Plain dict/list clears now, not an erase loop: this
+        is frame-scoped engine state (`Frame.weights`'s own comment), not a
+        belief a corpus could be reading.
         """
-        dropped = 0
+        dropped = len(self._attended())
         self._attention = []
-        for node in self._attended():
-            if self.gate.erase(self.g.rel(self.ATTENTION, node)):
-                dropped += 1
+        self._frames[-1].weights.clear()
         return dropped
 
     def _attended(self) -> List[NodeId]:
@@ -794,11 +800,11 @@ class Machine:
 
         The QUEUE first, newest at the front, because position is the gradient:
         what the agent turned to last is what it is most about. A standing
-        claim not in the queue goes at the BOTTOM -- lasting and recent are
+        weight not in the queue goes at the BOTTOM -- lasting and recent are
         different claims, and the queue is about the second.
         """
         out: List[NodeId] = [n for n, _w in self._attention]
-        for node, _weight in self._claimed_attention():
+        for node in self._frames[-1].weights:
             if node not in out:
                 out.append(node)
         return out
@@ -812,11 +818,14 @@ class Machine:
         shortlist -- an agent quiesced 32 moves early because a queue full of
         the last move's nodes decided which rules were matched at all.
 
-        GRAPH order for the tail, never a set: which standing claim lifts
-        hardest must not be decided by how many atoms the machinery happened to
-        mint before the corpus was loaded.
+        CLAIM order for the tail, never a set: which standing claim lifts
+        hardest must not be decided by how many atoms the machinery happened
+        to mint before the corpus was loaded -- and it no longer is, now that
+        the claim order is `weights`'s own insertion order rather than a scan
+        over the graph in mint order, which is what this docstring used to
+        have to rule out rather than simply not produce.
         """
-        claimed = [n for n, _w in self._claimed_attention()]
+        claimed = list(self._frames[-1].weights)
         want = set(claimed)
         out = [n for n, _w in self._attention if n in want]
         for n in claimed:
@@ -824,35 +833,12 @@ class Machine:
                 out.append(n)
         return out
 
-    def _claimed_attention(self) -> List[Tuple[NodeId, int]]:
-        """Every standing `attention` claim, as `(node, weight)`, in graph
-        order. A weight that is not a numeral is ignored rather than refused:
-        `attention(x, soon)` is a claim about when, not about how much."""
-        out: List[Tuple[NodeId, int]] = []
-        for node in self.g.instances_of(self.ATTENTION):
-            members = self.g.members(node)
-            if not 1 <= len(members) <= 2 or self.g.has_var(members[0]):
-                continue
-            if not self._claims(node):
-                continue
-            weight = 1
-            if len(members) == 2:
-                name = self.g.show(members[1])
-                # A weight may be NEGATIVE: *this is a reason not to think
-                # about that*. It cannot push a rule out -- a lift orders and
-                # never removes, and that is `dormant`'s job.
-                signed = name[1:] if name.startswith("-") else name
-                if signed.isdigit():
-                    weight = -int(signed) if name.startswith("-") else int(signed)
-            out.append((members[0], weight))
-        return out
-
     def _attention_weights(self) -> dict:
         """Node -> its multiplier, for the lift. The STRONGER of the two, never
         the sum: a node both queued and claimed is not twice as salient, and
         adding them would make the weight a popularity count."""
         out = {n: w for n, w in self._attention}
-        for node, weight in self._claimed_attention():
+        for node, weight in self._frames[-1].weights.items():
             # By MAGNITUDE, not by value: a claimed `-5` is a stronger signal
             # than a queued `+1`, and comparing by value would let any lift at
             # all bury something that says *not this*.
