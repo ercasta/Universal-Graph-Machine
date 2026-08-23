@@ -814,3 +814,65 @@ trigger the tree actually has. It does **not** cover:
 The old `after`/trigger statement is not deleted. Nothing depends on it, so
 it is a deletion candidate rather than a live dependency, but that is a
 separate, small, low-risk cleanup and not done here.
+
+## Built: the RHS reaches identity and structure, 2026-08-23
+
+Suite 142/0 -> 149/0. Eight new checks, five kill-probed individually
+(merge/unmerge as one unit, destroy, label/unlabel as one unit).
+
+`merge($a, $b)`, `unmerge($a, $b)`, `destroy($e)`, `label($z, paul)`,
+`unlabel($z, paul)` -- five new tail ops, closing the doc's own repeated
+finding: *no rule can call `merge` at all.* All five reuse the SAME `spend()`
+grammar and `_build_spends` builder the RHS tail already had, so `call`
+is not needed for them and none of the three surfaces (parser, builder,
+executor) needed a second code path.
+
+`merge`/`unmerge` take (keep, drop) -- `Graph.merge`'s own argument order.
+`unmerge` reached through a rule refuses exactly as it does called by hand:
+not-the-top and cascaded are both still `ValueError`, and the RHS does not
+catch it -- an author's mistake surfaces rather than being absorbed, the
+same standing this repo takes on a run limit. `destroy` is `Graph.delete`,
+with the hazard `wanting.md` §7 measured (only the anchor is a safe
+deletion target) stated on the class rather than fenced -- wrapping a
+danger in a microprogram op does not make it safe. `label`/`unlabel` are a
+ground atom argument, the corpus's existing bare-name style; there is still
+no string-literal syntax and none was needed.
+
+### A real bug `destroy` found: `has_var` did not survive its own node dying
+
+`Graph.has_var` indexed `self._has_var[n]` directly. `Graph.delete` clears
+that entry along with everything else it owns. An UNGUARDED rule --
+nothing stops `<r1>` re-matching `+junk(trash)` forever -- reground `$x` to
+the now-deleted node on its second tick and `has_var` raised `KeyError`
+instead of answering. `relation_of`'s own docstring already states the
+contract every reader here has to keep: *dangling references can stay is
+only true if reading one answers rather than raises.* `has_var` was the one
+place that still raised. Fixed: `.get(n, False)`.
+
+This is the erasure-is-not-local hazard `wanting.md` §5 flagged as *wants a
+probe of its own under anchors* and 3b listed as still open, arriving on
+schedule the first time `destroy` was actually exercised rather than
+reasoned about.
+
+### Two checks that could not fail, caught before they shipped
+
+Both by kill-probing the checks themselves, not by inspection.
+
+`trash` was a bare ATOM. `relation_of` on an atom is `None` by construction,
+deleted or not, so `m.g.relation_of(trash) is None` cannot distinguish
+*destroyed* from *never had a relation to begin with* -- it would have
+stayed green with `destroy` disabled entirely. Fixed with `g.show(trash) ==
+f"#{trash}(erased)"`, the format `delete` actually produces, checked for
+every node kind.
+
+`unlabel($x, $t)` in the SAME tail as `label($x, $t)` has an unobservable
+middle: if BOTH ops are silently disabled, "the label is not there
+afterward" is exactly as true as if both worked. Fixed by staging two rules
+across two ticks (`<r1>` labels, `<r2>` unlabels once `<r1>` has run) so the
+label's presence is checked BETWEEN them -- an intermediate observation the
+one-tail version could not offer no matter how it was worded.
+
+Both are the same species as the label-predicate test's own `g.atom`
+double-mint earlier this session: the code was right and the harness
+was not, and the fix each time was to make the check FAIL when the
+feature is disabled, not merely pass when it works.

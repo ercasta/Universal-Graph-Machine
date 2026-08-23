@@ -115,6 +115,86 @@ class Pop:
         return f"pop({self.term})"
 
 
+class Merge:
+    """`merge($a, $b)` -- `$b` counts as `$a` from here on (`Graph.merge`).
+
+    The doc's own strongest argument for a microprogram: `merge` is built,
+    `unify` and the scratchpad both respect it, and no rule could call it --
+    an effect `+`/`-` provably cannot express. `$a` is KEEP, `$b` is DROP, the
+    same order `Graph.merge` takes; a rule authors the claim, the engine only
+    computes its consequence (`merge`'s own docstring).
+    """
+
+    def __init__(self, keep, drop) -> None:
+        self.keep = keep
+        self.drop = drop
+
+    def __repr__(self) -> str:
+        return f"merge({self.keep}, {self.drop})"
+
+
+class Unmerge:
+    """`unmerge($a, $b)` -- undo `merge($a, $b)`, if it is the record's own
+    top and caused no cascade (`Graph.unmerge`). Refuses (`ValueError`)
+    rather than guess otherwise; the RHS does not catch it, the same way a
+    rule that mints past a run limit is not caught -- an author's mistake
+    should stop the run, not be absorbed."""
+
+    def __init__(self, keep, drop) -> None:
+        self.keep = keep
+        self.drop = drop
+
+    def __repr__(self) -> str:
+        return f"unmerge({self.keep}, {self.drop})"
+
+
+class Destroy:
+    """`destroy($e)` -- take a node out of the graph entirely (`Graph.delete`).
+
+    Structural, not belief: `-p` erases an ANCHOR and leaves the proposition
+    for other rules to mention; `destroy` removes the node itself. The
+    hazard `wanting.md` §7 measured stands unchanged by wrapping it in a
+    microprogram op -- *the only safe target is the anchor* -- so this is
+    for entities the corpus has established nothing else still mentions, an
+    authoring discipline the engine does not enforce.
+    """
+
+    def __init__(self, term) -> None:
+        self.term = term
+
+    def __repr__(self) -> str:
+        return f"destroy({self.term})"
+
+
+class Label:
+    """`label($z, paul)` -- give `$z` the label `paul` (`Graph.label`).
+
+    A LABEL is a claim of identity and may itself merge two nodes -- see
+    `Graph.label`'s own docstring -- so this can be a merge wearing a
+    shorter name. `text` is a ground atom, in the corpus's existing bare-name
+    style; there is no string-literal syntax to spell `"paul"` with.
+    """
+
+    def __init__(self, term, text) -> None:
+        self.term = term
+        self.text = text
+
+    def __repr__(self) -> str:
+        return f"label({self.term}, {self.text})"
+
+
+class Unlabel:
+    """`unlabel($z, paul)` -- take the label back (`Graph.unlabel`). Does
+    NOT unmerge: see `Graph.unlabel`'s own docstring."""
+
+    def __init__(self, term, text) -> None:
+        self.term = term
+        self.text = text
+
+    def __repr__(self) -> str:
+        return f"unlabel({self.term}, {self.text})"
+
+
 class Member(NamedTuple):
     """One entry in a rule's antecedent or consequent.
 

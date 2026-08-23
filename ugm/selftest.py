@@ -839,6 +839,102 @@ def rhs_tail() -> None:
           steps[-1].state == "stopped" and noticed == 1)
 
 
+def rhs_graph_ops() -> None:
+    """`merge`/`unmerge`/`destroy`/`label`/`unlabel` in the RHS tail --
+    Graph.merge's own docstring calls this *an effect `+`/`-` provably
+    cannot express, already built, unreachable from a rule*. This closes
+    that gap."""
+    print("\n§20 the RHS reaches identity and structure -- merge, unmerge, "
+          "destroy, label, unlabel, all callable from a rule for the "
+          "first time")
+
+    m = Machine()
+    kb = load(m, "fact +sameas(loves, adores)\n"
+                 "rule <r1> = implies({+sameas($a, $b)}, {+seen($a)}) "
+                 "=> merge($a, $b)")
+    m.run(limit=5)
+    check("§20", "merge($a, $b) in the tail merges the rule's OWN bindings",
+          m.g.identity_of(kb.atom("adores")) == kb.atom("loves"))
+
+    #  Two pairs, GUARDED -- the point is the op, not a fixture that starves
+    #  itself the way an unguarded rule always does (§ built this session).
+    m2 = Machine()
+    kb2 = load(m2, "fact +sameas(a, b)\nfact +sameas(a, c)\n"
+                   "rule <r1> = implies({+sameas($x, $y), "
+                   "no processed($x, $y)}, {+processed($x, $y)}) "
+                   "=> merge($x, $y)")
+    m2.run(limit=10)
+    a2, b2, c2 = kb2.atom("a"), kb2.atom("b"), kb2.atom("c")
+    check("§20", "...and a guarded rule applies it across every pair, not "
+                 "just the one that wins the first tick",
+          m2.g.identity_of(b2) == a2 and m2.g.identity_of(c2) == a2)
+
+    m3 = Machine()
+    kb3 = load(m3, "fact +wants_label(kettle, the-kettle)\n"
+                   "rule <r1> = implies({+wants_label($x, $t)}, {+seen($x)}) "
+                   "=> label($x, $t)")
+    m3.run(limit=5)
+    check("§20", "label($x, $t) reaches `Graph.label` from a rule",
+          "the-kettle" in m3.g.labels_of(kb3.atom("kettle")))
+
+    #  Two rules, staged, so the label's PRESENCE is observable between them
+    #  -- `unlabel` removing a label nothing added is a check that cannot
+    #  fail, the same trap `destroy`'s check below was caught making.
+    m4 = Machine()
+    kb4 = load(m4, "fact +wants_label(kettle, the-kettle)\n"
+                   "rule <r1> = implies({+wants_label($x, $t), "
+                   "no labelled($x, $t)}, {+labelled($x, $t)}) "
+                   "=> label($x, $t)\n"
+                   "rule <r2> = implies({+labelled($x, $t), "
+                   "no unlabelled($x, $t)}, {+unlabelled($x, $t)}) "
+                   "=> unlabel($x, $t)")
+    m4.run(limit=1)
+    check("§20", "...between the two, the label really is there",
+          "the-kettle" in m4.g.labels_of(kb4.atom("kettle")))
+    m4.run(limit=5)
+    check("§20", "unlabel($x, $t) takes back a label `label` actually added",
+          "the-kettle" not in m4.g.labels_of(kb4.atom("kettle")))
+
+    #  `destroy` on an UNGUARDED rule: nothing stops `<r1>` re-applying every
+    #  tick against the same `+junk(trash)`, which regrounds `$x` to a node
+    #  `destroy` already deleted -- the exact case that found `has_var`
+    #  raising `KeyError` on a deleted node instead of answering `False`,
+    #  same as `relation_of`'s own contract. Left unguarded on purpose: a
+    #  guarded fixture would not exercise the regrounding at all.
+    m5 = Machine()
+    kb5 = load(m5, "fact +junk(trash)\n"
+                   "rule <r1> = implies({+junk($x)}, {+seen($x)}) "
+                   "=> destroy($x)")
+    m5.run(limit=5)
+    trash = kb5.atom("trash")
+    #  `trash` is a bare ATOM: `relation_of` on one is None by construction,
+    #  deleted or not -- a check against it cannot fail, the trap this repo
+    #  keeps a named list of. `show` is what `delete` actually changes for
+    #  every node kind, atom included.
+    check("§20", "destroy($x) reaches `Graph.delete` -- the node is gone, "
+                 "not merely un-believed -- and a later unguarded "
+                 "re-application, regrounding the same binding to the now- "
+                 "deleted node, does not crash the run",
+          m5.g.show(trash) == f"#{trash}(erased)")
+
+    m6 = Machine()
+    kb6 = load(m6, "fact +sameas(a, b)\nfact +sameas(a, c)\n"
+                   "rule <r1> = implies({+sameas($x, $y), "
+                   "no processed($x, $y)}, {+processed($x, $y)}) "
+                   "=> merge($x, $y)")
+    m6.run(limit=10)
+    a6, b6, c6 = kb6.atom("a"), kb6.atom("b"), kb6.atom("c")
+    threw = False
+    try:
+        m6.g.unmerge(a6, b6)  # the OLDER merge -- (a, c) is the record's top
+    except ValueError:
+        threw = True
+    check("§20", "`unmerge` in Python still refuses a non-top merge reached "
+                 "THROUGH the RHS the same way it refuses one built by hand "
+                 "-- one engine, not two",
+          threw and m6.g.identity_of(b6) == a6)
+
+
 def frames() -> None:
     print("\n§20 frames: the attention stack and the consultation stack are "
           "one construct")
@@ -1019,6 +1115,7 @@ def main() -> int:
     attention()
     reference_lines()
     rhs_tail()
+    rhs_graph_ops()
     frames()
     experts()
     surface()

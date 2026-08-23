@@ -21,8 +21,8 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .graph import NodeId
 from .machine import Machine, Step
-from .rules import (STOP, UNATTEND, Application, Attend, Member, Pop, Push,
-                    Rule, match, substitute)
+from .rules import (STOP, UNATTEND, Application, Attend, Destroy, Label, Member,
+                    Merge, Pop, Push, Rule, Unlabel, Unmerge, match, substitute)
 
 # A rule the bundle marks `standing` is in the table at the default; everything
 # else is in it at the floor. The author's own correction to an earlier sketch:
@@ -628,6 +628,33 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
             node = _ground(m, table, target.term, bindings)
             m._pop_frame(node if node is not None and not m.g.has_var(node)
                          else None)
+            continue
+        if isinstance(target, (Merge, Unmerge)):
+            # Identity. Ground only, like `attend` -- a claim about a
+            # variable nothing bound has nothing to merge -- but a
+            # `ValueError` `Graph.unmerge` raises (not the top of the
+            # record, or it cascaded) is NOT caught here: that is an
+            # author's mistake surfacing, the same standing this repo takes
+            # on a run limit rather than absorbing the symptom.
+            keep = _ground(m, table, target.keep, bindings)
+            drop = _ground(m, table, target.drop, bindings)
+            if (keep is not None and not m.g.has_var(keep)
+                    and drop is not None and not m.g.has_var(drop)):
+                (m.g.merge if isinstance(target, Merge) else m.g.unmerge)(
+                    keep, drop)
+            continue
+        if isinstance(target, Destroy):
+            node = _ground(m, table, target.term, bindings)
+            if node is not None and not m.g.has_var(node):
+                m.g.delete(node)
+            continue
+        if isinstance(target, (Label, Unlabel)):
+            node = _ground(m, table, target.term, bindings)
+            text = _ground(m, table, target.text, bindings)
+            if (node is not None and not m.g.has_var(node)
+                    and text is not None and not m.g.has_var(text)):
+                (m.g.label if isinstance(target, Label) else m.g.unlabel)(
+                    node, m.g.show(text))
             continue
         if target is UNATTEND:
             m._unattend()

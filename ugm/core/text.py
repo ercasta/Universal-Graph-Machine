@@ -12,8 +12,8 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from .graph import NodeId
 from .machine import Machine
-from .rules import (ABSENT, ASSERT, ERASE, IMPLIES, STOP, UNATTEND, Attend, Member, Pop,
-                    Push)
+from .rules import (ABSENT, ASSERT, ERASE, IMPLIES, STOP, UNATTEND, Attend, Destroy,
+                    Label, Member, Merge, Pop, Push, Unlabel, Unmerge)
 
 # The two modes the surface writes. `?` is gone: absence is ignorance, so
 # there is nothing left for a third mark to say. `-` is a CONSEQUENT mode --
@@ -469,10 +469,41 @@ class Parser:
             target = self.term()
             self.expect(")")
             return (Pop(target), 0)
+        if t.kind == "name" and t.text in ("merge", "unmerge"):
+            # `merge($a, $b)` / `unmerge($a, $b)` -- identity, the doc's own
+            # strongest argument for a microprogram: an effect `+`/`-`
+            # provably cannot express, already built, and unreachable from a
+            # rule until this. `$a` is KEEP, `$b` is DROP -- `Graph.merge`'s
+            # own order.
+            self.expect("(")
+            keep = self.term()
+            self.expect(",")
+            drop = self.term()
+            self.expect(")")
+            cls = Merge if t.text == "merge" else Unmerge
+            return (cls(keep, drop), 0)
+        if t.kind == "name" and t.text == "destroy":
+            # Structural, not belief -- see `Destroy`'s own docstring for the
+            # hazard this does not fence.
+            self.expect("(")
+            target = self.term()
+            self.expect(")")
+            return (Destroy(target), 0)
+        if t.kind == "name" and t.text in ("label", "unlabel"):
+            # `label($z, paul)` -- a bare atom, the corpus's existing
+            # bare-name style; there is no string-literal syntax.
+            self.expect("(")
+            target = self.term()
+            self.expect(",")
+            text = self.term()
+            self.expect(")")
+            cls = Label if t.text == "label" else Unlabel
+            return (cls(target, text), 0)
         raise ParseError(
-            f"line {t.line}: a postcondition spends attention, so it says "
-            f"`attend(...)`, `unattend`, `stop`, `push(...)` or `pop(...)`, "
-            f"not {t.text!r}"
+            f"line {t.line}: a postcondition spends attention or the graph, "
+            f"so it says `attend(...)`, `unattend`, `stop`, `push(...)`, "
+            f"`pop(...)`, `merge(...)`, `unmerge(...)`, `destroy(...)`, "
+            f"`label(...)` or `unlabel(...)`, not {t.text!r}"
         )
 
     def block(self) -> Tuple[RuleMember, ...]:
@@ -801,21 +832,36 @@ class Loader:
                       self.build(mm.binds, scope) if mm.binds else None)
             for mm in clause.query
         )
-        spends = tuple(
-            # `STOP` is a stop and `UNATTEND` a clearing; neither is a term, so
-            # neither goes through `build`. An `attend` IS one, and it is built
-            # in the host rule's scope like everything else here -- which is what
-            # makes `attend($x)` *that* `$x`.
+        spends = self._build_spends(clause.spends, scope)
+        self.m.rules.triggers.setdefault(
+            None if host is None else host.node, []
+        ).append((query, spends, clause.frozen, clause.learned))
+
+    def _build_spends(self, raw_spends, scope: Dict[str, NodeId]):
+        """Ops as written -> ops as built, in one scope.
+
+        `STOP` and `UNATTEND` are not terms, so neither goes through `build`.
+        Everything else IS one, built in the SAME scope as the host rule's
+        own antecedent and consequent -- which is what makes `attend($x)`
+        *that* `$x`, and `merge($a, $b)` those two, not fresh ones.
+        """
+        return tuple(
             (t if t is STOP or t is UNATTEND
              else Push(tuple(self.build(x, scope) for x in t.terms))
              if isinstance(t, Push)
              else Pop(self.build(t.term, scope)) if isinstance(t, Pop)
+             else Merge(self.build(t.keep, scope), self.build(t.drop, scope))
+             if isinstance(t, Merge)
+             else Unmerge(self.build(t.keep, scope), self.build(t.drop, scope))
+             if isinstance(t, Unmerge)
+             else Destroy(self.build(t.term, scope)) if isinstance(t, Destroy)
+             else Label(self.build(t.term, scope), self.build(t.text, scope))
+             if isinstance(t, Label)
+             else Unlabel(self.build(t.term, scope), self.build(t.text, scope))
+             if isinstance(t, Unlabel)
              else Attend(self.build(t.term, scope), t.weight), delta)
-            for t, delta in clause.spends
+            for t, delta in raw_spends
         )
-        self.m.rules.triggers.setdefault(
-            None if host is None else host.node, []
-        ).append((query, spends, clause.frozen, clause.learned))
 
     def rule_ref(self, name: str) -> NodeId:
         """What `<n>` denotes: a rule node, or a named fact's proposition.
@@ -1251,14 +1297,7 @@ class Loader:
             # for the unconditional case; a query-bearing `after` still has
             # no inline spelling, and stays the separate statement).
             clause = s.posts[0]
-            spends = tuple(
-                (t if t is STOP or t is UNATTEND
-                 else Push(tuple(self.build(x, scope) for x in t.terms))
-                 if isinstance(t, Push)
-                 else Pop(self.build(t.term, scope)) if isinstance(t, Pop)
-                 else Attend(self.build(t.term, scope), t.weight), delta)
-                for t, delta in clause.spends
-            )
+            spends = self._build_spends(clause.spends, scope)
             self.m.rules.triggers.setdefault(r.node, []).append(
                 ((), spends, False, False))
 

@@ -563,8 +563,17 @@ class Graph:
         holds the two to each other over every node the suite builds -- an index
         is a re-implementation of what it indexes, which is the lesson `state`
         paid for once already.
+
+        `.get(n, False)`, not `self._has_var[n]` -- `delete` clears this
+        entry along with the rest, and `relation_of`'s own docstring is the
+        rule every reader here has to keep: *dangling references can stay is
+        only true if reading one answers rather than raises.* `destroy` in
+        the RHS (`new_substrate.md`) is what found this raising: a rule that
+        re-applies after destroying what it bound (nothing stops it, the
+        same standing an unguarded MINTING rule has) grounds a binding to a
+        now-deleted node and asked whether it still had a variable in it.
         """
-        return self._has_var[n]
+        return self._has_var.get(n, False)
 
     def _has_var_slow(self, n: NodeId) -> bool:
         """The definition, walked. Not used by the engine; kept so the cached
