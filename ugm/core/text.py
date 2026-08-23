@@ -543,6 +543,21 @@ class Parser:
             # atom, and only `no <term>` reads as the mode.
             self.next()
             sign = ABSENT
+        # `$z = p($x, $y)` -- `new_substrate.md`'s own spelling of `as`,
+        # prefix rather than suffix. The same binding (`RuleMember.binds`),
+        # built the same way; only where it sits in the line differs. The
+        # lookahead is two tokens, not one: `$z` alone is an ordinary member
+        # (`{+want($p), no $p}` tests a bound variable directly), and only
+        # `$z =` -- the var immediately followed by `=` -- reads as a prefix
+        # bind. `=` never otherwise appears inside a member, so there is
+        # nothing here for it to collide with.
+        prefix_binds = None
+        t2 = self.peek()
+        if (t2 is not None and t2.kind == "var" and self.i + 1 < len(self.toks)
+                and self.toks[self.i + 1].kind == "punct"
+                and self.toks[self.i + 1].text == "="):
+            prefix_binds = self.primary()
+            self.next()  # "="
         term = self.term()
         #  `@` is refused rather than ignored. It used to carry a GRADE, and
         # grades are gone: an uncertain conclusion is `+likely(p)`, an ordinary
@@ -576,7 +591,23 @@ class Parser:
                 self.next(); binds = self.term()
             else:
                 break
+        if prefix_binds is not None:
+            if binds is not None:
+                raise ParseError(
+                    f"line {t.line}: `$z = {self._show_term(term)}` and "
+                    f"`... as $t` are the same binding written twice -- say "
+                    f"it once"
+                )
+            binds = prefix_binds
         return RuleMember(sign, term, binds)
+
+    @staticmethod
+    def _show_term(term: "Term") -> str:
+        """A term, printed for an error message only -- before anything is
+        built, so this cannot call `Graph.show`."""
+        if not term.args:
+            return term.head
+        return f"{term.head}({', '.join(Parser._show_term(a) for a in term.args)})"
 
     def term(self) -> Term:
         """A primary, then any number of further argument groups applied to it.

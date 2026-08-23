@@ -921,3 +921,54 @@ the negative-weight parse. Kill-probed: disabling the `weights` write and
 disabling the `-` parse both fail their checks (the parse kill-probe
 crashes the loader outright, the same strong signal the tail syntax's own
 kill-probe produced).
+
+## Built: `$z = p(...)`, the microprogram's own spelling, 2026-08-23
+
+Suite 150/0 -> 153/0. Three checks, kill-probed.
+
+Sugar over `as` -- `$z = p($x, $y)` builds the identical `RuleMember`
+(`binds=$z`) that `p($x, $y) as $z` already did, just written prefix rather
+than suffix, which is the spelling `new_substrate.md`'s own LHS section
+uses throughout. Two-token lookahead (`var` immediately followed by `=`)
+tells it apart from a bare `$z` member (`{+want($p), no $p}` tests a bound
+variable directly) without touching that case at all. Combining `$z = ...`
+with a trailing `as $t` on the same member is refused, not silently
+resolved by letting one clobber the other.
+
+### The stress test that prompted it: a judger generic over the relation
+
+Not a toy. Asked directly: can the shipped LHS express `(want(x),
+current(y)) => missing(z)` -- a "judger" rule comparing a want against
+what currently holds, generalised over WHICH relation, not written once
+per relation. Tried for real, against the running engine:
+
+    rule <missing-slot> = implies(
+        { $w = want($r($a, $x)), no $r($a, $x), $cur = $r($a, $y) },
+        { +missing($r($a, $x)), +extra($cur) } )
+
+`$r` in the RELATION slot already unifies (`unify`, not this session's
+work) -- so this loads and runs with ZERO new engine features. Verified:
+fires when the wanted value is absent and a different one currently holds;
+stays silent once the want is satisfied (control).
+
+**One real gap, found by hitting it rather than by predicting it.** When
+NOTHING holds about the slot at all (not even a wrong value), the rule
+above cannot fire -- `$cur = $r($a, $y)` has nothing to bind to. The
+obvious second rule, guarding on absence of *anything* in the slot, is
+refused by the loader:
+
+    no $r($a, $z)` with a variable no earlier member binds -- an absence
+    is a check on things already picked out, never a way of picking them
+    out
+
+This is `wanting.md` §9's own wildcard proposal (`no $r($a, *)`), landed on
+independently by actually hitting the wall it was written to describe, not
+by re-reading the doc. Still not built; `*` does not lex.
+
+**One near-miss, and it was not a new bug.** With two current wrong
+values, an unguarded version of the judger reported only one, forever --
+the exact starvation pattern this session already documented for `merge`
+(an unguarded rule wins arbitration deterministically every tick). The
+standard guard (`no judged(...)`/`+judged(...)`) fixed it identically.
+Confirms the finding generalises rather than being specific to identity
+ops.

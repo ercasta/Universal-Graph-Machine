@@ -953,6 +953,47 @@ def rhs_graph_ops() -> None:
           threw and m6.g.identity_of(b6) == a6)
 
 
+def prefix_binding() -> None:
+    """`$z = p($x, $y)` -- `new_substrate.md`'s own spelling of `as`, prefix
+    rather than suffix. Same binding, built the same way; a judger rule
+    generic over the RELATION itself (`$r($a, $x)`) is the stress test that
+    prompted writing it, and it is exercised here rather than a toy."""
+    print("\n§8  $z = p(...) -- the microprogram's prefix spelling of `as`, "
+          "and a judger rule generic over the relation")
+    corpus = (
+        "fact +want(color(ball, red))\n"
+        "fact +color(ball, blue)\n"
+        "rule <missing-slot> = implies("
+        "{ $w = want($r($a, $x)), no $r($a, $x), $cur = $r($a, $y) },"
+        "{ +missing($r($a, $x)), +extra($cur) } )"
+    )
+    m = Machine()
+    kb = load(m, corpus)
+    m.run(limit=5)
+    check("§8", "a judger generic over the RELATION -- one rule, not one "
+                "per relation -- reports the wanted value missing and the "
+                "wrong one extra",
+          m.holds(kb.term("missing(color(ball, red))"))
+          and m.holds(kb.term("extra(color(ball, blue))")))
+
+    m2 = Machine()
+    kb2 = load(m2, corpus.replace("+color(ball, blue)", "+color(ball, red)"))
+    m2.run(limit=5)
+    check("§8", "...and stays silent once the want is satisfied -- control",
+          not m2.holds(kb2.term("missing(color(ball, red))")))
+
+    threw = False
+    try:
+        load(Machine(), "fact +p(a)\n"
+                        "rule <bad> = implies({$w = p($x) as $w2}, {+q($x)})")
+    except ParseError:
+        threw = True
+    check("§8", "`$z = ...` and `... as $t` together is refused -- one "
+                "binding, said once, not silently let the second clobber "
+                "the first",
+          threw)
+
+
 def frames() -> None:
     print("\n§20 frames: the attention stack and the consultation stack are "
           "one construct")
@@ -1136,6 +1177,7 @@ def main() -> int:
     reference_lines()
     rhs_tail()
     rhs_graph_ops()
+    prefix_binding()
     frames()
     experts()
     surface()
