@@ -791,12 +791,25 @@ trigger the tree actually has. It does **not** cover:
 - a query-bearing `after <R> { +p($x) } => ...` -- no inline spelling exists
   yet, and the separate statement still has to be used for one;
 - `frozen`/`learned` calibration marking -- the tail is always unmarked;
-- true interleaving. `+`/`-` in the consequent block still all land together,
-  via the existing `_apply`, BEFORE the tail's ops run in order -- not one
-  ordered sequence where e.g. a later `+p($z)` could depend on an earlier
-  `$z = new` in the same body. `new`, `label`, `merge`, `destroy`, `for`,
-  `call` are still entirely unbuilt, and interleaving them with `+`/`-`
-  properly is the next real piece of this, not this one.
+- **ordering within one body.** `+`/`-` in the consequent block still all
+  land together, via the existing `_apply`, BEFORE the tail's ops run in
+  order -- not one ordered sequence where e.g. a later `+p($z)` could depend
+  on an earlier `$z = new` in the same body. `new`, `label`, `merge`,
+  `destroy`, `for`, `call` are still entirely unbuilt, and sequencing them
+  properly with `+`/`-` is the next real piece of this, not this one.
+
+  **This is not "interleaving" and should not be called that** -- caught in
+  review. Interleaving is a claim about the tick loop: rule applications from
+  possibly-different rules alternate over time, and nothing here touches
+  that -- the loop still picks one application per tick, the RHS runs to
+  completion within that one tick, and the next tick may be a different
+  rule entirely. **No rule calls another rule directly**, ever; `push`/`pop`
+  suspend a FRAME, not invoke a rule, and a frame's own queue is still
+  chosen from by the same table each tick. What is missing here is ordering
+  *inside* one already-chosen application's own body -- a strictly smaller
+  and strictly local question, and the wrong word for it would have implied
+  a rule could call another rule, which is exactly the thing that must stay
+  false.
 
 The old `after`/trigger statement is not deleted. Nothing depends on it, so
 it is a deletion candidate rather than a live dependency, but that is a
