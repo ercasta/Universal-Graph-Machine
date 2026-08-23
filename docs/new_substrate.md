@@ -972,3 +972,98 @@ the exact starvation pattern this session already documented for `merge`
 standard guard (`no judged(...)`/`+judged(...)`) fixed it identically.
 Confirms the finding generalises rather than being specific to identity
 ops.
+
+## Built: the dungeon recovered and ported, the control step, 2026-08-23
+
+`ugm/rules/dungeon.ugm` (19 rules) and `ugm/probes/dungeon.py`, recovered
+from `15d0ed2` (deleted at `4c69f0a`) and run against today's engine --
+step 1 of this doc's own two-step plan (port to today's syntax and confirm
+it still resolves, before porting to the new microprogram shape). Verified
+across 14 seeds: always reaches genuine quiescence (not the run limit),
+both outcomes occur, and the fully-fixed corpus runs its 147 applications
+(seed 7) with **zero wasted (empty-write) applications** -- every match
+that won arbitration changed something.
+
+Getting there took more than the three syntax fixes this doc expected.
+
+### Three MECHANICAL fixes -- exactly as predicted
+
+    causes(...)             -> implies(...)     one connective now
+    -present($x)     (ant)  -> no present($x)    a `-` premise is gone
+    says($ch, $said, plus)  -> says($ch, $said)  an arrival carries no sign
+                                                  any more (found only by
+                                                  running it -- the doc's
+                                                  own inventory did not
+                                                  name this one)
+
+### Six BEHAVIORAL fixes the doc's inventory did not anticipate at all
+
+The corpus was written against an engine with `_inert` -- an application
+that changed nothing was not offered again. This session removed that
+apparatus earlier (`_inert` is gone; a rule stops itself by spending what
+it matched or asking absence of what it wrote) and documented the
+consequence in the abstract: *it does not waste ticks, it STARVES* -- the
+first unguarded rule owns the loop forever, and everything below it never
+runs. Porting the dungeon is where that finding met a real, un-designed-for
+corpus for the first time, and it hit six times, not once:
+
+    <trust-player>  did not spend `says(...)` -- guarded on `no intends(...)`
+    <swing>         did not spend `attack(...)` -- guarded on `no roll(...)`
+    <check-ac>      did not spend anything -- guarded on `no beats(...)`
+    <hit>           did not spend anything -- guarded on `no hits(...)`
+    <harm>          did not spend anything -- guarded on `no roll(...)`
+    <subtract>      did not spend anything -- guarded on `no calc(...)`
+    <victory>/<defeat>  did not spend anything -- guarded on `no over(...)`
+
+(That is seven rules; `<victory>` and `<defeat>` share one line above.)
+
+**One of the six taught something the other five didn't.** The first fix
+tried for `<trust-player>` was to SPEND `says(...)` -- erase it once read,
+matching the corpus's own stated law, *an occasion is consumed*. It made
+things worse: `bundle.ugm`'s `<intake>` rule re-derives `says` from
+`arrived` whenever `says` is absent, so erasing it did not consume
+anything -- `<intake>` remanufactured it the very next tick, and the two
+rules ping-ponged on round 1 forever, asked=0, applied climbing without
+bound. `says(...)` is `<intake>`'s own EVERGREEN reading of a permanent
+record, not a spendable occasion, and treating it as one fights a law this
+session did not write. The working fix is a guard (`no intends(...)`)
+that stops the RESULT reforming without touching the reading it is
+reformed from.
+
+### What this says about porting old corpora in general
+
+Every rule that concludes something without spending or being guarded by
+what it read needs an explicit `no <own-conclusion>` line now. That is not
+a dungeon-specific defect -- it is the general shape of what the `_inert`
+removal pushed onto every corpus written before it, and this is the first
+full-sized, not-written-for-this-engine corpus to actually meet that bill.
+Six of nineteen rules needed it here (32%), which is a real number where
+the earlier finding only had an argument.
+
+### Where the answerer scope trap bit
+
+`Loader.answerer` writes into `self.rule_nodes`, which a NEW `Loader`
+instance seeds from `Machine.answerers` at CONSTRUCTION time -- so a
+corpus that names its tools (`<dice>`, `<arith>`, `<compare>`) in its own
+text must have them registered on the machine BEFORE that corpus's
+`Loader` is built, through a throwaway loader sharing the same scope. And
+the `name` an answerer is registered under is bare (`"dice"`), never
+bracketed (`"<dice>"`) -- the brackets are corpus-text syntax the lexer
+strips before anything is looked up, and registering with them included
+puts the tool under a key the corpus's own `<dice>` reference can never
+find. Neither is a new defect; both are exactly what `probes/__init__.py`
+promises a probe will find -- a question answered by running something.
+
+### Next
+
+Step 2 of the plan -- port to the new microprogram shape and compare --
+is still open. What is now available for it that was not when this doc's
+"Count" section was written: `$z = p(...)`, bare-variable erasure,
+`merge`/`destroy`/`label` in the RHS tail, and the finding that `call
+<tool>` needs no new mechanism at all (an ordinary `+` write already
+triggers an answerer synchronously). Still missing: `alt:` (for
+`<hero-acts>`/`<hero-switch>`), `forget` (a new RHS op, not load-time
+sugar -- it has to decompose a dynamically bound node's structure), and a
+resolution for `no beats(...)` (a `no` in front of a computator-relation
+member is silently ignored today, found while planning this port and not
+yet fixed).
