@@ -1067,3 +1067,64 @@ sugar -- it has to decompose a dynamically bound node's structure), and a
 resolution for `no beats(...)` (a `no` in front of a computator-relation
 member is silently ignored today, found while planning this port and not
 yet fixed).
+
+## Built: `no <computator>`, `forget`, `alt(...)`, and the microprogram port, 2026-08-23
+
+Suite 155/0 -> 161/0 (six new checks: two for the computator-absence fix,
+two for `forget`, two for `alt`), everything kill-probed. `ugm/rules/
+dungeon_micro.ugm` and `ugm/probes/dungeon_micro.py` -- step 2 of the
+two-step plan, finally: **19 rules -> 16 authored (17 compiled), matching
+this doc's own "Count" section prediction from before any of it was
+built.** Verified against the control across the same 14 seeds: identical
+outcome every time, genuine quiescence every time, zero wasted
+applications either side.
+
+### `no <computator>(...)`, fixed rather than avoided
+
+The doc's own open question was *comparison operators as lines, or fix the
+negative form*. Operators lost on inspection: `<`/`>` are already claimed
+by `<rulename>` brackets, and `$hit < $c` would collide with that grammar
+at the lexer. So the fix: `match`'s computator branch used to run BEFORE
+the `sign == ABSENT` check could ever see it, silently ignoring `no` in
+front of a computator-relation member. Now it checks the sign first --
+`got is None` (the computator's own "declines to answer") is exactly the
+right reading of *not this ordering*. `<miss>`'s `no beats($n, $c)` in
+`dungeon_micro.ugm` is the first real use.
+
+### `forget`, and the refusal it needed
+
+`Forget`, a new RHS op (not load-time sugar -- it decomposes a
+dynamically-bound node's structure, which nothing static can do).
+`forget $hit` erases `$hit` and, if it is `answered(<tool>, request,
+value)`-shaped, `g.member($hit, 1)` -- the request -- alongside it. Refuses
+(raises) rather than silently doing nothing when the bound node is not
+that shape, the same standing `Unmerge` already has: an author's mistake
+surfaces.
+
+### `alt(...)`, compiled to one Rule per branch
+
+The syntax settled on: a THIRD argument to `implies`, `alt(branch1,
+branch2, ...)`, sitting between the shared antecedent and the shared
+consequent -- not the doc's line-based sketch (still unbuilt), but
+expressible entirely within the shipped brace/comma grammar. Compiled at
+LOAD, never a runtime branch: one `Rule` per branch, sharing the prefix
+and the consequent, registered under `<name>` (branch 1) and `<name#2>`,
+`<name#3>`, ... A tail (`=> ...`) on an `alt` rule runs on every branch,
+since a tail is the RULE's own and any branch matching is that rule
+firing.
+
+**"Every branch must bind what the consequent uses" is checked per branch,
+not on their union** -- exactly as the doc specifies, and the refusal
+names which branch failed. `<hero-acts>`/`<hero-switch>` merge cleanly;
+the doc's own prediction that `<hero-holds>` could NOT merge (no `$intent`
+to bind) was not re-tested here -- it stays its own rule in the port,
+unchanged from the control.
+
+### What is still open
+
+`.out`/`.in` path operators, `for` loops, `call <tool>` as explicit tail
+syntax (still unneeded -- an ordinary `+` write already triggers a tool),
+per-line score contributions, and the line-based grammar itself (`rule
+<name>` / lines / `->`, no braces or commas) all remain unbuilt. None of
+them were needed to port the dungeon; the census's own finding stands --
+`alt` was the one the corpus actually asked for.

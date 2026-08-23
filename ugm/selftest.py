@@ -555,6 +555,37 @@ def computators() -> None:
     check("§12", "arithmetic is a condition on the binding that claims nothing",
           m.holds(kb.term("after(ana, 4)")))
 
+    #  `no <computator>(...)` -- a real bug this session found while
+    #  planning the dungeon's microprogram port: the computator branch ran
+    #  BEFORE the ABSENT check could ever see it, so `no` in front of a
+    #  computator-relation member was silently ignored.
+    m2 = Machine()
+    kb2 = load(m2, """
+        fact +hit(5)
+        fact +ac(3)
+        rule <r> = implies({ $h = hit($x), $c = ac($y), no beats($x, $y) },
+                           { +reported(missed) })
+    """)
+    kb2.computator("beats", lambda a, b: kb2.atom("yes") if int(a) > int(b) else None)
+    m2.run(limit=5)
+    check("§12", "`no beats(5, 3)` -- 5 DOES beat 3, so the negated "
+                 "computator member must refuse to match",
+          not m2.holds(kb2.term("reported(missed)")))
+
+    m3 = Machine()
+    kb3 = load(m3, """
+        fact +hit(2)
+        fact +ac(9)
+        rule <r> = implies({ $h = hit($x), $c = ac($y), no beats($x, $y) },
+                           { +reported(missed) })
+    """)
+    kb3.computator("beats", lambda a, b: kb3.atom("yes") if int(a) > int(b) else None)
+    m3.run(limit=5)
+    check("§12", "...and `no beats(2, 9)` -- 2 does NOT beat 9 -- matches, "
+                 "the computator's own decline (`None`) being the right "
+                 "reading of *not this ordering*",
+          m3.holds(kb3.term("reported(missed)")))
+
 
 def the_aggregate() -> None:
     print("\n--  the aggregate: `no` is not a quantifier, `count` is")
@@ -952,6 +983,37 @@ def rhs_graph_ops() -> None:
                  "-- one engine, not two",
           threw and m6.g.identity_of(b6) == a6)
 
+    m7 = Machine()
+    pre7 = load(m7, "", scope="s7")
+    pre7.answerer("dice", "roll", lambda mach, prop: None)
+    kb7 = load(m7, "fact +need(roll(d20, hit(hero, orc)))\n"
+                   "rule <ask> = implies({$nd = need($r)}, "
+                   "{-$nd, +answered(<dice>, $r, 5)})\n"
+                   "rule <wound> = implies("
+                   "{$hit = answered(<dice>, roll(d20, hit($a, $d)), $n)},"
+                   "{+seen($a)}) => forget $hit", scope="s7")
+    m7.run(limit=10)
+    check("§20", "forget $hit erases the answer AND, structurally, the "
+                 "request it names -- an occasion consumed as one "
+                 "statement instead of two `-` members",
+          not m7.holds(kb7.term("answered(<dice>, roll(d20, hit(hero, orc)), 5)"))
+          and not m7.holds(kb7.term("roll(d20, hit(hero, orc))"))
+          and m7.holds(kb7.term("seen(hero)")))
+
+    m8 = Machine()
+    kb8 = load(m8, "fact +junk(x)\n"
+                   "rule <bad> = implies({$j = junk($x)}, {+seen($x)}) "
+                   "=> forget $j")
+    threw = False
+    try:
+        m8.run(limit=5)
+    except ValueError:
+        threw = True
+    check("§20", "forget on a node that is not answered(...)-shaped RAISES "
+                 "-- an author's mistake surfaces, it is not absorbed as a "
+                 "silent no-op",
+          threw)
+
 
 def prefix_binding() -> None:
     """`$z = p($x, $y)` -- `new_substrate.md`'s own spelling of `as`, prefix
@@ -991,6 +1053,65 @@ def prefix_binding() -> None:
     check("§8", "`$z = ...` and `... as $t` together is refused -- one "
                 "binding, said once, not silently let the second clobber "
                 "the first",
+          threw)
+
+
+def alt_branches() -> None:
+    """`alt(...)` -- a union of conjunctive branches sharing a prefix and a
+    consequent, compiled into one Rule per branch at load (`new_substrate.md`
+    -- never a runtime branch). The dungeon's own twins case: `<hero-acts>`,
+    with the target present, versus switching to another when it is not."""
+    print("\n§8  alt(...) -- a union of branches, compiled to one Rule each, "
+          "the dungeon's own twins case")
+    corpus = (
+        "fact +turn(hero)\nfact +may(hero)\nfact +present(hero)\n"
+        "rule <hero-acts> = implies("
+        "{ +turn(hero), +may(hero), +present(hero) },"
+        "alt("
+        "{ $intent = intends(hero, attack($t), $r), +present($t) },"
+        "{ $intent = intends(hero, attack($d), $r), no present($d), "
+        "+monster($t), +present($t) }"
+        "),"
+        "{ -may(hero), -$intent, +attack(hero, $t) } )"
+    )
+    m = Machine()
+    kb = load(m, corpus + "\nfact +intends(hero, attack(goblin1), 1)\n"
+                          "fact +present(goblin1)")
+    m.run(limit=5)
+    check("§8", "branch 1 -- the declared target is present, attacked "
+                "directly",
+          m.holds(kb.term("attack(hero, goblin1)")))
+
+    m2 = Machine()
+    kb2 = load(m2, corpus + "\nfact +intends(hero, attack(goblin1), 1)\n"
+                           "fact +monster(goblin2)\nfact +present(goblin2)")
+    m2.run(limit=5)
+    check("§8", "branch 2 -- the declared target is down (no `present`), "
+                "switches to another monster present -- the SAME rule name, "
+                "a different branch",
+          m2.holds(kb2.term("attack(hero, goblin2)")))
+
+    names = [r.name for r in m2.rules.rules]
+    check("§8", "compiled to TWO rules, not a runtime branch -- "
+                "<hero-acts> and <hero-acts#2>, both findable",
+          "hero-acts" in names and "hero-acts#2" in names)
+
+    threw = False
+    try:
+        load(Machine(), "fact +turn(hero)\n"
+                        "rule <bad> = implies("
+                        "{ +turn(hero) },"
+                        "alt("
+                        "{ $intent = intends(hero, attack($t), $r), "
+                        "+present($t) },"
+                        "{ +monster($t) }"
+                        "),"
+                        "{ -may(hero), -$intent, +attack(hero, $t) } )")
+    except ParseError:
+        threw = True
+    check("§8", "every branch must bind what the consequent uses -- branch "
+                "2 does not bind $intent, and it is refused at LOAD, naming "
+                "which branch failed",
           threw)
 
 
@@ -1178,6 +1299,7 @@ def main() -> int:
     rhs_tail()
     rhs_graph_ops()
     prefix_binding()
+    alt_branches()
     frames()
     experts()
     surface()

@@ -195,6 +195,29 @@ class Unlabel:
         return f"unlabel({self.term}, {self.text})"
 
 
+class Forget:
+    """`forget $hit` -- erase a tool's answer AND the request it named,
+    together (`new_substrate.md`'s `<wound>`).
+
+    Sugar over two erasures, but not load-time sugar: `$hit` is bound to an
+    `answered(<tool>, request, value)` instance at MATCH time, and the
+    request to erase alongside it -- `g.member($hit, 1)` -- is not known
+    until then. This is the corpus's own first law (an occasion is
+    consumed, a fact is not) as one statement instead of a pair of `-`
+    members restating the request's own pattern.
+
+    Refuses (raises) rather than silently doing nothing when the bound node
+    is not `answered(...)`-shaped -- the same standing as `Unmerge`: an
+    author's mistake should surface, not be absorbed.
+    """
+
+    def __init__(self, term) -> None:
+        self.term = term
+
+    def __repr__(self) -> str:
+        return f"forget({self.term})"
+
+
 class Member(NamedTuple):
     """One entry in a rule's antecedent or consequent.
 
@@ -723,7 +746,27 @@ def match(
                 try:
                     got = fn(*[g.show(a) for a in args])
                 except Exception:
-                    return  # a computator that raises answers nothing
+                    got = None  # a computator that raises answers nothing
+                if want.sign == ABSENT:
+                    # `no beats($hit, $c)` -- an ordering the computator
+                    # answers, asked in the negative. Found as a real bug,
+                    # not designed in: this branch used to run BEFORE the
+                    # `sign == ABSENT` check below could ever see it, so a
+                    # `no` in front of a computator-relation member was
+                    # silently ignored and the member matched whenever the
+                    # function answered anything at all -- the opposite of
+                    # what `no` says. `got is None` is what a computator's
+                    # own convention already uses for *declines to answer*,
+                    # which is the right reading of *not this ordering*.
+                    if got is not None:
+                        return
+                    b = bindings
+                    if want.binds is not None:
+                        grounded = substitute(g, want.pattern, bindings)
+                        b = unify(g, want.binds, grounded, bindings)
+                    if b is not None:
+                        step(j + 1, b)
+                    return
                 if got is None:
                     return
                 #  `got` is a NODE, resolved by whoever registered the function

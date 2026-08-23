@@ -21,8 +21,9 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .graph import NodeId
 from .machine import Machine, Step
-from .rules import (STOP, UNATTEND, Application, Attend, Destroy, Label, Member,
-                    Merge, Pop, Push, Rule, Unlabel, Unmerge, match, substitute)
+from .rules import (STOP, UNATTEND, Application, Attend, Destroy, Forget, Label,
+                    Member, Merge, Pop, Push, Rule, Unlabel, Unmerge, match,
+                    substitute)
 
 # A rule the bundle marks `standing` is in the table at the default; everything
 # else is in it at the floor. The author's own correction to an earlier sketch:
@@ -655,6 +656,26 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
                     and text is not None and not m.g.has_var(text)):
                 (m.g.label if isinstance(target, Label) else m.g.unlabel)(
                     node, m.g.show(text))
+            continue
+        if isinstance(target, Forget):
+            # `forget $hit` -- erase the answer and, structurally, the
+            # request it names (`g.member(node, 1)` of `answered(<tool>,
+            # request, value)`). Ground only, like the others; but a bound,
+            # ground node that is not `answered(...)`-shaped is an author's
+            # mistake and RAISES rather than silently doing nothing -- the
+            # same standing as `Unmerge`.
+            node = _ground(m, table, target.term, bindings)
+            if node is not None and not m.g.has_var(node):
+                if (m.g.relation_of(node) is not m.ANSWERED
+                        or len(m.g.members(node)) < 2):
+                    raise ValueError(
+                        f"forget {m.g.show(node)}: not an answered(...) "
+                        f"instance -- forget erases a request and its "
+                        f"answer together, and there is no request to find "
+                        f"on this node"
+                    )
+                m.gate.erase(m.g.member(node, 1))
+                m.gate.erase(node)
             continue
         if target is UNATTEND:
             m._unattend()

@@ -8,12 +8,12 @@ See docs/design/text.md.
 """
 
 import sys
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .graph import NodeId
 from .machine import Machine
 from .rules import (ABSENT, ASSERT, ERASE, IMPLIES, STOP, UNATTEND, Attend, Destroy,
-                    Label, Member, Merge, Pop, Push, Unlabel, Unmerge)
+                    Forget, Label, Member, Merge, Pop, Push, Unlabel, Unmerge)
 
 # The two modes the surface writes. `?` is gone: absence is ignorance, so
 # there is nothing left for a third mark to say. `-` is a CONSEQUENT mode --
@@ -189,6 +189,12 @@ class Statement(NamedTuple):
     channel: str
     line: int
     posts: Tuple[PostClause, ...] = ()
+    # `alt(branch1, branch2, ...)` -- a union of conjunctive branches
+    # sharing `antecedent` as a prefix, each concluding the SAME
+    # `consequent` (`new_substrate.md`). None for an ordinary rule. Compiled
+    # at load into one Rule per branch -- not a runtime branch, no matcher
+    # change.
+    alts: Optional[Tuple[Tuple[RuleMember, ...], ...]] = None
 
 
 class Parser:
@@ -329,6 +335,20 @@ class Parser:
         self.expect("(")
         ant = self.block()
         self.expect(",")
+        # `alt(branch1, branch2, ...)` -- a union of conjunctive branches
+        # sharing `ant` as a prefix. Each branch is an ordinary block, so
+        # nothing about `block()` changes; only where the blocks sit does.
+        alts: Optional[Tuple[Tuple[RuleMember, ...], ...]] = None
+        if self.at("alt"):
+            self.next()
+            self.expect("(")
+            branches = [self.block()]
+            while self.at(","):
+                self.next()
+                branches.append(self.block())
+            self.expect(")")
+            self.expect(",")
+            alts = tuple(branches)
         con = self.block()
         self.expect(")")
         # An optional ordered tail -- `=> attend($x, 3), push($a)` -- the
@@ -347,7 +367,7 @@ class Parser:
                 spends.append(self.spend())
             posts = (PostClause((), tuple(spends), False, False),)
         return Statement("rule", name_tok.text, conn.text, ant, con, None, "",
-                         line, posts)
+                         line, posts, alts)
 
     def trigger(self, t: Tok) -> Statement:
         """`after <A> { ... } => attend($x, 3)`.
@@ -509,11 +529,17 @@ class Parser:
             self.expect(")")
             cls = Label if t.text == "label" else Unlabel
             return (cls(target, text), 0)
+        if t.kind == "name" and t.text == "forget":
+            # `forget $hit` -- bare, no parens, matching `new_substrate.md`'s
+            # own spelling exactly (unlike the other graph ops, which read
+            # as calls). Erases a request and its answer together.
+            target = self.term()
+            return (Forget(target), 0)
         raise ParseError(
             f"line {t.line}: a postcondition spends attention or the graph, "
             f"so it says `attend(...)`, `unattend`, `stop`, `push(...)`, "
             f"`pop(...)`, `merge(...)`, `unmerge(...)`, `destroy(...)`, "
-            f"`label(...)` or `unlabel(...)`, not {t.text!r}"
+            f"`label(...)`, `unlabel(...)` or `forget ...`, not {t.text!r}"
         )
 
     def block(self) -> Tuple[RuleMember, ...]:
@@ -900,6 +926,7 @@ class Loader:
              if isinstance(t, Label)
              else Unlabel(self.build(t.term, scope), self.build(t.text, scope))
              if isinstance(t, Unlabel)
+             else Forget(self.build(t.term, scope)) if isinstance(t, Forget)
              else Attend(self.build(t.term, scope), t.weight), delta)
             for t, delta in raw_spends
         )
@@ -1254,6 +1281,69 @@ class Loader:
                 f"is asked, never asserted. To stop believing something, erase "
                 f"it: `-p(...)`. To say its denial is so, `+not(p(...))` (§9)."
             )
+        self._refuse_erase_premise(s.line, s.antecedent)
+        scope: Dict[str, NodeId] = {}
+        shared = self._build_antecedent(s.line, s.name, s.antecedent, scope, ())
+        con = [Member(m.sign, self.build(m.term, scope),
+                      self.build(m.binds, scope) if m.binds else None)
+               for m in s.consequent]
+
+        if s.alts is None:
+            self._check_unbound_consequent(s.line, s.name, con, s.consequent, shared)
+            r = self._finish_rule(s.name, shared, con, s.consequent)
+            self.rules_by_name[s.name] = r
+            self.rule_nodes[s.name] = r.node
+            self._register_posts(s, r, scope)
+            return
+
+        # `alt(...)`: a union of conjunctive branches sharing `shared` as a
+        # prefix, each concluding the SAME `con` -- compiled into one Rule
+        # per branch, never a runtime branch. The constraint the doc names
+        # is checked exactly as written: every branch, not just the union
+        # of them, must bind what `con` uses.
+        first = None
+        for i, branch in enumerate(s.alts):
+            branch = self._expand(branch, "ant", s.line)
+            self._refuse_erase_premise(s.line, branch)
+            branch_built = self._build_antecedent(
+                s.line, s.name, branch, scope, shared)
+            full = shared + branch_built
+            self._check_unbound_consequent(
+                s.line, f"{s.name} (branch {i + 1})", con, s.consequent, full)
+            name = s.name if i == 0 else f"{s.name}#{i + 1}"
+            r = self._finish_rule(name, full, con, s.consequent)
+            self.rules_by_name[name] = r
+            self.rule_nodes[name] = r.node
+            # The tail is the RULE's own, and every branch is a way that one
+            # rule fires -- so a tail on `<hero-acts>` runs whichever branch
+            # actually matched, not only the first.
+            self._register_posts(s, r, scope)
+            if i == 0:
+                first = r
+        # `<hero-acts>` names the first branch -- a rule reference has to
+        # resolve to ONE node, and mint order is the tiebreak everywhere
+        # else here. The other branches are still reachable, under their
+        # own synthetic names, for anything that wants to name one exactly.
+        self.rule_nodes[s.name] = first.node
+        self.rules_by_name[s.name] = first
+
+    def _register_posts(self, s: Statement, r: "Rule", scope) -> None:
+        if not s.posts:
+            return
+        # The ordered tail: registered through the SAME backend a bare
+        # `after <R> => ...` trigger uses -- an empty query, this rule's
+        # node -- so `_spend_posts` needs no new code to run it. What is
+        # new is only the front door: no separate statement, no query
+        # indirection, and the rule's OWN scope rather than one rebuilt
+        # from its name (`new_substrate.md` -- RHS supersedes triggers
+        # for the unconditional case; a query-bearing `after` still has
+        # no inline spelling, and stays the separate statement).
+        clause = s.posts[0]
+        spends = self._build_spends(clause.spends, scope)
+        self.m.rules.triggers.setdefault(r.node, []).append(
+            ((), spends, False, False))
+
+    def _refuse_erase_premise(self, line: int, members) -> None:
         #  `-p` in an ANTECEDENT is refused, and the message has to name both
         # readings, because the collapse is exactly where a corpus loses one.
         # A `-` premise used to mean *an entry denies this*, and that is now two
@@ -1262,55 +1352,66 @@ class Loader:
         # them, because guessing turns a migration into a silent change of
         # meaning -- and without this guard `-p` fell through to the ordinary
         # match and asked whether p WAS believed, which is the opposite.
-        for m in s.antecedent:
+        for m in members:
             if m.sign == ERASE:
                 raise ParseError(
-                    f"line {s.line}: `-` is a consequent mode -- it erases. A "
+                    f"line {line}: `-` is a consequent mode -- it erases. A "
                     f"premise cannot erase, and there is no denying sign left "
                     f"to read it as. Say which you meant: `no ...` (nothing "
                     f"anchors it) or `+not(...)` (its denial is believed)."
                 )
-        scope: Dict[str, NodeId] = {}
-        ant = [Member(m.sign, self.build(m.term, scope),
-                      self.build(m.binds, scope) if m.binds else None)
-               for m in s.antecedent]
-        for i, m in enumerate(ant):
-            if m.sign != ABSENT or not self.m.g.has_var(m.pattern):
-                continue
-            # An absence is a CHECK, not a binder: `no p($x)` with $x free is
-            # *for no $x* -- the negative existential §9 says a member cannot
-            # mean -- so every variable must arrive bound, from members that
-            # can bind (an earlier absence binds nothing either).
-            binders = [a for a in ant[:i] if a.sign != ABSENT]
-            if not self._covered(m.pattern, binders):
-                raise ParseError(
-                    f"line {s.line}: rule {s.name!r} asks `no "
-                    f"{self.m.g.show(m.pattern)}` with a variable no earlier "
-                    f"member binds -- an absence is a check on things already "
-                    f"picked out, never a way of picking them out"
-                )
-        con = [Member(m.sign, self.build(m.term, scope),
-                      self.build(m.binds, scope) if m.binds else None)
-               for m in s.consequent]
+
+    def _build_antecedent(self, line: int, name: str, written, scope,
+                          earlier: Sequence[Member]) -> List[Member]:
+        """`written` (as parsed) -> `Member`s (as built), checking `no`'s own
+        rule as it goes: every variable in an absence member must arrive
+        bound, from `earlier` (a shared prefix already built) or from a
+        member built before it in `written` itself."""
+        built: List[Member] = []
+        for m in written:
+            member = Member(m.sign, self.build(m.term, scope),
+                            self.build(m.binds, scope) if m.binds else None)
+            if member.sign == ABSENT and self.m.g.has_var(member.pattern):
+                # An absence is a CHECK, not a binder: `no p($x)` with $x free
+                # is *for no $x* -- the negative existential §9 says a member
+                # cannot mean -- so every variable must arrive bound, from
+                # members that can bind (an earlier absence binds nothing
+                # either).
+                binders = [a for a in list(earlier) + built if a.sign != ABSENT]
+                if not self._covered(member.pattern, binders):
+                    raise ParseError(
+                        f"line {line}: rule {name!r} asks `no "
+                        f"{self.m.g.show(member.pattern)}` with a variable no "
+                        f"earlier member binds -- an absence is a check on "
+                        f"things already picked out, never a way of picking "
+                        f"them out"
+                    )
+            built.append(member)
+        return built
+
+    def _check_unbound_consequent(self, line: int, name: str, con, written_con,
+                                  ant: Sequence[Member]) -> None:
         # A consequent that NAMES a rule drags that rule's own variables in with
         # it: `+resume($h, <cb>)` is generic only because `<cb>`'s patterns are.
         # Those are mentioned, not used, and no antecedent can or should bind
         # them -- so they are exempt, and every other variable is still checked.
         unbound = [
             m
-            for m, written in zip(con, s.consequent)
+            for m, written in zip(con, written_con)
             if (self.m.g.has_var(m.pattern)
                 and not _describes(written.term)
                 and not self._covered(m.pattern, ant,
                                       self._named_rule_vars(written.term)))
-
         ]
         if unbound:
             raise ParseError(
-                f"line {s.line}: rule {s.name!r} concludes about a variable its antecedent "
-                f"never binds -- the gate would refuse to deposit it (§13)."
+                f"line {line}: rule {name!r} concludes about a variable its "
+                f"antecedent never binds -- the gate would refuse to deposit "
+                f"it (§13)."
             )
-        r = self.m.rules.rule(ant, con, s.name)
+
+    def _finish_rule(self, name: str, ant, con, written_con) -> "Rule":
+        r = self.m.rules.rule(list(ant), con, name)
         # The same `<...>` marker `_fact` reads, one level up: a rule authored
         # naming a rule is mentioning, and everything it concludes inherits that.
         #
@@ -1319,28 +1420,14 @@ class Loader:
         # propagation carries it. Flagging that case too would be broader than
         # the evidence for it.
         r.mentions = any(_mentions_a_rule(m.term) or _describes(m.term)
-                         for m in s.consequent)
-        self.rules_by_name[s.name] = r
-        self.rule_nodes[s.name] = r.node
+                         for m in written_con)
         # ...and so it PRINTS as its name. A rule is minted as
         # `implies(moment(...), moment(...))` and appeared that way in every plan
         # node, licence and `unmet` -- ninety characters of its own structure
         # where the author had written `<boil>`. §2's readable criterion, failing
         # in the one place a person actually looks.
-        self.m.g.call_it(r.node, f"<{s.name}>")
-        if s.posts:
-            # The ordered tail: registered through the SAME backend a bare
-            # `after <R> => ...` trigger uses -- an empty query, this rule's
-            # node -- so `_spend_posts` needs no new code to run it. What is
-            # new is only the front door: no separate statement, no query
-            # indirection, and the rule's OWN scope rather than one rebuilt
-            # from its name (`new_substrate.md` -- RHS supersedes triggers
-            # for the unconditional case; a query-bearing `after` still has
-            # no inline spelling, and stays the separate statement).
-            clause = s.posts[0]
-            spends = self._build_spends(clause.spends, scope)
-            self.m.rules.triggers.setdefault(r.node, []).append(
-                ((), spends, False, False))
+        self.m.g.call_it(r.node, f"<{name}>")
+        return r
 
     def _covered(self, pattern: NodeId, ant: List[Member], exempt: set = frozenset()) -> bool:
         g = self.m.g
