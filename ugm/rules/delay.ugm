@@ -9,15 +9,33 @@ rule <late>    = implies( { +delayed($f, long) },    { +disrupted($f) } )
 rule <care> = implies( { +disrupted($f), +booked($p, $f) },
                        { +owed($p, meals), +owed($p, lodging) } )
 
+# a storm is outside the carrier's control; a crew shortage is not, and that is
+# now said by the ABSENCE of a rule rather than by one.
+rule <weather> = implies( { +cause($f, storm) },  { +extraordinary($f) } )
+
 # ...but compensation is not, if the cause was outside the carrier's control.
 # This is `unless`, written where a rule's variables live.
+#
+# `no extraordinary($f)` and not `-extraordinary($f)`. The two used to be one
+# mark, and a `-` premise meant *something denies this* rather than *nothing
+# says it*. There is nothing left to deny with, so a corpus has to choose, and
+# here the honest reading is absence: a flight is ordinary until something says
+# otherwise. That also deletes a rule -- `<crewing>` concluded
+# `-extraordinary($f)` to say a crew shortage is the carrier's own problem, and
+# under absence there is nothing to conclude, because not saying it IS saying it.
+#
+# ORDER IS LOAD-BEARING HERE, and it was not before. `no` is asked of the state
+# as it stands at the moment of the match, and nothing now guarantees that
+# everything which could make `extraordinary($f)` true has been settled first.
+# The old engine had a stratification pass that computed exactly that order and
+# refused a corpus whose negations had no such order; it belonged to the second
+# matcher, and it went when the second matcher did. So `<weather>` is authored
+# ABOVE this rule deliberately: authored order is the arbitration tiebreak, so
+# a storm is recognised before compensation is asked about. Written the other
+# way round, raj is compensated for a storm -- measured, not supposed.
 rule <compensate> = implies(
-    { +disrupted($f), +booked($p, $f), -extraordinary($f) },
+    { +disrupted($f), +booked($p, $f), no extraordinary($f) },
     { +owed($p, money) } )
-
-# a storm is outside the carrier's control; a crew shortage is not
-rule <weather> = implies( { +cause($f, storm) },  { +extraordinary($f) } )
-rule <crewing> = implies( { +cause($f, crew) },   { -extraordinary($f) } )
 
 # the amount depends on how far the passenger was going
 rule <far>   = implies( { +owed($p, money), +flying($p, $f), +distance($f, long) },

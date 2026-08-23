@@ -5,7 +5,7 @@
 ugm/table.py puts several agents in a room.  An expert may consult an expert,
 so this is a STACK and it needs a cycle test.
 
-⭐⭐⭐ **And the stack is now the ENGINE's**, so this file holds two ways of
+**And the stack is now the ENGINE's**, so this file holds two ways of
 doing the same thing on purpose:
 
     Consultation    the Python stack, keyed on `(expert, question)`, driven by
@@ -24,7 +24,6 @@ See docs/design/experts.md.
 from typing import List, Optional, Tuple
 
 from ..core.attention import SETTLE, Report, Table, run, _standing
-from ..core.chain import PLUS
 from ..core.graph import NodeId
 from ..core.machine import Machine
 from ..core.rules import Rule
@@ -56,7 +55,7 @@ def pool_of(m: Machine, kb: Loader, expert: str) -> List[Rule]:
     for inst in m.g.instances_of(knows):
         if m.g.member(inst, 0) is not who:
             continue
-        if m.holds(inst) != PLUS:
+        if not m.holds(inst):
             continue
         r = by_node.get(m.g.member(inst, 1))
         if r is not None:
@@ -77,7 +76,7 @@ class Consultation:
         self.kb = kb
         self.limit = limit
         self.rounds = rounds
-        # ⭐⭐⭐ **The one variable in the divergence measurement.** With
+        # **The one variable in the divergence measurement.** With
         # `resume` off this file does what it has always done: `run()` builds a
         # FRESH table on every consultation return, because none is passed. With
         # it on, each expert's table is kept and handed back. `tick`'s own
@@ -108,7 +107,7 @@ class Consultation:
     def pending(self) -> Optional[Tuple[str, NodeId]]:
         """The first unanswered `consult(<expert>, $q)`, if any."""
         for inst in self.m.g.instances_of(self.kb.atom("consult")):
-            if self.m.holds(inst) != PLUS:
+            if not self.m.holds(inst):
                 continue
             who = self.m.g.show(self.m.g.member(inst, 0))
             q = self.m.g.member(inst, 1)
@@ -123,7 +122,7 @@ class Consultation:
         for inst in self.m.g.instances_of(self.kb.atom("answered")):
             if (self.m.g.member(inst, 0) is self.kb.atom(who)
                     and self.m.g.member(inst, 1) is q
-                    and self.m.holds(inst) == PLUS):
+                    and self.m.holds(inst)):
                 return True
         return False
 
@@ -188,7 +187,7 @@ class Consultation:
         for inst in self.m.g.instances_of(self.kb.atom("reply")):
             if self.m.g.member(inst, 0) is not q:
                 continue
-            if self.m.holds(inst) != PLUS:
+            if not self.m.holds(inst):
                 continue
             a = self.m.g.member(inst, 1)
             self.m._note(self.m.g.rel(self.kb.atom("answered"),
@@ -283,7 +282,7 @@ fact +survey(plot1)
 # -- the same three experts, with nothing naming a callee -------------------
 
 PORTED = """
-# ⭐⭐⭐ Every expert can RETURN, and it is one inherited rule -- because *what
+# Every expert can RETURN, and it is one inherited rule -- because *what
 # pops is a rule saying so*, never the loop noticing its own quiescence. `stop`
 # already settled which way that goes.
 expert responder
@@ -330,7 +329,7 @@ fact +fence(plot1)
 def ported(m: Machine, kb: Loader, first: str, limit: int = 200):
     """Run `first` on the engine's stack. There is no outer loop.
 
-    ⭐⭐⭐ That absence IS the port. `work()` below runs the caller, looks for a
+    That absence IS the port. `work()` below runs the caller, looks for a
     request, services it, and runs the caller AGAIN -- because there was nothing
     to suspend into. A frame is the thing to suspend into, so the consultation
     is inside the one `run()` and the caller resumes where it left off.
@@ -405,14 +404,14 @@ def main() -> int:
 
     gate("an expert's rules are its own -- the surveyor cannot do geometry",
          "area" not in names["surveyor"])
-    # ⭐⭐⭐ The discipline, stated as a property of the pools rather than
+    # The discipline, stated as a property of the pools rather than
     # as an absence of a feature. Disjointness is what leaves the selector
     # something to discriminate ON: a term in every pool has df == total and
     # therefore idf zero, so shared rules are invisible to the pick and an
     # expert that absorbed another's would win its questions.
     pools = [set(v) for v in names.values()]
     disjoint = all(not (a & b) for i, a in enumerate(pools) for b in pools[i + 1:])
-    gate("⭐⭐⭐ no expert holds another's rules: the pools are DISJOINT, "
+    gate("no expert holds another's rules: the pools are DISJOINT, "
          "which is what the selector discriminates on",
          disjoint and all(pools))
     #  ...and the cost, which is the half that keeps the check honest. A
@@ -433,12 +432,12 @@ def main() -> int:
     print()
 
     kb2 = kb
-    gate("⭐⭐ the surveyor got its answer, from an expert it shares a graph "
+    gate("the surveyor got its answer, from an expert it shares a graph "
          "with and nothing else",
-         m.holds(kb2.term("plot(plot1, 12)")) == PLUS)
+         m.holds(kb2.term("plot(plot1, 12)")))
     gate(" the answer arrived in a TOOL's shape, so the caller cannot tell "
          "an expert from a function",
-         m.holds(kb2.term("answered(geometry, area(plot1), 12)")) == PLUS)
+         m.holds(kb2.term("answered(geometry, area(plot1), 12)")))
 
     # An expert calling an expert.
     m, kb = _fixture()
@@ -450,9 +449,9 @@ def main() -> int:
     for line in talk2.log:
         print(f"    {line}")
     print()
-    gate("⭐⭐⭐ an expert may consult an expert: the surveyor asked geometry, "
+    gate("an expert may consult an expert: the surveyor asked geometry, "
          "which asked arithmetic, and the answer came back up both hops",
-         m.holds(kb3.term("fencing(plot1, 6)")) == PLUS)
+         m.holds(kb3.term("fencing(plot1, 6)")))
     gate(f" the stack has something to measure -- it really went "
          f"{talk2.deepest} deep, asserted rather than read off the log",
          talk2.deepest > 1)
@@ -489,19 +488,19 @@ fact +question(loop(x))
     for line in trace:
         print(f"    {line}")
     print()
-    gate("⭐⭐⭐ THE PORT: the surveyor got both answers and never named an "
+    gate("THE PORT: the surveyor got both answers and never named an "
          "expert. It deposited a question, spent `push`, and the engine picked "
          "the callee from the question by TF-IDF",
-         m.holds(kb.term("plot(plot1, 12)")) == PLUS
-         and m.holds(kb.term("fencing(plot1, 6)")) == PLUS)
-    gate("⭐⭐ ...and the two hops are one `run()`. There is no outer loop, no "
+         m.holds(kb.term("plot(plot1, 12)"))
+         and m.holds(kb.term("fencing(plot1, 6)")))
+    gate("...and the two hops are one `run()`. There is no outer loop, no "
          "`consult`, no `answered` lift and no Python stack -- *nothing is "
          "resumed: there is no suspended computation* was true of this file "
          "and is not true of it any more",
          any(line.startswith("    ") for line in trace)
          and len(m._frames) == 1)
     picked = {m.g.show(inst) for inst in m.g.instances_of(m.PUSHED)
-              if m.holds(inst) == PLUS}
+              if m.holds(inst)}
     print(f"    routed: {sorted(picked)}")
     gate(" and the routing is on the record, expert and question together, "
          "because a pick nobody can override must at least be readable",
@@ -541,7 +540,7 @@ fact +question(loop(x))
          kept.score == rebuilt.score and kept.rank == rebuilt.rank
          and kept.ticked != rebuilt.ticked)
 
-    # ⭐⭐⭐ ...and the one way a resume CAN differ, which runs the other way.
+    # ...and the one way a resume CAN differ, which runs the other way.
     stale = """
 rule <splint> = implies( { +broken($p), +stick($s) }, { +set($p) } )
 expert responder
@@ -569,13 +568,13 @@ fact +taught(<splint>)
     sk.load(SETTLE)
     srep = run(sm, limit=40, pool=pool_of(sm, sk, "nurse"))
     print(f"    a rule learned inside the frame: {srep.applied}")
-    gate("⭐⭐⭐ ...and this is where a resume could have been WORSE than the "
+    gate("...and this is where a resume could have been WORSE than the "
          "re-run it replaces: an expert that concludes `knows(medic, <splint>)` "
          "mid-frame has the rule in its POOL and, with a kept table, not in its "
          "TABLE. The frame absorbs from its expert's pool every tick, so "
          "`<splint>` applied on the next move",
          "splint" in srep.applied
-         and sm.holds(sk.term("set(bob)")) == PLUS)
+         and sm.holds(sk.term("set(bob)")))
     gate(" which is `absorb`'s own failure mode -- *the rule was live, it was "
          "the node the graph described, and it never applied because nothing "
          "had a score for it* -- caught by comparing the two paths rather than "

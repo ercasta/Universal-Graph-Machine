@@ -52,7 +52,7 @@ classified here, which is the gap this gate exists to catch.
 
 Every machine the suite builds, asked the unwebbed question.
 
-    ⭐⭐⭐ **91% of this repository's rules are invisible to every instrument
+    **91% of this repository's rules are invisible to every instrument
     above.** 51 rules live in `ugm/rules/*.ugm`; **506 are string literals inside
     Python**, 360 of them in `selftest.py`. So the census, the atlas and the
     load-time note between them cover under a tenth of the corpus, and the

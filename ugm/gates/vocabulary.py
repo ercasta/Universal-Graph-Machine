@@ -20,115 +20,64 @@ from ..core.machine import Machine
 ROLES: Dict[str, List[str]] = {
     # Not vocabulary at all: a numeral is an atom whose name reads as a number.
     "literals": list("0123456789"),
-    # The surface's own marks -- connectives and signs.  `at` was the member
-    # modifier and is gone with the locus; the parser refuses it by name rather
-    # than dropping it, so it is a REFUSAL the surface knows about and not a
-    # word it reserves.
-    # `absent` is the absence MODE's node -- `no p($x)` reified as
-    # `ant($r, $p, absent, $i)` -- beside the three signs for the same reason
-    # they are here: the surface's own marks, spoken of in argument position.
-    "the surface": ["causes", "implies", "not", "plus", "minus", "unsure",
-                    "absent"],
-    # §4-§11: the history, and how to walk it.  It arrived unclassified and
-    # this census is what caught it -- see docs/observations.md §2.14, where
-    # the invariant was written down one message before it fired.
-    # → docs/design/vocabulary.md#4-11-the-history-and-how-to-walk-it
-    #  Five names went with the locus, and this census is what proved they
-    # were gone rather than merely unused: `span` and `span_of` (a stretch was
-    # a kind of locus), `reaches` (the bundle policy deciding whether a claim
-    # about a stretch was visible from a moment), `holds_at` (the second index),
-    # and `moved` (`Gate.reseat`'s record of a seat move, and there is no seat).
-    # A name left here that nothing mints reads as vocabulary the agent has and
-    # does not use, which is the opposite of true.
-    "the chain": ["anc", "sanc", "pred", "in_delta", "delta_next", "entry_of",
-                  "rests_on", "licensed_by",
-                  "arrived_on", "mentioned", "asking", "asked", "time"],
+    # The surface's own marks: the connective, and the three MODES a member can
+    # be in, spoken of in argument position -- `ant($r, $p, assert, $i)`
+    # mentions a mode where `+p` uses one.
+    #
+    #  This family used to hold `causes`, `plus`, `minus` and `unsure`, and
+    # all four are gone rather than renamed. `causes` did one thing -- land its
+    # conclusion in a later moment -- and there are no moments. The three signs
+    # collapsed into presence: `+p` anchors, `-p` erases, and absence is
+    # ignorance, so there is nothing left for a third mark to say.
+    "the surface": ["implies", "not", "assert", "erase", "absent"],
+    # What belief IS. One name, and it is the whole architecture: a proposition
+    # is believed when `believed(p)` is in the graph and not believed when it
+    # is not. The family that used to sit here -- `anc`, `pred`, `in_delta`,
+    # `entry_of`, `rests_on`, `licensed_by`, `time` and the rest -- was the
+    # CHAIN, and a census that still listed it would be listing vocabulary the
+    # agent has and cannot use.
+    "belief": ["believed", "erased"],
     # R3/R4: rules are subjects, and rules are askable.
-    "rules as data": ["rule", "ant", "con", "conn", "adopt", "compose",
-                      "composed", "computes", "names", "binds", "exercised"],
-    # The agent reasoning about its own reasoning: goals, plans, backward
-    # reading, recall, effort, stopping, credit.
+    "rules as data": ["rule", "ant", "con", "computes", "names"],
+    # The agent reasoning about its own reasoning: what comes to mind, what is
+    # worth thinking about, and how much of either there may be.
     "the agent's deliberation": [
-        "goal", "plan", "subgoal", "check", "fit", "fits", "unfit", "unmet",
-        "verdict", "blocked", "pursued", "expands", "need", "recall",
-        "recalled", "achieved", "enough", "stopped", "quiet", "open",
-        "again", "budget",
-        "close", "helped", "harmed",
-        # The gap between two spans, which a rule cannot compute because it
-        # cannot speak about a set: `<difference>` materialises it.
-        "delta", "missing", "extra", "matched", "now",
-        # Triggers: a rule the engine consults on what another rule is about
-        # to conclude, and what it may say about one.
-        "intercepts", "producing", "instead", "drop", "rewrote", "after",
-        "reached", "bounded", "widened", "support", "unsupported", "root",
-        "rooted", "scoped", "loaded", "kb", "dormant", "due", "standing",
-        # The aggregate over bindings, which is what `blocked`, `rooted` and
-        # `unsupported` above are each a threshold on: a rule sees one binding
-        # at a time, so *how many* is the machinery's to answer.
+        "recall", "recalled", "dormant", "due", "standing", "budget",
+        "close", "bounded", "widened", "ticks",
+        # The aggregate over bindings. A rule sees one binding at a time, so
+        # *how many* is the machinery's to answer -- and it is the one thing
+        # `no` cannot do, because a consequent may carry an unbound variable.
         "count", "counted",
-        # `attention` is a claim about a NODE -- *think about this one* -- and it
-        # is the agent's own deliberation rather than anything a world says.
-        #
-        #  It used to sit beside `prefer`, which said the same thing about a
-        # RULE. `prefer` is retired: a rule id goes stale the moment a rule is
-        # adopted, composed or renamed, so a corpus of experience written in it
-        # stops LOADING rather than going quietly wrong.
-        "attention", "attention_span", "excluded", "ticks",
-        # §18's call stack: the plumbing under a recursive plan, and not a way
-        # of making one. Deliberation words, chosen so they are not words a
-        # WORLD uses -- `awaits`/`returned`/`advances` rather than the obvious
-        # `child`/`done`/`then`, because reserving `child` takes it from every
-        # corpus that has a family in it.
-        "call", "stage", "spawn", "awaits", "returned", "advances", "closes",
-        # The action palette, declared rather than implied. `conn($r, causes)`
-        # was the nearest thing and answers a different question -- how a rule
-        # relates to the world, not that the agent may deliberately do it.
-        "afforded",
-        # ...and asking for one. `attempt` is the request; `declined` is what
-        # becomes of a bad one, with `unafforded` the single reason the
-        # MACHINERY ever gives -- what is legal is the world model's to say, in
-        # its own word.
-        "attempt", "declined", "unafforded", "unattended",
-        # Refraction (§14): what has already run, on what, and the
-        # contradiction that stopping a loop would otherwise hide.
-        "spent", "premises", "contested",
-        # ⭐⭐⭐ The attention STACK, and note where it lands: `push` and `pop`
-        # are the agent suspending one line of work for another, so a frame is
-        # deliberation in exactly the sense `attention` above is, one construct
-        # up. `pushed`/`popped` are the record of a focus change; `frame_depth`
-        # is its knob, beside `attention_span`.
-        "pushed", "popped", "frame_depth",
-        # ...and which expert a frame belongs to.  `knows` is the SURFACE's
-        # word -- `expert geometry` has written it since experts existed -- and
-        # it arrived in this census only when the engine started reading it,
-        # because `push` picks an expert. It was a loader-scoped name before,
-        # which is to say a second `knows` waiting to happen. `extends` sat
-        # beside it until 08-22, when expert inheritance was deleted.
-        "knows",
-        # ⭐ ...and how WELL each expert suits what a frame is about, in
-        # hundredths: the pick and the scores it beat, deposited, because an
-        # unarguable step cannot buy back vetoability and must not lose
-        # legibility.
-        "suits",
+        # `attention` is a claim about a NODE -- *think about this one*.
+        "attention", "attention_span",
+        # The attention STACK: `push` and `pop` are the agent suspending one
+        # line of work for another, so a frame is deliberation in exactly the
+        # sense `attention` is, one construct up.
+        "pushed", "popped", "frame_depth", "declined", "unattended",
+        # ...and which expert a frame belongs to, and how well each suits what
+        # the frame is about, in hundredths: the pick AND the scores it beat,
+        # because an unarguable step cannot buy back vetoability and must not
+        # lose legibility.
+        "knows", "suits",
+        # The gap between two states, which a rule cannot compute because it
+        # cannot speak about a set. Both states exist right now, so this is a
+        # diff and not a memory -- which is why it survived the chain.
+        "delta", "missing", "extra", "matched", "now",
+        # Triggers: a rule the engine consults on what another rule is about to
+        # conclude, and what it may say about one.
+        "intercepts", "producing", "instead", "drop", "rewrote", "after",
+        # Which table a name was resolved in, and that a corpus was loaded.
+        "scoped", "loaded", "kb",
     ],
-    # Where a world touches the agent: what arrived, what was said, what was
-    # done, and what may not be. About the ACT, never about its content.
-    "the seam to a world": ["arrived", "says", "answered", "answers", "emitted",
-                            "did", "doing", "taken", "deviates", "expects",
-                            # What `<assert-act>` reads: a corpus saying this
-                            # act's effect is supplied by something else, so
-                            # the act itself is not assumed.
-                            "substituted",
-                            "refused",
-                            # ...and the other gate record: an erasure
-                            # is a gate decision, so it says so on the
-                            # log where `Graph.delete` said nothing.
-                            "erased",
-                            # The world model's split (docs/world-model.md):
-                            # declaring `relationship(<rel>)` is what makes the
-                            # gate refuse a denotation in one of its argument
-                            # places. A declaration the gate enforces.
-                            "relationship"],
+    # Where a world touches the agent: what arrived, what was said, what a tool
+    # answered. About the ACT, never about its content.
+    #
+    #  `emitted`, `did`, `doing`, `taken`, `expects`, `deviates` and
+    # `substituted` were here. They were the agent's own account of what it had
+    # done and what it had expected to happen, which is a policy about how to
+    # conduct oneself rather than a seam, and they went with the machinery that
+    # read them. `refused` went with the vetoes.
+    "the seam to a world": ["arrived", "says", "answers", "answered"],
 }
 
 # `about` says what a corpus is about, and it is what makes this a comparison
@@ -137,7 +86,6 @@ ROLES: Dict[str, List[str]] = {
 # borrow nearly all of it. Those are opposite predictions from one classification,
 # which is what stops this being a table that can only agree with itself.
 CORPORA = [
-    ("a D&D fight", "ugm/rules/dungeon.ugm", "a world"),
     ("passenger rights", "ugm/rules/delay.ugm", "a world"),
     ("the design's worked examples", "ugm/rules/worked.ugm", "a world"),
     ("the bundle itself", "ugm/rules/bundle.ugm", "the agent"),
@@ -171,7 +119,7 @@ def unwebbed(m: Machine, rules, res: Set[str]) -> List[str]:
 def sweep() -> "tuple":
     """Every machine the suite builds, asked the unwebbed question.
 
-    ⭐⭐⭐ 91% of this repository's rules are invisible to every instrument above.
+    91% of this repository's rules are invisible to every instrument above.
     51 rules live in ugm/rules/*.ugm; 506 are string literals inside Python,
     360 of them in selftest.py.  What it does NOT justify is moving the
     fixtures.
@@ -218,7 +166,7 @@ def reserved() -> Set[str]:
     m = Machine()
     for attr in dir(m):
         v = getattr(m, attr, None)
-        if isinstance(v, dict) and "anc" in v and "goal" in v:
+        if isinstance(v, dict) and "believed" in v and "implies" in v:
             return set(v)
     raise RuntimeError("the name table moved")
 
@@ -267,7 +215,7 @@ def main() -> int:
     print(f"  every reserved name is classified exactly once: "
           f"{'yes' if not (missing or extra) else 'NO'}")
 
-    # ⭐⭐⭐ The headline. None of the roles above is a DOMAIN -- there is no
+    # The headline. None of the roles above is a DOMAIN -- there is no
     # reserved name for a thing, a place, an amount of anything, or an act of
     # any particular kind. `did` and `says` are about the act, never about what
     # was done or said.
@@ -319,14 +267,14 @@ def main() -> int:
     with open("ugm/rules/delay.ugm", "r", encoding="utf-8") as fh:
         kb = load(m, fh.read())
     m.run(limit=300)
-    at = lambda q: m.chain.holds(kb.term(q))
+    at = lambda q: m.holds(kb.term(q))
     want = {
         # a crew shortage is the carrier's own doing: care AND compensation
-        "owed(ana, meals)": "+", "owed(ana, money)": "+",
-        "amount(ana, 600)": "+", "rerouted(ana, zr9)": "+",
+        "owed(ana, meals)": True, "owed(ana, money)": True,
+        "amount(ana, 600)": True, "rerouted(ana, zr9)": True,
         # a storm is not: care only, and the guard is what withholds the rest
-        "owed(raj, meals)": "+", "owed(raj, money)": None,
-        "amount(raj, 250)": None,
+        "owed(raj, meals)": True, "owed(raj, money)": False,
+        "amount(raj, 250)": False,
     }
     for q, expect in want.items():
         checked += 1

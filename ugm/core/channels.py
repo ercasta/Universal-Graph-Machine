@@ -12,9 +12,17 @@ from .graph import Graph, NodeId
 
 
 class Arrival(NamedTuple):
+    """What arrived, and where from.
+
+    There was a third field, the SIGN. A channel reported `+p`, `-p` or `?p`,
+    which made it the one party outside the agent that could say what to
+    believe rather than what it had heard. A channel with a denial to report
+    reports `not(p)`, which says the same thing as an ordinary term and leaves
+    the deciding where it belongs.
+    """
+
     channel: NodeId
     proposition: NodeId
-    sign: str
 
 
 class Channels:
@@ -64,13 +72,11 @@ class Channels:
             self._known.append(node)
         return node
 
-    def deliver(
-        self, channel: NodeId, proposition: NodeId, sign: str = "+"
-    ) -> None:
+    def deliver(self, channel: NodeId, proposition: NodeId) -> None:
         """Deliver an arrival. Nothing is believed yet: what arrives is that the
         channel said so, and turning that into a claim about the world is a rule
         the agent can be asked about."""
-        a = Arrival(channel, proposition, sign)
+        a = Arrival(channel, proposition)
         self.arrived += 1
         if self.sink is None:
             self._pending.append(a)

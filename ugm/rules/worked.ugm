@@ -5,32 +5,41 @@
 # `it is raining` is a rule, never a hard-wired intake, so it can be argued
 # with and overridden.
 
-# §8 <R1>. `causes`, so the effect lands in a LATER moment and persists --
-# water you have stopped heating stays boiled.
-rule <boil> = causes(
+# §8 <R1>. Written as `causes` when there were two connectives, because the
+# effect had to land in a LATER moment and persist -- water you have stopped
+# heating stays boiled. There are no moments, so there is nothing for that to
+# mean here: what a corpus wants to say about persistence it says in its own
+# rules, over its own vocabulary of time.
+#
+# The `-liquid($w)` is now an ERASURE, which is what it always wanted to be:
+# the water stops being liquid, and afterwards nothing anywhere says it is.
+rule <boil> = implies(
     { +heat($a, $w), +water($w) },
     { +boiling($w), -liquid($w) } )
 
-# §8 <R2>. `implies`, so it lands in the SAME moment and is derived. Written as
-# `causes`, the backward reader would produce a plan to make it rain by making
-# it cloudy -- the two-connective split is what makes that plan unwritable.
-#  `@likely` was a GRADE on the conclusion. Grades are gone: what a rule says
+# §8 <R2>. Written as `implies` so that the backward reader could not produce a
+# plan to make it rain by making it cloudy. That guarantee went with the second
+# connective, and it is worth saying plainly rather than pretending otherwise.
+#
+# `@likely` was a GRADE on the conclusion. Grades are gone: what a rule says
 # about the strength of its conclusion is now *in* the conclusion, and a rule
 # can read it. Nothing believes `rain(monday, afternoon)` bare until something
-# crosses the modality, which is `<cross>` below.
+# crosses the modality, which is a rule a corpus writes.
 rule <weather> = implies(
     { +cloudy($day, morning) },
     { +likely(rain($day, afternoon)) } )
 
 # §13. The consequent is a bare variable: whatever the channel says, believe it
-# -- but only as `likely`, which is the rule's contribution and is now a claim
+# -- but only as `likely`, which is the rule's contribution and is a claim
 # rather than an annotation. A corpus can ask which of its beliefs came in this
 # way, and could not when it was a grade.
+#
+# The sign went out of `says` with the entry: a channel reports what it heard.
 rule <trust_user> = implies(
-    { +says(user, $p, plus) },
+    { +says(user, $p) },
     { +likely($p) } )
 
-# Standing knowledge, stamped as having come from the knowledge base.
+fact +liquid(kettle)
 fact +heat(anna, kettle)
 fact +water(kettle)
 fact +cloudy(monday, morning)

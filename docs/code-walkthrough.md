@@ -249,11 +249,11 @@ top of the profile. If you are making the loop slower, those are where it will s
 The engine's comments carry two marks, and they are worth grepping:
 
 ```
-⭐ / ⭐⭐ / ⭐⭐⭐     the finding: why this line is this way, and what it buys
+/ / the finding: why this line is this way, and what it buys
   /  /       the trap: what breaks if you undo it, usually with the measurement
 ```
 
-125 / 31 / 168 of the first and hundreds of the second. `⭐⭐⭐` in `machine.py` and `rules.py` is
+125 / 31 / 168 of the first and hundreds of the second. `` in `machine.py` and `rules.py` is
 close to a table of contents for the design decisions that are actually in force. Before changing a
 line that carries one, read it — most of them record something that was already tried.
 

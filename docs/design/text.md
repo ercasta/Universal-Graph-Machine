@@ -46,7 +46,7 @@ writes as an en dash, `->` for its arrow. §8's worked rules parse as printed.
 A relation instance, an atom, a variable or a rule reference, still
     unresolved against a graph.
 
-    ⭐ `fn` is the relation slot when it holds a whole TERM rather than a name --
+    `fn` is the relation slot when it holds a whole TERM rather than a name --
     `a(b)(c)`, the node whose relation is `a(b)`. The substrate has always built
     one (a node's relation is a node like any other, and `show` renders it by
     recursing), `unify` learned to compare one when `$p($t)` landed, and this is
@@ -78,7 +78,7 @@ A postcondition, as written: a query, and what it spends if it holds.
     and a learned one are the same construct, and only the learner treats them
     differently.
 
-    ⭐⭐⭐ **Three provenance levels over one mechanism**, and they are what make
+    **Three provenance levels over one mechanism**, and they are what make
     the learned half separable:
 
         frozen      the machinery may not touch this
@@ -92,7 +92,7 @@ A postcondition, as written: a query, and what it spends if it holds.
 
 ## Which expert the rules below belong to, and op
 
-⭐ Which expert the rules below belong to, and optionally which
+Which expert the rules below belong to, and optionally which
 other expert's rules it inherits:
 
     expert geometry
@@ -106,7 +106,7 @@ keyword buys is not having to name every rule twice.
 
 ## The action palette, declared:
 
-⭐⭐⭐ **The action palette, declared:**
+**The action palette, declared:**
 
     action move($x, $y)
 
@@ -151,7 +151,7 @@ has no identity but the one the author gives it.
 
 ## +acts(goblin) at $m -- WHERE the entry sits.
 
-⭐ `+acts(goblin) at $m` -- WHERE the entry sits. §12 calls the short
+`+acts(goblin) at $m` -- WHERE the entry sits. §12 calls the short
 form an abbreviation for the entry, whose locus the frame supplies;
 this is how a rule says otherwise, and it relates two moments.
 
@@ -162,7 +162,7 @@ member is followed by `,` or `}`.
 
 ## The name scope, and whether it is shared.
 
-⭐⭐⭐ **The name scope, and whether it is shared.** A corpus is a bound:
+**The name scope, and whether it is shared.** A corpus is a bound:
 `kettle` means one node inside it, by construction and not by
 inference, which is why coreference does not arise in authored
 knowledge at all. What that cost, until now, is that two documents
@@ -186,7 +186,7 @@ corrected -- which is the same shape `learned()` already has for rules.
 
 ## A domain is a channel, and that is the wh
 
-⭐⭐ **A domain is a channel**, and that is the whole of what a domain
+**A domain is a channel**, and that is the whole of what a domain
 needs to be. §13 already says the knowledge base IS a channel; a named
 scope refines it rather than adding a fourth concept, so a fact loaded
 under `scope="billing"` is stamped as having come from billing and
@@ -365,14 +365,14 @@ Every variable in a structure -- **including one in RELATION position.**
     destructuring a description was refused at the surface while `match` handled
     it perfectly (measured: 2 matches, `$verb` bound to `attack` and `steal`).
 
-    ⭐ That is what blocked a **generic** interpreter: one rule per predicate was
+    That is what blocked a **generic** interpreter: one rule per predicate was
     forced, because a rule could not be written over the predicate itself.
 
 ## `_report_unwebbed`
 
 Say when a rule reads a name nothing anywhere writes.
 
-    ⭐⭐⭐ **The open class's own price, detected by the open class's own
+    **The open class's own price, detected by the open class's own
     property.** A proposition needs no implementation, so a name awaiting its
     meaning and a name that is a typo are both well formed and both inert --
     and nothing in the engine could tell them apart. Meaning is the web, so a

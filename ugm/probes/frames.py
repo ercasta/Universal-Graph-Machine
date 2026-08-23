@@ -13,7 +13,7 @@ rollback, and nothing derived inside a frame stops existing when it is popped.
 Attention management is the whole of this. The one thing a pop takes back is the
 frame's own `attention` claims, and it DENIES them rather than dropping them.
 
-⭐⭐⭐ Why a stack rather than a fourth filter: three fixes have been tried on
+Why a stack rather than a fourth filter: three fixes have been tried on
 the flat queue -- claimed vs derived, excluding bookkeeping, a learned weight --
 and every one of them makes the queue's CONTENTS more selective. None of them
 can help, because at span 7 a long enough sub-line evicts anything, however well
@@ -27,7 +27,6 @@ See docs/todo.md, "the ATTENTION STACK".
 """
 
 from ..core.attention import SETTLE, Table, run, _standing
-from ..core.chain import PLUS
 from ..core.machine import FRAME_DEPTH, Machine
 from ..core.text import Loader, load
 
@@ -67,7 +66,7 @@ def _survey(push: str, pop: str):
     kb = load(m, (HEAD % (push, pop)) + PAD + TAIL + ITEMS)
     seen = []
 
-    def chooser(mm, table, window, state):
+    def chooser(mm, table, window):
         seen.append((window[0].rule.name,
                      [mm.g.show(n) for n in mm._attended()]))
         return window[0]
@@ -143,21 +142,21 @@ def main() -> int:
 
     gate(" the control finishes both ways -- the stack is being measured, not "
          "the corpus",
-         flat_m.holds(flat_kb.term("told(plots)")) == PLUS
-         and frame_m.holds(frame_kb.term("told(plots)")) == PLUS)
+         flat_m.holds(flat_kb.term("told(plots)"))
+         and frame_m.holds(frame_kb.term("told(plots)")))
     #  POSITION, not membership. `attend($g)` deposited a standing
     # `attention(plots)` claim, and `_attended()` puts a standing claim at the
     # BOTTOM rather than dropping it -- so *was it forgotten* is the wrong
     # question and would have made this check pass on a technicality. What the
     # queue lost is its PLACE, and position is the strength: `_pull` weighs
     # depth 0 at 6 and the bottom of a full queue at 1.
-    gate(f"⭐⭐⭐ THE EVICTION LOSS IS REAL: the sub-line pushed what the outer "
+    gate(f"THE EVICTION LOSS IS REAL: the sub-line pushed what the outer "
          f"line was about from the front of the queue to position "
          f"{flat_at.index('plots')} of {len(flat_at)}, and handed it back "
          f"{flat_m._readmitted}x on the way -- lifting at 1 where it had been "
          f"lifting at 6",
          flat_m._readmitted > 0 and flat_at.index("plots") > 4)
-    gate("⭐⭐⭐ ...and a frame does not lose it: the sub-line ran on its own "
+    gate("...and a frame does not lose it: the sub-line ran on its own "
          "queue, and `plots` is back at the FRONT when the outer line resumes, "
          "exactly as `<begin>` left it",
          frame_m._readmitted == 0 and frame_at.index("plots") == 0)
@@ -165,17 +164,27 @@ def main() -> int:
          "outer frame, which is the other half: suspending is not remembering "
          "more, it is remembering the RIGHT things",
          not any(n.startswith("i") and n[1:].isdigit() for n in frame_at))
-    #  **And it is not a speed-up. It costs slightly MORE.** Written down
-    # rather than tuned away: `_pull` lifts from a shorter queue inside the
-    # frame, so the shortlist widens a little further. The stack buys the FOCUS
-    # and pays a few percent of matching for it, and a probe that reported only
-    # the column it won on would be measuring its own conclusion.
-    gate(f" ...and the loop pays for it: {flat_r.tried} rules matched flat "
-         f"against {frame_r.tried} framed, {flat_r.widenings} widenings "
-         f"against {frame_r.widenings}. The stack is NOT a speed-up -- it is a "
-         f"few percent dearer, and what it buys is the line above staying put",
-         frame_r.tried > flat_r.tried
-         and frame_r.tried < flat_r.tried * 1.1
+    #  **It is not a speed-up either way, and the DIRECTION has flipped.**
+    # This check used to assert that framing cost strictly more -- `_pull`
+    # lifts from a shorter queue inside a frame, so the shortlist widened a
+    # little further. Under the scratchpad it comes out a few percent CHEAPER
+    # instead, because quiescence changed: an application is spent the move it
+    # is applied rather than re-offered until it is seen to change nothing, so
+    # the tail of a run is shorter and the frame's shorter queue no longer pays
+    # for itself twice.
+    #
+    # What is worth checking is the claim that survives both measurements: the
+    # stack is not a performance mechanism. It buys the FOCUS -- the line above
+    # staying put -- and costs a few percent of matching in whichever direction
+    # the rest of the engine happens to push it. Written as a BAND rather than
+    # re-pointed at the new winner, because a probe re-aimed at whichever
+    # column it now wins on is measuring its own conclusion.
+    gate(f" ...and the loop does not pay for it, nor get paid: "
+         f"{flat_r.tried} rules matched flat against {frame_r.tried} framed, "
+         f"{flat_r.widenings} widenings against {frame_r.widenings}. The stack "
+         f"is NOT a performance mechanism -- it is within a few percent "
+         f"either way, and what it buys is the line above staying put",
+         abs(frame_r.tried - flat_r.tried) < flat_r.tried * 0.1
          and frame_r.ticks == flat_r.ticks)
 
     # -- 2. the frame is a call, and pop is its return ----------------------
@@ -183,24 +192,24 @@ def main() -> int:
     print("2. the frame, and what is deposited about it")
     print()
     m, kb = frame_m, frame_kb
-    gate("⭐ a push is DEPOSITED, not merely done -- a record of a focus "
+    gate("a push is DEPOSITED, not merely done -- a record of a focus "
          "change, which is what `_unattend`'s finding asks of anything that "
          "moves attention",
-         m.holds(kb.term("pushed(items)")) == PLUS)
-    gate("⭐ ...and so is the pop, carrying the node it brought back",
-         m.holds(kb.term("popped(plots)")) == PLUS)
+         m.holds(kb.term("pushed(items)")))
+    gate("...and so is the pop, carrying the node it brought back",
+         m.holds(kb.term("popped(plots)")))
     gate(" the stack came back down: a run that ends inside a frame it opened "
          "would be a leak the agent cannot be asked about",
          len(m._frames) == 1)
     gate(" and the graph is UNTOUCHED by the pop -- everything the sub-line "
          "concluded still stands, because popping graph changes is a different "
          "feature and is not wanted",
-         all(m.holds(kb.term("checked(i%d)" % i)) == PLUS
+         all(m.holds(kb.term("checked(i%d)" % i))
              for i in range(1, 9)))
     gate(" ...while the frame's own `attention` claims are DENIED rather "
          "than dropped, or the suspension would leak the very thing it exists "
          "to put away",
-         m.holds(kb.term("attention(i8)")) != PLUS)
+         m.holds(kb.term("attention(i8)")) is False)
 
     # -- 3. does the pick discriminate, after IDF? --------------------------
     print()
@@ -219,13 +228,13 @@ def main() -> int:
         print(f"    {q:14s} -> {picks[q][0]:11s} {picks[q][1]}")
     print()
 
-    gate("⭐⭐⭐ the pick is a MECHANISM and not a coin flip: `survey(plot1)` "
+    gate("the pick is a MECHANISM and not a coin flip: `survey(plot1)` "
          "goes to the surveyor and to nobody else, on a corpus written for a "
          "different probe",
          picks["survey(plot1)"][0] == "surveyor"
          and [s for e, s in picks["survey(plot1)"][1] if e != "surveyor"]
          == [0, 0])
-    gate("⭐ IDF is what makes that possible -- `question`, `reply` and the "
+    gate("IDF is what makes that possible -- `question`, `reply` and the "
          "rest are in every pool and score ZERO, so only the discriminating "
          "terms carry it",
          all(s == 0 for _q, (_w, sc) in picks.items() for _e, s in sc
@@ -268,14 +277,14 @@ fact +known(sum)
     gate(" a caller that hands its table in still gets THAT table back, not "
          "whichever frame the run ended in",
          r2.table is root)
-    gate("⭐⭐ ...and the root table's tick count is the run's, so a host "
+    gate("...and the root table's tick count is the run's, so a host "
          "stepping by hand is not measuring a different agent each time",
          root.ticked >= 3)
-    gate("⭐ the frame closed and the answer came back on the restored frame -- "
+    gate("the frame closed and the answer came back on the restored frame -- "
          "`pop($q)` is the attention-level analogue of a return value",
          len(m2._frames) == 1
          and m2._attended()[0] is kb2.term("sum")
-         and m2.holds(kb2.term("heard(sum)")) == PLUS)
+         and m2.holds(kb2.term("heard(sum)")))
 
     # -- 5. the two backstops ----------------------------------------------
     print()

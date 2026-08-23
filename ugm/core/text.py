@@ -10,13 +10,17 @@ See docs/design/text.md.
 import sys
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from .chain import MINUS, PLUS, UNSURE
 from .graph import NodeId
 from .machine import Machine
-from .rules import (ABSENT, CAUSES, IMPLIES, STOP, UNATTEND, Attend, Member, Pop,
+from .rules import (ABSENT, ASSERT, ERASE, IMPLIES, STOP, UNATTEND, Attend, Member, Pop,
                     Push)
 
-SIGNS = {"+": PLUS, "-": MINUS, "?": UNSURE}
+# The two modes the surface writes. `?` is gone: absence is ignorance, so
+# there is nothing left for a third mark to say. `-` is a CONSEQUENT mode --
+# erase this -- and the loader refuses it in an antecedent, where the corpus
+# must choose between `no p` (nothing anchors it) and `+not(p)` (something
+# anchors its denial).
+SIGNS = {"+": ASSERT, "-": ERASE}
 
 
 class ParseError(Exception):
@@ -127,7 +131,7 @@ def tokenise(src: str) -> List[Tok]:
 class Term(NamedTuple):
     """A relation instance, an atom, a variable or a rule reference, still
 
-    unresolved against a graph. ⭐ fn is the relation slot when it holds a whole
+    unresolved against a graph. fn is the relation slot when it holds a whole
     TERM rather than a name -- a(b)(c), the node whose relation is a(b).  Set
     only for a CHAINED application, so every term that parsed before this
     existed still parses to the identical shape.
@@ -140,7 +144,7 @@ class Term(NamedTuple):
     is_var: bool
     is_rule: bool = False
     fn: Optional["Term"] = None
-    # ⭐ `+person` in an ARGUMENT: introduce one. `+` already signals a node
+    # `+person` in an ARGUMENT: introduce one. `+` already signals a node
     # coming to be -- asserting `+p(x)` is what builds `p(x)` -- so this is that
     # mark one level down rather than a second meaning for it. `member` consumes
     # the member-level sign before `term` is ever called, so the two cannot
@@ -227,7 +231,7 @@ class Parser:
         if t.text == "rule":
             return self.rule(t.line)
         if t.text == "expert":
-            # ⭐ Which expert the rules below belong to. It declares nothing
+            # Which expert the rules below belong to. It declares nothing
             # the surface could not already write -- knows(geometry, <R>) is an
             # ordinary fact, and staying an ordinary fact is what makes *which
             # rules does this expert have* an ordinary query (R4).
@@ -260,7 +264,7 @@ class Parser:
                 )
             return Statement("expert", name.text, "", (), (), None, "", t.line)
         if t.text == "action":
-            # ⭐⭐⭐ The action palette, declared: action move($x, $y) A SIGNATURE
+            # The action palette, declared: action move($x, $y) A SIGNATURE
             # and nothing else.  No angle brackets.
             # → docs/design/text.md#the-action-palette-declared
             return Statement("action", "", "", (), (), self.member(), "", t.line)
@@ -282,7 +286,7 @@ class Parser:
             self.expect("=")
             body = self.block()
             return Statement("alias", head.head, "", body, (),
-                             RuleMember(PLUS, head, None), "", t.line)
+                             RuleMember(ASSERT, head, None), "", t.line)
         if t.text == "fact":
             # A fact may be NAMED, and the name goes in the same angle brackets
             # a rule's does, because it is the same namespace: names of
@@ -314,11 +318,13 @@ class Parser:
             )
         self.expect("=")
         conn = self.next()
-        if conn.text not in (CAUSES, IMPLIES):
+        if conn.text != IMPLIES:
             raise ParseError(
-                f"line {conn.line}: {conn.text!r} is not a connective. The closed set is "
-                f"`{CAUSES}` and `{IMPLIES}` (§10), and a third earns its place only by "
-                f"licensing a different (forward, backward) reading pair."
+                f"line {conn.line}: {conn.text!r} is not a connective. There "
+                f"is one -- `{IMPLIES}` -- and a second earns its place only by "
+                f"licensing a different (forward, backward) reading pair. "
+                f"`causes` did not: all it did was land its conclusion in a "
+                f"later moment, and there are no moments."
             )
         self.expect("(")
         ant = self.block()
@@ -388,7 +394,7 @@ class Parser:
         """
         t = self.next()
         if t.kind == "name" and t.text == "stop":
-            # ⭐ *Done is the output of a rule that checks against the goal* --
+            # *Done is the output of a rule that checks against the goal* --
             # which the table loop's own design says, and had no way to obey.
             # A rule concludes that here is over; its postcondition is what
             # ends the run. The loop still knows nothing about goals: it knows
@@ -401,7 +407,7 @@ class Parser:
             # accumulates until it names everything.
             return (UNATTEND, 0)
         if t.kind == "name" and t.text == "attend":
-            # ⭐⭐⭐ **The learnable one.** `attend($x)` says *think about what
+            # **The learnable one.** `attend($x)` says *think about what
             # this move just bound to `$x`* -- and `$x` is the HOST RULE's own
             # variable, because the loader seeds a trigger's scope from the rule
             # it hangs off. So the lesson is anchored to the move that produced
@@ -410,7 +416,7 @@ class Parser:
             target = self.term()
             weight = 1
             if self.at(","):
-                # ⭐ The learned buff, and it weighs a NODE rather than a rule.
+                # The learned buff, and it weighs a NODE rather than a rule.
                 # `attend($x, 3)` says *of what this move touched, that one
                 # matters* -- a multiplier on its place in the attention queue.
                 self.next()
@@ -422,7 +428,7 @@ class Parser:
             self.expect(")")
             return (Attend(target, weight), 0)
         if t.kind == "name" and t.text == "push":
-            # ⭐⭐⭐ **A frame, not a filter.** Three fixes for the queue's
+            # **A frame, not a filter.** Three fixes for the queue's
             # forgetting have been tried here and all three were filters on a
             # flat queue -- claimed vs derived, excluding bookkeeping, a learned
             # weight. None of them can help, because at span 7 a long enough
@@ -441,7 +447,7 @@ class Parser:
             self.expect(")")
             return (Push(terms), 0)
         if t.kind == "name" and t.text == "pop":
-            # ⭐ `pop($x)` attends $x on the RESTORED frame: the attention-level
+            # `pop($x)` attends $x on the RESTORED frame: the attention-level
             # analogue of a return value. Without it the agent returns from a
             # sub-line with no idea it concluded anything.
             self.expect("(")
@@ -467,9 +473,8 @@ class Parser:
         t = self.peek()
         if t is None:
             raise ParseError("unexpected end of input in a member")
-        sign = PLUS
+        sign = ASSERT
         if t.kind == "punct" and t.text in SIGNS:
-            # `?` is the unsure sign here; `$x` tokenised as a var, never as this
             sign = SIGNS[self.next().text]
         elif (t.kind == "name" and t.text == "no"
                 and self.i + 1 < len(self.toks)
@@ -555,7 +560,7 @@ class Parser:
             return Term("-" + digits.text, (), False)
         t = self.next()
         if t.kind == "var":
-            # ⭐ `$p($t)` -- a variable in the RELATION slot. The substrate has
+            # `$p($t)` -- a variable in the RELATION slot. The substrate has
             # always been able to build one; `unify` learned to bind it, so the
             # surface stops being the thing that forbids it. This is what makes
             # *apply the effect named by this ability* one rule instead of one
@@ -598,7 +603,7 @@ class Loader:
                  domain: Optional[str] = None) -> None:
         self.m = machine
         self.scope_name = scope
-        # ⭐⭐⭐ The name scope, and whether it is shared.  Note what this
+        # The name scope, and whether it is shared.  Note what this
         # deliberately does NOT do: assert identity in the graph.
         # → docs/design/text.md#the-name-scope-and-whether-it-is-shared
         self.atoms: Dict[str, NodeId] = (
@@ -627,7 +632,7 @@ class Loader:
         # second node with one name -- which is how `says` and `overrides` each
         # silently stopped matching what the surface wrote.
         self.atoms.update(self.m.reserved)
-        # ⭐⭐ A domain is a channel, and that is the whole of what a domain
+        # A domain is a channel, and that is the whole of what a domain
         # needs to be.  Unscoped documents keep kb, which is what every corpus
         # has had.
         # → docs/design/text.md#a-domain-is-a-channel-and-that-is-the-wh
@@ -663,13 +668,9 @@ class Loader:
         prop = self.m.g.rel(self.m.SCOPED, node, self.atom(scope))
         if self.m._claims(prop):
             return
-        self.m.gate.write(
-            prop, "+",
-            licence=self.m.g.rel(self.m.REIFIED, node),
-            source=self.source, mention=True,
-        )
+        self.m.gate.write(prop, generic=True)
 
-    def say(self, channel: str, text: str, sign: str = "+") -> NodeId:
+    def say(self, channel: str, text: str) -> NodeId:
         """The world speaks, **in this corpus's scope** -- the scoped door for
         arrivals, beside `channel` and `answerer`.
 
@@ -680,7 +681,7 @@ class Loader:
         node, prop = self.channel(channel), self.term(text)
         self.m._saying_scope = self.scope_name
         try:
-            self.m.channels.deliver(node, prop, sign)
+            self.m.channels.deliver(node, prop)
         finally:
             self.m._saying_scope = None
         return prop
@@ -1036,7 +1037,7 @@ class Loader:
             raise ParseError(
                 f"line {line}: alias {m.term.head!r} expands into itself"
             )
-        if m.sign != PLUS:
+        if m.sign != ASSERT:
             raise ParseError(
                 f"line {line}: an alias stands for several claims, and a sign "
                 f"other than `+` does not distribute over them -- write the "
@@ -1112,7 +1113,7 @@ class Loader:
         what is deposited is `action(move($x, $y))`, a claim ABOUT a pattern,
         exactly as `reify` deposits `ant(<R>, heat($a, $w))`.
 
-        ⭐ Which is what makes the palette DISCOVERABLE: `+action($a)` is an
+        Which is what makes the palette DISCOVERABLE: `+action($a)` is an
         ordinary premise, so one fallback rule can range over every action --
         including ones declared after it was written. Without the declaration a
         corpus needs one hand-written fallback per action, and a new action is a
@@ -1148,9 +1149,25 @@ class Loader:
         if any(m.sign == ABSENT for m in s.consequent):
             raise ParseError(
                 f"line {s.line}: a rule cannot conclude an absence -- absence "
-                f"is asked, never asserted. To say something is not so, "
-                f"conclude the denial: `-p(...)` (§9)."
+                f"is asked, never asserted. To stop believing something, erase "
+                f"it: `-p(...)`. To say its denial is so, `+not(p(...))` (§9)."
             )
+        #  `-p` in an ANTECEDENT is refused, and the message has to name both
+        # readings, because the collapse is exactly where a corpus loses one.
+        # A `-` premise used to mean *an entry denies this*, and that is now two
+        # different questions: `no p` (nothing anchors it) and `+not(p)`
+        # (something anchors its denial). Refused rather than read as one of
+        # them, because guessing turns a migration into a silent change of
+        # meaning -- and without this guard `-p` fell through to the ordinary
+        # match and asked whether p WAS believed, which is the opposite.
+        for m in s.antecedent:
+            if m.sign == ERASE:
+                raise ParseError(
+                    f"line {s.line}: `-` is a consequent mode -- it erases. A "
+                    f"premise cannot erase, and there is no denying sign left "
+                    f"to read it as. Say which you meant: `no ...` (nothing "
+                    f"anchors it) or `+not(...)` (its denial is believed)."
+                )
         scope: Dict[str, NodeId] = {}
         ant = [Member(m.sign, self.build(m.term, scope),
                       self.build(m.binds, scope) if m.binds else None)
@@ -1191,7 +1208,7 @@ class Loader:
                 f"line {s.line}: rule {s.name!r} concludes about a variable its antecedent "
                 f"never binds -- the gate would refuse to deposit it (§13)."
             )
-        r = self.m.rules.rule(s.connective, ant, con, s.name)
+        r = self.m.rules.rule(ant, con, s.name)
         # The same `<...>` marker `_fact` reads, one level up: a rule authored
         # naming a rule is mentioning, and everything it concludes inherits that.
         #
@@ -1259,11 +1276,7 @@ class Loader:
                         f"everything in the body must come from a parameter or "
                         f"a `+` mint"
                     )
-                self.m.gate.write(
-                    prop, em.sign,
-                    licence=self.m.g.rel(self.LOADED, prop),
-                    source=self.source, mention=False,
-                )
+                self._state(prop, em.sign)
             return
         scope: Dict[str, NodeId] = {}
         # A named fact was built when its name was registered, and it must not be
@@ -1282,33 +1295,32 @@ class Loader:
                 f"line {s.line}: a fact may not contain a variable -- only a rule's members "
                 f"are generic (§4)."
             )
-        self.m.gate.write(
-            prop,
-            s.member.sign,
-            licence=self.m.g.rel(self.LOADED, prop),
-            source=self.source,
-            mention=mentions,
-        )
+        self._state(prop, s.member.sign, generic=mentions)
+
+    def _state(self, prop: NodeId, sign: str, generic: bool = False) -> None:
+        """A `fact` line, into the scratchpad.
+
+        `+p` anchors it and `-p` takes the anchor away, which is what makes a
+        corpus able to state what is NOT the case without a denying sign: it
+        erases. A corpus that means *something denies p* writes `+not(p)`.
+        """
+        if sign == ERASE:
+            self.m.gate.erase(prop)
+        else:
+            self.m.gate.write(prop, generic=generic)
 
     def _expert_fact(self, rel: str, a: NodeId, b: NodeId) -> None:
         """`knows`, written the way any other fact is written.
 
-        ⭐ Through the gate, mentioning, and stamped like everything else --
+        Through the gate, mentioning, and stamped like everything else --
         because *which rules does this expert have* has to be an ordinary query
         over the graph (R4), not a table the loader keeps. This is the same
         lesson as `precedence is read, not kept`: the loader's copy would be a
         cache of a claim, and the claim is the definition.
         """
-        prop = self.m.g.rel(self.atom(rel), a, b)
-        self.m.gate.write(
-            prop, PLUS,
-            licence=self.m.g.rel(self.LOADED, prop),
-            source=self.source,
-            # A rule node carries the variables of its own patterns, so a claim
-            # ABOUT one is a mention rather than a generic claim (§13) -- the
-            # same reason `overrides(<a>, <b>)` is written as one.
-            mention=True,
-        )
+        # A rule node carries the variables of its own patterns, so a claim
+        # ABOUT one is a mention rather than a generic claim (§13).
+        self.m.gate.write(self.m.g.rel(self.atom(rel), a, b), generic=True)
 
     def _expert_knows(self, expert: str, rule_name: str) -> None:
         self._expert_fact("knows", self.atom(expert), self.rule_nodes[rule_name])
@@ -1331,7 +1343,12 @@ class Loader:
         prop = self.build(s.member.term, scope)
         if self.m.g.has_var(prop):
             raise ParseError(f"line {s.line}: an arrival may not contain a variable")
-        self.m.channels.deliver(self.channels[s.channel], prop, s.member.sign)
+        if s.member.sign == ERASE:
+            raise ParseError(
+                f"line {s.line}: a channel reports what it heard, not what to "
+                f"do about it. To report a denial, say `not(...)`."
+            )
+        self.m.channels.deliver(self.channels[s.channel], prop)
 
 
 # : Heads whose ARGUMENT is a description rather than a proposition, so a :
@@ -1399,7 +1416,7 @@ def _report_shadowed(ldr: "Loader") -> None:
 def _report_unwebbed(machine: Machine) -> None:
     """Say when a rule reads a name nothing anywhere writes.
 
-    ⭐⭐⭐ The open class's own price, detected by the open class's own property.
+    The open class's own price, detected by the open class's own property.
      Called from the DOOR, not from load, and that is a measurement.
 
     See docs/design/text.md#report-unwebbed.

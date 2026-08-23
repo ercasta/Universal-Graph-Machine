@@ -33,4 +33,18 @@ so $y represents $x loves $z.
 
 "A glass ball shatters if it crashes" -> there is a "causes" relationship between the relationship between "crash" and "ball" and a "moment" and "shatter", the same "ball" and another "moment", and a "future" relationship between the two moments
 
+I need operators to navigate
+
+$x.out: the set of nodes pointed by a node
+$y.in: the set of nodes pointing to a node
+
+These can be used to scope a query (to be decided how)
+
+
+
+# Attention checkpointing and anti-attention
+
+Attention checkpoint saves the current frame; pop will return to it.
+
+Anti-attention: the LHS of a rule is anti-attended (gets negative bonus to attention)
 

@@ -50,36 +50,43 @@ def penguin() -> int:
     print()
     print("  the penguin -- ordering is not defeasibility")
     wrong = 0
+    #  The fourth lever, MIGRATED, and the migration is the finding. It used
+    # to be *the KB states `-penguin(tweety)`*, with `<flies>` guarded by a `-`
+    # premise -- and it broke flight, because saying a denial about one bird
+    # said nothing about the others and the guard read as *something denies
+    # this*. There is no denying sign now, so the guard has to say which
+    # question it is asking, and the honest one here is absence: a bird flies
+    # unless something says it is a penguin. Nothing has to be stated about
+    # tweety at all, which is why the lever that used to break the control now
+    # answers -- and the answer is the guard, not the ordering.
     DENIED = PENGUIN.replace(
-        "fact penguin(pingu)",
-        "fact penguin(pingu)" + chr(10) + "fact -penguin(tweety)").replace(
         "+bird($x), +considered($x) }}",
-        "+bird($x), +considered($x), -penguin($x) }}")
+        "+bird($x), +considered($x), no penguin($x) }}")
     cases = (
         ("declaration order alone", PENGUIN.format(post="")),
         ("standing(<flightless>)",
          PENGUIN.format(post="fact standing(<flightless>)")),
         ("dormant(<flies>)",
          PENGUIN.format(post="fact dormant(<flies>)")),
-        ("the KB states -penguin(tweety)", DENIED.format(post="")),
+        ("`no penguin($x)` guards <flies>", DENIED.format(post="")),
     )
     for label, src in cases:
         m = Machine()
         kb = load(m, src)
         load(m, SETTLE)
         run(m, limit=12)
-        held = lambda t: m.holds(kb.term(t)) == "+"
+        held = lambda t: m.holds(kb.term(t))
         pingu_flies, tweety_flies = held("can_fly(pingu)"), held("can_fly(tweety)")
         print(f"    {label:32} pingu flies: {str(pingu_flies):5}  "
               f"grounded: {str(held('grounded(pingu)')):5}  "
               f"tweety flies: {tweety_flies}")
-        if label.startswith(("dormant", "the KB")):
+        if label.startswith(("dormant", "`no")):
             # The two that claim to answer it: the penguin must not fly, and
             # an ordinary bird must still be able to.
             if pingu_flies:
                 print(f"    FAIL  {label} left the penguin flying")
                 wrong += 1
-            if label.startswith("the KB") and not tweety_flies:
+            if label.startswith("`no") and not tweety_flies:
                 print(f"    FAIL  {label} grounded tweety as well, which is not "
                       f"solving the penguin but breaking flight")
                 wrong += 1
@@ -156,8 +163,7 @@ def stopping() -> int:
     )
     for post, label in cases:
         _m, r = _stopping_run(STOPPING + "\n" + post)
-        done = any(p == "finished(assembled(cart))" and sg == "+"
-                   for p, sg in r.state)
+        done = "finished(assembled(cart))" in r.state
         seen[label] = r.ticks
         print(f"    {label:32} {r.ticks:>4} moves   finished: {done}   "
               f"stopped by {r.table.stopped}")
@@ -184,7 +190,7 @@ def stopping() -> int:
     # of unmet wants, and a rule cannot speak about the set of its matches, so
     # the guarantee is a corpus's. This is the instrument that watches it.
     _m, r = _stopping_run(OPEN_WANT, limit=200)
-    held = {p for p, sg in r.state if sg == "+"}
+    held = set(r.state)
     quiet_on_open = ("want(painted(cart))" in held
                      and "painted(cart)" not in held
                      and r.table.stopped is not None)

@@ -30,7 +30,7 @@ class Graph:
         # → docs/design/graph.md#members-that-fell-off-the-index-counted-b
         self.scans: Dict[str, List[int]] = {}
 
-        # -- identity (coreference) ---------------------------------- ⭐⭐⭐
+        # -- identity (coreference) ----------------------------------
         # The third identity, and it is the one that can be decided LATE. 
         # Leaves only, and the default is the node itself.
         # → docs/design/graph.md#identity-coreference

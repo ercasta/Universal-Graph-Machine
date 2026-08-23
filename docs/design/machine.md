@@ -23,7 +23,7 @@ a rule is adopted, composed or renamed.
 
 ## The aggregate over bindings, and it is the
 
-⭐⭐⭐ **The aggregate over bindings, and it is the GENERAL case of
+**The aggregate over bindings, and it is the GENERAL case of
 `rooted`, `unsupported` and `blocked` rather than a fourth of them.**
 A rule's antecedent is existential -- each member matches *an entry*,
 so a rule says *there is an entry such that*, and a `-` member says
@@ -43,7 +43,7 @@ have here?* -- with the comparison left to a corpus:
 One request, four uses, and the meaning is the corpus's own rule
 rather than four bundled ones. That is *rows, not branches* at the
 level of the feature itself.
-⭐ The marker a consequent writes to introduce a thing, spelled `+kind`
+The marker a consequent writes to introduce a thing, spelled `+kind`
 in an argument. See `_apply`.
 
  **NOT in `reserved`, deliberately.** A keyword would take the word
@@ -165,7 +165,7 @@ reason about one. Two ordinary relations fix all three:
                              exactly `arrived` to `says`, and the
                              corpus supplies the trust rule.
 
-⭐ **A tool may propose; it may never conclude.** The answer is a
+**A tool may propose; it may never conclude.** The answer is a
 deposit ABOUT what the tool said, so believing it is an authored rule
 with a grade. Let a tool write a belief directly and §12's weakest link
 has a link with nothing behind it and `why()` stops answering -- the
@@ -182,7 +182,7 @@ exists to describe provenance.
 
 ## Re-asking. §6 recorded a request can only b
 
-⭐⭐⭐ Re-asking. §6 recorded *a request can only be made once* and §21
+Re-asking. §6 recorded *a request can only be made once* and §21
 carried it as one of the two original four hats still open.
 
     again(<request>, <occasion>)   ask this again, because of this
@@ -208,7 +208,7 @@ Attention: what the agent is thinking about, said about a NODE.
 
     attention(x)            think about x
 
-⭐ It is a claim about a NODE, so it survives what a rule id does not:
+It is a claim about a NODE, so it survives what a rule id does not:
 rules are adopted, composed and rewritten, and a lesson keyed on
 `<R>` goes stale the moment they are. A lesson keyed on what is
 salient transfers to a rule authored afterwards. That is why the
@@ -233,7 +233,7 @@ deliberately NOT a strategy for making one.
     advances($p, $q)     from $p, go to $q when the child returns
     closes($p)           ...or return, if $p was the last step
 
-⭐⭐⭐ **The parameters are one NODE, and that is the whole of what
+**The parameters are one NODE, and that is the whole of what
 makes this parametric.** Written as `call($c, $d, $f, $t, $s)` the
 arity is Hanoi's and no other domain can use it; written as
 `call($c, tower($d, $f, $t, $s))` the arity is the domain's business
@@ -251,7 +251,7 @@ corpus supplies the strategy.
 are words a WORLD uses, and reserving one takes it from every corpus
 that has a family or a task in it. These are deliberation words and
 nothing else.
-⭐⭐⭐ **The action palette, declared rather than implied.** `action
+**The action palette, declared rather than implied.** `action
 move($x, $y)` says *this is something the agent may do*, and it says
 nothing about how it is done: the request is `$a` deposited, and the
 world model's own rules resolve it -- or REFUSE it, which is the whole
@@ -282,7 +282,7 @@ rightly; what is deposited here is a claim ABOUT a pattern.
 ...and asking for one. `attempt(move(d1, z))` is the agent proposing
 to act; the world model's own rules resolve it, or decline it.
 
-⭐⭐⭐ **An attempt at something the palette does not afford is DECLINED
+**An attempt at something the palette does not afford is DECLINED
 BY THE MACHINERY**, and that is the one part of this only the engine
 can do. `docs/HANDOFF.md` 19c measured the alternative: a policy
 concluding `do(teleport, ann, pet)` deposits it and *nothing happens*,
@@ -369,7 +369,7 @@ with a trail.
 
 ## The other three knobs, by the SAME argument
 
-⭐⭐ The other three knobs, by the SAME argument `tolerance` was made a
+The other three knobs, by the SAME argument `tolerance` was made a
 fact for: *how careful am I being is a claim with a trail, and a rule
 can raise it before an irreversible step.* They were Python fields,
 which made them the one kind of decision this design does not allow --
@@ -404,7 +404,7 @@ The one register (§10): which node the machinery is currently reasoning
 in. The frame itself is an ordinary node; only the pointer is
 privileged.
 
-⭐⭐⭐ **And it now moves TWO registers, which is the whole of stage
+**And it now moves TWO registers, which is the whole of stage
 three** (`docs/situations.md`). The graph has a situation register for
 the same reason the machine has a frame one -- minting requires
 somewhere to stand -- and the two must never disagree, because a rule
@@ -434,7 +434,7 @@ catch.
 
 ## A session is what it was TOLD. Everythin
 
-⭐⭐⭐ **A session is what it was TOLD.** Everything that entered from
+**A session is what it was TOLD.** Everything that entered from
 outside, in order: corpora loaded, arrivals delivered, runs asked for.
 Saving that rather than the object graph is what §3's determinism is
 worth -- measured across four hash seeds, the same inputs reproduce
@@ -473,7 +473,7 @@ place.
 
 ## The apparatus eats its own cooking. ans
 
-⭐⭐⭐ **The apparatus eats its own cooking.** `answers(<M>, ask)` was
+**The apparatus eats its own cooking.** `answers(<M>, ask)` was
 built so that a TOOL's binding could be data -- visible, queryable,
 deniable -- and it shipped with exactly zero apparatus users: every
 request the machinery answered, it answered because a Python line in
@@ -521,7 +521,7 @@ deniable and were what the criterion was actually about.
 
 ## Attention is a bounded QUEUE, newest first
 
-⭐⭐⭐ **Attention is a bounded QUEUE, newest first** -- what replaces
+**Attention is a bounded QUEUE, newest first** -- what replaces
 `unattend`, `LIFE` and the accumulation problem at once. Position IS
 the strength, so the lift is not flat: `docs/HANDOFF.md` 20d measured
 a flat one moving 34% of the pool by the same amount every tick,
@@ -605,7 +605,7 @@ Enter a supposition: assume `assumption` bare, and reason inside.
         was concluded under the supposition is unreadable from outside until
         something deliberately carries a claim out.
 
-        ⭐⭐⭐ **And that was true of entries and false of structure, which is
+        **And that was true of entries and false of structure, which is
         what the situation fixes** (`docs/situations.md`). Probed before it
         existed, on a supposition concluding an ordinary stratum-0 fact inside
         itself:
@@ -644,7 +644,7 @@ Open a supposition when one is requested -- at the write, not in a
 
 ## Whether to suppose again is REASONING, and
 
-⭐⭐⭐ **Whether to suppose again is REASONING, and it was Python.**
+**Whether to suppose again is REASONING, and it was Python.**
 This line used to drop a second supposition of the same assumption --
 *supposing the same thing twice derives nothing new* -- which is true
 only while nothing has changed, and it made a hypothesis
@@ -708,7 +708,7 @@ guarantee failing quietly at the one place a plan commits to something:
 
 ## Not that one. Reconsidering a binding was th
 
-⭐ *Not that one.* Reconsidering a binding was the last of the four
+*Not that one.* Reconsidering a binding was the last of the four
 hats, and the reason it was stuck is smaller than it looked: a
 `binds` fact has always been deniable, and denying it achieves
 nothing, because this loop then re-unifies and picks the SAME first
@@ -759,7 +759,7 @@ Answer *how many ground matches does this pattern have here?*
             count(goblin($x))         a REQUEST, asked by a corpus rule
             counted(goblin($x), 2)    the answer, and it always answers
 
-        ⭐⭐⭐ **The general case of the three asks above it**, and the reason it
+        **The general case of the three asks above it**, and the reason it
         is worth having is that they are three special cases of one question.
         `rooted`, `unsupported` and `blocked` each enumerate something the rules
         produced and each answers only *yes*, because each is a negative
@@ -855,7 +855,7 @@ Answer *does anything still hold this up?* -- the third negative
         yes** -- a machinery that answered *no* would be asserting a negative
         existential of its own (§17: deposit the smallest unarguable record).
 
-        ⭐⭐⭐ **And what it does NOT do is retract.** Losing your reason is not
+        **And what it does NOT do is retract.** Losing your reason is not
         acquiring a counter-reason. If a source is discredited, what it told you
         does not thereby become false; you have stopped having a reason, which is
         a different state and the one you can act on. An engine that deposited
@@ -916,7 +916,7 @@ Answer *did anything fit this goal?* -- the aggregate, and the last
 
 A goal, with whatever its own plan has since bound filled in.
 
-        ⭐⭐⭐ **A verdict was reported AS THE RULE WROTE IT, and by the time it is
+        **A verdict was reported AS THE RULE WROTE IT, and by the time it is
         reported that is no longer the most informed thing available.** A foreign
         corpus found it (`docs/quest-feedback.md` §1): fitting `open(door1)`
         against `{ +have($w, $k), +opens($k, $d) }` subgoals `opens($k, door1)`,
@@ -982,7 +982,7 @@ A goal, with whatever its own plan has since bound filled in.
         bring anything to mind, and the forbidden act is still refused while the
         permitted one still happens.
 
-        ⭐ **What the fold buys is that a prohibition is a QUERY.** As a stored
+        **What the fold buys is that a prohibition is a QUERY.** As a stored
         pattern a norm could say only *never this shape*. As a trigger's
         antecedent it can ask anything a rule can ask -- what else holds, who is
         acting, whether an emergency was declared -- and it says the shape in a
@@ -1077,7 +1077,7 @@ Record that the machinery did something a rule may care about.
 
 ## The palette is the AUTHOR's, and this is w
 
-⭐⭐⭐ **The palette is the AUTHOR's, and this is what makes that
+**The palette is the AUTHOR's, and this is what makes that
 true rather than conventional.** Probed before it was: a rule
 concluding `+afforded(teleport(a, b))` widened the palette, its
 own attempt was then accepted, and nothing said a word. A learned
@@ -1180,7 +1180,7 @@ The veto: a stop with a goal still outstanding is not a stop.
 
 ## And an ATTEMPT nobody resolved, which is t
 
-⭐⭐⭐ **And an ATTEMPT nobody resolved, which is the same claim.** A
+**And an ATTEMPT nobody resolved, which is the same claim.** A
 goal still open and a request still outstanding are both *the agent
 was asked for something and it did not happen*, so both veto a stop
 once and both go on the record as `open`.
@@ -1199,7 +1199,7 @@ existing carve-out did not cover.
 
 An attempt nobody resolved, on the record before the loop ends.
 
-        ⭐⭐⭐ A goal still open and a request still outstanding are the same
+        A goal still open and a request still outstanding are the same
         claim -- *the agent was asked for something and it did not happen* -- so
         both go on the record as `open` and both veto a stop once.
 
@@ -1224,7 +1224,7 @@ contention stopped showing as two options about one walker -- and
 `ugm.teaching` one conclusion. The bundle is not free, and it is
 not free in a way that is invisible from inside it.
 
-⭐ It is also the more honest owner. *Nothing resolved this and
+It is also the more honest owner. *Nothing resolved this and
 the loop is ending* is a claim about the loop, which no rule can
 see: `_halt` breaks immediately and `quiet` is only written when
 the search ran dry. The machinery deposits its own event, exactly
@@ -1266,14 +1266,14 @@ Register a function that is COMPUTED during a match (§12, §22).
 
             { +purse($a, $x), +cost($i, $c), minus($x, $c) as $new }
 
-        ⭐⭐⭐ **Purity is structural here, not declared.** An answerer is given
+        **Purity is structural here, not declared.** An answerer is given
         `(machine, frame, entry)` and can do anything; a computator is given
         **values** and returns a value, so it cannot reach the graph, the
         register or the world -- there is nothing to reach them with. The
         deleted engine proved purity with 45 lines of transitive static
         analysis; not handing the function anything is cheaper and stronger.
 
-        ⭐ And it is what makes an application ATOMIC. A tool answers through
+        And it is what makes an application ATOMIC. A tool answers through
         the write, so its answer lands a tick later and a transfer can be caught
         half-done -- measured, an agent emitted an act on a total that never
         existed (§22). Computed during the match, the result reaches the same
@@ -1383,7 +1383,7 @@ Re-deliver a request, because a corpus said an occasion warrants it.
         because re-concluding `+check(p, w)` restates what the chain says and
         quiescence drops it. Requests are facts, and a fact is not an event.
 
-        ⭐⭐⭐ **The request never needed to be fresh. The ENTRY did.** The chain
+        **The request never needed to be fresh. The ENTRY did.** The chain
         has always taken a second entry for a proposition it has seen -- that is
         §10's two indices, and *the same claim, later* is what they exist for.
         What forbids the re-ask is `_would_change`, and it forbids it of a RULE.
@@ -1402,7 +1402,7 @@ Re-deliver a request, because a corpus said an occasion warrants it.
         line -- which is the property `answers(<M>, ask)` was for. Not one
         answerer knows this exists.
 
-        ⭐⭐ **Its own binding is a fact**, which no other piece of the apparatus
+        **Its own binding is a fact**, which no other piece of the apparatus
         can say: this is registered through `answerer`, so `answers(<re-ask>,
         again)` is on the record and `fact -answers(<re-ask>, again)` turns
         re-asking off. §21's *the apparatus does not eat its own cooking* is now
@@ -1482,7 +1482,7 @@ Make a rule the graph describes into a rule the loop reads.
 
             adopt(<R>)
 
-        ⭐⭐⭐ **`reify` went one way.** A rule has been data since §14's worked
+        **`reify` went one way.** A rule has been data since §14's worked
         example -- `rule(<R>)`, `conn`, `ant`, `con`, all deposited at authoring
         -- and `RuleSet.rule` was called only by the parser and by tests. So the
         agent could be asked *which rules do I have* and could never answer
@@ -1520,7 +1520,7 @@ Collapse two rules into one, because a corpus asked.
         function existed and only Python called it, which is where `adopt` was
         before it was a door.
 
-        ⭐⭐⭐ **The corpus decides; the function executes.** Which rules are
+        **The corpus decides; the function executes.** Which rules are
         worth collapsing is a judgement, and §21's judgement census says a
         judgement the machinery makes alone is a seam: the agent could not
         notice it was composing the wrong things, because a bad shortcut makes
@@ -1606,7 +1606,7 @@ once. Bookkeeping, so a nested frame does not carry
 
 ## Carried across the situation boundary, by
 
-⭐⭐⭐ **Carried across the situation boundary, by atom.**
+**Carried across the situation boundary, by atom.**
 This is the one place a node built inside a hypothesis becomes
 something the caller says, and before situations there was
 nothing to do here because there was no boundary -- which is
@@ -1625,7 +1625,7 @@ landed, so the caller's `likely(q)` is about the caller's `q`
 
 One move of the loop, for a caller that wants to step and look.
 
-        ⭐⭐⭐ **This was 129 lines of the option-set loop** -- materialise every
+        **This was 129 lines of the option-set loop** -- materialise every
         live application, defeat, filter, arbitrate, apply -- kept alive after
         `Machine.run` became the table loop so that `ugm.attention`'s comparison
         had something to compare against. That comparison is deleted (20k): it
@@ -1646,7 +1646,7 @@ One move of the loop, for a caller that wants to step and look.
 Bounded, and it returns a result *and* a state -- because a search that
         stopped is not a search that found nothing (§9, §15).
 
-        ⭐⭐⭐ **And the bound says so, which is §21's defect for the eleventh
+        **And the bound says so, which is §21's defect for the eleventh
         time and the one a foreign corpus asked for first.** `docs/quest-feedback.md`
         §0: they wrote three corpora, made six rule bugs, and **not one produced an
         error** -- four ran to the tick limit and two were silent. What the engine
@@ -1672,7 +1672,7 @@ Bounded, and it returns a result *and* a state -- because a search that
 
  **What follows is the migration as it stood, kept because the numbers were
 taken against it.** The migration is finished: `Machine.run` is a delegation and
-`core/attention.py` is the only loop in the tree. Read the ⭐⭐⭐ paragraph below
+`core/attention.py` is the only loop in the tree. Read the paragraph below
 as the current position and this one as how it got there.
 
 >  **THE MIGRATION TO THE TABLE LOOP IS STAGED, AND THIS IS THE
@@ -1686,7 +1686,7 @@ piece of the tick this loop does not do yet.
 Left on the option-set loop until those land, so the repository never
 stops running -- *subtract, do not rewrite*, which is the discipline
 that made every other Python deletion here safe.
-⭐⭐⭐ **THE TABLE LOOP IS THE LOOP.** What stood here -- materialise every
+**THE TABLE LOOP IS THE LOOP.** What stood here -- materialise every
 live application, defeat, filter, arbitrate, apply -- is gone. The
 option set was the price of being able to say *nothing else applied*,
 and the author's judgement is that it is not worth paying on every
@@ -1816,7 +1816,7 @@ What the agent is thinking ABOUT: the nodes it claims `attention` of.
 
 Every standing `attention` claim, as `(node, weight)`, in graph order.
 
-        ⭐⭐⭐ **A claimed attention may carry its evidence count, exactly as a
+        **A claimed attention may carry its evidence count, exactly as a
         spent one does.** `attend($x, n)` has said *how much* since attention
         was built; `attention(x)` could only ever say *at all*, so a lesson
         written from experience had nowhere to put the one quantity experience
@@ -1872,7 +1872,7 @@ Cross the boundary, and nothing else — when the world speaks, not when
 
 ## And the same argument one layer down, whic
 
-⭐⭐⭐ **And the same argument one layer down, which situations made
+**And the same argument one layer down, which situations made
 visible.** The comment below says the report belongs to the agent
 rather than to what the agent happens to be supposing, and that was
 true of the SEAT and false of everything else on this path: the
@@ -1902,7 +1902,7 @@ what it did: the agent's only record of what a channel said became
 
 ## THAT THIS RULE HAS RUN, as a PROPOSITION and
 
-⭐⭐⭐ THAT THIS RULE HAS RUN, as a PROPOSITION and not only as a licence.
+THAT THIS RULE HAS RUN, as a PROPOSITION and not only as a licence.
 
 `applied(<R>)` is already on every derived entry, because R5 needs it
 for §12's weakest link -- but a licence is an entry FIELD, so no rule
@@ -1925,7 +1925,7 @@ noise quiescence has to chew through.
 
 ## §6's price, charged by §6's own test. A
 
-⭐⭐⭐ **§6's price, charged by §6's own test.** A rule whose antecedent
+**§6's price, charged by §6's own test.** A rule whose antecedent
 is entirely structural is applied without a read, so it must conclude
 without one: *stratum 0 must produce structure, not entries. If the
 walk deposited its intermediate results as claims, it would be reading
@@ -1945,7 +1945,7 @@ quiescence sees it as one.
 
 ## A rule may introduce a thing that did not
 
-⭐⭐⭐ **A rule may introduce a thing that did not exist.** Everything a
+**A rule may introduce a thing that did not exist.** Everything a
 consequent could name until now came from a binding or was written
 literally, so *there is some new person here* was unsayable -- the
 binding check refuses `+named($p, $x)` with `$p` unbound, correctly,
@@ -2028,7 +2028,7 @@ full match; under-invalidating loses the conclusion permanently.
 
 Run the stratum-0 rules to fixpoint, layer by layer.
 
-        ⭐ §6's recall policy, and it is the whole of what makes stratum 0
+        §6's recall policy, and it is the whole of what makes stratum 0
         different: *recall for stratum 0 is all of them, every time -- the set
         is small and fixed, so the policy is a different table, not a different
         mechanism.* Match is the shared one, the rules are ordinary rules, and
@@ -2037,7 +2037,7 @@ Run the stratum-0 rules to fixpoint, layer by layer.
          Each LAYER to fixpoint before the next begins, because a negated
         member reads a lower layer and must read a finished one (`RuleSet.strata`).
 
-        ⭐⭐⭐ **Semi-naive: a rule is re-run only when something it READS has
+        **Semi-naive: a rule is re-run only when something it READS has
         grown.** A rule's matches depend on exactly the relations in its
         antecedent, plus the chain, which does not move while this runs. So if
         none of them gained a fact since the rule last ran, it can produce
@@ -2092,7 +2092,7 @@ The resolved state here, kept across ticks instead of rebuilt.
         and a full rebuild -- which is the safe direction, and what supposing,
         leaving and re-seating each want.
 
-        ⭐⭐⭐ **What is kept is the SITUATION, not a list.** Keeping the state and
+        **What is kept is the SITUATION, not a list.** Keeping the state and
         then materialising it -- and indexing it, and scanning it for goals --
         once per tick left the tick O(everything known) anyway, which is the
         whole of what `heap` measured and could not fix. The three consumers are
@@ -2107,7 +2107,7 @@ The resolved state here, kept across ticks instead of rebuilt.
 
 ## What is in mind, for FACTS. The agent ha
 
-⭐⭐⭐ **What is in mind, for FACTS.** The agent has always narrowed
+**What is in mind, for FACTS.** The agent has always narrowed
 which rules come to mind -- `dormant` until something claims `due` --
 and never which facts do. Same relation, second kind of thing: rows,
 not branches. `fact dormant(billing)` takes a domain out of mind, and
@@ -2131,7 +2131,7 @@ would otherwise read as `blocked`.
 
 What could apply here -- carried across ticks instead of rediscovered.
 
-        ⭐⭐⭐ **The loop was stateless between ticks.** Every tick it re-ran every
+        **The loop was stateless between ticks.** Every tick it re-ran every
         rule's join over the whole state, filtered the result, applied one, and
         threw the rest away; next tick it did all of it again. Measured before
         building this: 5,775 applications matched over a 600-fact corpus, of
@@ -2242,7 +2242,7 @@ what the nested loop would have produced.
 
 ## Only what could still have something to do
 
-⭐⭐⭐ **Only what could still have something to do.** This used to walk
+**Only what could still have something to do.** This used to walk
 every application ever found, on every tick, and hand them all to five
 O(candidates) passes -- which is where the quadratic was, and why
 remembering each application's VERDICT bought a constant factor and
@@ -2370,7 +2370,7 @@ Quiescence: an application that restates what the chain already says is
         not a step. Without this the loop would reapply every rule forever, and
         *nothing left to do* would be unsayable.
 
-        ⭐⭐⭐ **And it was the agent recomputing its entire option set on every
+        **And it was the agent recomputing its entire option set on every
         move.** Profiled at 38% of runtime, ~800 calls a tick; measured before
         this was built, on a chain of `edge` facts:
 
@@ -2411,7 +2411,7 @@ retired by anything. The same application then applies for ever --
 measured at 60 ticks of `applied`, identical bindings, on a rule that
 had already drawn its conclusion.
 
-⭐ It costs nothing to skip the cache here: the verdict is a
+It costs nothing to skip the cache here: the verdict is a
 substitution and a count, where the ordinary one is a resolve per
 conclusion plus the prohibitions consulted about it.
 
@@ -2425,7 +2425,7 @@ reading the raw chain ran 40 ticks of `applied` and never once went
 quiet. The rule was right, the conclusion was right, and the loop could
 not tell it had already drawn it.
 
-⭐ Monotone, which is why this is sound to cache with no index: a
+Monotone, which is why this is sound to cache with no index: a
 skeleton fact cannot be denied, so once minting it adds nothing, that
 stays true. `resolve` is non-monotone and needs `quiet_by_prop`; this
 does not.
@@ -2495,7 +2495,7 @@ Is this application talking ABOUT rules rather than in them?
 For each relation name: how often it is READ (an antecedent member)
         and WRITTEN (a consequent member, or a fact deposited).
 
-        ⭐⭐⭐ **Meaning in an open class is given by the web.** A name nothing
+        **Meaning in an open class is given by the web.** A name nothing
         ever draws a conclusion from, or nothing ever establishes, means nothing
         -- so a corpus containing one is silently smaller than it looks. This is
         the price of §2's open class paying for its own detection: nothing else
@@ -2577,7 +2577,7 @@ What this episode has to say to the next one, as surface text.
         §19 puts experience in recall precisely because being wrong there is
         recoverable, and it is only recoverable if it can be found and denied.
 
-        ⭐⭐⭐ **What is written is a claim about a NODE.** A lesson used to say
+        **What is written is a claim about a NODE.** A lesson used to say
         `prefer(<use-tap>, water, 3)`, which names a rule, and a rule id is
         stale the moment that rule is adopted, composed or renamed -- keyed on
         an identity, one level up from bindings. `attention(sink, 3)` names the
@@ -2632,7 +2632,7 @@ What this episode has to say to the next one, as surface text.
 
 What the passed-up route is ABOUT and the route that harmed is not.
 
-        ⭐⭐⭐ **This is the whole of what it takes to key a lesson on a NODE
+        **This is the whole of what it takes to key a lesson on a NODE
         instead of on a rule**, and it needs no new bookkeeping. `_instead_of`
         already names the rule that was forgone; a rule id is exactly what goes
         stale when rules are adopted, composed or renamed, which is why `prefer`
@@ -2681,7 +2681,7 @@ Render ground propositions as one generic antecedent.
         `completes($v0, $v1), precious($v0)` -- the join is what makes it a claim
         about a *kind* of situation rather than a longer way of naming this one.
 
-        ⭐ Generalising is nearly unconstrained here, and that is a property of
+        Generalising is nearly unconstrained here, and that is a property of
         the shape rather than luck: an attention consequent contains exactly ONE
         variable and the antecedent's binder is what bound it, so the loader's
         rule that a consequent variable must be bound by the antecedent is
@@ -2699,7 +2699,7 @@ Render ground propositions as one generic antecedent.
 
 One learned rule per promoted alternative, plus its `standing` line.
 
-        ⭐⭐⭐ **The BINDER is always in the antecedent, and it is what makes
+        **The BINDER is always in the antecedent, and it is what makes
         an attention lesson generalise at all.** A rule may only conclude about
         a variable its antecedent binds, and this one concludes `+attention($v)`
         -- so the salient node has to be named in a member. `tap($v0)` is that
@@ -2728,7 +2728,7 @@ Drop the tests that do not pay. §4's *compose what never surprised*,
         more episodes can, so this is reduced-error pruning over corpus text:
         greedy backward elimination against a `cost` the caller supplies.
 
-        ⭐ **Ties go to the MORE GENERAL rule** (`<=`, not `<`). That is the only
+        **Ties go to the MORE GENERAL rule** (`<=`, not `<`). That is the only
         judgement in here, and it is the standard one: between two hypotheses that
         explain the evidence equally, the one with fewer conditions transfers
         further. The opposite bias would keep every accident of the episode it
@@ -2781,7 +2781,7 @@ The live alternatives to what cost the agent something.
 The session, RENDERED out of the graph -- corpora, in the order they
         were read.
 
-        ⭐⭐⭐ **There is no journal.** The first version kept one: a Python list
+        **There is no journal.** The first version kept one: a Python list
         of everything that came in. It was a side-channel duplicating the chain,
         in a design whose whole thesis is that nothing the machinery knows may
         be unaskable by a rule -- and a kept list can drift from the graph,
@@ -2809,7 +2809,7 @@ Grow a decision tree with MORE THAN ONE LEAF, from more than one episode.
     went wrong -- and the leaves are then pruned **jointly** against a cost the
     caller measures.
 
-    ⭐⭐⭐ **Wrong leaves are expected, and pruning is what makes that safe.** An
+    **Wrong leaves are expected, and pruning is what makes that safe.** An
     episode only ever knows the cost of the route it ACTUALLY took, so an episode
     that broke a jug proposes *prefer the tap* whether or not the tap is worse --
     which is the oscillation `lesser_of_two_evils` measures, arriving as an
@@ -2830,7 +2830,7 @@ Grow a decision tree with MORE THAN ONE LEAF, from more than one episode.
 
 `attention($v, n)`, or `possible(...)` when nothing was observed.
 
-        ⭐⭐⭐ **How sure is a WRAPPER, not a field**, and this was the argument
+        **How sure is a WRAPPER, not a field**, and this was the argument
         that eventually deleted grades outright. §21's item 5 was that a grade
         is a Python field on the entry, so no rule can read one -- a confidence
         unreadable by the very rules that would act on it. A wrapper is an
@@ -2852,7 +2852,7 @@ Grow a decision tree with MORE THAN ONE LEAF, from more than one episode.
 
 ## The synthetic row for an unproposed route is
 
-⭐ **The synthetic row for an unproposed route is GONE, and nothing
+**The synthetic row for an unproposed route is GONE, and nothing
 replaced it.** It existed because a `prefer` row could be written for any
 rule from its name alone, so the lesser of two evils could be stated about
 a route nobody regretted. An attention lesson cannot be written that way:
@@ -2938,7 +2938,7 @@ The gap between two spans, materialised.
     which states would count, not that one of them is absent, so it is skipped
     rather than reported.
 
-    ⭐ **The empty gap is deposited too, and that is the half that matters.**
+    **The empty gap is deposited too, and that is the half that matters.**
     `matched(<gap>)` lands when nothing differed. A rule can read every
     difference one at a time and still never conclude that there were none:
     `no missing($g, $p)` is a negative existential -- *for no $p* -- and the

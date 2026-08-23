@@ -55,7 +55,7 @@ can conclude `knows(...)` at run time -- an expert that learns a rule is the
     +reply(area(rect(3, 4)), 12)                what it concludes
     +answered(geometry, area(rect(3, 4)), 12)   what the caller sees
 
-⭐ **The last line is deliberately a tool's answer.** From the caller's side an
+**The last line is deliberately a tool's answer.** From the caller's side an
 expert and a tool are the same shape, so a corpus that consults one can be
 pointed at the other without touching a rule. That is the honest reading of what
 an expert is: a request answered by *a search* rather than by a function, where

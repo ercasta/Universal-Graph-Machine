@@ -459,7 +459,7 @@ arriving where it decides a design rather than a rule. Two versions, measured:
 So: **closed act catalogue, use this.** Open domain -- where you genuinely cannot
 say which acts lack an outcome -- and `supersedes` is still what you want.
 
-⭐ `dormant(<R>)` in the first line is the general form of *disable a rule*, and
+`dormant(<R>)` in the first line is the general form of *disable a rule*, and
 it is a **claim** rather than a mark on the rule: `due(<R>)` wakes it, both are
 ordinary facts, and *which rules is this hypothesis carrying* stays a query. A
 mark authored once would be relative to nothing, which is §12's *achievability is

@@ -36,7 +36,7 @@ anchored twins, and they chain:
     holds_in(h1, act(replace, pump9))        +
     act(replace, pump9)                      None    containment, by BINDING
 
-⭐ **This retires the cost that killed the anchor shape.** `docs/todo.md` records
+**This retires the cost that killed the anchor shape.** `docs/todo.md` records
 *the cost is on EVERY rule ... on 51 of the 72 authored rules* and supersedes
 anchors on exactly that. Measured, the cost is five rules paid once, and no
 domain rule is touched.
@@ -85,7 +85,7 @@ rule and install or revise it -- with no `adopt` in the corpus at all:
     wall                15.1s, of which `_read_rule` 0.0s
     reads 461     installs 9     revisions 97     no-revision 36
 
-⭐⭐⭐ Every rule in the suite goes through the round trip and 639 checks pass.
+Every rule in the suite goes through the round trip and 639 checks pass.
 That is a far stronger fidelity test of `_read_rule` than `adopt` has ever had,
 and it costs nothing measurable. **The race is gone in both orders.**
 
@@ -102,7 +102,7 @@ REFUSED*) goes with situations anyway. **One property is really at stake:
 propose/dispose** -- *a tool only PROPOSES: without the rule that adopts, the
 offer is on the record and nothing is live*.
 
-⭐ And `adopt` is not what carries it. An arrival already has that shape:
+And `adopt` is not what carries it. An arrival already has that shape:
 `_report` writes `arrived(ch, p, sign)`, so a channel uttering a described rule
 deposits a claim ABOUT one and a corpus rule must lift it. The hole is the TOOL
 boundary -- the `<builder>` answerer writes `rule`/`conn`/`ant`/`con` straight
@@ -137,7 +137,7 @@ matching**, and one line would change that.
 
 Why it was never needed, in the design's own words -- *the loader's name table
 decides it at intake ... **which is why coreference does not arise in authored
-knowledge at all***. ⭐⭐⭐ That premise is exactly what a COMPUTED description
+knowledge at all***. That premise is exactly what a COMPUTED description
 breaks: it is authored knowledge whose identity is not settled at intake.
 
  Against: `merge` is global and permanent, and variable identity is per-rule.
@@ -155,7 +155,7 @@ not "the representation cannot express it".**
 
 Built with `Graph.instance`, which does NOT intern, so two textually identical
 rules are two nodes -- which `RuleSet.rule` requires: *two rules that happen to
-say the same thing are still two rules*. ⭐ An interning term form could not
+say the same thing are still two rules*. An interning term form could not
 express that, which is one reason an explicit constructor is needed at all.
 
 **But it is lossy, and the two kinds of rule are two representations:**
@@ -191,7 +191,7 @@ varies with how much happens to be known about it*. That argument is about
 ordered. `_read_rule`'s sort-by-numeral, the `$i` in every compiling rule, and
 the side argument all go.
 
-### ⭐⭐⭐ The blocker: a rule cannot build a node of runtime arity
+### The blocker: a rule cannot build a node of runtime arity
 
 A moment has one entry per member, and a consequent writes terms whose arity is
 fixed at authoring. **That is why `ant($r, $p, $s, $i)` exists as scattered facts

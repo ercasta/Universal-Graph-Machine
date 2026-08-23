@@ -20,7 +20,7 @@ Determinism: no derived result is ever read out of a set. Membership, minting
 order and every iteration below are insertion-ordered, so a computation that ends
 in a tie breaks it the same way on every run.
 
-⭐⭐⭐ **And a node has two identities (`docs/situations.md`).**
+**And a node has two identities (`docs/situations.md`).**
 
     node id     the realisation of a thing INSIDE one situation
     atom id     the portable name of that thing, ACROSS situations
@@ -42,7 +42,7 @@ situation below, and that is the concrete place the design lives or dies.
 
 ## Whether a node is generic, decided at MINT r
 
-⭐⭐⭐ Whether a node is generic, decided at MINT rather than on every
+Whether a node is generic, decided at MINT rather than on every
 ask. It cannot change: a node's relation and members are fixed when it
 is built, so *contains a variable somewhere* is fixed with them.
 
@@ -54,7 +54,7 @@ instead of O(size) per question.
 
 ## Members that fell off the index, counted b
 
-⭐ **Members that fell off the index**, counted by the member as
+**Members that fell off the index**, counted by the member as
 written -- `docs/interpretation-feedback.md` §3. `_narrowed` cannot
 index a structure that still carries a variable, so it falls back to
 every instance of the relation: correct, sanctioned, and until now
@@ -107,7 +107,7 @@ established by an ACT -- `carry` -- and by nothing else.
 
 -- identity (coreference within a situation) --------------------
 
-⭐⭐⭐ **The third identity, and it is the one that can be decided
+**The third identity, and it is the one that can be decided
 LATE.** A node is the realisation, an atom is the portable name, and
 neither can express *these two turned out to be the same thing*.
 Today identity is settled by construction and never inferred -- the
@@ -175,7 +175,7 @@ tie-break from a hash.
 
 `drop` counts as `keep` from here on, in `s`. Returns nodes repointed.
 
-        ⭐⭐⭐ **Congruence, and it is why this cannot be two dict writes.** Once
+        **Congruence, and it is why this cannot be two dict writes.** Once
         two things are one thing, every relationship either of them stands in is
         a relationship of the one thing -- so `bright(morning)` and
         `bright(evening)` have to become one node too, and so does anything
@@ -208,7 +208,7 @@ Materialise the thing `a` names, in `target`, **from atoms alone**.
         that still exists; this reconstructs one from the portable record, so it
         works for a situation whose nodes were never minted or were discarded.
 
-        ⭐ **It reads `_atom_members` and never `_members`**, which is the whole
+        **It reads `_atom_members` and never `_members`**, which is the whole
         test of whether the atom layer is real. If this function needed a node
         to consult, atoms would be labels on a structure rather than a structure
         of their own, and nothing could ever be thrown away.
@@ -251,7 +251,7 @@ Transport a node into `target`, and RECORD that it landed there.
 
 ## The same structure again, one level up, in
 
-⭐⭐⭐ **The same structure again, one level up, in atoms** -- and it is
+**The same structure again, one level up, in atoms** -- and it is
 the floor stage 4 stands on. A delta referencing atoms can name
 `healthy(paul)`, and naming it is not enough to REBUILD it: a
 compound's atom is minted and deliberately not derived from its

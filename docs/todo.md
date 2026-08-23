@@ -90,7 +90,7 @@ was called to get.
 as current belief* -- `symptom(pump7, restricted)` is `None` outside today. It
 will hold. That check is inverted, not deleted, so the loss stays measurable.
 
-⭐ **But the lifting objection does NOT apply, and that was worth checking.**
+**But the lifting objection does NOT apply, and that was worth checking.**
 `suppose` exists because a generic lifting rule cannot cross rules that carry
 variables. Measured, on the reified `<lift>` rule:
 
@@ -118,7 +118,7 @@ It breaks only if something concurrent reads mid-hypothesis -- `probes/experts`,
     core/gate.py     20. Frame.situation/home and all three pin/restore blocks.
     core/machine.py  16. suppose, discharge, _hypothetical, _own_frame, _leave,
                      the situation register property.
-    core/chain.py     4 + 6. ⭐ The chain goes LINEAR, so `at_or_after` collapses
+    core/chain.py     4 + 6. The chain goes LINEAR, so `at_or_after` collapses
                      to a depth comparison -- `resolve`'s own comment says *a
                      depth comparison cannot replace it once anything forks, and
                      supposing forks by construction.* Nothing forks now.
@@ -127,7 +127,7 @@ It breaks only if something concurrent reads mid-hypothesis -- `probes/experts`,
     corpora          worked.ugm (one rule concluding `suppose`), bundle.ugm's
                      `resume` rules.
 
-⭐⭐⭐ **`Frame` collapses to a singleton.** The engine creates exactly TWO
+**`Frame` collapses to a singleton.** The engine creates exactly TWO
 frames: the root register, and the supposition child. Remove suppositions and
 `frame.parent`, `purpose`, `wrap`, `carried` have no second case. §18's call
 stack is FACTS, not frames, so it is untouched -- check that before assuming
@@ -153,11 +153,11 @@ Rules written relative to an anchor by binding: `{ +in($w, reading($p, low)) }
     in(actual, action(replace, pump7))   None    <- containment, BY BINDING
     action(replace, pump7)               None    the bare form never appears
 
-⭐ The containment CHECK is an ordinary premise. A rule gated on `+world($w)`
+The containment CHECK is an ordinary premise. A rule gated on `+world($w)`
 acts in reality and declines in a hypothesis -- *what would happen if we set fire
 to the house*, answered without burning it down, with no machinery.
 
-⭐ Reality is an unprivileged anchor (`actual`). No special case.
+Reality is an unprivileged anchor (`actual`). No special case.
 
  **The lifting objection does not apply**, which was worth checking: the
 generic reified `<lift>` rule handles a ground pipeline (`likely(r(x))` -> `+`)
@@ -185,10 +185,10 @@ and take an anchored proposition as an ARGUMENT without needing anchoring.
     flat `within(h2, h1)` + one generic <inherit> rule    WORKS
     nested term `in(h1, in(h2, p))`                       produces nothing
 
-⭐ Nesting is ONE rule: `{ +within($c,$p), +in($p,$f) } => { +in($c,$f) }`, and
+Nesting is ONE rule: `{ +within($c,$p), +in($p,$f) } => { +in($c,$f) }`, and
 `$f` binding a whole proposition is handled by the matcher.
 
-⭐⭐⭐ **And use did not leak into mention.** `<inherit>`'s unconstrained `$f`
+**And use did not leak into mention.** `<inherit>`'s unconstrained `$f`
 picked up exactly the four asserted facts and none of the rules' own MENTIONED
 antecedent patterns. Anchored rules reify identically to plain ones.
 
@@ -304,7 +304,7 @@ then ran the whole suite. Nothing about the engine changed to take these.
     _supported            7                  0
     _verdict            231                 15
 
-⭐⭐⭐ **The two the warning names -- counting and negation-as-failure -- never
+**The two the warning names -- counting and negation-as-failure -- never
 run inside a hypothesis at all.** `count`, `root` and `support` are 25 asks and
 every one of them is at the root situation. The warning's sentence *every
 `unsupported` / `blocked` / count asked during it answers about the mutated
@@ -331,7 +331,7 @@ the whole suite:
     `standing_in` crossings                          499
       ...OUT of a hypothesis, to root                  1
 
-⭐ 498 of the 499 crossings are `Graph.rebuild` carrying a conclusion out at
+498 of the 499 crossings are `Graph.rebuild` carrying a conclusion out at
 discharge -- the discharge path, not a concurrent reader. The single genuine
 concurrent read is `Machine._deliver`, which stands in the agent's own situation
 because the world speaks while the register is inside a hypothesis. That is
@@ -375,7 +375,7 @@ are **0 inside, in every module**, over 1,596 asks.
  `gates.state` and `probes.shapes` run the suite internally, so their 271/15 is
 the selftest's number seen twice, not a third measurement.
 
-⭐⭐⭐ **`learning.practice` is the one the suite hides**: 66% of its aggregate
+**`learning.practice` is the one the suite hides**: 66% of its aggregate
 asks and 59% of its index reads happen inside a hypothesis. Nothing else comes
 near it. It is the module to run first after the deletion, and the one place the
 *aggregates stop being scoped for free* warning has a real population behind it.
@@ -419,13 +419,13 @@ built**, and this is the brief for it.
     <call-return>  { +stage($c,$p), +awaits($c,$k), +returned($k), +closes($p) }
                 => { -stage($c, $p), +returned($c) }
 
-⭐⭐⭐ **This is already explicit node manipulation.** `+k` mints a fresh call
+**This is already explicit node manipulation.** `+k` mints a fresh call
 node per application; `+stage`/`-stage` step it; `advances`/`closes` are facts a
 corpus deposits, so the ORDER of the steps is data. A supposition is the same
 shape: spawn a call, assert the hypothesis, run, record what followed, retract
 the world-deltas, return.
 
-⭐ And it is what `docs/todo.md`'s experiment 4 measured by hand -- *4 deltas
+And it is what `docs/todo.md`'s experiment 4 measured by hand -- *4 deltas
 linked, 2 about the world* -- with the linking and the swapping-back done by
 staged rules instead of by Python.
 
@@ -451,7 +451,7 @@ nothing that can be ADDED makes the chain say nothing about it. `-p`,
 `+not(p)`, a `withdraw($e)` claim -- every one of them is another claim.
 Return-to-`None` is unreachable by construction, for any design.
 
-⭐⭐⭐ **So the requirement dissolves rather than being met: the un-claim is only
+**So the requirement dissolves rather than being met: the un-claim is only
 needed by a supposition that mutates the REAL graph.** The anchored shape never
 speaks about reality's `p` at all, so there is nothing to restore and no scar to
 leave. `learning/practice.py` is the worked proof -- a rehearsal asserts
@@ -476,7 +476,7 @@ not a mechanism.
 
 ---
 
-# ⭐⭐⭐ THE GRAPH IS A MUTABLE SCRATCHPAD — the author's, and it reframes the lot
+# THE GRAPH IS A MUTABLE SCRATCHPAD — the author's, and it reframes the lot
 
 Stated 2026-08-20, after the situations deletion and after the un-claim question
 above was answered the wrong way twice:
@@ -495,7 +495,7 @@ above was answered the wrong way twice:
                 of what changed, which the agent READS -- not a thing the state
                 is computed from.
 
-⭐⭐⭐ **And then DELETE is the un-claim.** Every attempt above to get back to
+**And then DELETE is the un-claim.** Every attempt above to get back to
 `None` failed for one reason: an append-only chain can only be added to. A
 scratchpad can be erased. *A proposition never considered* and *one considered
 and rejected* stop being hard to tell apart, because the first has nothing in
@@ -570,13 +570,13 @@ proposition was the thing to look for. Anchor it and the problem is gone:
     boiling($w)              structure. A rule's stored pattern. Never believed.
     believed(boiling(k))     a node. Present = believed. Absent = not.
 
-⭐⭐⭐ **The entry becomes an ordinary anchored proposition.** `entry(p, +)` was
+**The entry becomes an ordinary anchored proposition.** `entry(p, +)` was
 already a node minted by `instance`; `believed(p)` is the same thing with the
 sign gone and a name that says what it is. §14's use/mention distinction stops
 needing a `mention` flag on the deposit, because USE is anchored and MENTION is
 not -- structurally, not by a boolean the writer has to get right.
 
-⭐ **And the substrate is already a hyperedge.** §3: *edges carry no information
+**And the substrate is already a hyperedge.** §3: *edges carry no information
 beyond connecting, so anything you want to say about a connection has to be a
 node.* `g.rel(relation, *members)` is n-ary with ordered members already, so
 `believed(p)` needs nothing new, and `believed(p, source, ...)` is available when
@@ -620,7 +620,7 @@ The author's, 2026-08-20: *dropped. Anything unstated is unsure / unknown.*
                                term; the sign was the redundant one all along.
     $p    nothing.             Absence IS unknown.
 
-⭐⭐⭐ **This dissolves the reason `?` was introduced rather than overriding it.**
+**This dissolves the reason `?` was introduced rather than overriding it.**
 `Chain.holds` states it: *`?` is not None: it stops the walk and reports
 ignorance, **which is the one thing writing nothing could never say** (§6).*
 That is true of an APPEND-ONLY chain, where absence is ambiguous -- never
@@ -671,7 +671,7 @@ is writable over the structural relations instead.
     in_delta($m, $e),     the same claim, over the raw chain -- and `anc`/`sanc`
     entry_of($e, p, +)    order the moments
 
-⭐ **PROVED REACHABLE before anything was deleted**, not assumed:
+**PROVED REACHABLE before anything was deleted**, not assumed:
 
     rule <after> = implies( { asking($s), anc($s, $mq), in_delta($mq, $eq),
                               entry_of($eq, acts($q), plus),
@@ -749,7 +749,7 @@ of 5,919** comparisons. *A description with two candidates resolves to the most
 recent* rests on that order. Fixed: sort by the governing entry's own node,
 which is mint order.
 
-⭐ And the reason it was invisible: **`ugm.gates.state` was comparing an index
+And the reason it was invisible: **`ugm.gates.state` was comparing an index
 against itself.** Its slow side called `current_state`, which after the collapse
 is one line over `chain._claims` -- the very index the maintained state is built
 from. The gate now walks the moments itself. That is the lesson the gate exists
@@ -808,7 +808,7 @@ end of this section for what was measured, what it cost, what was settled and
 the one measurement still unclaimed. Everything between here and there is the
 argument as it stood before, kept because the numbers were taken against it.
 
-⭐ **The author's call: this is the FIRST thing to implement**, ahead of
+**The author's call: this is the FIRST thing to implement**, ahead of
 `believed(p)` and the queued `at $m` conversion -- and probably in a fresh
 session, because nothing above it in this file is a prerequisite.
 
@@ -842,7 +842,7 @@ repository twice, in numbers it wrote down itself:
     _attention_asked   *the dungeon quiesced 32 MOVES EARLY and lost 48
                        CONCLUSIONS*
 
-## ⭐⭐⭐ Why a stack rather than a fourth filter
+## Why a stack rather than a fourth filter
 
 Three fixes have been tried and all three are **filters on a flat queue**:
 
@@ -866,7 +866,7 @@ everything narrows nothing*.
 that adding a connective adds **rows, not branches**, and this adds two rows to
 the one list that already exists for exactly this kind of thing.
 
-⭐⭐⭐ **And `stop`'s own design note is already the argument for a rule-decided
+**And `stop`'s own design note is already the argument for a rule-decided
 pop**, written before anyone asked for one (`text.py:369`):
 
 > *Done is the output of a rule that checks against the goal* -- which the table
@@ -877,7 +877,7 @@ pop**, written before anyone asked for one (`text.py:369`):
 So `pop` is `stop` scoped to a frame, and `push` is `attend` scoped to a fresh
 one. Neither is a new kind of construct.
 
-## ⭐⭐⭐ A frame carries its own RULESET, and that is the second duty
+## A frame carries its own RULESET, and that is the second duty
 
 The author's, 2026-08-21. A frame is not only an attention queue:
 
@@ -889,7 +889,7 @@ two**.  The expert is held by NAME, never as a frozen rule list: `pool_of` is
 *read, never kept* (`probes/experts.py`), because a registry built at load could
 not see a `knows` that a rule concluded.
 
-⭐⭐⭐ **And `probes/experts.py` already names the gap this closes, in its own
+**And `probes/experts.py` already names the gap this closes, in its own
 words** (`experts.py:147`):
 
 > ...and run it again, because the answer is a new fact its rules have not seen.
@@ -924,7 +924,7 @@ resume, and *wait for the result* into something literally true.
                       stack makes *whose budget* a question that has to be
                       answered rather than inherited.
 
-## ⭐⭐⭐ AUTOMATIC EXPERT SELECTION, by TF-IDF — and it is not a proposal
+## AUTOMATIC EXPERT SELECTION, by TF-IDF — and it is not a proposal
 
 The author's, 2026-08-21. `push` names the NODES to put in the new frame; the
 expert is chosen from them, automatically, by **TF-IDF over experts**.
@@ -945,7 +945,7 @@ the choice. It was a CARVE-OUT for what must never depend on it:
 `_forbid` runs outside recall entirely. So the mitigation for an unarguable
 selection is not making it arguable; it is knowing what must not ride on it.
 
-### ⭐⭐⭐ And TF-IDF is specifically the repair for a collapse this repo MEASURED
+### And TF-IDF is specifically the repair for a collapse this repo MEASURED
 
 `_salient` compared raw relation sets, and the `practice` rewrite recorded what
 that costs: *`_relations_required` collapses to `{goal, in}` for EVERY route, so
@@ -959,14 +959,14 @@ discriminating terms carry the score. The naive version of this mechanism has
 already failed once here, and this is not a generic scoring choice but the
 principled repair of that failure.
 
-⭐ **It also supersedes a hand-rolled guard.** `_pull` takes the STRONGER, not
+**It also supersedes a hand-rolled guard.** `_pull` takes the STRONGER, not
 the sum -- *adding them would make the weight a popularity count*. That `max` is
 a crude defence against ubiquity. IDF is the well-founded version of the same
 defence, which is what makes a weighted SUM safe here where a raw one was not.
 
 ### DECIDED
 
-    the terms       individual terms scored, with BONUSES FOR COMPOUNDS. ⭐ Same
+    the terms       individual terms scored, with BONUSES FOR COMPOUNDS. Same
                     shape as attention's own scoring, which already decomposes a
                     proposition into every node it is made of (`_nodes_of`,
                     machine.py:1283) and pushes each part separately. The
@@ -1069,7 +1069,7 @@ Two things, and neither has a number yet.
  A frame that fixes nothing measurable is a mechanism this design would refuse
 on its own terms.
 
-## ⭐⭐⭐ BUILT 2026-08-21 — and the three measurements were taken FIRST
+## BUILT 2026-08-21 — and the three measurements were taken FIRST
 
     python -m ugm.probes.frames    21 checks, 0 failing
     python -m ugm.selftest         513 checks, 0 failing   (was 503)
@@ -1106,7 +1106,7 @@ probe:
     area(plot1)    -> geometry    geometry 81, surveyor 81, arithmetic 0
     twice(3)       -> arithmetic  arithmetic 81, geometry 81, surveyor 0
 
-⭐ IDF does what it was chosen for: `question`, `reply` and the rest are in
+IDF does what it was chosen for: `question`, `reply` and the rest are in
 every pool, score **zero**, and stop drowning the signal. `survey` separates
 cleanly.
 
@@ -1140,7 +1140,7 @@ readmits on dungeon) and the ROUTING is. It belongs in the frame for the day
 something moves a score again, and that should be said plainly rather than
 implied by the frame carrying it.
 
-### ⭐⭐⭐ 3b. ...and the one way a resume CAN differ runs the OTHER way
+### 3b. ...and the one way a resume CAN differ runs the OTHER way
 
 Found while measuring 3, and it was a defect in the frame code:
 
@@ -1195,7 +1195,7 @@ tie of measurement 2 showing up in the routing: a term shared by the asker and
 the answerer scores for both. Defensible, not what a human would have named, and
 recorded here rather than tuned away.
 
-⭐ Both paths are kept on purpose. *How far does a re-run diverge from a resume*
+Both paths are kept on purpose. *How far does a re-run diverge from a resume*
 is a comparison, and a file with only the new way has nothing to compare against.
 
 ### Two more found in the engine while porting
@@ -1259,7 +1259,7 @@ the corpus was loaded. Adding six reserved names reordered a shortlist in a
 check that had been green for weeks, and nothing raised: a set is a perfectly
 good answer to *which*, and no answer at all to *which first*.
 
-Read in graph order now. ⭐ The §19 check it broke is SHARPER for it: attention
+Read in graph order now. The §19 check it broke is SHARPER for it: attention
 that names everything now produces **exactly the bare order**, more cheaply --
 stated as an identity rather than as a difference, where the old version
 asserted "the order still moves" on the strength of the accident.
@@ -1293,7 +1293,7 @@ in opposite directions:
                         The rule cannot tell *minted inside the hypothesis* from
                         *already true and mentions the same thing*.
 
-⭐ **The engine gap this names is one structural relation, not a mechanism.**
+**The engine gap this names is one structural relation, not a mechanism.**
 `structural_relations` (`rules.py:1368`) already carries `chain.ENTRY_OF:
 _members_of` -- *not stored and not walked, but read off the node's own
 members*. A generic member relation is that same kind, one more row in that

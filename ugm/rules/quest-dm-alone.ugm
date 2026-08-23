@@ -1,7 +1,0 @@
-# The control DM: nobody holds the key, so the ask is never answered.
-# Loaded by `ugm/quest.py`.
-fact -holds(p1, key1)
-rule <heard-want> = implies( { +says($who, want($who, $k), plus) },
-                             { +wants($who, $k) } )
-rule <route> = implies( { +wants($who, $k), -holds($who, $k), +holds($keeper, $k) },
-                        { +doing(tell($keeper, asked($who, $k))) } )

@@ -29,7 +29,7 @@ be asked about, rather than by a hard-wired intake nobody can argue with.
 
 ## The third thing a frame supplies, beside t
 
-⭐⭐⭐ **The third thing a frame supplies, beside the seat and the
+**The third thing a frame supplies, beside the seat and the
 topic** (`docs/situations.md`). A rule cannot name a situation any
 more than it can name a locus, so this is where one comes from.
 
@@ -78,7 +78,7 @@ Move a frame to a later seat, and SAY SO. What it is for: the agent's
         The frame node is re-minted, so `frame(seat, topic)` keeps saying where
         the frame is rather than where it began.
 
-        ⭐⭐⭐ **`+moved(<from>, <to>)`, which is §17's *every seat move is a
+        **`+moved(<from>, <to>)`, which is §17's *every seat move is a
         write* and was §21's oldest owed item.** Position is where, and it was
         always recorded -- `at($w, $x)` is an ordinary fact, which is the whole
         reason walkers needed no engine support. The seat is WHEN, and it was
@@ -102,7 +102,7 @@ Move a frame to a later seat, and SAY SO. What it is for: the agent's
 
 ## Pinned to the frame's situation for the deposi
 
-⭐ Pinned to the frame's situation for the deposit, and only for the
+Pinned to the frame's situation for the deposit, and only for the
 deposit. The entry node and its `in_delta` are the structural record
 of a claim, so they belong to the situation the claim was made in --
 otherwise a supposition's own entries would be minted wherever the

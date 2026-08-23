@@ -34,7 +34,7 @@ thing anyone reaches for, so it is a check rather than a remark. What isolates
 between EXPERTS is the pool (11); what separates two instances of ONE expert is
 nothing at all (12) -- until the value is MOVED out of the shared cell (13).
 
-⭐⭐⭐ The cross-tick mechanism is already built and is `_attended_first`: a
+The cross-tick mechanism is already built and is `_attended_first`: a
 rule's applications are sorted by the summed, position-weighted overlap of the
 values they BIND, and the loop takes the first survivor and breaks. So
 attention does choose the binding (14), and a slot WRITE is enough to choose
@@ -50,7 +50,7 @@ gets tick 1 -- and tick 1 is walk-ordered whatever runs there, because
 touch the order*. An empty queue orders nothing. The limit is not pre-binding,
 it is that attention cannot rank what has not been attended yet.
 
-⭐ And in a real run the queue is empty only at the very start, because
+And in a real run the queue is empty only at the very start, because
 computation begins when something ARRIVES on a channel. An arrival does not
 attend when it lands (19) -- `_report` writes straight through the gate, which
 is not a move's `wrote` -- but the intake rule's own write attends every node
@@ -75,7 +75,6 @@ See docs/HANDOFF.md 2026-08-22 and docs/models.md 12c.
 
 import sys
 
-from ..core.chain import PLUS
 from ..core.machine import Machine
 from ..core.text import load
 
@@ -247,7 +246,7 @@ def main() -> int:
         "fact +start(go)", ""]))
     m.run(limit=30)
     held = [m.g.show(n) for n in m.g.instances_of(kb.term("game"))
-            if m.holds(n) == "+"]
+            if m.holds(n)]
     print(f"      after two writes, held: {held}")
     gate("a named slot is NOT single-valued -- both values stand, and nothing "
          "in the notation says otherwise", len(held) == 2)
@@ -269,7 +268,7 @@ def main() -> int:
     new = m.holds(kb.term("game(_attention, go)"))
     print(f"      after the setter: chess={old}  go={new}")
     gate("a three-member setter keeps the slot to one value -- the discipline "
-         "is a RULE, which is where it belongs", old == "-" and new == "+")
+         "is a RULE, which is where it belongs", not old and new)
 
     # 7. THE EXPRESSIBILITY TEST PROPER. An authored competence rule, and the
     #    same rule with its situational premise replaced by a slot read. Same
@@ -283,7 +282,7 @@ def main() -> int:
         "fact +at(agent, hall)"] + world + [""]))
     m.run(limit=40)
     authored = sorted(m.g.show(n) for n in m.g.instances_of(kb.term("may"))
-                      if m.holds(n) == "+")
+                      if m.holds(n))
     m = Machine()
     kb = load(m, "\n".join([
         "rule <slotted> = implies("
@@ -291,7 +290,7 @@ def main() -> int:
         "fact +here(_attention, hall)"] + world + [""]))
     m.run(limit=40)
     slotted = sorted(m.g.show(n) for n in m.g.instances_of(kb.term("may"))
-                     if m.holds(n) == "+")
+                     if m.holds(n))
     print(f"      authored  {authored}")
     print(f"      slotted   {slotted}")
     gate("a competence rule rewrites slot-relative and answers identically -- "
@@ -341,7 +340,7 @@ def main() -> int:
         + shared + [""]))
     m.run(limit=40)
     alone = sorted(m.g.show(n) for n in m.g.instances_of(kb.term("visited"))
-                   if m.holds(n) == "+")
+                   if m.holds(n))
     print(f"      a slot read alone, two values in the cell   {alone}")
     gate("a lone slot member fires on every value in the cell -- this is the "
          "confusion the decision accepts", len(alone) == 2)
@@ -358,7 +357,7 @@ def main() -> int:
         + shared + world + [""]))
     m.run(limit=40)
     joined = sorted(m.g.show(n) for n in m.g.instances_of(kb.term("slip"))
-                    if m.holds(n) == "+")
+                    if m.holds(n))
     print(f"      joined to an anchored member                {joined}")
     gate("joining the slot to another member does NOT isolate over a shared "
          "world -- the foreign value joins too", len(joined) == 2)
@@ -393,7 +392,7 @@ def main() -> int:
         "fact +exit(cave, down)"] + shared + [""]))
     m.run(limit=40)
     mixed = sorted(m.g.show(n) for n in m.g.instances_of(kb.term("may"))
-                   if m.holds(n) == "+")
+                   if m.holds(n))
     print(f"      two instances, one cell                     {mixed}")
     gate("the pool cannot separate two instances of ONE expert -- same rules, "
          "same names, and the instance is nowhere in the answer",
@@ -417,9 +416,14 @@ def main() -> int:
         "fact +exit(cave, down)"] + shared + [""]))
     m.run(limit=60)
     private = sorted(m.g.show(n) for n in m.g.instances_of(kb.term("may"))
-                     if m.holds(n) == "+")
-    left = [m.holds(n) for n in m.g.instances_of(kb.term("here"))
-            if "_attention" in m.g.show(n) and m.holds(n) is not None]
+                     if m.holds(n))
+    # The crossroad's own instances, and whether any is still BELIEVED. Under
+    # the scratchpad an emptied slot is not a `-` entry standing beside a `+`
+    # one -- the anchor is gone -- so the question is presence, and the
+    # instances survive in the graph to be asked about.
+    crossroad = [n for n in m.g.instances_of(kb.term("here"))
+                 if "_attention" in m.g.show(n)]
+    left = [m.g.show(n) for n in crossroad if m.holds(n)]
     print(f"      after moving to a private anchor            {private}")
     print(f"      what the crossroad is left holding          {left}")
     gate("the private space is the same construct with a different first "
@@ -427,7 +431,7 @@ def main() -> int:
          private == ["may(inst1, north)", "may(inst2, down)"])
     gate("...and the crossroad ends EMPTY, which is what makes it a crossroad "
          "rather than a second home for the value",
-         bool(left) and all(v == "-" for v in left))
+         bool(crossroad) and not left)
 
     # -- and the mechanism the whole design rests on is already BUILT --------
     #
@@ -454,9 +458,8 @@ def main() -> int:
         if attend:
             m._attend(kb.term(attend))
         m.run(limit=40)
-        return [m.g.show(e.proposition)
-                for mo in m.chain.moments for e in mo.delta
-                if m.g.show(e.proposition).startswith("moves(")]
+        return [m.g.show(p) for p in reversed(m.pad.believed())
+                if m.g.show(p).startswith("moves(")]
 
     base = moves_in_order()
     attended_chess = moves_in_order(attend="chess")
@@ -495,9 +498,8 @@ def main() -> int:
         if attend:
             m._attend(kb.term(attend))
         m.run(limit=60)
-        return m, kb, [m.g.show(e.proposition)
-                       for mo in m.chain.moments for e in mo.delta
-                       if m.g.show(e.proposition).startswith("moves(")]
+        return m, kb, [m.g.show(p) for p in reversed(m.pad.believed())
+                       if m.g.show(p).startswith("moves(")]
 
     _m, _kb, none_at = spent_run()
     _m, _kb, at_chess = spent_run("chess")
@@ -514,11 +516,11 @@ def main() -> int:
     #      when attention turns to it. Same machine, carried on: the premise
     #      comes back and `go` is attended.
     m, kb, phase1 = spent_run("chess")
-    m.gate.write(kb.term("token(one)"), PLUS)
+    m.gate.write(kb.term("token(one)"))
     m._attend(kb.term("go"))
     m.run(limit=60)
-    phase2 = [m.g.show(e.proposition) for mo in m.chain.moments for e in mo.delta
-              if m.g.show(e.proposition).startswith("moves(")]
+    phase2 = [m.g.show(p) for p in reversed(m.pad.believed())
+              if m.g.show(p).startswith("moves(")]
     print(f"      then the premise returns, attend go   {phase1} -> {phase2}")
     gate("...and the loser is chosen once the OTHER node is attended, which is "
          "the whole of the author's claim, both halves",
@@ -549,9 +551,8 @@ def main() -> int:
         m = Machine()
         load(m, src)
         m.run(limit=40)
-        return [m.g.show(e.proposition)
-                for mo in m.chain.moments for e in mo.delta
-                if m.g.show(e.proposition).startswith("moves(")]
+        return [m.g.show(p) for p in reversed(m.pad.believed())
+                if m.g.show(p).startswith("moves(")]
 
     rows = {}
     for who in ("chess", "go"):
@@ -591,7 +592,7 @@ def main() -> int:
         load(m, src)
         seen = []
 
-        def chooser(mm, _table, window, _state):
+        def chooser(mm, _table, window):
             a = window[0]
             seen.append((mm.g.show(a.rule.node),
                          tuple(sorted(mm.g.show(v) for v in a.bindings.values())),

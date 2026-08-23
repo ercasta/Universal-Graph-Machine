@@ -7,7 +7,7 @@ prose that stood at the place the module now points from.
 
 The loop: a table over rules, take the first that matches, then spend.
 
-⭐⭐⭐ **This is the loop this repo ships, and it is the only one.** `Machine.run`
+**This is the loop this repo ships, and it is the only one.** `Machine.run`
 is three lines that call it; `Machine.tick` is five. What follows is the
 argument that put it there, and it is written against a loop that no longer
 exists -- kept in that tense on purpose, because the case for this one is the
@@ -42,7 +42,7 @@ postconditions spend attention -- *refocusing* is a rule (`unattend`), *done* is
 the output of a rule that checks against the goal (`stop`). Nothing in this file
 knows what either is.
 
-⭐⭐⭐ **`stop` is what made *done is the output of a rule* mean anything.**
+**`stop` is what made *done is the output of a rule* mean anything.**
 It was written here from the start and the loop had no way to obey one: a
 completion check concluded and the agent carried straight on to quiescence.
 `stop` is a postcondition beside `attend` and `unattend`, so it is a row rather
@@ -91,7 +91,7 @@ because the thing to be preferred is not a rule.
 | `_attended_first` | which of a rule's applications is taken | **exact** | nothing -- `found` is already materialised |
 | `_pull` | which rules are matched at all | approximate | two dict reads |
 
-⭐⭐⭐ **The second is a join, and that is the only reason it is affordable.**
+**The second is a join, and that is the only reason it is affordable.**
 *Which rules are about `goblin1`* has no syntactic answer -- every rule is
 generic, so no rule's text mentions `goblin1` -- and its exact answer is *those
 with an application binding it*, which is the option set this loop exists not to
@@ -146,7 +146,7 @@ Three variants, measured on the whole suite:
 
 ...against one measured gain: Hanoi 100 ticks to 99.
 
-⭐ **The diagnosis is why the note is worth more than the code.** A flat lift
+**The diagnosis is why the note is worth more than the code.** A flat lift
 moved **34% of the pool by the same amount every tick**, which reorders nothing
 inside that third — *attention that names everything discriminates nothing*,
 arriving as a default. Counting fixed the flatness and exposed the next
@@ -180,7 +180,7 @@ kept them alive went too: `LIFE`, the saturation ceiling, the trace that rebuilt
 the table, `_rerank`, and the `reflex` calibration. What is left cannot decay,
 so there is nothing to tune.
 
-⭐⭐⭐ **It has to be a postcondition, and that was measured before it was
+**It has to be a postcondition, and that was measured before it was
 built.** `docs/HANDOFF.md` 2026-08-15 wrote a learned recogniser as a RULE and it
 fired **twice out of sixteen installed** -- *in a one-move-per-tick loop,
 spending a move on recognition competes with doing the work*, and the rule that
@@ -309,7 +309,7 @@ accident that read like a mechanism. A corpus that wants it writes the premise.
 
 The other ways of getting what this move is getting.
 
-    ⭐⭐⭐ **Complete forgoing looked like it needed the option set, and it does
+    **Complete forgoing looked like it needed the option set, and it does
     not.** *What else could have served this want* ranges over every rule only if
     you ask it that way round. `_wants` reads what an application CONSUMED -- an
     application that consumed `goal(w)` is a response to wanting `w` -- so a
@@ -329,7 +329,7 @@ The other ways of getting what this move is getting.
 
 Attention's rule-level lift: two dict reads and no matching.
 
-    ⭐⭐⭐ **The join, and the reason attention is affordable where a query is
+    **The join, and the reason attention is affordable where a query is
     not.** *Which rules are about `goblin1`* looks like it needs matching --
     every rule is generic, so no rule's text mentions `goblin1` at all, and the
     only exact answer is *those with an application binding it*, which is the
@@ -352,7 +352,7 @@ Attention's rule-level lift: two dict reads and no matching.
 
 ## POSITION is the strength. attended arr
 
-⭐⭐⭐ **POSITION is the strength.** `attended` arrives newest-first, so
+**POSITION is the strength.** `attended` arrives newest-first, so
 what the agent turned to last lifts hardest and what is about to fall off
 the bottom barely lifts at all. That gradient is the whole reason the
 queue exists: a FLAT lift moved 34% of the pool by the same amount every
@@ -369,7 +369,7 @@ whatever the corpus happened to attend to.
 
 Order a rule's own applications by what the agent is thinking about.
 
-    ⭐⭐⭐ **This is the half no rule-keyed buff can express, and it costs
+    **This is the half no rule-keyed buff can express, and it costs
     nothing.** The loop takes the first surviving application and breaks, so
     which BINDING wins has always been walk order -- authoring order, wearing a
     preference. `table.score` is keyed by `r.node`; `prefer(<R>, key, n)`,
@@ -393,7 +393,7 @@ Order a rule's own applications by what the agent is thinking about.
 
 ## pool is what makes an EXPERT possible: one s
 
-⭐ `pool` is what makes an EXPERT possible: one shared graph, one shared
+`pool` is what makes an EXPERT possible: one shared graph, one shared
 chain, and a table over a SUBSET of the rules. The loop does not know what
 an expert is -- it is handed the rules it may consider, exactly as it is
 handed the corpus. `ugm.experts` reads the subset off the graph.
@@ -404,7 +404,7 @@ rule*, and that is a set the agent can add to at run time.
 
 ## A caller may bring its own table, and doc
 
-⭐⭐⭐ **A caller may bring its own table, and `docs/interpretation-feedback.md`
+**A caller may bring its own table, and `docs/interpretation-feedback.md`
 §4 is right that the day it matters is the day something else changes.**
 A host driving the agent one tick at a time calls this per `/step`, and a
 table built here is free EXACTLY while no postcondition has moved it: with
@@ -446,7 +446,7 @@ takes them -- but that is a caller's choice, not a boundary.
 
 ## Satisfaction, ported from the tick this lo
 
-⭐⭐⭐ **Satisfaction, ported from the tick this loop replaces.** `stop`
+**Satisfaction, ported from the tick this loop replaces.** `stop`
 is the rule-level route and it stays the recommended one -- a rule
 concludes that here is over and its postcondition ends the run. This
 is the other half, and it is here rather than as a rule because the
@@ -466,7 +466,7 @@ worth doing and *nothing more is worth doing* does not.
 
 ## Dormancy, and it is the right form of dis
 
-⭐⭐⭐ **Dormancy, and it is the right form of *disable a rule*.** A rule
+**Dormancy, and it is the right form of *disable a rule*.** A rule
 claimed `dormant` is not considered until something claims it `due` --
 which is all a callback is. Both are ordinary FACTS rather than a mark
 the engine reads, so both are askable, defeasible and attributable, and
@@ -476,7 +476,7 @@ field.
  Read every tick and at the register's own position, never once when
 the pool is built: `due` can be concluded mid-run, and a callback
 attached inside a hypothesis must wake only there.
-⭐⭐⭐ **THE `prefer` LIFT IS GONE, and what is left is the same lift
+**THE `prefer` LIFT IS GONE, and what is left is the same lift
 by a better key.** The table used to read `prefer(<R>, key, score)`
 as a buff, which it is -- *when this is in play, think of R*. What is
 wrong with it is not the arithmetic, it is the subject: it can only
@@ -527,7 +527,7 @@ doubt, and it is what every rule that reacts to the loop having
 stopped is waiting for -- `<give-up>`, the watchdogs, `blocked`.
 Without it the bundle never gets its turn, which is why the first
 version of this loop never acted at all on `quest-p1`.
-⭐⭐⭐ **Effort, and the order is the old tick's exactly.** A
+**Effort, and the order is the old tick's exactly.** A
 shortlist that ran dry is not a search that finished, and neither
 is a search that never looked at what it had put out of mind. Both
 deposit -- `widened(<seat>)`, `reached(<seat>)` -- so *I had to go
@@ -551,12 +551,12 @@ agent is in, not a mode it is switched into* -- and this loop did not,
 so after the first dry shortlist it never reached past one again for
 the whole run. One line, and it is a real behavioural difference
 rather than a record: measured, 3 widenings became 1.
-⭐⭐⭐ **Taking one way of getting something passes up the others**, and
+**Taking one way of getting something passes up the others**, and
 this loop was not saying so -- which cost `ugm.learning` and
 `ugm.practice` entire, because rehearsing safely IS choosing and then
 naming what you did not do.
 
-⭐ And it names the rivals the agent ACTUALLY WEIGHED -- the window --
+And it names the rivals the agent ACTUALLY WEIGHED -- the window --
 where the option-set loop named every application it had materialised.
 That is the more honest record of the two: *what did you pass up* ought
 to mean *what did you consider and not take*, not *what existed*.
@@ -572,7 +572,7 @@ chooses and then does not apply, so watching at the choice
 recorded a rule that never ran -- and a lesson built from that
 sequence teaches a move that never happened.
 
-⭐ **...and the `Step` goes with it, which is the whole of
+**...and the `Step` goes with it, which is the whole of
 `docs/interpretation-feedback.md` §4.** Watching after the move
 means `_spend` has already appended its refraction bookkeeping, so
 a watcher asking the CHAIN *what did that move write* over-reports
@@ -634,13 +634,13 @@ The author's example, and it found the mechanism's real boundary.
     a claim about a rule cannot say that. `overrides` was measured here first
     and behaved identically, which is part of why it is gone.
 
-    ⭐ What does work is representation: state `-penguin(tweety)` and let
+    What does work is representation: state `-penguin(tweety)` and let
     `<flies>` read it. The general rule keeps working for ordinary birds and
     declines for this one, because the corpus said something it knew rather than
     leaving it to a score. §9's positive tests, with the negative WRITTEN rather
     than inferred from silence.
 
-    ⭐ `tweety` is the control and is the whole reason this table is worth
+    `tweety` is the control and is the whole reason this table is worth
     printing. Without it removal and representation look identical, and the
     lever that breaks flight passes.
 
@@ -655,7 +655,7 @@ The author's example, and it found the mechanism's real boundary.
     A row, not a branch, and the loop still knows nothing about goals: it knows
     a rule said stop.
 
-    ⭐⭐⭐ **And the trigger everyone reaches for first is worth nothing.** The
+    **And the trigger everyone reaches for first is worth nothing.** The
     obvious proposal -- let a goal raise the priority of the rule that checks it
     -- was built and measured before this, and it moves NOTHING. A completion
     check is **self-gating**: it cannot match until the thing is done, and the

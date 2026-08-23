@@ -1,19 +1,20 @@
-"""Run a corpus, or resume a session, and say what became of it.
+"""Run a corpus and say what became of it.
 
-python -m ugm <corpus.ugm> [--limit N] [--why TERM] [--save FILE]
+    python -m ugm <corpus.ugm> [--limit N] [--ask TERM]
 
-<corpus.ugm> [--limit N] [--why TERM] [--save FILE] --resume FILE [--limit N]
-[--why TERM] [--save FILE] §2's not-lossy criterion at the one boundary nobody
-had crossed.  A resumed session does not act again.
-
-See docs/design/__main__.md.
+What is gone from this file is the same thing that is gone from the engine.
+`--save` and `--resume` wrote and replayed a SESSION -- everything the agent
+had been told, in order -- and `--why` walked a belief's support back to what
+it rested on. Both were readings of a history, and there is no history: one
+graph, one current state, and what it holds is all there is to print. A
+scratchpad the agent could reload is a memory system, and it will be built as
+one rather than fallen into.
 """
 
-import json
 import sys
 
 from .core.machine import Machine
-from .core.text import load, load_file
+from .core.text import load_file, _report_unwebbed
 
 
 def main(argv=None) -> int:
@@ -22,67 +23,52 @@ def main(argv=None) -> int:
         print(__doc__.strip())
         return 0
 
-    path, limit, asked, save, resume = None, 400, [], None, None
+    path, limit, asked = None, 400, []
     i = 0
     if not argv[0].startswith("--"):
         path, i = argv[0], 1
     while i < len(argv):
         flag = argv[i]
-        if flag in ("--limit", "--why", "--save", "--resume") and i + 1 >= len(argv):
+        if flag in ("--limit", "--ask") and i + 1 >= len(argv):
             print(f"{flag} needs a value")
             return 2
         if flag == "--limit":
             limit = int(argv[i + 1]); i += 2
-        elif flag == "--why":
+        elif flag == "--ask":
             asked.append(argv[i + 1]); i += 2
-        elif flag == "--save":
-            save = argv[i + 1]; i += 2
-        elif flag == "--resume":
-            resume = argv[i + 1]; i += 2
         else:
             print(f"unexpected argument {flag!r}")
             return 2
-    if path is None and resume is None:
-        print("give a corpus to run, or --resume a saved session")
+    if path is None:
+        print("give a corpus to run")
         return 2
 
     m = Machine()
-    kb = None
-    if resume:
-        with open(resume, encoding="utf-8") as fh:
-            m.replay(json.load(fh)["session"], limit=limit)
-        print(f"{resume}: resumed without acting again")
-    if path:
-        kb = load_file(m, path)
-        # ⭐ The one place an author loads a corpus in order to RUN it, which is
-        # the audience for this note. See `text._report_unwebbed`.
-        from .core.text import _report_unwebbed
-        _report_unwebbed(m)
-        steps = m.run(limit=limit)
-        last = steps[-1].state if steps else "nothing to do"
-        print(f"{path}: {len(steps)} ticks, ended {last}")
-        if last == "applied":
-            # ASCII, deliberately. This is the ONE line a runaway corpus reaches,
-            # and a console whose encoding cannot carry the character turns the
-            # diagnostic into a traceback -- the report about the failure
-            # failing, which is the worst place in the program for it.
-            print(f"  stopped at the tick limit ({limit}); it had not finished")
+    kb = load_file(m, path)
+    # The one place an author loads a corpus in order to RUN it, which is the
+    # audience for this note. See `text._report_unwebbed`.
+    _report_unwebbed(m)
+    steps = m.run(limit=limit)
+    last = steps[-1].state if steps else "nothing to do"
+    print(f"{path}: {len(steps)} ticks, ended {last}")
+    if last == "applied":
+        # ASCII, deliberately. This is the ONE line a runaway corpus reaches,
+        # and a console whose encoding cannot carry the character turns the
+        # diagnostic into a traceback -- the report about the failure failing,
+        # which is the worst place in the program for it.
+        print(f"  stopped at the tick limit ({limit}); it had not finished")
+
     print()
-    for line in m.report():
-        print(line)
-    if save:
-        m.save(save)
-        print()
-        print(f"saved to {save}")
+    print("what it believes, newest first:")
+    for p in m.pad.believed():
+        if m.g.relation_of(p) in m._bookkeeping:
+            continue  # the machinery's own record-keeping is not the world
+        print(f"  {m.g.show(p)}")
+
     for q in asked:
         print()
-        print(f"why {q}?")
-        scope = kb if kb is not None else load(m, "", None, None)
-        lines = m.why(scope.term(q))
-        # A proposition nothing concluded has no trail, and saying so is the
-        # answer rather than an empty list (§5's whole argument about silence).
-        print("\n".join("  " + l for l in lines) if lines
-              else "  nothing concluded it -- see what is BLOCKED above")
+        term = kb.term(q)
+        print(f"{q}: {'believed' if m.holds(term) else 'not believed'}")
     return 0
 
 

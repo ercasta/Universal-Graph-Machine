@@ -37,7 +37,7 @@ time, so it can order *kinds* of repair and cannot compare *totals*: two cheap
 repairs against one expensive one is not a question a per-rule score can be
 asked.
 
-⭐ **What we want to add is not the fourth face. It is that parsing moves this
+**What we want to add is not the fourth face. It is that parsing moves this
 whole family from the tail to the common case.** In §2.23 the double attack was
 an adversarial probe — *attack the goblin that attacked you three turns ago*,
 constructed to break something. In a grammar, two readings over one span **is

@@ -22,8 +22,7 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 from .graph import NodeId
 from .machine import Machine, Step
 from .rules import (STOP, UNATTEND, Application, Attend, Member, Pop, Push,
-                    Rule,
-                    Situation, match, substitute)
+                    Rule, match, substitute)
 
 # A rule the bundle marks `standing` is in the table at the default; everything
 # else is in it at the floor. The author's own correction to an earlier sketch:
@@ -247,7 +246,7 @@ def _by_relation(rules: Sequence[Rule], g) -> Dict[NodeId, List[NodeId]]:
     return out
 
 
-def _pull(m: Machine, table: "Table", state: Situation,
+def _pull(m: Machine, table: "Table",
           attended: Sequence[NodeId]) -> Dict[NodeId, int]:
     """Attention's rule-level lift: two dict reads and no matching.
 
@@ -271,7 +270,7 @@ def _pull(m: Machine, table: "Table", state: Situation,
         # cannot separate them, which is exactly what sank attending the
         # right-hand side twice (20d, 20h).
         weight = max(1, PULL - i) * weights.get(node, 1)
-        for rel in state.relations_of(node):
+        for rel in m.pad.relations_of(node):
             for r in table.by_relation.get(rel, ()):
                 # By magnitude again, and for the same reason: a rule reachable
                 # from a damped node and an attended one takes the stronger
@@ -381,8 +380,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # rule-level read is a fixpoint, so an unanchored one gives every
         # proposition its candidates and its winner. See `ask_read`.
         # → docs/design/attention.md#not-a-phase-the-world-may-have-spoken-since-the
-        m.g.rel(m.chain.ASKING, m.chain.now.node)
-
         # *Whose line of work is this?** A `push` spent last tick left a
         # new frame on the stack, and the loop picks up ITS table here. That is
         # the whole of what turns a consultation into a resume: `experts.py`
@@ -425,15 +422,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
 
         arrivals = m.channels.since_last_tick() or 0
 
-        # Satisfaction, ported from the tick this loop replaces.
-        # → docs/design/attention.md#satisfaction-ported-from-the-tick-this-lo
-        reason = m._enough()
-        if reason is not None:
-            m._halt(reason)
-            steps.append(Step(arrivals, 0, tried, None, (), "stopped"))
-            break
-
-        state = m._situation()
         table.now = tick
         table.ticked += 1
 
@@ -453,7 +441,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         lift = None
         asked = m._attention_asked()
         if asked:
-            lift = _pull(m, table, state, asked) or None
+            lift = _pull(m, table, asked) or None
         ordered = [r for r in table.order(lift) if not _dormant(m, r)]
         cut = 0
         while cut < len(ordered) and not window:
@@ -467,21 +455,19 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 if top is not None and table.score[r.node] < top - TOLERANCE:
                     break  # the prefix ends here, and the rest is not matched
                 tried += 1
-                found = match(
-                    m.g, m.chain, r, state,
-                    computes=m.rules.computes,
-                    structural=m.rules.skeleton(),
-                )
+                found = match(m.g, m.pad, r, computes=m.rules.computes)
                 # ...and WHICH of them, which the loop has never chosen. It
                 # takes the first survivor and breaks, so the binding was
                 # decided by the walk. Free: `found` is already here.
                 if attended:
                     found = _attended_first(found, attended,
                                             m._attention_weights())
-                # `_survives` is the per-candidate filter: passed up,
-                # quiescent, or already spent on these premises.
+                # Quiescence, and under the scratchpad it is the only
+                # per-candidate filter left: an application that has already
+                # been tried and changed nothing is inert, and trying it again
+                # would change nothing again.
                 for a in found:
-                    if m._survives(a):
+                    if m._instantiation(a) not in m._inert:
                         window.append(a)
                         if top is None:
                             top = table.score[r.node]
@@ -495,17 +481,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             if m._widen():
                 steps.append(Step(arrivals, 0, tried, None, (), "widened"))
                 continue
-            if m._recover():
-                # Its own label: reaching for a domain that was out of mind is
-                # not widening a shortlist, and the two arms said the same word
-                # for long enough that nothing could tell them apart. `_recover`
-                # deposits `reached(<m>)` where `_widen` deposits `widened(<m>)`,
-                # so the record already distinguished them and the Step did not.
-                steps.append(Step(arrivals, 0, tried, None, (), "recovered"))
-                continue
-            if m._wake():
-                steps.append(Step(arrivals, 0, tried, None, (), "quiet"))
-                continue
             # The run is over, and WHICH silence it was goes on the record: the
             # option-set loop's callers read `steps[-1].state` in 33 places to
             # tell a finished search from one that hit the limit.
@@ -517,7 +492,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # as a gold teacher, is the same signature and the same loop. The first
         # user of a KB is a person choosing moves; the table is what that use
         # leaves behind.
-        chosen = window[0] if chooser is None else chooser(m, table, window, state)
+        chosen = window[0] if chooser is None else chooser(m, table, window)
         if chosen is None:
             break
         if len(window) > 1:
@@ -530,7 +505,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             fresh = False
             for rival in window[1:]:
                 node = m.g.rel(m.CLOSE, chosen.rule.node, rival.rule.node)
-                if m.chain.resolve(node) is None:
+                if not m.pad.holds(node):
                     m._note(node)
                     fresh = True
             if fresh:
@@ -548,8 +523,13 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # docs/design/attention.md#and-the-backstop-the-doubt-already-stands-an
         m._widened = False
         wrote = m._apply(chosen)
+        # This move has nothing further to give: whatever it concluded is in
+        # its target state now, because putting it there is what applying was.
+        # AFTER the apply and not before, so the writes and erasures it made
+        # have already revived whatever they invalidated -- including, for a
+        # rule that erases what it matched, this application itself.
+        m._went_inert(chosen)
         m._attend_written(wrote)
-        m._spend(chosen, wrote)
         applied.append(chosen.rule.name or "?")
         steps.append(Step(arrivals, len(window), tried, chosen,
                           tuple(wrote or ()), "applied"))
@@ -561,7 +541,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # →
             # docs/design/attention.md#after-the-move-not-at-the-choice-a-tick-that-d
             watch(m, table, window, chosen, tick, steps[-1])
-        _spend_posts(m, table, chosen, tick, state)
+        _spend_posts(m, table, chosen, tick)
         if table.stopped is not None:
             steps.append(Step(arrivals, 0, tried, None, (), "stopped"))
             # *Completion is the output of a rule*, and this is the loop obeying
@@ -618,10 +598,7 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
     would be an interpreter with a memory. A stop writes nothing and only says
     the run is over, so it is the one thing recorded on the table.
 
-    The licence is the rule that spent it, so *why am I thinking about this*
-    answers with a rule and a moment.
     """
-    licence = m.g.rel(m.APPLIED, rule_node)
     for target, _delta in spends:
         if isinstance(target, Attend):
             node = _ground(m, table, target.term, bindings)
@@ -634,7 +611,7 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
                 # node matters more than whatever else is in the queue at the
                 # same depth -- a calibration that names a node instead of a
                 # rule.
-                m._attend(node, licence, target.weight)
+                m._attend(node, weight=target.weight)
             continue
         if isinstance(target, Push):
             # A CALL. The nodes are the host rule's own variables, bound by
@@ -645,7 +622,7 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
                 node = _ground(m, table, term, bindings)
                 if node is not None and not m.g.has_var(node):
                     nodes.append(node)
-            m._push_frame(nodes, licence)
+            m._push_frame(nodes)
             continue
         if isinstance(target, Pop):
             # ...and a RETURN. The loop finds the restored frame at the top of
@@ -653,10 +630,10 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
             # caller's re-run a resume.
             node = _ground(m, table, target.term, bindings)
             m._pop_frame(node if node is not None and not m.g.has_var(node)
-                         else None, licence)
+                         else None)
             continue
         if target is UNATTEND:
-            m._unattend(licence)
+            m._unattend()
             continue
         if target is STOP:
             # Recorded here, obeyed by the loop. Keeping the decision out of the
@@ -665,8 +642,8 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
             table.stopped = by
 
 
-def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
-                 state: Situation) -> None:
+def _spend_posts(m: Machine, table: Table, chosen: Application,
+                 tick: int) -> None:
     """Run the applied rule's postconditions and move the table.
 
     The query is matched with the application's own bindings already
@@ -682,15 +659,12 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
                        chosen.rule.node)
             continue
         probe = Rule(
-            chosen.rule.node, chosen.rule.connective,
+            chosen.rule.node,
             [Member(mm.sign, substitute(m.g, mm.pattern, chosen.bindings),
                     mm.binds) for mm in query],
             [], f"{name}-after",
         )
-        for hit in match(
-            m.g, m.chain, probe, state,
-            computes=m.rules.computes, structural=m.rules.skeleton(),
-        ):
+        for hit in match(m.g, m.pad, probe, computes=m.rules.computes):
             bound = dict(chosen.bindings)
             bound.update(hit.bindings)
             _spend_one(m, table, tick, name, spends, frozen, bound,
@@ -698,8 +672,8 @@ def _spend_posts(m: Machine, table: Table, chosen: Application, tick: int,
 
 
 def _state(m: Machine) -> set:
-    """What the agent ends up holding, as (proposition, sign). The comparison
+    """What the agent ends up holding, as printed propositions. The comparison
     has to be over conclusions rather than over moves: two loops that reach the
     same beliefs by different routes agree about the world, and that is the
     question."""
-    return {(m.g.show(e.proposition), e.sign) for e in m._state()}
+    return {m.g.show(p) for p in m.pad.believed()}

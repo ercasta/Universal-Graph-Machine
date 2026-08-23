@@ -143,7 +143,7 @@ window, and the window is never empty while anything else has work. So those two
 records are unreachable for an agent that has any other work at all, which is
 your §2 and it is real.
 
-### ⭐ But the repair tiers ARE reached, and that changes what to build
+### But the repair tiers ARE reached, and that changes what to build
 
 Your reasoning is *the parse can fail completely while the window stays full, no
 widening fires, and the repair tiers are never reached*. The last clause is

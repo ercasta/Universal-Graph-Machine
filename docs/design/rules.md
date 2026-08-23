@@ -8,7 +8,7 @@ prose that stood at the place the module now points from.
 
 The postcondition that ends the run, as a sentinel rather than a node.
 
-    ⭐ `attend` deposits a claim, `unattend` denies one, and this stops. All
+    `attend` deposits a claim, `unattend` denies one, and this stops. All
     three are what an applied rule SPENDS, so all three are rows in one
     vocabulary rather than branches -- which is the test this design applies to
     connectives and applies here for the same reason.
@@ -31,7 +31,7 @@ The postcondition that ends the run, as a sentinel rather than a node.
 
 The postcondition that deposits attention on what the move just bound.
 
-    ⭐⭐⭐ **A different KIND of row from the ones it outlived.** `boost`,
+    **A different KIND of row from the ones it outlived.** `boost`,
     `damp` and `reset` moved a score and `stop` ends the run -- all of them the
     loop's own bookkeeping. This one deposits an ordinary CLAIM, which nothing
     else a postcondition could spend has ever done, and it is why it is the one
@@ -55,7 +55,7 @@ The postcondition that deposits attention on what the move just bound.
     which `stop` and `reset` do not. `term` is a node once the loader has built
     it, and the parser's own term before that.
     
-    ⭐⭐⭐ **And it carries a WEIGHT, which is what a learned buff used to be.**
+    **And it carries a WEIGHT, which is what a learned buff used to be.**
     `attend($x, 3)` says *of the things this move touched, THAT one matters* --
     a multiplier on a node's place in the attention queue rather than a number
     added to some other rule's score.
@@ -68,7 +68,7 @@ The postcondition that deposits attention on what the move just bound.
 
 ## WHERE the entry must sit, as a pattern to bind
 
-⭐ WHERE the entry must sit, as a pattern to bind (§8, §12). Defaulted, so
+WHERE the entry must sit, as a pattern to bind (§8, §12). Defaulted, so
 every construction site that does not care is untouched -- which is the
 whole reason a NamedTuple was the right shape for a member.
 
@@ -84,7 +84,7 @@ wall turned out to be information nothing looked at.
 
 ## ...and a name for WHAT matched. at $m says w
 
-⭐ ...and a name for WHAT matched. `at $m` says where the entry sits; `as
+...and a name for WHAT matched. `at $m` says where the entry sits; `as
 $t` says what its proposition is, so a rule can refer to the very thing it
 matched rather than describing it again.
 
@@ -121,7 +121,7 @@ licence; nobody asserted them*. They are structure, so they are not
 entries, so the state does not hold them -- which is why an ordinary
 rule could never see one and stratum 0 needed a second matcher.
 
-⭐ Given an ANCHORED moment they generate upward, and upward on a tree
+Given an ANCHORED moment they generate upward, and upward on a tree
 is single-valued (§11), so a structural member cannot reach a sibling
 branch. **Containment stays structural rather than becoming enforced**:
 nothing is refused, a downward pattern simply finds nothing, exactly as
@@ -176,7 +176,7 @@ Every relation an ordinary rule reads as STRUCTURE rather than as a
         claim: the chain's own (`self.structural`) plus whatever a stratum-0
         rule concludes.
 
-        ⭐⭐⭐ **The strata are derived, not assigned.** §6 defines stratum 0 as
+        **The strata are derived, not assigned.** §6 defines stratum 0 as
         *a property of a rule* -- every antecedent member is structural --
         decided *by inspecting an antecedent rather than by a designer assigning
         layers*. That is computable, so it is computed: start from what the
@@ -233,7 +233,7 @@ Collapse `first` then `second` into one rule (§4).
         it replaces would not have run -- §21's *a shortcut that has outlived
         its guards*, arriving immediately rather than after a context change.
 
-        ⭐⭐⭐ **And guard inheritance is COMPLETE, which this docstring spent
+        **And guard inheritance is COMPLETE, which this docstring spent
         several commits apologising for.** It said `unless` is not implemented
         anywhere in this engine, so the half of guard inheritance §12 describes
         cannot be carried. That was false, and the mistake was a NAME: `unless`
@@ -251,7 +251,7 @@ Collapse `first` then `second` into one rule (§4).
         rule belongs to harmonization, where the agent authors a better rule
         through `adopt` and the amendment is itself an arguable claim.
 
-        ⭐ **The grade used to block this.** §21 argued that composing one would
+        **The grade used to block this.** §21 argued that composing one would
         be a minimum computed once from constituents that are themselves
         defeasible -- a cache of a derived value, §16's objection one level up --
         so composition refused anything but `certain`. With grades gone the
@@ -278,7 +278,7 @@ violation of §4's claim that *n* steps become one **with the same
 conclusion**. An over-derivation was looked for and not found, which
 is not the same as it being impossible.
 
-⭐ This is why the mixed-connective question was the wrong one. What
+This is why the mixed-connective question was the wrong one. What
 looked like *which connective should a mixed composition get* is
 really *some compositions must not happen at all*; and once the
 unsound ones are refused, the connective is FORCED rather than chosen
@@ -292,7 +292,7 @@ seam composes soundly across a `causes` and is allowed. Refusing is
 
 ## Identity, at BIND TIME -- and without th
 
-⭐⭐⭐ **Identity, at BIND TIME** -- and without this the rest of the
+**Identity, at BIND TIME** -- and without this the rest of the
 identity layer is half a feature. `merge` repoints the indices, so after
 merging `debt` into `owes` a rule reading `+owes($x, $y)` is OFFERED
 `debt(zeta, 900)` by the argument index and then rejects it here, because
@@ -306,7 +306,7 @@ engine and it has to cost nothing until something has merged.
 
 ## A variable in the RELATION slot. The subst
 
-⭐ **A variable in the RELATION slot.** The substrate has always been
+**A variable in the RELATION slot.** The substrate has always been
 able to build `$p($x)` -- it is a node whose relation happens to be a
 variable -- and this is the line that decided it could never match.
 Binding it is what makes *apply the effect named by this ability* a
@@ -328,7 +328,7 @@ The least general structure both `a` and `b` are instances of (Plotkin).
     first; nothing was the second, so an agent could recognise an instance of a
     rule it had and never propose the rule from the instances.
 
-    ⭐⭐⭐ **`mapping` is the whole of it, and it is why this takes one.** The
+    **`mapping` is the whole of it, and it is why this takes one.** The
     same disagreement must produce the same variable *everywhere it appears*,
     including across the two structures a caller generalises in turn. Without
     that, `f(a, a)` and `f(b, b)` generalise to `f($1, $2)` -- true, useless,
@@ -419,7 +419,7 @@ The current state, plus the one index matching actually asks for.
     scans everything, which is correct: `+$p` is a rule that says *believe what
     this channel reported*, and it genuinely is about anything.
 
-    ⭐⭐⭐ **And it is MAINTAINED, not rebuilt.** The index was built from the
+    **And it is MAINTAINED, not rebuilt.** The index was built from the
     whole state once per tick, which is the same disease `state` cured one layer
     down: the state itself stopped being rebuilt and the index over it did not,
     so a tick stayed O(everything known) whatever matching cost. Measured:
@@ -445,7 +445,7 @@ The current state, plus the one index matching actually asks for.
     replacement for the walk -- not because a check would notice. `ugm.state`
     is what notices.
 
-    ⭐⭐⭐ **And by ARGUMENT POSITION, which is the second index and a different
+    **And by ARGUMENT POSITION, which is the second index and a different
     quadratic.** Keyed on the relation alone, a member that has already bound
     one of its arguments still draws every instance of that relation and unifies
     each: `{ +child($p, $x), +child($x, $y) }` over N facts is N candidates for
@@ -467,7 +467,7 @@ The current state, plus the one index matching actually asks for.
     so `unify` reduces to identity for it and the bucket is exactly the set that
     could match.
 
-    ⭐ **The narrowing keeps the ORDER**, which is why nothing else had to change:
+    **The narrowing keeps the ORDER**, which is why nothing else had to change:
     every candidate it removes is one `unify` would have rejected, so the
     matching candidates and their sequence are identical. `pystrider` flagged
     picking the narrowest MEMBER as the risky part -- it reorders the antecedent,
@@ -476,7 +476,7 @@ The current state, plus the one index matching actually asks for.
 
 ## The third index, and it is the one attenti
 
-⭐⭐⭐ **The third index, and it is the one attention needs: which
+**The third index, and it is the one attention needs: which
 RELATIONS a node is currently spoken of under.**
 
 The two above are read by a pattern that already knows its relation.
@@ -522,7 +522,7 @@ Unify a generic moment against an anchored one, over the current state.
     proposition is `resolve`d and `resolve` is itself a walk. Not an
     optimisation of the read: the read is unchanged, and asked once.
 
-    ⭐⭐⭐ `fresh` is the **delta**, and it is what makes the loop stop
+    `fresh` is the **delta**, and it is what makes the loop stop
     rediscovering what it already knew. Measured before building it: of 5,775
     applications a 600-fact corpus matched, **75 were new and 5,700 were
     re-derived** -- 98.7% waste; and 92.9% on the kettle fixture, so this was
@@ -539,7 +539,7 @@ Unify a generic moment against an anchored one, over the current state.
     §4 already says *a moment is a signed delta*; the matcher simply had not
     been reading it that way.
 
-    ⭐⭐⭐ **And the pivot is walked FIRST**, which is what makes the delta pass
+    **And the pivot is walked FIRST**, which is what makes the delta pass
     cost what the delta costs. Walked in authored order, a pass pivoting on
     member 1 draws member 0 from the whole state before it ever reaches the
     delta -- so a corpus deriving one fact per tick pays O(state) per tick and
@@ -559,7 +559,7 @@ Unify a generic moment against an anchored one, over the current state.
 An evaluated member that reads the chain. It yields each way
 its arguments can be satisfied, anchored by what is bound.
 
-⭐⭐⭐ **A MINUS here is negation as failure, and it needs no
+**A MINUS here is negation as failure, and it needs no
 notation.** On an ordinary member the sign says what an entry
 claims; a structural member has no entry, so the only thing a
 sign can mean is *this was not derived*. `-beaten(...)` is
@@ -577,7 +577,7 @@ non-deterministically.
 
 ## A computator: evaluated, not matched. §12'
 
-⭐ **A computator: evaluated, not matched.** §12's skeleton is
+**A computator: evaluated, not matched.** §12's skeleton is
 *conditions on the binding that claim nothing* -- distinctness
 is already one -- and arithmetic is exactly that. Evaluating
 it HERE is what makes an application atomic: the result is
@@ -593,7 +593,7 @@ rather than guessing -- and the pivot never lands on one (see
 
 `pred($m, $n)` / `sanc($m, $n)` -- read off the chain, anchored upward.
 
-    ⭐⭐⭐ **This is where containment stays structural.** The first argument must
+    **This is where containment stays structural.** The first argument must
     already be bound: from an anchored moment we walk toward the root, and §11
     guarantees that walk is single-valued -- *a moment has one parent; forking
     produces several successors, never several parents.* So a structural member
@@ -623,7 +623,7 @@ A skeleton relation that is IN the graph -- `pred`, `in_delta`,
     `delta_next`, `rests_on`, and whatever a stratum-0 rule concludes --
     matched by unifying against its ground instances.
 
-    ⭐⭐⭐ **This is the whole of the second matcher, and it is four lines.**
+    **This is the whole of the second matcher, and it is four lines.**
     `stratum0._facts` read exactly this: the ground instances of a relation,
     told apart from the patterns that look for them by §7's anchored/generic
     split. A separate engine was never needed to do it; the relations simply
@@ -718,7 +718,7 @@ The instances worth offering this member, using §3's argument-position
     above already sanctions, paid only by a member that could not be indexed
     anyway.
 
-    ⭐⭐⭐ **...and the fallback SAYS SO, which is
+    **...and the fallback SAYS SO, which is
     `docs/interpretation-feedback.md` §3.** The paragraph above sanctions the
     cost and is silent about the count, and those are different things: an
     author cannot tell a member that joins from a member that scans, because
@@ -773,7 +773,7 @@ Unify a structural want against a candidate node, and answer only if the
 A skeleton relation that needs no anchor, because it is bounded by
     construction: `asking(<seat>)`, and whatever a stratum-0 rule concludes.
 
-    ⭐⭐⭐ **This is where the anchoring discipline actually divides, and it is
+    **This is where the anchoring discipline actually divides, and it is
     not where I first drew it.** `_stored` refuses an unbound pattern because
     the chain's own relations are facts about the WHOLE HISTORY -- deposited
     whether or not anything asked -- so an unanchored `in_delta` would walk all
