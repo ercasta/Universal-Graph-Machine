@@ -800,6 +800,45 @@ def reference_lines() -> None:
           match(g3, pad3, open_var, predicates=predicates) == [])
 
 
+def rhs_tail() -> None:
+    """The RHS's ordered tail (`new_substrate.md`) -- `attend`/`stop` written
+    directly on the rule, unconditional, no separate `after` statement.
+
+    Reuses the trigger BACKEND (`m.rules.triggers`, keyed on empty query) --
+    RHS supersedes the no-query case of triggers rather than duplicating it,
+    which is why no executor code is new here, only the front door."""
+    print("\n§20 the RHS's ordered tail -- attend/stop written on the rule "
+          "itself, no separate trigger statement")
+    m = Machine()
+    kb = load(m, "fact +happy(paul)\n"
+                 "rule <r1> = implies({+happy($x)}, {+noticed($x)}) "
+                 "=> attend($x, 3)")
+    m.run(limit=3)
+    check("§20", "the tail's `attend($x, 3)` names the rule's OWN $x, at the "
+                 "learned weight, with no separate `after <r1> => ...` "
+                 "statement anywhere in this corpus",
+          (kb.atom("paul"), 3) in m._attention)
+
+    m2 = Machine()
+    kb2 = load(m2, "fact +happy(paul)\n"
+                   "rule <r1> = implies({+happy($x)}, {+noticed($x)})")
+    m2.run(limit=3)
+    check("§20", "...and a rule with no tail attends nothing beyond what the "
+                 "loop attends on its own -- control",
+          (kb2.atom("paul"), 3) not in m2._attention)
+
+    m3 = Machine()
+    kb3 = load(m3, "fact +happy(paul)\nfact +happy(mary)\n"
+                   "rule <r1> = implies({+happy($x)}, {+noticed($x)}) => stop")
+    steps = m3.run(limit=10)
+    noticed = sum(1 for n in ("paul", "mary")
+                  if m3.holds(m3.g.rel(kb3.atom("noticed"), kb3.atom(n))))
+    check("§20", "`stop` in the tail ends the run after ONE application, "
+                 "with a second `happy` still unread -- the ordinary loop "
+                 "would have applied both",
+          steps[-1].state == "stopped" and noticed == 1)
+
+
 def frames() -> None:
     print("\n§20 frames: the attention stack and the consultation stack are "
           "one construct")
@@ -979,6 +1018,7 @@ def main() -> int:
     triggers()
     attention()
     reference_lines()
+    rhs_tail()
     frames()
     experts()
     surface()

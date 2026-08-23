@@ -331,8 +331,23 @@ class Parser:
         self.expect(",")
         con = self.block()
         self.expect(")")
+        # An optional ordered tail -- `=> attend($x, 3), push($a)` -- the
+        # rule's OWN unconditional ops, in the rule's own scope, with no
+        # separate `after <R> => ...` statement and no query indirection.
+        # Built as a `PostClause` with an empty query, which is exactly the
+        # shape a bare `after` trigger already has: this is that shape,
+        # authored on the rule instead of beside it.
+        posts: Tuple[PostClause, ...] = ()
+        if self.at("="):
+            self.next()
+            self.expect(">")
+            spends = [self.spend()]
+            while self.at(","):
+                self.next()
+                spends.append(self.spend())
+            posts = (PostClause((), tuple(spends), False, False),)
         return Statement("rule", name_tok.text, conn.text, ant, con, None, "",
-                         line)
+                         line, posts)
 
     def trigger(self, t: Tok) -> Statement:
         """`after <A> { ... } => attend($x, 3)`.
@@ -1226,6 +1241,26 @@ class Loader:
         # where the author had written `<boil>`. §2's readable criterion, failing
         # in the one place a person actually looks.
         self.m.g.call_it(r.node, f"<{s.name}>")
+        if s.posts:
+            # The ordered tail: registered through the SAME backend a bare
+            # `after <R> => ...` trigger uses -- an empty query, this rule's
+            # node -- so `_spend_posts` needs no new code to run it. What is
+            # new is only the front door: no separate statement, no query
+            # indirection, and the rule's OWN scope rather than one rebuilt
+            # from its name (`new_substrate.md` -- RHS supersedes triggers
+            # for the unconditional case; a query-bearing `after` still has
+            # no inline spelling, and stays the separate statement).
+            clause = s.posts[0]
+            spends = tuple(
+                (t if t is STOP or t is UNATTEND
+                 else Push(tuple(self.build(x, scope) for x in t.terms))
+                 if isinstance(t, Push)
+                 else Pop(self.build(t.term, scope)) if isinstance(t, Pop)
+                 else Attend(self.build(t.term, scope), t.weight), delta)
+                for t, delta in clause.spends
+            )
+            self.m.rules.triggers.setdefault(r.node, []).append(
+                ((), spends, False, False))
 
     def _covered(self, pattern: NodeId, ant: List[Member], exempt: set = frozenset()) -> bool:
         g = self.m.g

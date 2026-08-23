@@ -743,3 +743,61 @@ predicate is never found. Not an engine defect; a probe re-deriving the exact tr
 doc already named for `g.atom("x")`. Fixed by minting each reserved atom once and reusing it,
 which is what a corpus gets for free from the loader's name table and what raw construction
 does not.
+
+## Decided: RHS supersedes triggers, 2026-08-23
+
+Before building anything, the inventory turned up a real conflict. Today a
+rule's own body (`implies({ant}, {con})`) is purely declarative -- `+`/`-`
+only -- and `attend`/`unattend`/`push`/`pop`/`stop` are reachable ONLY through
+a separate `after <R> { query } => ...` statement, kept apart deliberately:
+`RuleSet` calls a trigger *experience, kept apart from world knowledge*, and
+`_spend_one`'s own docstring says *the split is the design, not plumbing*. The
+doc's RHS puts imperative ops directly in a rule's own body, in sequence with
+`+`/`-` -- which is not widening that vocabulary, it is putting control flow
+into the thing the split exists to keep pure.
+
+**Decided: RHS supersedes triggers.** Asked plainly rather than assumed. The
+mechanical risk turned out to be near zero: no shipped corpus and no selftest
+check uses a live `after`/spend trigger anywhere -- `grep` for `=> *attend`
+and its siblings across the tree finds nothing outside `text.py`'s own
+grammar comments. The machinery is built and untested-in-anger, so
+superseding it costs no migration.
+
+## Built: the RHS's ordered tail, unconditional case, 2026-08-23
+
+Suite 139/0 -> 142/0. Three new checks, kill-probed twice (parser branch and
+loader-registration branch independently).
+
+`rule <r1> = implies({+happy($x)}, {+noticed($x)}) => attend($x, 3)` -- ops
+written directly on the rule, no separate `after <r1> => ...` statement, no
+query indirection, the rule's own scope. `stop` in the tail ends the run
+mid-corpus, with a second matching fact left unread, which is the case
+`_spend_posts`'s docstring names as the whole point of keeping a stop
+recorded rather than obeyed inline.
+
+**Almost no executor code is new.** The tail is built into the SAME shape a
+bare (no-query) `after` trigger already has -- an empty query, registered in
+`m.rules.triggers[r.node]` -- so `_spend_posts`/`_spend_one` run it with zero
+changes. What is new is only the front door: the loader builds the ops in the
+rule's OWN scope (the same `scope` dict already built for its antecedent and
+consequent), rather than `_trigger`'s cross-statement path of looking the
+host rule up by name and rebuilding its variable scope from scratch.
+
+### What this covers, and what it does not
+
+This supersedes the COMMON case -- a trigger with no query, which is every
+trigger the tree actually has. It does **not** cover:
+
+- a query-bearing `after <R> { +p($x) } => ...` -- no inline spelling exists
+  yet, and the separate statement still has to be used for one;
+- `frozen`/`learned` calibration marking -- the tail is always unmarked;
+- true interleaving. `+`/`-` in the consequent block still all land together,
+  via the existing `_apply`, BEFORE the tail's ops run in order -- not one
+  ordered sequence where e.g. a later `+p($z)` could depend on an earlier
+  `$z = new` in the same body. `new`, `label`, `merge`, `destroy`, `for`,
+  `call` are still entirely unbuilt, and interleaving them with `+`/`-`
+  properly is the next real piece of this, not this one.
+
+The old `after`/trigger statement is not deleted. Nothing depends on it, so
+it is a deletion candidate rather than a live dependency, but that is a
+separate, small, low-risk cleanup and not done here.
