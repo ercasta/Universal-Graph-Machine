@@ -73,6 +73,11 @@ ATTENTION_DECAY = 1
 #: a settle of any real length ends with it gone.
 ARRIVAL_ATTENTION = 2
 
+#: The least a claim may fade to. Zero means it fades away entirely, which
+#: is what almost everything wants. Above zero it is PINNED: it never leaves
+#: its lane, so the lane always has a subject even when nothing is going on.
+ATTENTION_FLOOR = 0
+
 #: What an incidental touch is worth -- what `_attend_written` gives a node
 #: no one ever claimed. One tick, and then it is somebody else's turn.
 ATTENTION_BRUSH = 1
@@ -582,14 +587,15 @@ class Machine:
             return
         self._note(self.g.rel(self.DECLINED, what, node, self.g.atom(why)))
 
-    def _attend(self, node: NodeId, weight=None, decay=None) -> bool:
+    def _attend(self, node: NodeId, weight=None, decay=None,
+                floor=None, ceiling=None) -> bool:
         """*Think about this one.* -- what a postcondition spends when it
         attends, and an ordinary claim when it lands. Engine state, scoped to
         the frame -- see `Frame.weights`'s own comment for why this is not a
         believed proposition. True if this changed the standing weight."""
         if weight is None:
             weight = ATTENTION_START
-        self._push_attention(node, weight, decay)
+        self._push_attention(node, weight, decay, floor=floor, ceiling=ceiling)
         _q, _s, weights = self._lane_state()
         if weights.get(node) == weight:
             return False
@@ -629,7 +635,7 @@ class Machine:
         return out
 
     def _push_attention(self, node: NodeId, start=None, decay=None,
-                        lane=None) -> None:
+                        lane=None, floor=None, ceiling=None) -> None:
         """To the top, at its strength. Nothing falls off the bottom.
 
         Re-attending something already in the queue MOVES it up rather than
@@ -653,14 +659,30 @@ class Machine:
         # let the move's own bookkeeping demote the claim it was making, in
         # the tick it was made. Touched again is *not forgotten yet*, and a
         # node no one ever claimed is worth a brush and no more.
+        held = spec.get(node)
         if start is None:
-            start, decay = spec.get(node, (ATTENTION_BRUSH, ATTENTION_DECAY))
+            # A revisit keeps every field: nothing was said, so nothing
+            # changes except that the claim is fresh again.
+            start, decay, floor, ceiling = held or (
+                ATTENTION_BRUSH, ATTENTION_DECAY, ATTENTION_FLOOR, None)
         else:
             start = max(1, start)
-            decay = ATTENTION_DECAY if decay is None else max(1, decay)
-        spec[node] = (start, decay)
+            # Each field falls back to what the node already had, so a rule
+            # may change ONE of them by restating the ones before it -- the
+            # price of a positional surface, and the reason `attend($x)`
+            # alone means *just refresh it*.
+            prev = held or (start, ATTENTION_DECAY, ATTENTION_FLOOR, None)
+            decay = prev[1] if decay is None else max(1, decay)
+            floor = prev[2] if floor is None else max(0, floor)
+            ceiling = prev[3] if ceiling is None else max(1, ceiling)
+        spec[node] = (start, decay, floor, ceiling)
         queue[:] = [(n, w) for n, w in queue if n != node]
-        queue.insert(0, (node, start))
+        # Refreshed UP TO the ceiling and no further: a node named over and
+        # over is not thereby the only thing the lane is about. NO ceiling
+        # unless something asked for one -- an incidental brush must not set
+        # one, or the brush a move gives a node it happened to write would
+        # cap the deliberate claim the same move was making.
+        queue.insert(0, (node, start if ceiling is None else min(start, ceiling)))
         self._fresh_attention.add(node)
         # NOTHING is dropped here. The queue used to be truncated to a span,
         # which asked only WHEN a thing arrived and never how much it was
@@ -690,7 +712,8 @@ class Machine:
         would delete it unmatched, and `_attend_written`'s weight of 1 would
         mean *never seen* rather than *seen once*.
         """
-        return sum(self._fade_lane(lane) for lane in list(self._frames[-1].queues))
+        return sum(self._fade_lane(lane)
+                   for lane in list(self._frames[-1].queues))
 
     def _fade_lane(self, lane: str) -> int:
         """One lane's worth of that. Every lane ages on the same clock -- a
@@ -702,7 +725,8 @@ class Machine:
             if n in self._fresh_attention:
                 faded.append((n, w))
                 continue
-            faded.append((n, w - spec.get(n, (1, ATTENTION_DECAY))[1]))
+            rec = spec.get(n, (1, ATTENTION_DECAY, ATTENTION_FLOOR, None))
+            faded.append((n, max(rec[2], w - rec[1])))
         kept = [(n, w) for n, w in faded if w > 0]
         alive = {n for n, _w in kept}
         for node, _w in faded:

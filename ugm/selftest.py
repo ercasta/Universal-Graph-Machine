@@ -837,6 +837,24 @@ def attention() -> None:
                  "could not outrank whatever was said more recently",
           faded and back.get("folder") == 5)
 
+    #  A min pins a claim; a max caps how far a refresh may raise it.
+    m5 = Machine()
+    kb5 = load(m5, "")
+    m5._attend(kb5.atom("pinned"), weight=3, floor=1)
+    m5._attend(kb5.atom("capped"), weight=9, ceiling=2)
+    at_first = dict((m5.g.show(n), w) for n, w in m5._attention)
+    for _ in range(20):
+        m5._fade_attention()
+    after = dict((m5.g.show(n), w) for n, w in m5._attention)
+    check("§20", "a max caps what a claim is refreshed to, so a thing named "
+                 "over and over cannot grow until it is the only thing the "
+                 "lane is about",
+          at_first.get("capped") == 2 and at_first.get("pinned") == 3)
+    check("§20", "a min PINS: it fades to the floor and stops there, so a "
+                 "lane with a pinned claim always has a subject however long "
+                 "nothing happens",
+          after.get("pinned") == 1 and "capped" not in after)
+
 
 def reference_lines() -> None:
     """`attentioned($x)` and a label test -- PREDICATES (`new_substrate.md`):

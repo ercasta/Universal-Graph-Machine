@@ -685,7 +685,8 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
                 # node matters more than whatever else is in the queue at the
                 # same depth -- a calibration that names a node instead of a
                 # rule.
-                m._attend(node, weight=target.weight, decay=target.decay)
+                m._attend(node, weight=target.weight, decay=target.decay,
+                          floor=target.floor, ceiling=target.ceiling)
             continue
         if isinstance(target, Push):
             # A CALL. The nodes are the host rule's own variables, bound by

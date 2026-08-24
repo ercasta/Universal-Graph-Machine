@@ -61,7 +61,8 @@ class Attend:
     about. A post rather than a member: it changes what is considered next, and
     claims nothing about the world."""
 
-    def __init__(self, term, weight=None, decay=None) -> None:
+    def __init__(self, term, weight=None, decay=None,
+                 floor=None, ceiling=None) -> None:
         self.term = term
         # The weight rides along: `attend($x, 3)` says this node matters more
         # than whatever else lands in the queue at the same depth -- a
@@ -75,9 +76,17 @@ class Attend:
         # to name a number to say so.
         self.weight = weight
         self.decay = decay
+        # `floor` is the least it may fade to -- above zero it never fades
+        # away at all, which is how a lane keeps a subject when nothing is
+        # happening. `ceiling` is the most a refresh may raise it to, so a
+        # thing mentioned over and over cannot grow until it is the only
+        # thing the lane is about.
+        self.floor = floor
+        self.ceiling = ceiling
 
     def __repr__(self) -> str:
-        return f"attend({self.term}, {self.weight}, {self.decay})"
+        return (f"attend({self.term}, {self.weight}, {self.decay}, "
+                f"{self.floor}, {self.ceiling})")
 
 
 class _Unattend:

@@ -531,7 +531,7 @@ class Parser:
             self.expect("(")
             target = self.term()
             weight = None
-            decay = None
+            extra = []
             if self.at(","):
                 # The learned buff, and it weighs a NODE rather than a rule.
                 # `attend($x, 3)` says *of what this move touched, that one
@@ -552,20 +552,26 @@ class Parser:
                     raise ParseError(
                         f"line {n.line}: how much to attend is a numeral")
                 weight = sign * int(n.text)
-                if self.at(","):
-                    # `attend($x, 5, 2)` -- HOW FAST it is forgotten, when
-                    # once a tick is not the rate meant. Separate from the
-                    # strength on purpose: *this matters a lot but briefly*
-                    # and *this matters mildly but for a while* are different
-                    # claims, and one number cannot make both.
+                # `attend($x, 5, 2, 1, 9)` -- start, decay, min, max. Each
+                # optional, each a different claim, and one number cannot
+                # make them: *a lot but briefly* and *mildly but for a
+                # while* differ in decay; *never let this go* is min; *do
+                # not let this grow to own the lane* is max.
+                tail = [("how fast to forget", "decay"),
+                        ("the least this may fade to", "min"),
+                        ("the most it may be refreshed to", "max")]
+                for what, _name in tail:
+                    if not self.at(","):
+                        break
                     self.next()
                     d = self.next()
                     if not d.text.isdigit():
                         raise ParseError(
-                            f"line {d.line}: how fast to forget is a numeral")
-                    decay = int(d.text)
+                            f"line {d.line}: {what} is a numeral")
+                    extra.append(int(d.text))
             self.expect(")")
-            return (Attend(target, weight, decay), 0)
+            decay, floor, ceiling = (extra + [None, None, None])[:3]
+            return (Attend(target, weight, decay, floor, ceiling), 0)
         if t.kind == "name" and t.text == "push":
             # **A frame, not a filter.** Three fixes for the queue's
             # forgetting were tried here and all three were filters on a flat
