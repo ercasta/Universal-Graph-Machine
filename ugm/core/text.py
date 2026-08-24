@@ -1605,6 +1605,12 @@ class Loader:
             self.m.gate.erase(prop)
         else:
             self.m.gate.write(prop, generic=generic)
+            # What was just loaded is what the machine is ABOUT. Attention is
+            # required now rather than advisory, so a corpus that arrived
+            # unattended would sit there for ever: there would be no first
+            # thing to think about and nothing could start. Same brush a
+            # move's own writes get, and it fades the same way.
+            self.m._attend_written((prop,))
 
     # `_maybe_precedence` was here: it read `overrides(A, B)` off a statement as
     # the loader parsed it and seeded §14's precedence table. It is gone, and

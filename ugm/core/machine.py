@@ -61,26 +61,26 @@ class Answerer(NamedTuple):
     fn: object  # fn(machine, proposition) -> NodeId | None
 
 
+#: What `attend($x)` is worth when nobody says -- the MEDIUM. A corpus that
+#: cares says a number; one that merely means *this one* should not have to
+#: invent a scale to say so.
 ATTENTION_START = 5
 
 #: What a claim loses per tick when nobody says.
 ATTENTION_DECAY = 1
 
-#: What an ARRIVAL is worth. Deliberately brief: an utterance is an
-#: occasion, not a standing interest, and it has to fall out of mind before
-#: the next one lands or a rule cannot tell the two apart. Long enough that
-#: the rule reading it gets a tick or two to be selected; short enough that
-#: a settle of any real length ends with it gone.
-ARRIVAL_ATTENTION = 2
+#: What an incidental touch is worth -- what `_attend_written` gives a node
+#: no one ever claimed. One tick, and then it is somebody else's turn. The
+#: SAME for a channel arrival and for a corpus being loaded: choosing that
+#: what the world said outweighs what a move wrote is the engine deciding
+#: something only a corpus can.
+ATTENTION_BRUSH = 5
 
 #: The least a claim may fade to. Zero means it fades away entirely, which
 #: is what almost everything wants. Above zero it is PINNED: it never leaves
-#: its lane, so the lane always has a subject even when nothing is going on.
+#: the pool, so there is always something to be about.
 ATTENTION_FLOOR = 0
 
-#: What an incidental touch is worth -- what `_attend_written` gives a node
-#: no one ever claimed. One tick, and then it is somebody else's turn.
-ATTENTION_BRUSH = 1
 
 #: How deep the attention stack may go. A backstop against a corpus that pushes
 #: its way down for ever on ever-changing nodes, which the cycle test cannot
@@ -102,22 +102,17 @@ class Frame:
     being discarded with the frame -- there is nothing to erase separately.
     """
 
-    __slots__ = ("queues", "specs", "weight_sets", "on")
+    __slots__ = ("queue", "spec", "weights", "on")
 
     def __init__(self, on=()) -> None:
-        # PER LANE, all three. A lane is a kind of work -- reflex, judge,
-        # watchdog, main -- and what one kind of work is about is not what
-        # another is about. Sharing one queue meant the main lane's chatter
-        # decided what the watchdog was allowed to think about, which is the
-        # scheduler letting the loudest subject also pick the subject.
-        # `attention_span`'s old bound was the same mistake at a different
-        # scale: a single pool that everything competes in.
-        self.queues: Dict[str, List[Tuple[NodeId, int]]] = {}
-        # node -> (start, decay). The queue holds what a claim is worth
-        # NOW; this holds what it was worth when made and how fast it
-        # goes, so a move touching it again can restore it to its own
-        # start rather than to some number the toucher chose.
-        self.specs: Dict[str, Dict[NodeId, Tuple[int, int]]] = {}
+        # ONE pool, shared by every lane. It was briefly per-lane, on the
+        # argument that what a reflex is about is not what the main line is
+        # about -- but lanes that each remember something different are
+        # lanes that can DIVERGE, and then which lane ran last decides what
+        # the agent is thinking about. There is one agent.
+        self.queue: List[Tuple[NodeId, int]] = []
+        # node -> (start, decay, min, max).
+        self.spec: Dict[NodeId, Tuple[int, int, int, int]] = {}
         self.on: Tuple[NodeId, ...] = tuple(on)
         # STANDING attention, by MAGNITUDE rather than position -- what
         # `attend($x, n)` means beside pushing `$x` onto `queue`. This used to
@@ -131,7 +126,7 @@ class Frame:
         # lets a rule ask without the engine's scheduling state living in the
         # graph. Popped for free: this dict goes with the Frame object, no
         # erase loop needed.
-        self.weight_sets: Dict[str, Dict[NodeId, int]] = {}
+        self.weights: Dict[NodeId, int] = {}
 
 
 class Machine:
@@ -497,23 +492,19 @@ class Machine:
     # -- the attention stack -----------------------------------------------
 
     def _lane_state(self, lane=None):
-        """`(queue, spec, weights)` for a lane on the top frame, made on
-        demand. A lane nobody has attended anything in has an empty pool,
-        and an empty pool is not a constraint -- see `_attended_first`."""
-        lane = lane or self._lane
+        """`(queue, spec, weights)` on the top frame. `lane` is accepted and
+        ignored -- attention is shared, so every lane reads the one pool."""
         f = self._frames[-1]
-        return (f.queues.setdefault(lane, []),
-                f.specs.setdefault(lane, {}),
-                f.weight_sets.setdefault(lane, {}))
+        return (f.queue, f.spec, f.weights)
 
     @property
     def _attention(self) -> List[Tuple[NodeId, int]]:
-        """The top frame's queue FOR THE CURRENT LANE."""
-        return self._lane_state()[0]
+        """The top frame's queue, which is what every reader of it wants."""
+        return self._frames[-1].queue
 
     @_attention.setter
     def _attention(self, queue) -> None:
-        self._frames[-1].queues[self._lane] = list(queue)
+        self._frames[-1].queue = list(queue)
 
     def _push_frame(self, nodes):
         """Suspend what the agent was doing and open a frame on `nodes`.
@@ -602,7 +593,7 @@ class Machine:
         weights[node] = weight
         return True
 
-    def _attend_written(self, wrote) -> None:
+    def _attend_written(self, wrote, start=None, floor=None) -> None:
         """What a move just wrote goes on the queue, at weight 1.
 
         Everything one move writes arrives at the same depth, so the queue
@@ -620,7 +611,7 @@ class Machine:
             for node in self._nodes_of(prop, []):
                 if self.g.relation_of(node) in self._bookkeeping:
                     continue
-                self._push_attention(node)
+                self._push_attention(node, start, floor=floor)
 
     def _nodes_of(self, node: NodeId, out: List[NodeId]) -> List[NodeId]:
         """A proposition, decomposed into every node it is made of."""
@@ -712,13 +703,7 @@ class Machine:
         would delete it unmatched, and `_attend_written`'s weight of 1 would
         mean *never seen* rather than *seen once*.
         """
-        return sum(self._fade_lane(lane)
-                   for lane in list(self._frames[-1].queues))
-
-    def _fade_lane(self, lane: str) -> int:
-        """One lane's worth of that. Every lane ages on the same clock -- a
-        watchdog does not stop forgetting because the main lane is busy."""
-        queue, spec, _w = self._lane_state(lane)
+        queue, spec, _w = self._lane_state()
         before = len(queue)
         faded = []
         for n, w in queue:
@@ -1055,18 +1040,13 @@ class Machine:
         # `_attend` -- because a standing weight never fades, and every
         # sentence ever typed keeping a permanent multiplier is not a memory
         # of anything.
-        # RESTORED if this is something already claimed, and only given the
-        # arrival's own brief strength if nobody has ever said what it is
-        # worth. Naming a thing is not a claim about how much it matters --
-        # so an utterance that mentions a folder attended at 5 puts it back
-        # at 5, and does not knock it down to an arrival's 2. Stating a
-        # strength here was exactly that bug: mentioning a folder made it
-        # LESS salient than listing it had.
-        _q, spec, _w = self._lane_state("main")
-        self._push_attention(
-            a.proposition,
-            None if a.proposition in spec else ARRIVAL_ATTENTION,
-            lane="main")
+        # ...and it is attended exactly as anything else is. An arrival used
+        # to get a strength of its own, on the argument that an utterance is
+        # an occasion rather than a standing interest -- but choosing how
+        # much what the world said is worth, relative to what a corpus loaded
+        # or a move wrote, is the engine deciding for the corpus. Same brush,
+        # restored to its own start if it has one.
+        self._attend_written((a.proposition,))
 
 
     # -- the loop ----------------------------------------------------------

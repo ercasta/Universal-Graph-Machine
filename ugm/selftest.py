@@ -441,10 +441,12 @@ def applying() -> None:
         rule <boil> = implies( { +heat($a, $w) }, { +boiling($w) } )
         rule <off>  = implies( { +boiling($w), +cold($w) }, { -boiling($w) } )
     """)
-    check("§16", "a corpus whose rules answer each other oscillates rather "
-                 "than settling, and the loop's BOUND is what ends it -- the "
-                 "price of having nothing that remembers the erasure happened",
-          osc.run(limit=12)[-1].state == "applied")
+    check("§16", "a corpus whose rules answer each other stops, and it is "
+                 "ATTENTION that ends it rather than the loop's bound -- the "
+                 "pair really does undo each other and nothing remembers it, "
+                 "but neither move is about anything still attended once the "
+                 "claims have faded, so there is nothing left to reselect",
+          osc.run(limit=12)[-1].state == "quiescent")
 
     #  There is no inert set. A rule whose conclusion is already anchored
     # applies again, and the engine does not stop it -- deciding a rule has
@@ -455,9 +457,12 @@ def applying() -> None:
         rule <one> = implies( { +p($x) }, { +q($x) } )
     """)
     steps2 = m2.run(limit=20)
-    check("§6", "a rule whose conclusion is already anchored applies AGAIN -- "
-                "nothing in the engine remembers that it changed nothing",
-          steps2[-1].state == "applied" and len(steps2) == 20)
+    check("§6", "a rule whose conclusion is already anchored is still OFFERED "
+                "again -- there is no inert set, and deciding a rule has "
+                "nothing further to give is not the engine's judgement -- but "
+                "it runs out of subject rather than out of ticks: the claims "
+                "its match is about fade, and it stops being selected",
+          steps2[-1].state == "quiescent" and len(steps2) < 20)
 
     #  ...and the corpus stops it, by asking for the absence of what it
     # wrote. An ordinary premise, readable and overridable, where the inert set
@@ -789,7 +794,7 @@ def attention() -> None:
     m._attend(kb.atom("a"))
     check("§20", "re-attending MOVES it up rather than adding it twice",
           m._attended()[:2] == [kb.atom("a"), kb.atom("b")]
-          and len(m._attention) == 2)
+          and [n for n, _w in m._attention].count(kb.atom("a")) == 1)
     dropped = m._unattend()
     check("§20", "unattending clears both the queue and the standing "
                  "weights -- a plain dict/list clear now, not an erase loop, "
@@ -867,6 +872,9 @@ def reference_lines() -> None:
 
     m = Machine()
     kb = load(m, corpus)
+    # Emptied on purpose: loading attends what it wrote, so "nothing
+    # attended" is a state that now has to be arranged rather than assumed.
+    m._unattend()
     m.run(limit=5)
     check("§20", "with nothing attended, the predicate never opens -- it "
                  "filters a reference, it does not gate on relevance out of "
@@ -1439,12 +1447,22 @@ def circuit_breaker() -> None:
     ldr.computator("at_least", lambda a, b: "yes" if int(a) >= int(b) else None)
     kb = load(m, src, scope="cb")
     load_file(m, path, scope="cb")
+    # PINNED, and the breaker's premise now depends on it. A rule that
+    # churns unproductively on things nobody is attending to no longer gets
+    # the chance: attention stops it before any budget is burnt, which is a
+    # cheaper answer than a watchdog and is why the old form of this check
+    # became unreachable. What the breaker is still FOR is the rule that
+    # churns on what the agent really is attending to, and a min is how a
+    # corpus says that is the situation.
+    for name in ("a", "b"):
+        m._attend(kb.atom(name), weight=3, floor=1)
     steps = m.run(limit=22)
     names = [s.applied.rule.name for s in steps if s.applied is not None]
     trips = names.count("trip")
     revives = names.count("revive")
     check("--", "it trips more than once -- the rule keeps being "
-                "reconsidered, not silenced after the first trip",
+                "reconsidered, not silenced after the first trip, while what "
+                "it churns on stays attended",
           trips >= 2)
     check("--", "and every trip is followed by a revival -- the suspension "
                 "actually lifts, it does not just accumulate",

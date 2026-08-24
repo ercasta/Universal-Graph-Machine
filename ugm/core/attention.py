@@ -336,7 +336,7 @@ def _attended_first(found: List[Application], attended: Sequence[NodeId],
 
     Stable, and that is what keeps the existing tie-break intact.
     """
-    if len(found) < 2 or g is None:
+    if not found or g is None:
         return found
     rule_antecedent = found[0].rule.antecedent
     at = set(attended)
@@ -393,12 +393,10 @@ def _attended_first(found: List[Application], attended: Sequence[NodeId],
     # looks like a filter over folders when it is really the loop's own
     # question asked in the wrong place.
     #
-    # The empty pool is the exception, and it is a different claim: when the
-    # agent is attending to nothing at all there is nothing for work to be
-    # about, so everything runs. That is the bootstrap, and the caller has
-    # already made it -- `_attended_first` is only reached under `if
-    # attended:`. Here the pool is known non-empty, so a rule that overlaps
-    # none of it is a rule about something else.
+    # There is NO exception for an empty pool. Attending to nothing means
+    # there is nothing for work to be about, and the computation is meant to
+    # fade out rather than idle on. Whatever must keep running says so, with
+    # a min.
     overlapping = [t for t in scored if t[0]]
     if not overlapping:
         return []
@@ -474,10 +472,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         table.now = tick
         table.ticked += 1
 
-        # Attention fades before anything is matched against it, so a tick
-        # is chosen by what still matters NOW rather than by what happened
-        # to be pushed most recently. See `Machine._fade_attention`.
-        m._fade_attention()
 
         # Lanes (§ lanes): one pass through the table per lane, in order,
         # against the ONE shared frame -- a judge rule sees what a regular
@@ -527,9 +521,8 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                     # ...and WHICH of them, which the loop has never chosen.
                     # It takes the first survivor and breaks, so the binding
                     # was decided by the walk. Free: `found` is already here.
-                    if attended:
-                        found = _attended_first(found, attended,
-                                                m._attention_weights(), m.g)
+                    found = _attended_first(found, attended,
+                                            m._attention_weights(), m.g)
                     #  There is NO per-candidate filter left. An application
                     # that was tried and changed nothing is offered again,
                     # because deciding that a rule has nothing further to give
@@ -612,6 +605,11 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 # the start.
                 stopped = True
                 break
+        # END of the tick, not the start, and not per lane. A claim made
+        # during this tick has now had its tick; one made during the tick
+        # before has had two. Fading per lane made the count depend on how
+        # many lanes a corpus happened to declare.
+        m._fade_attention()
         if stopped:
             break
         if not round_applied and not doubted:
