@@ -72,6 +72,14 @@ ROLES: Dict[str, List[str]] = {
         "intercepts", "producing", "instead", "drop", "rewrote", "after",
         # Which table a name was resolved in, and that a corpus was loaded.
         "scoped", "loaded", "kb",
+        # Deixis (`attentioned($x)` -- WHICH ONE) and a claim of identity
+        # (`label`) -- both PREDICATES, filters over an already-bound node,
+        # never matched, never bound to (`new_substrate.md`).
+        "attentioned", "label",
+        # A second pass per round, and which one runs first when two are
+        # otherwise tied -- competence about competence, the same register
+        # `standing` and `dormant` already live in.
+        "lane", "lane_order",
     ],
     # Where a world touches the agent: what arrived, what was said, what a tool
     # answered. About the ACT, never about its content.
