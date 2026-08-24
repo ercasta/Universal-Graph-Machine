@@ -30,10 +30,14 @@ def _computators(ldr: Loader) -> None:
     def plus(a, b):
         return int(a) + int(b)
 
+    def minus(a, b):
+        return max(0, int(a) - int(b))
+
     ldr.computator("age_days", age_days)
     ldr.computator("at_least", at_least)
     ldr.computator("prefixed", prefixed)
     ldr.computator("plus", plus)
+    ldr.computator("minus", minus)
 
 
 def build(ask=input) -> tuple[Machine, Loader]:

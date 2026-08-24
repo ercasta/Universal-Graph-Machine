@@ -1311,10 +1311,17 @@ def lanes() -> None:
 def circuit_breaker() -> None:
     """`ugm/rules/circuit_breaker.ugm`, against a rule built to never stop
     matching (`<flaky>`: two bindings of `+p($x)`, no guard consuming
-    either). Composes triggers, `dormant`/`due` and a lane -- see the
-    corpus's own header for why each is load-bearing."""
-    print("\n--  a circuit breaker: triggers count every selection, a lane "
-          "keeps the trip rule from being starved by what it watches")
+    either). Composes triggers, `dormant`/`due`, a lane and a cooldown --
+    see the corpus's own header for why each is load-bearing.
+
+    The suspension is temporary BY DESIGN: `<flaky>` never gets fixed (this
+    fixture cannot fix it -- both `+p(a)` and `+p(b)` hold from the start),
+    so the only honest test is that it keeps cycling -- tripped, cooled
+    down, revived, tripped again -- rather than either exhausting the tick
+    budget on one runaway rule or going permanently silent after the first
+    trip."""
+    print("\n--  a circuit breaker: a lane keeps the trip rule from being "
+          "starved by what it watches, and the suspension is temporary")
     path = _corpora.path("circuit_breaker.ugm")
     src = """
         fact +p(a)
@@ -1324,21 +1331,29 @@ def circuit_breaker() -> None:
         fact +watched(<flaky>, flaky_tag)
         fact +tries(flaky_tag, 0)
         fact +threshold(flaky_tag, 5)
+        fact +cooldown_len(flaky_tag, 3)
     """
     m = Machine()
     ldr = load(m, "", scope="cb")
     ldr.computator("plus", lambda a, b: int(a) + int(b))
+    ldr.computator("minus", lambda a, b: max(0, int(a) - int(b)))
     ldr.computator("at_least", lambda a, b: "yes" if int(a) >= int(b) else None)
     kb = load(m, src, scope="cb")
-    flaky = kb.rule_nodes["flaky"]
     load_file(m, path, scope="cb")
-    steps = m.run(limit=50)
-    check("--", "it trips BEFORE the tick budget runs out",
-          steps[-1].state == "quiescent" and len(steps) < 50)
-    check("--", "at exactly its own threshold, not before and not after",
-          m.holds(m.g.rel(kb.atom("tries"), kb.atom("flaky_tag"), m._numeral(5))))
-    check("--", "and the watched rule is the one that went dormant",
-          m.holds(m.g.rel(m.DORMANT, flaky)))
+    steps = m.run(limit=22)
+    names = [s.applied.rule.name for s in steps if s.applied is not None]
+    trips = names.count("trip")
+    revives = names.count("revive")
+    check("--", "it trips more than once -- the rule keeps being "
+                "reconsidered, not silenced after the first trip",
+          trips >= 2)
+    check("--", "and every trip is followed by a revival -- the suspension "
+                "actually lifts, it does not just accumulate",
+          revives == trips)
+    check("--", "each cycle resets to a fresh budget: a revival is "
+                "followed by the watched rule actually running again, not "
+                "an immediate re-trip",
+          names[names.index("revive") + 1] == "flaky")
 
 
 def experts() -> None:

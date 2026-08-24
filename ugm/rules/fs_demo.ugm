@@ -38,6 +38,7 @@ rule <list> = implies( { +want(list($dir)) },
 fact +watched(<flag-stale>, flag_stale_tag)
 fact +tries(flag_stale_tag, 0)
 fact +threshold(flag_stale_tag, 1000)
+fact +cooldown_len(flag_stale_tag, 50)
 
 rule <flag-stale> = implies(
     { +want(stale_after($dir, $days)), +file($dir, $name), no considered($dir, $name),
