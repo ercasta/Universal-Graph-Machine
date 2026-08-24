@@ -56,6 +56,20 @@ what a genuinely new word gets, same as always. Printed either way -- an
 autocorrect that changed what you typed without saying so would be a
 worse trap than the typo. `"quoted text"`, `$variables` and `<rule refs>`
 are never touched: a filename is not vocabulary.
+
+## A line that is not a proposition is heard as a SENTENCE, not refused
+
+`+want(list("..."))` is precise -- a person does not talk that way.
+"show files" is not `.ugm` syntax at all: no sign, no parens. Rather than
+refuse it, a line that fails to parse as a proposition is tried again as
+`sentence(show, files)` -- every word, in order, on the SAME `user`
+channel an ordinary `say` uses (§13 again: an arrival, not a belief).
+Nothing built in knows what a sentence MEANS; an "intake" rule in the
+loaded corpus is what gives one -- `ugm/rules/fs/fs_demo.ugm`'s
+`<intake-show>` reads `sentence(show, files, in, $dir)` and concludes the
+SAME `+want(list($dir))` the precise form would have written. A sentence
+with no rule reading it just sits there, unbelieved, same as any other
+untrusted arrival -- and `/show` still lists it, so nothing is hidden.
 """
 
 import re
@@ -63,7 +77,7 @@ import sys
 from typing import Optional, TextIO
 
 from .core.machine import Machine
-from .core.text import Loader, ParseError, _LINE_FORM_STOPS
+from .core.text import Loader, ParseError, _LINE_FORM_STOPS, tokenise
 
 # A quoted string, a `<rule reference>`, a `$variable` -- consumed whole and
 # never corrected -- or a bare name, which might be.
@@ -99,9 +113,14 @@ def _levenshtein(a: str, b: str) -> int:
 
 
 def _vocabulary(m: Machine) -> "set[str]":
-    """Every relation name the loaded rules and facts use, at ANY nesting
-    depth -- unlike `Machine.web`, which only looks at the top of each
-    antecedent/consequent pattern and so misses `list` in `want(list($d))`.
+    """Every WORD the loaded rules and facts use, at ANY nesting depth --
+    a relation name (`want`, `list`), unlike `Machine.web`, which only
+    looks at the top of each antecedent/consequent pattern and so misses
+    `list` in `want(list($d))` -- and a plain literal argument too
+    (`show`, `in`, in an intake rule's `sentence(show, files, in, $dir)`),
+    which is not a relation at all and so `web` could never see it either
+    way. A numeral is excluded -- `7` autocorrecting toward some unrelated
+    word is nonsensical, never useful.
 
     `m._bookkeeping` (the same filter `_visible` prints through) is
     excluded: every loaded rule deposits `rule(<name>)`/`ant(...)`/`con(...)`
@@ -114,10 +133,16 @@ def _vocabulary(m: Machine) -> "set[str]":
     out: "set[str]" = set()
 
     def collect(node) -> None:
+        if m.g.is_var(node):
+            return
         rel = m.g.relation_of(node)
-        if rel is not None and not m.g.is_var(rel) and rel not in m._bookkeeping:
-            out.add(m.g.show(rel))
-        for mm in m.g.members(node):
+        members = m.g.members(node)
+        if rel is not None:
+            if rel not in m._bookkeeping:
+                out.add(m.g.show(rel))
+        elif not members and not m.g.show(node).isdigit():
+            out.add(m.g.show(node))  # a bare literal, used as an argument
+        for mm in members:
             collect(mm)
 
     for r in m.rules.rules:
@@ -183,11 +208,32 @@ never autocorrected. A misspelled relation name IS -- against whatever the
 loaded rules already use -- and it's echoed (`~ typed -> fixed`), never
 silent. Extra spacing between tokens has always been ignored.
 example:  +want(list("C:\\Users\\ercas\\Documents"))
+A line that is not a proposition is heard as a sentence instead of
+refused -- "show files" becomes `sentence(show, files)`, on the same
+channel, meaning whatever the loaded corpus's own intake rules give it.
 """
+
 
 
 def _visible(m: Machine, p) -> bool:
     return m.g.relation_of(p) not in m._bookkeeping
+
+
+def _as_sentence(ldr: Loader, raw: str):
+    """Every word of a line that failed to parse as a proposition, as one
+    `sentence(w1, w2, ...)` node -- `None` if the line has no words at
+    all, or fails even to TOKENIZE (an unclosed quote: a typo in a
+    proposition someone was clearly attempting, not a sentence). Signs,
+    parens and commas are not words and are dropped rather than refused,
+    so `+show(files)` half-typed still reads as `sentence(show, files)`."""
+    try:
+        toks = tokenise(raw)
+    except ParseError:
+        return None
+    words = [t.text for t in toks if t.kind in ("name", "string")]
+    if not words:
+        return None
+    return ldr.m.g.rel(ldr.atom("sentence"), *[ldr.atom(w) for w in words])
 
 
 def run(m: Machine, ldr: Loader, limit: int = 400,
@@ -247,12 +293,22 @@ def run(m: Machine, ldr: Loader, limit: int = 400,
         line, corrections = _autocorrect(line, _vocabulary(m))
         for typed, fixed in corrections:
             print(f"  ~ {typed} -> {fixed}")
-        if not god:
-            line = f"say user: {line}"
-        try:
-            ldr.load(line)
-        except ParseError as e:
-            print(f"  ! {e}")
-            continue
+        if god:
+            try:
+                ldr.load(line)
+            except ParseError as e:
+                print(f"  ! {e}")
+                continue
+        else:
+            try:
+                ldr.load(f"say user: {line}")
+            except ParseError as e:
+                sentence = _as_sentence(ldr, line)
+                if sentence is None:
+                    print(f"  ! {e}")
+                    continue
+                channel = ldr.m.channels.use(ldr.atom("user"))
+                ldr.m.channels.deliver(channel, sentence)
+                print(f"  (heard as: {ldr.m.g.show(sentence)})")
         settle()
     return 0

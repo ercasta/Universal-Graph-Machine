@@ -8,9 +8,9 @@ Outside `ugm.selftest` on purpose -- `repl.py` is REPL interaction, not the
 engine `selftest`'s own docstring scopes itself to.
 """
 
-from ..repl import _autocorrect, _levenshtein, _vocabulary
+from ..repl import _as_sentence, _autocorrect, _levenshtein, _vocabulary
 from ..core.machine import Machine
-from ..core.text import load
+from ..core.text import Loader, load
 
 CORPUS = """
     rule <list> = implies( { +want(list($dir)) },
@@ -18,6 +18,9 @@ CORPUS = """
     rule <flag> = implies( { +file($dir, $name), +size($dir, $name, $s),
                              +created($dir, $name, $c) },
                            { +checked($dir, $name) } )
+    rule <intake-show> = implies(
+        { +says(user, sentence(show, files, in, $dir)), no heard($dir) },
+        { +want(list($dir)), +heard($dir) } )
 """
 
 
@@ -71,6 +74,23 @@ def main() -> int:
           "and the line stopped parsing at all",
           fixed == 'fact +want(list("x"))'
           and corr == [("wnat", "want")])
+
+    check("a bare literal used only as an ARGUMENT -- `show`/`files`/`in` "
+          "in <intake-show>'s `sentence(show, files, in, $dir)` -- is "
+          "vocabulary too, not just a relation head; `Machine.web` could "
+          "never see these, they are never the head of anything",
+          {"show", "files", "in"} <= vocab)
+
+    ldr = Loader(m := Machine())
+    sentence = _as_sentence(ldr, 'show files in "some path"')
+    check("a line that fails to parse as a proposition tokenizes into "
+          "`sentence(w1, w2, ...)`, quotes decoded like anywhere else",
+          m.g.show(sentence) == "sentence(show, files, in, some path)")
+
+    check("an unclosed quote is not read as a sentence -- a typo in a "
+          "proposition someone was clearly attempting, not a sentence",
+          _as_sentence(Loader(Machine()), 'fact +file(d, "never closed)')
+          is None)
 
     print(f"\n{failed} failing")
     return 1 if failed else 0
