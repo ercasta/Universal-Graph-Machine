@@ -51,9 +51,6 @@ SHORTLIST = 5
 # that a strong preference is not thrown away.
 NORM = 6
 
-# How long a buff lives, and how far a rule may be lifted. Life.
-# → docs/design/attention.md#how-long-a-buff-lives-and-how-far-a-rule-may-be
-PULL = 6
 
 # The default doubt-settling rule, and the author's correction to an earlier
 # sketch of mine: the loop does not need to HOLD a tick waiting for doubt to be
@@ -304,20 +301,17 @@ def _pull(m: Machine, table: "Table",
     See docs/design/attention.md#pull.
     """
     lift: Dict[NodeId, int] = {}
-    # POSITION is the strength. attended arrives newest-first, so what the
-    # agent turned to last lifts hardest and what is about to fall off the
-    # bottom barely lifts at all. A rule reachable from two attended nodes
-    # takes the STRONGER, not the sum.
-    # See docs/design/attention.md#position-is-the-strength-attended-arr
+    # STRENGTH is the strength, and position is nothing. Decay already puts
+    # what the agent turned to last at the top of the numbers, so lifting by
+    # queue position as well counted recency twice. A rule reachable from two
+    # attended nodes takes the STRONGER, not the sum.
     weights = m._attention_weights()
-    for i, node in enumerate(attended):
-        # **Position times the learned multiplier.** Depth says how
-        # recently the agent turned to a thing; the multiplier says how much a
-        # lesson thinks it is worth. Neither alone is enough -- everything one
-        # move wrote arrives at the same depth, so without a weight the queue
-        # cannot separate them, which is exactly what sank attending the
-        # right-hand side twice (20d, 20h).
-        weight = max(1, PULL - i) * weights.get(node, 1)
+    for node in attended:
+        # The claim's own number, which is what a lesson calibrates and what
+        # decay has already aged. Everything one move wrote arrives at the
+        # same strength, and separating those is the weight's job -- which is
+        # exactly what sank attending the right-hand side twice (20d, 20h).
+        weight = weights.get(node, 1)
         for rel in m.pad.relations_of(node):
             for r in table.by_relation.get(rel, ()):
                 # By magnitude again, and for the same reason: a rule reachable
@@ -342,8 +336,14 @@ def _attended_first(found: List[Application], attended: Sequence[NodeId],
     at = set(attended)
     weights = weights or {}
 
-    rank = {node: (len(attended) - i) * weights.get(node, 1)
-            for i, node in enumerate(attended)}
+    # STRENGTH, and position not at all. Under decay the strength already IS
+    # the recency -- a claim made three ticks ago has had three ticks taken
+    # off it -- so multiplying by where the node sits in the queue counts the
+    # same fact twice. It also counted it in the half a corpus cannot reach:
+    # `attend($x, start, decay, min, max)` says what a claim is worth and how
+    # fast it goes, and says nothing about queue position, so a calibration
+    # could not have moved the positional half however hard it searched.
+    rank = {node: weights.get(node, 1) for node in attended}
 
     seen_nodes: dict = {}
 

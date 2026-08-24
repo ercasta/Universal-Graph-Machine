@@ -749,21 +749,18 @@ class Machine:
     def _attended(self) -> List[NodeId]:
         """What the agent is thinking ABOUT: the nodes it claims `attention` of.
 
-        The QUEUE first, newest at the front, because position is the gradient:
-        what the agent turned to last is what it is most about. A standing
-        weight not in the queue goes at the BOTTOM -- lasting and recent are
-        different claims, and the queue is about the second.
+        The QUEUE first, then any standing weight not in it. ORDER IS NOT A
+        SIGNAL: nothing reads position any more. Under decay the strength is
+        the recency -- a claim made three ticks ago has had three taken off
+        it -- so `_attended_first` and `_pull` rank by the number and by
+        nothing else.
 
-        ⚠ The tail is appended NEWEST-FIRST too, and that is not cosmetic.
-        `weights` is a dict in insertion order, so iterating it plainly puts
-        the node attended FIRST nearest the top of the tail -- and everything
-        downstream reads position as recency (`attention._attended_first`
-        ranks by `len(attended) - i`). Plain iteration therefore handed the
-        OLDEST claim the larger multiplier, the exact reverse of what the
-        queue means, and it showed up the moment two things were attended in
-        turn and both had faded out of the queue into the tail: the folder
-        attended first won a binding against the folder attended last.
-        Recency has one direction here or it has none.
+        It used to be a signal, and the bug that cost was this: `weights` is
+        a dict in insertion order, so iterating it plainly put the node
+        attended FIRST nearest the top, and a `len(attended) - i` gradient
+        then handed the OLDEST claim the larger multiplier. The tail is still
+        appended newest-first, which is now merely tidy rather than
+        load-bearing.
         """
         out: List[NodeId] = [n for n, _w in self._attention]
         for node in reversed(list(self._lane_state()[2])):

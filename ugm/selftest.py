@@ -886,6 +886,28 @@ def attention() -> None:
                  "score, never a filter",
           len(_pick(True)) == 1)
 
+    #  Position is not a signal: strength alone, because decay already aged it.
+    def _stronger_or_newer(strong_first):
+        mm = Machine()
+        k = load(mm, "fact +person(paul)\nfact +person(mary)\n"
+                     "rule <one> = implies( { $w = person($who), no chosen }, "
+                     "{ +took($who), +chosen } )")
+        mm._unattend()
+        order = ("paul", "mary") if strong_first else ("mary", "paul")
+        for name in order:
+            mm._attend(k.term("person(%s)" % name),
+                       weight=9 if name == "paul" else 2)
+        mm.run(limit=1)
+        return [mm.g.show(p) for p in mm.pad.believed()
+                if mm.g.show(p).startswith("took")]
+
+    check("§20", "the STRONGER claim wins whether it was made first or last "
+                 "-- queue position is not a signal, because under decay the "
+                 "strength already is the recency and reading both counted "
+                 "the same fact twice",
+          _stronger_or_newer(True) == ["took(paul)"]
+          and _stronger_or_newer(False) == ["took(paul)"])
+
 
 def reference_lines() -> None:
     """`attentioned($x)` and a label test -- PREDICATES (`new_substrate.md`):
