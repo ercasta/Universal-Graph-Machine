@@ -1231,6 +1231,56 @@ def line_form() -> None:
           threw)
 
 
+def string_literals() -> None:
+    """A quoted name, for what a bare name cannot spell -- a path, a
+    filename, anything with a space or a backslash in it (`ugm/repl.py`'s
+    reason for existing: real paths never survived the bare-name lexer).
+    Parses to an ordinary name-shaped Term -- once past the lexer, a quoted
+    and a bare atom of the same spelling are one node (§3)."""
+    print("\n§3  string literals -- a name a bare atom cannot spell")
+    m = Machine()
+    kb = load(m, r'''
+        fact +file("C:\My Documents", "notes v2.txt")
+        fact +greeting("say \"hi\"")
+    ''')
+    check("§3", "a backslash and a space survive un-mangled",
+          m.holds(kb.term(r'file("C:\My Documents", "notes v2.txt")')))
+    check("§3", "`\\\"` and `\\\\` decode; the atom's name IS the unescaped "
+                "text, so it prints the way it reads",
+          m.g.show(kb.term(r'greeting("say \"hi\"")'))
+          == 'greeting(say "hi")')
+    check("§3", "a quoted and a bare atom of the same spelling intern to "
+                "ONE node -- the lexer changes nothing past the token",
+          kb.term("plain") == kb.term('"plain"'))
+
+    threw = False
+    try:
+        load(Machine(), 'fact +oops("never closed)')
+    except ParseError:
+        threw = True
+    check("§3", "an unclosed string is refused at load, not read past the "
+                "end of the line searching for its close",
+          threw)
+
+    threw = False
+    try:
+        load(Machine(), 'fact +oops("line one\nline two")')
+    except ParseError:
+        threw = True
+    check("§3", "a string does not span a line",
+          threw)
+
+    threw = False
+    try:
+        load(Machine(), '"rule" +p(a)')
+    except ParseError:
+        threw = True
+    check("§3", "a quoted keyword cannot open a statement -- a STRING "
+                "token can never be mistaken for `rule`/`fact`/`say`, "
+                "unlike a bare name of the same spelling",
+          threw)
+
+
 def frames() -> None:
     print("\n§20 frames: the attention stack and the consultation stack are "
           "one construct")
@@ -1512,6 +1562,7 @@ def main() -> int:
     prefix_binding()
     alt_branches()
     line_form()
+    string_literals()
     frames()
     lanes()
     circuit_breaker()

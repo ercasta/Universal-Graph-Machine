@@ -38,7 +38,7 @@ class ParseError(Exception):
 
 
 class Tok(NamedTuple):
-    kind: str  # name | var | punct
+    kind: str  # name | var | string | rulename | punct
     text: str
     line: int
 
@@ -77,6 +77,37 @@ def tokenise(src: str) -> List[Tok]:
                 raise ParseError(f"line {line}: unclosed rule name")
             toks.append(Tok("rulename", src[i + 1 : j], line))
             i = j + 1
+            continue
+        if ch == '"':
+            # A string literal, for a name the bare-name lexing above cannot
+            # write at all -- a path, a filename, anything with a space or a
+            # backslash in it. `\"` and `\\` are decoded; everything else
+            # backslash-escapes to itself, so a lone `\` before an ordinary
+            # character (a Windows path's separator) survives unread rather
+            # than silently eating the next character. Parses to an ordinary
+            # `name`-shaped Term (`Parser.primary`) -- once past the lexer, a
+            # quoted and a bare atom of the same spelling are one node.
+            start_line = line
+            j = i + 1
+            out = []
+            while True:
+                if j >= n:
+                    raise ParseError(f"line {start_line}: unclosed string")
+                c = src[j]
+                if c == '"':
+                    j += 1
+                    break
+                if c == "\n":
+                    raise ParseError(f"line {start_line}: unclosed string -- "
+                                      f"a string does not span a line")
+                if c == "\\" and j + 1 < n and src[j + 1] in ('"', "\\"):
+                    out.append(src[j + 1])
+                    j += 2
+                    continue
+                out.append(c)
+                j += 1
+            toks.append(Tok("string", "".join(out), start_line))
+            i = j
             continue
         if ch == "$":
             # A variable. `$` does one job and `?` does one job: before this
@@ -604,7 +635,9 @@ class Parser:
             return (Destroy(target), 0)
         if t.kind == "name" and t.text in ("label", "unlabel"):
             # `label($z, paul)` -- a bare atom, the corpus's existing
-            # bare-name style; there is no string-literal syntax.
+            # bare-name style, or `label($z, "Paul Smith")` where the label
+            # itself needs a space a bare name cannot carry (see the
+            # tokenizer's string literal).
             self.expect("(")
             target = self.term()
             self.expect(",")
@@ -772,7 +805,7 @@ class Parser:
             return Term(t.text, tuple(args), True)
         if t.kind == "rulename":
             return Term(t.text, (), False, True)
-        if t.kind != "name":
+        if t.kind not in ("name", "string"):
             raise ParseError(f"line {t.line}: expected a term, found {t.text!r}")
         if not self.at("("):
             return Term(t.text, (), False)

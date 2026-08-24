@@ -13,6 +13,15 @@ One Loader for the whole session, not one per line: a rule named `<hold>` on
 line 1 has to still resolve when line 40 writes `<producing(<hold>, ...)>`
 about it, and name resolution lives on the Loader instance, not the scope
 string (see `Loader.rule_nodes`).
+
+Everything a corpus can do, this REPL asks for the same way a corpus does --
+`.ugm` text, one line at a time. There used to be `:ls`/`:cleanup` shortcuts
+that built `+want(...)` facts directly in Python, because a real path or
+filename (colons, spaces, backslashes) could not survive the tokenizer.
+Gone: the tokenizer now reads a quoted string (`core/text.py`'s lexer), so
+`fact +want(list("C:\\Users\\ercas\\Documents"))` is ordinary, typeable
+`.ugm` text, and `<list>` (`ugm/rules/fs_demo.ugm`) is the tool -- driven by
+the engine, not by a REPL command that knew what a directory listing meant.
 """
 
 import sys
@@ -22,34 +31,18 @@ from .core.machine import Machine
 from .core.text import Loader, ParseError
 
 HELP = """\
-:show              what is believed right now
-:ls DIR            +want(list(DIR)) -- list a directory (read-only)
-:cleanup DIR DAYS  +want(stale_after(DIR, DAYS)) -- flag and propose renames
-:load PATH         load another .ugm file into this session
-:quit              leave
+:show      what is believed right now
+:load PATH load another .ugm file into this session
+:quit      leave
 anything else is fed to the loader as ordinary .ugm text -- a fact, a rule,
-a `say` -- and the machine runs to quiescence before the next prompt.
+a `say` -- and the machine runs to quiescence before the next prompt. A path
+or filename needing a space or a backslash is a quoted string: "like this".
+example:  fact +want(list("C:\\Users\\ercas\\Documents"))
 """
 
 
 def _visible(m: Machine, p) -> bool:
     return m.g.relation_of(p) not in m._bookkeeping
-
-
-def _rel(ldr: Loader, head: str, *members):
-    return ldr.m.g.rel(ldr.atom(head), *members)
-
-
-def _want(ldr: Loader, head: str, *args: str):
-    """Believe `+want(head(args...))` directly, bypassing the parser -- a
-    path or a filename is not necessarily well-formed `.ugm` text (colons,
-    spaces, backslashes), so a REPL command builds the fact the way a tool
-    does (`repl_fs.deposit`), not by asking the loader to read it back."""
-    m = ldr.m
-    inner = _rel(ldr, head, *[ldr.atom(a) for a in args])
-    goal = _rel(ldr, "want", inner)
-    if not m.pad.holds(goal):
-        m.gate.write(goal)
 
 
 def run(m: Machine, ldr: Loader, limit: int = 400,
@@ -89,15 +82,6 @@ def run(m: Machine, ldr: Loader, limit: int = 400,
             for p in sorted(seen):
                 if _visible(m, p):
                     print(f"  {m.g.show(p)}")
-            continue
-        if line.startswith(":ls "):
-            _want(ldr, "list", line[4:].strip())
-            settle()
-            continue
-        if line.startswith(":cleanup "):
-            dir_, days = line[9:].rsplit(None, 1)
-            _want(ldr, "stale_after", dir_.strip(), days.strip())
-            settle()
             continue
         if line.startswith(":load "):
             path = line[6:].strip()

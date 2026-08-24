@@ -14,20 +14,21 @@
 
 action rename($dir, $old, $new)
 
-# `:ls DIR` (see `ugm/repl.py`) deposits `+want(list(DIR))`.
+# `fact +want(list("some path"))`, typed at the REPL or by another rule,
+# deposits the goal; this is the whole of what turns it into a tool call.
 rule <list> = implies( { +want(list($dir)) },
                        { +ls($dir), -want(list($dir)) } )
 
-# `:cleanup DIR DAYS` deposits `+want(stale_after(DIR, DAYS))`. Every file
-# `ls` found under $dir, at least $days old by `now` (`ugm/fs_repl.py` seeds
-# `now` once at start), is flagged -- one rule, however many files `ls`
-# found. `no considered(...)` guards it, and `+considered` lands in the SAME
+# `fact +want(stale_after("some path", 7))`. Every file `ls` found under
+# $dir, at least $days old by `now` (`ugm/fs_repl.py` seeds `now` once at
+# start), is flagged -- one rule, however many files `ls` found.
+# `no considered(...)` guards it, and `+considered` lands in the SAME
 # firing that decides -- not a later stage -- because a guard the rule's own
 # match does not immediately satisfy is no guard at all: the engine reselects
 # whatever still matches every tick, and a still-open binding it already
 # looked at wins arbitration again forever (the discipline `docs/guide.md`'s
-# `<pay>` spends `-pays(...)` on). It also makes a later `:cleanup` on the
-# same directory idempotent -- only files new since are reconsidered.
+# `<pay>` spends `-pays(...)` on). It also makes asking again about the same
+# directory idempotent -- only files new since are reconsidered.
 #
 # `<flag-stale>` is exactly the rule that starved this way before the
 # guard existed, so it is also the one watched by
