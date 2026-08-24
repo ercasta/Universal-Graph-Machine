@@ -730,6 +730,22 @@ class Machine:
         self._fresh_attention.clear()
         return before - len(kept)
 
+    def _consume(self, nodes) -> int:
+        """Spend the attention on what a move used. Globally: one occasion,
+        one use. Returns how many were on the list."""
+        queue, spec, weights = self._lane_state()
+        # The PROPOSITIONS matched, not the atoms they are made of. Spending
+        # `kettle` because a rule used `heat(stove, kettle)` would strip
+        # attention from everything else that mentions the kettle, which is
+        # not what was used.
+        gone = set(nodes)
+        before = len(queue)
+        queue[:] = [(n, w) for n, w in queue if n not in gone]
+        for n in gone:
+            spec.pop(n, None)
+            weights.pop(n, None)
+        return before - len(queue)
+
     def _unattend(self) -> int:
         """Stop thinking about whatever it was -- `reset`, for attention.
 
@@ -881,10 +897,16 @@ class Machine:
             said = a.fn(self, proposition)
             if said is None:
                 continue
-            self.gate.write(
-                self.g.rel(self.ANSWERED, a.node, proposition, said),
-                generic=True,
-            )
+            answered = self.g.rel(self.ANSWERED, a.node, proposition, said)
+            self.gate.write(answered, generic=True)
+            # An answer is NEW BUSINESS. It comes from outside any rule's
+            # consequent, so it is in no `wrote` list and would carry no
+            # attention -- and then the rule waiting for it is never enabled
+            # and the request hangs answered but unread. Measured: the
+            # approval corpus reaching `unattended` with
+            # `answered(approve, pending(deploy(web)), yes)` believed and
+            # `<approved>` never offered.
+            self._attend_written((answered,))
 
     def _count(self, proposition: NodeId) -> None:
         """Answer *how many ground matches does this pattern have?*
@@ -1024,7 +1046,8 @@ class Machine:
         anchored and a rule is generic, so the crossing stays machinery and the
         reading does not.
         """
-        self.gate.write(self.g.rel(self.ARRIVED, a.channel, a.proposition))
+        node = self.g.rel(self.ARRIVED, a.channel, a.proposition)
+        self.gate.write(node)
         # And it is now what the agent is thinking about. Not via
         # `_attend_written`: an arrival whose proposition is ALREADY believed
         # writes nothing, so saying the same words a second time would move
@@ -1043,7 +1066,12 @@ class Machine:
         # much what the world said is worth, relative to what a corpus loaded
         # or a move wrote, is the engine deciding for the corpus. Same brush,
         # restored to its own start if it has one.
-        self._attend_written((a.proposition,))
+        # The ARRIVAL, not only what arrived. `<intake>` reads
+        # `arrived($channel, $said)`, and a token on the sentence is not a
+        # token on the fact that it turned up -- with the gate asking about a
+        # line's own node, attending the parts and not the whole left the
+        # crossing rule unenabled and the run silent.
+        self._attend_written((node,))
 
 
     # -- the loop ----------------------------------------------------------

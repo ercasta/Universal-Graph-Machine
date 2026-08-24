@@ -12,6 +12,7 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .graph import NodeId
 from .machine import Machine
+from .machine import ATTENTION_BRUSH
 from .rules import (ABSENT, ASSERT, ERASE, IMPLIES, STOP, UNATTEND, Attend, Destroy,
                     Forget, Label, Member, Merge, Pop, Push, Unlabel, Unmerge)
 
@@ -528,6 +529,21 @@ class Parser:
             # readable and arguable -- and something has to say it, or attention
             # accumulates until it names everything.
             return (UNATTEND, 0)
+        if t.kind == "name" and t.text == "brush":
+            # `brush($x)` -- PUT IT BACK. A move consumes what it matched on,
+            # globally, so a rule that is not the last thing which should
+            # happen to a thing says so here. `<trust-user>` knows perfectly
+            # well that turning a saying into a belief is not the end of that
+            # saying's business, and the right-hand side is where it can say
+            # so -- a line marking could not, because whether others still
+            # want it is a fact about the move rather than about the line.
+            #
+            # It is `attend` at an incidental worth: back on the list, not
+            # promoted to the thing most in mind.
+            self.expect("(")
+            target = self.term()
+            self.expect(")")
+            return (Attend(target, ATTENTION_BRUSH), 0)
         if t.kind == "name" and t.text == "attend":
             # **The learnable one.** `attend($x)` says *think about what
             # this move just bound to `$x`* -- and `$x` is the HOST RULE's own

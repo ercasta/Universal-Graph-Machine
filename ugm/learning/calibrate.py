@@ -106,7 +106,19 @@ def _nudge(value: str, kind: str, rng: random.Random) -> str:
 
 
 def mutate(text: str, rng: random.Random, n: int = 1) -> str:
-    """`n` numbers changed, and nothing else. Rules are not touched."""
+    """`n` numbers changed, and nothing else. Rules are not touched.
+
+    ⚠ NOT YET IN THE SEARCH SPACE, and it will have to be: a GATE. Under
+    consumption, two rules are ordered by their data dependency and by
+    nothing else -- so where a corpus needs one to run before another and
+    neither reads what the other writes, there is nothing to order them. The
+    fix is a synthetic proposition, `gate#12322` or the like, produced by one
+    rule's right-hand side and keyed on by the other's left. A mutator that
+    could introduce one would be changing STRUCTURE rather than numbers,
+    which is why it is out of this phase and written here rather than built:
+    the moment mutators may add a line, they may also add a line that makes
+    a corpus unreadable, and that wants deciding before it is possible.
+    """
     spans = numbers(text)
     if not spans:
         return text

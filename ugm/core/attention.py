@@ -397,11 +397,14 @@ def _attended_first(found: List[Application], attended: Sequence[NodeId],
                     att = rank.get(here if here is not None else node, 0)
                     if att:
                         overlaps = True
-                    # The overlap GATE is a different question from the score,
-                    # and it asks about the whole line: a rule about something
-                    # attended runs, even where the multiplier is hung
-                    # elsewhere.
-                    if not overlaps and any(v in at for v in parts(node)):
+                    # The GATE asks about the LINE'S OWN node, never its
+                    # parts. A token sits on a proposition, not on the atoms
+                    # it is made of -- and asking about parts let a spent
+                    # occasion stay enabled because something else had
+                    # re-attended one of its constituents. Measured: `<boil>`
+                    # firing for ever off `heat(stove, kettle)` because the
+                    # `boiling(kettle)` it wrote re-attended `kettle`.
+                    if not overlaps and node in at:
                         overlaps = True
             total += member.weight * (1.0 + member.att_mult * att)
         return total, overlaps
@@ -613,7 +616,15 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 # again.
                 # →
                 # docs/design/attention.md#and-the-backstop-the-doubt-already-stands-an
+            # CONSUMED, and consumed globally. Attention is not memory: it
+            # is what the agent still has to get to, so using a thing is what
+            # takes it off the list. A rule that leaves work for another rule
+            # on the same node says so with `brush` -- explicitly, because
+            # two rules sharing an occasion is a claim about the corpus and
+            # not something the engine should infer.
+            m._consume(_matched_nodes(m, chosen))
             wrote = m._apply(chosen)
+            # ...and what it wrote is new business.
             m._attend_written(wrote)
             applied.append(chosen.rule.name or "?")
             steps.append(Step(arrivals, len(window), tried, chosen,
@@ -636,11 +647,6 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 # the start.
                 stopped = True
                 break
-        # END of the tick, not the start, and not per lane. A claim made
-        # during this tick has now had its tick; one made during the tick
-        # before has had two. Fading per lane made the count depend on how
-        # many lanes a corpus happened to declare.
-        m._fade_attention()
         if stopped:
             break
         if not round_applied and not doubted:
@@ -686,6 +692,25 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         sum(v[0] for v in scanned.values()), scanned,
         sum(v[1] for v in scanned.values()),
     )
+
+
+def _matched_nodes(m: Machine, a: Application) -> "List[NodeId]":
+    """Every grounded antecedent line of an application.
+
+    An `absent` member matched by NOT being there consumes nothing: there was
+    no occasion to spend.
+    """
+    out = []
+    for member in a.rule.antecedent:
+        if member.sign == ABSENT:
+            continue
+        try:
+            node = substitute(m.g, member.pattern, a.bindings)
+        except Exception:
+            continue
+        if node is not None:
+            out.append(node)
+    return out
 
 
 def _ground(m: Machine, table: Table, term, bindings):
