@@ -214,6 +214,59 @@ end to end: a move binds a node, a postcondition attends it, the lift decides
 which rules are matched next and which application is taken, and the claim is
 on the record for a rule to read, deny or reason about.
 
+## More than one lane
+
+Everything above is one table, worked once a tick. That's not quite the whole
+loop: a rule can claim a **lane**, and a lane gets its own pass through its own
+table **every round**, regardless of what any other lane picked that tick.
+Unmarked rules default to `main`, so a corpus that never writes `lane(...)`
+runs exactly one lane, exactly as described above — lanes are additive, not a
+second mode to learn.
+
+Here's the problem a second lane exists to solve. `<loud>` matches every tick
+and never stops matching — nothing in its consequent changes `running`. In one
+lane, that's fatal to anything else with an equal or lower score, forever:
+
+```
+rule <loud>  = implies( { +running }, { +shouted } )
+rule <watch> = implies( { +running, no watched }, { +watched } )
+fact +running
+```
+
+```
+watched: not believed
+```
+
+`<watch>` would fire in one tick if it ever got picked — but `<loud>` is
+declared first, ties on declaration order, and never yields the table. Score
+and `standing` don't help either: both are about *which rule wins a tick*, and
+`<loud>` wins every one of them. Put `<watch>` in a lane of its own instead:
+
+```
+fact +lane(<watch>, watchdog)
+```
+
+```
+watched: believed
+```
+
+Nothing about `<watch>` or `<loud>` changed — `<loud>` still wins `main` every
+tick. `<watch>`'s lane gets a pass of its own regardless, so it's no longer
+competing for a turn at all.
+
+This is the shape a watchdog needs: a rule that watches how often another rule
+fires and suspends it (`dormant`) past some threshold cannot be in the same
+lane as the rule it's watching, or the runaway rule starves its own
+watchdog — the one rule that could turn it off never gets picked either.
+`ugm/rules/circuit_breaker.ugm` is a complete, shipped version of exactly
+this: a generic suspend/cooldown/revive cycle, watching any rule at a
+threshold of its own, without editing the rule being watched. Measured there,
+over an always-matching rule: 31 clean trip/cooldown/revive cycles in 531
+ticks, never once stuck.
+
+`fact +lane_order(<name>, n)` ranks any additional lanes a corpus declares,
+numeral-sorted — `main` always runs, and needs no order fact of its own.
+
 ## Doubt is a move, not a pause
 
 When two rules in the window score within the tolerance, that's a **doubt**.
