@@ -170,6 +170,14 @@ class Machine:
         self.DUE = self.g.atom("due")
         # Which rules are in the table at the default rather than at the floor.
         self.STANDING = self.g.atom("standing")
+        # Which LANE a rule runs in, and where that lane sits in the tick's
+        # order (§ lanes). `lane(<R>, judge)` claims membership; unmarked
+        # rules default to `main`, so a corpus that never mentions a lane
+        # runs exactly as it did before lanes existed. `lane_order(judge, 1)`
+        # claims where a lane sits -- a list, not a single winner, so it is
+        # its own read rather than `_knob`'s highest-wins.
+        self.LANE = self.g.atom("lane")
+        self.LANE_ORDER = self.g.atom("lane_order")
         self.BOUNDED = self.g.atom("bounded")
         self.TICKS = self.g.atom("ticks")
         # Two rules matched and nothing separates them -- deposited rather than
@@ -243,6 +251,7 @@ class Machine:
             "recall": self.RECALL, "recalled": self.RECALLED,
             "dormant": self.DORMANT, "due": self.DUE,
             "standing": self.STANDING,
+            "lane": self.LANE, "lane_order": self.LANE_ORDER,
             "bounded": self.BOUNDED, "ticks": self.TICKS,
             "close": self.CLOSE,
             "attention": self.ATTENTION,
@@ -286,6 +295,7 @@ class Machine:
             self.RULE, self.ANT, self.CON, self.NAMES,
             self.COUNT, self.COUNTED, self.RECALL, self.RECALLED,
             self.DORMANT, self.DUE, self.STANDING,
+            self.LANE, self.LANE_ORDER,
             self.BOUNDED, self.CLOSE,
             self.ATTENTION, self.SPAN, self.DEPTH, self.KNOWS,
             self.PUSHED, self.POPPED, self.SUITS, self.DECLINED,

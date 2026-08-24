@@ -1228,6 +1228,52 @@ def frames() -> None:
           len(m._frames) == depth)
 
 
+def lanes() -> None:
+    print("\n§20 lanes: a generic mechanism, not a special case for judges")
+    m = Machine()
+    kb = load(m, """
+        fact +p(a)
+        rule <regular> = implies( { +p($x), no q($x) }, { +q($x) } )
+        rule <feel> = implies( { +q($x), no liked($x) }, { +liked($x) } )
+        fact +lane(<feel>, judge)
+        fact +lane_order(judge, 1)
+    """)
+    steps = m.run(limit=4)
+    check("§20", "the main lane's rule and the judge lane's rule both apply "
+                "in the same ROUND -- same tick number, one shared frame",
+          steps[0].applied.rule.name == "regular"
+          and steps[1].applied.rule.name == "feel"
+          and steps[0].applied is not None
+          and steps[1].applied is not None)
+    check("§20", "...because the judge rule sees what the main rule just "
+                "wrote, in the same round, not a tick later",
+          m.holds(kb.term("q(a)")) and m.holds(kb.term("liked(a)")))
+
+    m2 = Machine()
+    kb2 = load(m2, "fact +p(a)\n"
+                   "rule <one> = implies({+p($x), no q($x)}, {+q($x)})\n"
+                   "rule <two> = implies({+q($x), no r($x)}, {+r($x)})")
+    m2.run(limit=5)
+    check("§20", "a corpus that never claims lane(...) runs one lane, exactly "
+                "as before lanes existed",
+          m2.holds(kb2.term("q(a)")) and m2.holds(kb2.term("r(a)")))
+
+    m3 = Machine()
+    kb3 = load(m3, """
+        fact +p(a)
+        rule <second> = implies( { +p($x), no seen($x) }, { +seen($x) } )
+        rule <first>  = implies( { +p($x), no seen($x) }, { +noted($x) } )
+        fact +lane(<second>, later)
+        fact +lane(<first>, sooner)
+        fact +lane_order(sooner, 0)
+        fact +lane_order(later, 1)
+    """)
+    m3.run(limit=4)
+    check("§20", "lane order is a CLAIM, and it decides which lane goes "
+                "first when both would otherwise be tied",
+          m3.holds(kb3.term("noted(a)")))
+
+
 def experts() -> None:
     print("\n§20 experts: computed FROM the nodes pushed, never named by the "
           "rule that pushed them")
@@ -1384,6 +1430,7 @@ def main() -> int:
     alt_branches()
     line_form()
     frames()
+    lanes()
     experts()
     surface()
     the_web()

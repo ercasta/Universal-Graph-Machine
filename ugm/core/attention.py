@@ -221,6 +221,53 @@ def _standing(m: Machine) -> set:
     return out
 
 
+def _lane_of(m: Machine, r: Rule) -> str:
+    """Which lane a rule runs in -- `lane(<R>, $name)`, claimed.
+
+    Unmarked rules default to `main`, which is the whole of what makes lanes
+    additive: a corpus that never writes `lane(...)` runs exactly one lane,
+    every tick, exactly as it did before lanes existed.
+    """
+    for node in m.g.instances_of(m.LANE):
+        members = m.g.members(node)
+        if len(members) != 2 or members[0] is not r.node:
+            continue
+        if not m._claims(node):
+            continue
+        return m.g.show(members[1])
+    return "main"
+
+
+def _lane_order(m: Machine) -> List[str]:
+    """The lanes a tick drives, in order.
+
+    `lane_order(<name>, $n)` ranks the lanes a corpus cares to order,
+    numeral-sorted; a lane that is claimed (by some rule's `lane(...)`) but
+    never ranked runs after every ranked one, in the order the graph met it --
+    so adding a lane costs nothing beyond naming it. `main` always exists,
+    because an unmarked rule has to land somewhere.
+    """
+    ranked: Dict[str, int] = {}
+    for node in m.g.instances_of(m.LANE_ORDER):
+        members = m.g.members(node)
+        if len(members) != 2 or not m._claims(node):
+            continue
+        digits = m.g.show(members[1])
+        if digits.isdigit():
+            ranked[m.g.show(members[0])] = int(digits)
+    seen: List[str] = ["main"]
+    for node in m.g.instances_of(m.LANE):
+        members = m.g.members(node)
+        if len(members) != 2 or not m._claims(node):
+            continue
+        name = m.g.show(members[1])
+        if name not in seen:
+            seen.append(name)
+    declared = sorted((n for n in seen if n in ranked), key=lambda n: ranked[n])
+    rest = [n for n in seen if n not in ranked]
+    return declared + rest
+
+
 def _by_relation(rules: Sequence[Rule], g) -> Dict[NodeId, List[NodeId]]:
     """Which rules could be about a relation: antecedent relation -> rule nodes.
 
@@ -426,121 +473,147 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         table.now = tick
         table.ticked += 1
 
-        window: List[Application] = []
-        top = None
-        # Dormancy, and it is the right form of *disable a rule*. A rule
-        # claimed dormant is not considered until something claims it due --
-        # which is all a callback is. Read every tick and at the register's
-        # own position, never once when the pool is built: due can be concluded
-        # mid-run, and a callback attached inside a...
-        # → docs/design/attention.md#dormancy-and-it-is-the-right-form-of-dis
-        attended = m._attended()
-        # The queue has two uses and only one of them can starve. Ordering
-        # a rule's own BINDINGS costs nothing -- the applications are already
-        # in hand.
-        # → docs/design/attention.md#the-queue-has-two-uses-and-only-one-of-the
-        lift = None
-        asked = m._attention_asked()
-        if asked:
-            lift = _pull(m, table, asked) or None
-        ordered = [r for r in table.order(lift) if not _dormant(m, r)]
-        cut = 0
-        while cut < len(ordered) and not window:
-            # One shortlist at a time. Score decides WHO is matched, which is
-            # the whole proposal: a rule below the cut costs nothing at all.
-            chunk = ordered[cut:cut + SHORTLIST]
-            if cut:
-                widenings += 1
-            cut += SHORTLIST
-            for r in chunk:
-                if top is not None and table.score[r.node] < top - TOLERANCE:
-                    break  # the prefix ends here, and the rest is not matched
-                tried += 1
-                found = match(m.g, m.pad, r, computes=m.rules.computes,
-                              predicates=m.rules.predicates)
-                # ...and WHICH of them, which the loop has never chosen. It
-                # takes the first survivor and breaks, so the binding was
-                # decided by the walk. Free: `found` is already here.
-                if attended:
-                    found = _attended_first(found, attended,
-                                            m._attention_weights())
-                #  There is NO per-candidate filter left. An application
-                # that was tried and changed nothing is offered again, because
-                # deciding that a rule has nothing further to give is the
-                # corpus's judgement and not the engine's. A rule stops itself
-                # by spending what it matched -- `-may(hero)` -- or by asking
-                # for the absence of what it wrote. An occasion is consumed,
-                # and a fact is not.
-                for a in found:
-                    window.append(a)
-                    if top is None:
-                        top = table.score[r.node]
-                    break
-                if len(window) >= WINDOW:
-                    break
-        if not window:
-            # Nothing in the table matched, and the shortlist walk above has
-            # already been through every non-dormant rule -- so there is
-            # nothing left to widen to.
-            # The run is over, and WHICH silence it was goes on the record: the
-            # option-set loop's callers read `steps[-1].state` in 33 places to
-            # tell a finished search from one that hit the limit.
-            steps.append(Step(arrivals, 0, tried, None, (), "quiescent"))
-            break
-        windows.append(len(window))
-        # Who picks. The table picks by default -- that is System 1 -- but a
-        # human stepping the corpus by hand, or the shipped arbitration acting
-        # as a gold teacher, is the same signature and the same loop. The first
-        # user of a KB is a person choosing moves; the table is what that use
-        # leaves behind.
-        chosen = window[0] if chooser is None else chooser(m, table, window)
-        if chosen is None:
-            break
-        if len(window) > 1:
-            # The doubt is DEPOSITED, not recorded: an entry a rule can match,
-            # so a corpus reacts to it -- tiebreaking, or asking. The machinery
-            # noticing something it must not decide and depositing a fact is
-            # this repo's standing answer (`unsupported`, `contested`,
-            # `defeated`, `blocked`), and `close` was the one occasion that was
-            # written and never reacted to.
-            fresh = False
-            for rival in window[1:]:
-                node = m.g.rel(m.CLOSE, chosen.rule.node, rival.rule.node)
-                if not m.pad.holds(node):
-                    m._note(node)
-                    fresh = True
-            if fresh:
-                # Depositing IS the move. A settling rule -- the default one, or
-                # a corpus's own -- is in the table and gets the next turn.
-                doubts += 1
-                steps.append(Step(arrivals, len(window), tried, None, (),
-                                  "applied"))
+        # Lanes (§ lanes): one pass through the table per lane, in order,
+        # against the ONE shared frame -- a judge rule sees what a regular
+        # rule just wrote, in the same tick, because a gut feeling is meant
+        # to be a reaction to what just happened rather than a deliberation
+        # of its own. A corpus that never claims `lane(...)` gets exactly one
+        # lane (`main`), so this is a superset of the old single-pass tick,
+        # not a different loop.
+        round_applied = False
+        doubted = False
+        stopped = False
+        for lane_name in _lane_order(m):
+            window: List[Application] = []
+            top = None
+            # Dormancy, and it is the right form of *disable a rule*. A rule
+            # claimed dormant is not considered until something claims it due
+            # -- which is all a callback is. Read every tick and at the
+            # register's own position, never once when the pool is built:
+            # due can be concluded mid-run, and a callback attached inside a...
+            # → docs/design/attention.md#dormancy-and-it-is-the-right-form-of-dis
+            attended = m._attended()
+            # Recomputed per LANE, not once per tick: the previous lane in
+            # this same round may just have written something, and the next
+            # lane's pick has to see it -- the one new cost lanes add.
+            lift = None
+            asked = m._attention_asked()
+            if asked:
+                lift = _pull(m, table, asked) or None
+            ordered = [r for r in table.order(lift) if not _dormant(m, r)
+                      and _lane_of(m, r) == lane_name]
+            cut = 0
+            while cut < len(ordered) and not window:
+                # One shortlist at a time. Score decides WHO is matched, which
+                # is the whole proposal: a rule below the cut costs nothing.
+                chunk = ordered[cut:cut + SHORTLIST]
+                if cut:
+                    widenings += 1
+                cut += SHORTLIST
+                for r in chunk:
+                    if top is not None and table.score[r.node] < top - TOLERANCE:
+                        break  # the prefix ends here, the rest is not matched
+                    tried += 1
+                    found = match(m.g, m.pad, r, computes=m.rules.computes,
+                                  predicates=m.rules.predicates)
+                    # ...and WHICH of them, which the loop has never chosen.
+                    # It takes the first survivor and breaks, so the binding
+                    # was decided by the walk. Free: `found` is already here.
+                    if attended:
+                        found = _attended_first(found, attended,
+                                                m._attention_weights())
+                    #  There is NO per-candidate filter left. An application
+                    # that was tried and changed nothing is offered again,
+                    # because deciding that a rule has nothing further to give
+                    # is the corpus's judgement and not the engine's. A rule
+                    # stops itself by spending what it matched -- `-may(hero)`
+                    # -- or by asking for the absence of what it wrote. An
+                    # occasion is consumed, and a fact is not.
+                    for a in found:
+                        window.append(a)
+                        if top is None:
+                            top = table.score[r.node]
+                        break
+                    if len(window) >= WINDOW:
+                        break
+            if not window:
+                # This lane offered nothing this round -- the next lane still
+                # gets its turn. Only when EVERY lane comes up empty is the
+                # run over (below, once the lane loop ends).
                 continue
-            # ...and the backstop: the doubt already stands and nothing settled
-            # it, so restating it changes nothing and the winner applies. A
-            # corpus with no settling rule loses a tick, not the loop. 
-            # Something applied, so the shortlist is trusted again.
-            # →
-            # docs/design/attention.md#and-the-backstop-the-doubt-already-stands-an
-        wrote = m._apply(chosen)
-        m._attend_written(wrote)
-        applied.append(chosen.rule.name or "?")
-        steps.append(Step(arrivals, len(window), tried, chosen,
-                          tuple(wrote or ()), "applied"))
-        if watch is not None:
-            # AFTER the move, not at the choice: a tick that deposits a doubt
-            # chooses and then does not apply, so watching at the choice
-            # recorded a rule that never ran -- and a lesson built from that
-            # sequence teaches a move that never happened.
-            # →
-            # docs/design/attention.md#after-the-move-not-at-the-choice-a-tick-that-d
-            watch(m, table, window, chosen, tick, steps[-1])
-        _spend_posts(m, table, chosen, tick)
-        if table.stopped is not None:
-            steps.append(Step(arrivals, 0, tried, None, (), "stopped"))
-            # *Completion is the output of a rule*, and this is the loop obeying
-            # one. It knows a rule spent `stop`; it does not know what a goal is,
-            # which is the line this file has held from the start.
+            windows.append(len(window))
+            # Who picks. The table picks by default -- that is System 1 -- but
+            # a human stepping the corpus by hand, or the shipped arbitration
+            # acting as a gold teacher, is the same signature and the same
+            # loop. The first user of a KB is a person choosing moves; the
+            # table is what that use leaves behind.
+            chosen = window[0] if chooser is None else chooser(m, table, window)
+            if chosen is None:
+                continue
+            if len(window) > 1:
+                # The doubt is DEPOSITED, not recorded: an entry a rule can
+                # match, so a corpus reacts to it -- tiebreaking, or asking.
+                # The machinery noticing something it must not decide and
+                # depositing a fact is this repo's standing answer
+                # (`unsupported`, `contested`, `defeated`, `blocked`), and
+                # `close` was the one occasion that was written and never
+                # reacted to.
+                fresh = False
+                for rival in window[1:]:
+                    node = m.g.rel(m.CLOSE, chosen.rule.node, rival.rule.node)
+                    if not m.pad.holds(node):
+                        m._note(node)
+                        fresh = True
+                if fresh:
+                    # Depositing IS the move. A settling rule -- the default
+                    # one, or a corpus's own -- is in the table and gets the
+                    # next turn. Ends the ROUND, not just this lane: the doubt
+                    # is what this tick did.
+                    doubts += 1
+                    steps.append(Step(arrivals, len(window), tried, None, (),
+                                      "applied"))
+                    doubted = True
+                    break
+                # ...and the backstop: the doubt already stands and nothing
+                # settled it, so restating it changes nothing and the winner
+                # applies. A corpus with no settling rule loses a tick, not
+                # the loop. Something applied, so the shortlist is trusted
+                # again.
+                # →
+                # docs/design/attention.md#and-the-backstop-the-doubt-already-stands-an
+            wrote = m._apply(chosen)
+            m._attend_written(wrote)
+            applied.append(chosen.rule.name or "?")
+            steps.append(Step(arrivals, len(window), tried, chosen,
+                              tuple(wrote or ()), "applied"))
+            round_applied = True
+            if watch is not None:
+                # AFTER the move, not at the choice: a tick that deposits a
+                # doubt chooses and then does not apply, so watching at the
+                # choice recorded a rule that never ran -- and a lesson built
+                # from that sequence teaches a move that never happened.
+                # →
+                # docs/design/attention.md#after-the-move-not-at-the-choice-a-tick-that-d
+                watch(m, table, window, chosen, tick, steps[-1])
+            _spend_posts(m, table, chosen, tick)
+            if table.stopped is not None:
+                steps.append(Step(arrivals, 0, tried, None, (), "stopped"))
+                # *Completion is the output of a rule*, and this is the loop
+                # obeying one. It knows a rule spent `stop`; it does not know
+                # what a goal is, which is the line this file has held from
+                # the start.
+                stopped = True
+                break
+        if stopped:
+            break
+        if not round_applied and not doubted:
+            # Nothing in ANY lane matched, and the shortlist walk above has
+            # already been through every non-dormant rule in every lane -- so
+            # there is nothing left to widen to.
+            # The run is over, and WHICH silence it was goes on the record:
+            # the option-set loop's callers read `steps[-1].state` in 33
+            # places to tell a finished search from one that hit the limit.
+            steps.append(Step(arrivals, 0, tried, None, (), "quiescent"))
             break
     # The loop ran out of ITERATIONS, not out of work.
     # → docs/design/attention.md#the-loop-ran-out-of-iterations-not-out-of-w
