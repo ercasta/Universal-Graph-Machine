@@ -29,11 +29,14 @@ rule <gauge_no>   = implies( { +says(gauge, not($p)), no not($p) },
 
 ```
 $ python -m ugm channels.ugm --ask "likely(raining(here))"
-channels.ugm: 3 ticks, ended quiescent
+channels.ugm: 8 ticks, ended quiescent
 
 what it believes, newest first:
+  not(boiling(kettle))
   likely(raining(here))
   says(user, raining(here))
+  says(gauge, not(boiling(kettle)))
+  arrived(gauge, not(boiling(kettle)))
   arrived(user, raining(here))
 
 likely(raining(here)): believed
@@ -72,14 +75,10 @@ reader declines it.
 
 ## Every rule here needs its own brake
 
-Notice the `no likely($p)` and `no $p` guards above. They were not needed
-under the old chain, where a repeated conclusion cost nothing — the read
-simply found the same answer. They are load-bearing now.
-
-Belief here is a scratchpad, not a history: asserting something already
-anchored is a no-op, but the **match** that produced it happens again on the
-very next tick, because nothing tells the loop that this application already
-ran and changed nothing:
+Notice the `no likely($p)` and `no $p` guards above. They are load-bearing:
+asserting something already anchored is a no-op, but the **match** that
+produced it happens again on the very next tick, because nothing tells the
+loop that this application already ran and changed nothing:
 
 > **An application that changes nothing is offered again.** A trust rule
 > with no guard doesn't corrupt anything — `likely(raining(here))` stays
@@ -115,31 +114,22 @@ claims by reading the second fact rather than the first.
 
 ## What a channel reports has no sign of its own
 
-An older design gave an arrival a third field, the sign: a channel reported
-`+p`, `-p`, or `?p`, which made it the one party outside the agent that
-could say what to believe rather than merely what it had heard. That field
-is gone with the entry that used to carry it — an arrival is a bare
-proposition, and denial is written the way it's written everywhere else,
-as an ordinary term:
+An arrival is a bare proposition, nothing more. A channel reports what it
+heard, never what to do about it — so denial is written the way it's
+written everywhere else, as an ordinary term:
 
 ```
 say gauge: not(boiling(kettle))
 ```
 
-Trying to report a denial with `-` is refused outright at the door, not
-silently mangled:
+Trying to report a denial with `-` is refused outright at the door:
 
 ```
 say gauge: -boiling(kettle)
 ```
-```
-ParseError: a channel reports what it heard, not what to do about it.
-To report a denial, say `not(...)`.
-```
 
-That's a cleaner shape than the old three-field arrival — a channel can no
-longer smuggle *what to do about it* past the boundary, because there is no
-slot left for it to smuggle it in.
+A channel can't smuggle *what to do about it* past the boundary — there is
+no slot for it.
 
 ## An arrival is not something the agent does
 
@@ -198,12 +188,8 @@ rule <hedge> = implies( { +says(anna, possible($x)), no possible($x) },
 What is believed rides entirely in the **proposition** — that it's about the
 afternoon, that it's hedged — and that it came from Anna rides in the
 `says` fact naming her. Neither needed a new construct, and both are things
-a rule can read and decline to act on.
-
-An entry once carried a third member, a **locus**, so a claim could be
-*deposited now and about the afternoon* structurally. Loci are gone
-(Chapter 19), and *about the afternoon* was always part of what is
-claimed — never part of where a claim sits.
+a rule can read and decline to act on. *About the afternoon* is part of what
+is claimed — never part of where a claim sits.
 
 ---
 

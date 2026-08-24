@@ -53,8 +53,8 @@ for:
 Each check prints its own named observations rather than a bare pass/fail, on
 purpose: a check that only says *FAIL* tells you something is wrong and
 nothing about what. This suite was written to fail loudly rather than to
-look thorough while testing nothing — Chapter 32 has the list of instruments
-that once lied here, and the rule that came out of it:
+look thorough while testing nothing — Chapter 32 is about designing checks
+so they can't lie, and the rule that guards it:
 
 > **An agreement gate that agrees is worth nothing until it could have
 > disagreed.**
@@ -71,11 +71,8 @@ The suite is the main one. There's also:
 |---|---|
 | `python -m ugm.gates.vocabulary` | every reserved name classified exactly once, against corpora that ship and actually run — Chapter 33 |
 
-Earlier versions of this project kept a wider bench of gates and comparison
-runners — a static rule-reachability atlas, a learning-calibration harness, a
-several-agents probe — and most of that tooling was cut along with the
-machinery it measured. `docs/feature-requests.md` and Chapter 34 have the
-honest accounting of what's still open.
+`docs/feature-requests.md` and Chapter 34 have the honest accounting of
+what's still open beyond these two instruments.
 
 ---
 

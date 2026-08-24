@@ -70,27 +70,18 @@ denied* rather than *unless claimed* — and the loader refuses it outright:
 rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
 ```
 
-```
-ParseError: line 1: `-` is a consequent mode -- it erases. A premise cannot
-erase, and there is no denying sign left to read it as. Say which you meant:
-`no ...` (nothing anchors it) or `+not(...)` (its denial is believed).
-```
-
-This isn't the parser being fussy. `-` used to be able to sit in an antecedent
-because there used to be a stored **sign** on every claim, and a `-` premise
-asked to match the ones whose sign said *denied*. That stored sign is gone
-(Chapter 2): belief is presence of an anchor, full stop, and there is nothing
-left for `-` to mean on the reading side. Guessing which of the two real
-questions you meant — *is it absent* or *is its denial believed* — would turn
-a change in the engine into a silent change in what your corpus says. Refusing
-loudly is the honest alternative, and it names both readings so you can pick.
+The loader refuses this at load, and says why: `-` is a consequent mode — it
+erases — and a premise can't erase. Belief is presence of an anchor, full
+stop, so a premise only has two honest questions to ask: *is it absent*
+(`no ...`) or *is its denial believed* (`+not(...)`). Leaving `-` to mean one
+of those by guesswork would be a silent choice made on your behalf; refusing
+loudly and naming both readings is the alternative.
 
 Symmetrically: `no` never appears in a consequent (*absence is asked, never
 asserted*), never in a `fact` (*a fact states; `no` asks*), and `-` never
 appears on a `say` arrival (*a channel reports what it heard, not what to do
 about it*). Each of those is a real load error with its own message, not a
-silent no-op — the same discipline `@` and `at $m` get elsewhere in the
-surface.
+silent no-op.
 
 ## Sign and *not* are not rivals
 
@@ -109,7 +100,7 @@ different act: it asserts a *new* proposition, one that happens to be about
 `poisoned(a)`'s denial, and that proposition can be matched, nested, and
 believed alongside `poisoned(a)` itself without the substrate objecting
 (Chapter 2's closing note). Concluding `-b` from inside a rule about a
-*likely* supposition would be nonsense — there is no entry to erase inside a
+*likely* hypothesis would be nonsense — there is no anchor to erase inside a
 hypothesis someone else is reasoning about — but concluding `+not(b)` there
 works exactly as any other proposition does: what you get out is *likely,
 not-b*, a claim, not an act on the machine's bookkeeping.
@@ -124,22 +115,15 @@ than the engine doing it silently. Minting `+not(p)` automatically for every
 erasure would double every negative fact for no reason; nothing requires it,
 and nothing does it for you.
 
-## What used to need a third sign, and why it doesn't any more
+## There is no third state
 
-An earlier version of this surface had a `?` sign: *held before, does not now,
-and I can't say what does*. It existed because, under the old chain, silence
-meant *unchanged* — so an interim state that genuinely wasn't known yet had no
-honest way to be written. Take away silence-as-unchanged and the problem
-disappears with it: **there is no more "unchanged" for a third mark to
-override.** A proposition is believed or it isn't, checked fresh against the
-one current state every time, so a value in flux is written the same way any
-other fact is — erase what's stale, and let an ordinary proposition
-(`+unsettled(transfer($a, $b))`) say that a downstream reader shouldn't treat
-the gap as an answer. Chapter 4 is the rest of that story: what "unchanged"
-used to mean, and why there's nothing left for it to mean now.
+A proposition is believed or it isn't, checked fresh against the one current
+state every time. There is no "held before, doesn't now, not sure what does"
+in between — a value in flux is written the same way any other fact is: erase
+what's stale, and let an ordinary proposition (`+unsettled(transfer($a,
+$b))`) say that a downstream reader shouldn't treat the gap as an answer.
 
 ---
 
-**Next:** we keep saying *believed now*. What happened to keeping track of
-*when*?
+**Next:** we keep saying *believed now*. What does "now" mean here?
 [Moments →](04-moments.md)

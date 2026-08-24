@@ -80,11 +80,10 @@ say user: +checked_in(ana)
 - Numerals are ordinary atoms whose name reads as a number — nothing in the graph learns arithmetic
   except a reader that asks for it (a `kb.answerer` or `kb.computator`).
 
-Retired, on purpose, and refused with a message rather than silently ignored: `@` (grades —
-uncertainty is now a proposition, `+likely(p)`), `at $m` (locus — belief has no second time to bind
-at all any more; there is no chain, no moments, no per-entry history — one graph, one flat believed
-set), `?` as a variable sigil (now `$`), `when` triggers, `-` as a premise (see above). There is also
-no `why`/explanation trail any more — nothing in `Machine` reconstructs how a belief was derived.
+Uncertainty is an ordinary proposition (`+likely(p)`), never a grade attached to a member — the
+parser refuses `@` syntax with a message pointing you here. Belief has no second time to bind, no
+history, no derivation trail — one graph, one flat believed set, and no `why`/explanation mechanism
+reconstructs how a belief got there.
 
 ## Tools and channels
 
@@ -98,9 +97,9 @@ atomically instead of being caught half-done.
 
 `standing(<r>)` lifts a rule's priority so it isn't starved by an equally-ranked rival.
 `dormant(<r>)`/`due(<r>)` suspend and resume a rule — ordinary facts a corpus writes, and a rule can
-ask about, not a mark on the rule itself. There is no engine-level precedence relation any more
-(`overrides`/`supersedes` are gone from the reserved vocabulary) — an exception is written as a
-negated member inside the rule that should lose, not as a fact beside two competing rules. See
+ask about, not a mark on the rule itself. There is no engine-level precedence relation — an exception
+is written as a negated member inside the rule that should lose, not as a fact beside two competing
+rules. See
 [`authoring.md`](authoring.md) §2.
 
 ## Running it

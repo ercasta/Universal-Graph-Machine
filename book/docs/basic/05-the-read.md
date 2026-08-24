@@ -37,31 +37,6 @@ you get the same anchor back, unchanged. Erase it, and it's gone. There is no
 in-between state where two claims about `p` coexist for the read to choose
 between.
 
-!!! note "This used to be a walk, and it was the design's biggest cost"
-    An entry used to carry a **locus** — what it was *about* — beside its
-    deposit time, so the read had to use both keys in a fixed order: latest
-    locus, then latest deposit, with *at-or-before* decided by ancestry rather
-    than a depth comparison, because supposing forked the chain. Measured
-    before anything was optimised, resolving reads that way was **86% of
-    runtime**, and sixteen of every seventeen walks were the same walk
-    repeated.
-
-    Three rounds of work, each measured before the next, brought that walk
-    down: asking it once per tick rather than once per rule, indexing the
-    resolved state by sign and relation, indexing the resolution by
-    proposition — together, **67×**. A later pass, maintaining the state and
-    everything derived from it in one place instead of rebuilding it, took a
-    1,600-fact fixture from 4.79s to 0.48s, and made 12,800 facts run in less
-    time than 1,600 used to take.
-
-    None of that machinery exists any more, and none of it needed to survive:
-    the locus went (Chapter 4), and with it the two-key walk those three
-    rounds were built to speed up. What's left isn't a fourth optimisation of
-    the same walk — it's a walk with nothing left to walk. The read didn't get
-    faster again. It got structurally simple, which is a different kind of
-    win, and the numbers above are history, not a benchmark of what runs
-    today.
-
 ## A read that never changes is still asked
 
 Reading costs nothing, but *asking* happens on a schedule you don't control —
@@ -109,18 +84,14 @@ pointless — that judgement belongs to the corpus, every time.
 
 ## The scoring
 
-| | overwrite in place | keep the chain, walk it (gone) | **one anchor, one lookup** |
-|---|---|---|---|
-| not leaking | a revision and the claim it revises are indistinguishable | each claim survived; the last one, found by a walk, governed | there is only ever one claim to find |
-| not lossy | history is gone | nothing was overwritten | history is gone — a stated trade (Chapter 4), not an accident |
-| readable | a lookup | a walk with two orderings and two ancestry tests | **a lookup**, and there's nothing behind it to have gotten wrong |
-| composable | two writers contend | appending was the only write | asserting is idempotent; two writers land the same anchor |
-
-The middle column cost this project real measured time to build and more to
-speed up. The last column didn't need speeding up, because there was nothing
-left to be slow. That's the shape of the whole first cut this book has walked
-through: not "optimise the mechanism" but "ask whether the mechanism was
-buying its keep," and here the honest answer was no.
+Scored against the same four criteria the rest of this design answers to
+(Appendix): a single anchor is **not leaking** — a revision and the claim it
+revises can't be confused, because there is only ever one claim to find. It
+is **readable** — a lookup, with nothing behind it to have gotten wrong. It is
+**composable** — asserting is idempotent, so two writers land the same
+anchor. It is **not lossy** only in the narrow sense that nothing is silently
+overwritten; a history of *how belief changed* is not kept, and that's a
+stated trade (Chapter 34), not an accident.
 
 ---
 
@@ -131,4 +102,4 @@ present; and one lookup that answers *is this true* with nothing to walk.
 Everything from here is **taught**, not built in.
 
 **Next:** the first and most important thing you teach it.
-[A rule is a fact about two moments →](../rules/06-a-rule-is-a-fact.md)
+[A rule is a fact about two sides →](../rules/06-a-rule-is-a-fact.md)

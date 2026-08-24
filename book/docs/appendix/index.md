@@ -1,11 +1,7 @@
 # Appendix — concepts, in plain language
 
 Alphabetical. Each entry says what the thing is, and points at the chapter
-where it earns its keep. Some entries are marked *retired* — the mechanism
-they name has been removed from the engine. They're kept rather than deleted,
-because a reader who hits the old term in an old blog post, an old corpus, or
-their own memory of an earlier version of this book should still find out
-what happened to it.
+where it earns its keep.
 
 ---
 
@@ -28,44 +24,15 @@ believed. [Chapter 2](../basic/02-propositions-and-entries.md)
 **antecedent** — the *if* half of a rule: a list of members, each asserting,
 denying by absence, or computing. [Chapter 6](../rules/06-a-rule-is-a-fact.md)
 
-**anti-unification** — given two things that happened, the pattern they
-already agree about. The dual of unification, and what *learning from
-examples* is made of. [Chapter 29](../watching/29-learning.md)
-
 **arbitration** — choosing which of the applicable rules to apply. A score
 per rule, ties broken by declaration order; a loser is **deferred, not
 rejected** — a run to quiescence applies it eventually unless something
 forgoes or forbids it outright. [Chapter 17](../unsure/17-disagreement.md)
 
-**at $m** — *retired.* A member used to be able to name which moment it sat
-in. Refused at load now, with a message telling you why: there is no second
-time left for a member to bind, because there is no moment for it to name. A
-corpus that wants to talk about *when* writes it as an ordinary relation of
-its own. [Chapter 5](../basic/05-the-read.md)
-
-**@ grades** — *retired.* Uncertainty used to be a number annotating an
-entry (`@0.7 likely(p)`). Refused at load now: uncertainty is an ordinary
-proposition instead — `+likely(p)` — that a rule can read like anything else.
-[Chapter 15](../unsure/15-how-strongly.md)
-
 **belief** — presence. `believed(p)` holds or it doesn't; that is the whole
-of what believing something means here. No confidence number, and — since an
-earlier version of this engine — no record of how a belief was reached
-attached to it. [Chapter 2](../basic/02-propositions-and-entries.md),
+of what believing something means here. No confidence number and no record
+of how a belief was reached attached to it. [Chapter 2](../basic/02-propositions-and-entries.md),
 [Chapter 34](../horizon/34-not-built.md)
-
-**boost / damp / reset** — *retired.* Postconditions that used to move a
-*rule's* score. Retired because a rule id goes stale the moment the rule is
-edited, composed or renamed — so a corpus of experience written against rule
-names would stop *loading* rather than going quietly wrong. What replaced
-them targets a **node**: see `attend`. [Chapter 28](../watching/28-the-table.md)
-
-**causes** — *retired.* The second connective. Its consequent used to land
-in a **later** moment, so it persisted once you stopped asking about the
-cause — water you'd stopped heating stayed boiled. With no moments left to
-land in, it did nothing `implies` didn't already do, so it was removed rather
-than kept as a label. Refused at load with a message explaining why.
-[Chapter 7](../rules/07-connectives.md)
 
 **channel** — how something got here: a person, a sensor, a socket. What's
 recorded is that *the channel said so*; whether to believe it is a rule's
@@ -76,10 +43,9 @@ sees the graph, so it runs *during the match*, which keeps a whole change —
 a purse transfer, say — in one application rather than caught half-done.
 [Chapter 22](../world/22-tools.md)
 
-**connective** — `implies`. There is exactly **one**: a second earns its
-place only by licensing a different *(forward, backward)* reading pair, and
-`causes` didn't — all it did was pick where the conclusion landed, and there
-is nowhere left for it to land but here. [Chapter 7](../rules/07-connectives.md)
+**connective** — `implies`. There is exactly **one**: a second would earn
+its place only by licensing a different *(forward, backward)* reading pair.
+[Chapter 7](../rules/07-connectives.md)
 
 **consequent** — the *then* half of a rule: what a rule's postconditions
 aside, applying it asserts or erases. [Chapter 6](../rules/06-a-rule-is-a-fact.md)
@@ -89,8 +55,8 @@ machine. [Chapter 8](../rules/08-writing-a-corpus.md)
 
 **delta** — the gap between where you are and where you want to be: computed
 by a tool (the `<difference>` pattern), one `missing` or `extra` claim per
-difference. A tool, because a rule matches one entry at a time and can't
-speak about a set. [Chapter 12](../wanting/12-plans.md)
+difference. A tool, because a rule matches one proposition at a time and
+can't speak about a set. [Chapter 12](../wanting/12-plans.md)
 
 **dormant / due** — `dormant` is a claim that a rule is out of the running:
 not considered at all until something claims `due` for it. The only thing
@@ -101,15 +67,6 @@ which is why an exception belongs in a premise instead (see *unless* in
 **entity** — a labelless node: nothing but an id. Created by a rule, and
 everything it answers to — including its name — is an ordinary claim about
 it.
-
-**entry / moment / locus / licence / chain** — *retired, as a family.* An
-earlier version of this engine kept history as a chain of moments, each a
-signed delta of entries, each entry carrying a licence recording what
-produced it and a locus saying what it was about as against when it was
-deposited. All of it — the chain, the walk that read it, the derivation
-trail it carried — is gone. State is a single graph; belief is presence.
-What this bought and what it cost is Chapter 34's subject, honestly, rather
-than a single line here.
 
 **frame** — a process node: what reasoning is running, where it's standing,
 and where an answer is owed. Selectable, which is what a stack frame is not:
@@ -161,12 +118,6 @@ optionally negative), `unattend`, `stop` (ends the run), `push(...)` / `pop(...)
 nothing on its own — believing it is a separate act, recorded as an anchor.
 [Chapter 2](../basic/02-propositions-and-entries.md)
 
-**? (unsure sign)** — *retired.* Used to mark a claim held before but not
-now, with no replacement known — a third state next to assert and erase.
-Gone: absence is ignorance, and there's nothing left for a third mark to
-say. The parser also refuses `?name` outright now, as the old spelling of a
-variable — write `$name`.
-
 **quiescent** — applying anything further would change nothing.
 **Exhaustion**, not satisfaction. [Chapter 26](../watching/26-stopping.md)
 
@@ -182,23 +133,15 @@ would elsewhere be a labelled edge. Everything here is one.
 [Chapter 1](../basic/01-the-substrate.md)
 
 **sign** — `+` (assert) or `−` (erase). `no` is a third *mode* a member can
-be in, in sign position, but it isn't a sign on an entry the way `+`/`−`
-are — there's no entry left for it to be a member of. `−` only appears in a
-**consequent**: there's no `−` in an antecedent any more, because there's no
-denying claim left to match against. Say `no p` for absence, or `+not(p)`
-for an explicit denial, instead. [Chapter 3](../basic/03-signs.md)
+be in, in sign position, but it isn't a sign the way `+`/`−` are. `−` only
+appears in a **consequent** — an antecedent has no `−`; write `no p` for
+absence, or `+not(p)` for an explicit denial, there instead.
+[Chapter 3](../basic/03-signs.md)
 
-**stratum 0** — *retired.* Used to name a rule whose antecedent was entirely
-structural — reading the chain's own skeleton (`anc`, `pred`, `in_delta`)
-rather than an ordinary claim — applied without triggering the bootstrap
-circle that reading anything else required. The skeleton went with the
-chain, so nothing plays this role any more. [Chapter 31](../floor/31-bootstrap.md)
-
-**supposing** — *the mechanism is removed.* It used to enter a hypothesis by
-forking the chain into a frame, unwrapping the assumption on the way in and
-re-wrapping conclusions on the way out. Nothing forks now, so a corpus holds
-a hypothesis in the **proposition** instead — `given(h1, p)` — and the
-wrapper is the containment. [Chapter 16](../unsure/16-supposing.md)
+**supposing** — holding a hypothesis without committing to it. A corpus
+wraps it in the **proposition** rather than asserting it outright —
+`given(h1, p)` — and the wrapper is the containment.
+[Chapter 16](../unsure/16-supposing.md)
 
 **table** — a score per rule, ordered, ties broken by declaration order. The
 loop takes the highest-scoring rule in a window whose antecedent matches,
@@ -220,14 +163,12 @@ consulted on what another rule is about to conclude before it lands. It
 matches `producing(<R>, p)` — a fact that exists only while the question is
 asked — and concludes an instruction: `instead(p, q)` replaces, `drop(p)`
 refuses, anything else is added beside it. Norms and approval-gating are
-both this one mechanism. `when`-triggers (ranking-time, no host rule) are
-*retired* — hang a lesson off the rule that runs, with `after <R> { ... } =>
-attend($x, n)`, instead. [Chapter 18](../unsure/18-norms.md)
+both this one mechanism. [Chapter 18](../unsure/18-norms.md)
 
 **twin trap** — minting a fresh node for something the graph already
 describes, so that everything said about the described thing goes to a node
 nothing uses, and everything the machinery says about the live one names a
-node nobody can reach. [Chapter 29](../watching/29-learning.md)
+node nobody can reach. [Chapter 22](../world/22-tools.md)
 
 **utterance** — what crosses between two agents: **rendered text**, re-read
 in the hearer's own name scope. A proposition survives the trip; anything

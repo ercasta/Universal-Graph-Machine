@@ -4,9 +4,9 @@
 
 Where does the *likely* go?
 
-The obvious answer is: on the claim, as a number or a grade. This design tried
-that, argued for it at length, built it, **measured it**, and deleted it. This
-chapter is that story, because the reasoning is more useful than the conclusion.
+The obvious answer is: on the claim, as a number or a grade. It isn't. Uncertainty
+here is a **word in the sentence** — a wrapping proposition — never a score attached
+to a fact.
 
 ## Four things called possibility
 
@@ -35,65 +35,32 @@ speaker* are one question asked of three sources — and every entry already nam
 the source it arrived through. A confidence slot on rules would cover the first
 case only, and would have to be reinvented for the other two.
 
-## The answer that was rejected
+## Why not a grade on the fact
 
-The candidate was an ordinal **grade**, stored as a fourth member of the entry.
-The argument was good.
+Attaching a number or an ordinal to a proposition — *rain is likely* as
+`rain(...) @0.6` — looks like the obvious shortcut, and it fails on structure,
+not on taste.
 
-*Not on the proposition node*, because a grade there is a cache of a derived
-value: *rain is likely* holds only given the support that produced it, so when
-the support changes the tag must be invalidated — and general invalidation over
-a web of dependencies is a truth-maintenance system, a second machine with its
-own consistency problem running underneath the first.
+*Not on the proposition node*, because that's a cache of a derived value: the
+claim holds only given the support that produced it, so when the support
+changes the cache has to be invalidated — general invalidation over a web of
+dependencies is a truth-maintenance system, a second machine with its own
+consistency problem running underneath the first.
 
-*Not as a separate tag*, because a tag is a separate read: you could obtain the
-fact without the grade, and an ungraded conclusion reads as certain.
+*Not as a separate tag beside the fact*, because a tag is a separate read: you
+could obtain the fact without the tag, and an untagged conclusion reads as
+certain when it may not be.
 
-*So put it on the entry.* An entry cannot be matched without its sign, because
-the sign is a member. Put the grade there and it can't be matched without its
-grade either. One read, or none. And the entry had to exist anyway, so the slot
-cost nothing structurally.
+*A number also can't be reasoned with the way a proposition can*: nothing can
+ask *is this merely likely* about a number, there's no guard for a rule to
+cross before acting on it, and it doesn't nest (`thinks(anna, likely(rain))`
+has nowhere for a bare grade to sit).
 
-**Every step of that is valid.** It settles *where a grade should live* and
-never asks *what a grade is for* — and the second question has an answer that
-dissolves the first.
-
-Measured three ways, and they agreed:
-
-- **It ranked last of three treatments.** A grade is not a term, so no rule can
-  ask *is this merely likely*. There is no guard to cross. And it doesn't nest.
-- **Almost nothing used it.** Across a whole suite: **4 of 3,740 rules** authored
-  a non-certain grade, and **6 of 32,289 entries** carried one.
-- **Nothing ever decided on it.** The function comparing two grades was called
-  from exactly one place. Every other read carried it forward or printed it.
-
-> **The grade was carried, composed and printed, and never obeyed.**
->
-> **A knob that is read and not obeyed is the same defect wearing the fix's
-> clothes.**
-
-So the grade is gone, and the entry is back to two members and never a third.
-The parser does not merely fail to support the old notation — it refuses it by
-name:
-
-```
-fact +rain(monday) @likely
-```
-
-```
-ParseError: `@` is gone with the grades. Uncertainty is a proposition now --
-write `+likely(p)` in the consequent and let a rule cross it, rather than
-annotating how strongly `p` is held.
-```
-
-That message is not a fallback for unrecognised syntax. It is the one place in
-the loader that names the retired mechanism and points at what replaced it —
-because a notation that used to mean something and now silently parses as
-nothing is worse than one that is refused.
-
-And the larger half: **the closed set went with it.** Five ordinal names the
-engine knew became whatever modalities a corpus cares to write, with whatever
-ordering it authors.
+Grading a claim with `@` is refused at load with a message pointing here —
+write `+likely(p)` in the consequent instead. There is no closed, fixed set of
+modality words either: whatever names a corpus writes (`likely`, `possible`,
+`doubtful`, ...) and whatever order it wants among them is the corpus's own
+claim, not the engine's.
 
 ## What replaces it
 
@@ -113,26 +80,20 @@ Three things this buys that a grade cannot, none of them arguments:
 | the **guard holds** — nothing acts on the unwrapped claim | no; a grade annotates a conclusion the actor still sees | yes, structurally |
 | it **nests** — `thinks(anna, likely(rain))` | no | yes |
 
-The second row is the one with teeth. An agent acting on a merely-possible
-classification used to be indistinguishable from one acting on a certain one,
-because a rule matching `is_gothic($c)` matched whatever grade the entry carried
-— nothing could read a grade, so nothing could decline.
-
-Now declining is one line, and *what this corpus is willing to act on* is a
-claim with a trail.
+The second row is the one with teeth. A rule matching `is_gothic($c)` matches
+the plain claim, however it's qualified elsewhere — a rule that must not act on
+a merely-possible classification has to say so, by matching `likely(...)`
+directly rather than the bare proposition. Declining is one line, and *what
+this corpus is willing to act on* is a claim with a trail.
 
 ## Weakest link, as structure
 
-Two uncertain premises give `likely(possible(c(t)))`.
+Two uncertain premises give `likely(possible(c(t)))` — the nest records both
+qualifiers, in order, rather than collapsing them into one number that forgets
+which premise was weak.
 
-Where `min` over two ordinals gave one number and forgot which premise was weak,
-the nest records **both, in order**. That's a better answer to the same
-requirement.
-
-**What is lost, stated rather than buried.** Weakest link used to be automatic
-and total — every write, every rule, nothing authored. Now nothing is concluded
-from an uncertain premise unless a corpus deliberately crosses it (Chapter 16),
-and what comes back is nested. Collapsing the nest —
+Nothing is concluded from an uncertain premise unless a corpus deliberately
+crosses it (Chapter 16), and what comes back is nested. Collapsing the nest —
 
 ```
 rule <collapse> = implies( { +likely(possible($x)) }, { +possible($x) } )
@@ -142,17 +103,7 @@ rule <collapse> = implies( { +likely(possible($x)) }, { +possible($x) } )
 
 > **The ordinal stops being free and starts being arguable.**
 
-That's the trade, and it is the trade this design makes everywhere else.
-
-!!! note "Deep dive: a deletion that fixed something two sections away"
-    Composing a chain of rules into one shortcut (Chapter 29) used to refuse
-    anything but a certain conclusion, because composing a grade would have been
-    a minimum computed once from defeasible constituents — the very objection
-    that ruled out storing a grade on a proposition, arriving one level up.
-
-    With grades gone, the objection went with them, and the restriction was
-    **deleted rather than solved**. A limitation nobody was working on
-    disappeared because something unrelated was removed.
+That's the trade this design makes everywhere else, too.
 
 ---
 

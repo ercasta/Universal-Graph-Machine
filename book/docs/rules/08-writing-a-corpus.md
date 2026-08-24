@@ -204,6 +204,6 @@ writes, and is right to.
 
 ---
 
-**Next:** what's actually left of *why*, now that nothing keeps a history to
-walk.
+**Next:** what a corpus can tell you about its own beliefs — and what it
+can't.
 [Because… →](09-because.md)

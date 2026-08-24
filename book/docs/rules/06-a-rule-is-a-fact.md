@@ -87,19 +87,6 @@ regrets(bo, broke(bo, jug))
 `as $t` binds the proposition itself, so a rule can refer to the very thing it
 matched rather than describing it again.
 
-!!! note "There used to be a second modifier, and it is gone"
-    `at $m` bound the **locus** — where the matched entry sat, in a chain of
-    moments. There is no chain any more (this book's Part 1 tells that story),
-    so the surface **refuses** `at $m` rather than ignoring it: a notation that
-    parses and is dropped is a rule that means something other than what it
-    says.
-
-```
-$ python -m ugm bad.ugm
-ugm.core.text.ParseError: line 1: `at $m` is gone with the locus. An entry has
-no second time to bind, so a member cannot say where it sits...
-```
-
 **Order matters for one concrete reason: an absence member's variables must
 already be bound.** `no p($x)` is a *check*, not a binder — it cannot be the
 first thing in an antecedent to mention `$x`, because *for no `$x`* is a
@@ -159,6 +146,6 @@ arrives already instantiated. Chapter 11 shows the first one working.
 
 ---
 
-**Next:** there used to be two connectives. There is one now, and the story of
-the other one.
-[The one connective, and the one that didn't survive →](07-connectives.md)
+**Next:** there is one connective. Here's how it's used, and the hazard to
+watch for.
+[The one connective →](07-connectives.md)

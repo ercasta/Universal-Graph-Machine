@@ -15,40 +15,10 @@ concludes it — and it's easy to over-read.
 It does not mean *there is no way to freeze a kettle*. It means *nothing this
 corpus's rules claim to do would*.
 
-## `blocked` was designed, and it isn't shipped
+## What silence means, and where it comes from
 
-An earlier version of this chapter described `blocked` as a fact the machine
-deposits when a full backward search — expand a goal, recall candidates,
-check each — exhausts every option. That search isn't built (Chapter 12), so
-neither is `blocked`, nor `verdict`, nor a `quiet` fact a rule could read.
-`grep`ping the engine for any of the three returns nothing. What follows is
-the argument for why `blocked`, if it existed, would have to be a *reported
-state* and not an ordinary conclusion — kept because the argument still
-applies to whatever plays that role once backward search is built, and
-because getting this wrong is a real way to make a reasoner overclaim.
-
-Here's the natural-looking rule, and it's wrong regardless of whether
-`blocked` ever ships:
-
-```
-implies( { +goal($w), +unfit($r, $w) }, { +blocked($w) } )
-```
-
-That would fire when **some** rule doesn't fit. What `blocked` is supposed to
-claim is that **no** rule does. That's an aggregate over a *finished* search,
-and an ordinary positive rule can't state it — a rule matches per-entry, not
-over a set, which is the exact same limit that makes `delta` a tool instead
-of a rule (Chapter 12). Nor does a `−` member help: *an entry says this does
-not hold* and *no entry* are neither of them *for no `$r`*.
-
-> **Bounded expansion would return a result and a state. `blocked` would be
-> the state, not a belief a rule derived.**
-
-## What actually exists to be silent about
-
-Two pieces of this chapter's argument are real today, and worth keeping
-apart precisely because the machine will not tell you which one you're
-looking at.
+Two pieces of this are worth keeping apart, precisely because the machine
+will not tell you which one you're looking at.
 
 **Recall returning nothing.** `recalled(<boil>, freezing(kettle))` above is
 `not believed` because nothing was ever written that says otherwise — silence
@@ -69,9 +39,8 @@ rule <r> = implies( { +a, no b }, { +b } )
 
 `quiescent` means the match set was genuinely empty — no rule, on any
 binding, had anything left to write. That's a fact about the *search*, not
-about the corpus's beliefs, and it's the nearest thing today to what
-`blocked` was reaching for: an honest report that this run, right now, is
-out of moves.
+about the corpus's beliefs, and it's an honest report that this run, right
+now, is out of moves.
 
 | silence | means |
 |---|---|
@@ -90,7 +59,7 @@ already-believed fact still counts as an application, and a run only reaches
 once satisfied, because the write staying silent isn't something you can
 lean on.
 
-## `bounded(ticks)` is real, and worth building on
+## `bounded(ticks)`
 
 One occasion in this family *is* a deposited fact a corpus can key on: a run
 that hits its tick limit while still working writes `bounded(ticks)`.
@@ -122,28 +91,18 @@ without one it competes for the single per-tick slot against `<loop>` and
 `<unloop>`, which were winning every time. A watchdog that shares the main
 lane with the thing it watches can starve; a lane gives it a guaranteed turn
 regardless (Chapter 9's mechanism, `ugm/rules/circuit_breaker.ugm` for a
-worked pattern). *A run is still working when it's cut off* is knowable and
-actionable today; *the search is done and found nothing* is designed and
-isn't yet.
+worked pattern).
 
-## Stopping with a goal still open
+## An open goal doesn't stop the loop by itself
 
-There's a stronger claim in the same family, and it constrains Chapter 26
-whether or not backward search exists yet:
-
-> **The loop may end. It may not end quietly on something it was asked for.**
-
-`horizon/34-not-built.md` is blunt about where this stands: *the open-goal
-veto is not expressible in the table loop*. The shipped loop stops on a
-rule's `stop`, and can't refuse to on its own, because the refusal would be
-an aggregate — *nothing else is wanted and unmet* — over the very set of
-matches a rule can't speak about. So today an open goal is a fact a corpus
-can check after the run (`m.holds(...)`), not a veto the loop enforces for
-you. Whether that gap gets closed is an open design question, not a solved
-one dressed up as unsolved.
+The loop can end `quiescent` while a `+goal(...)` fact is still unmet —
+nothing checks that automatically. A corpus that cares reads it after the
+run, with `m.holds(...)`, or writes its own rule to react to it while the
+run is still going.
 
 ---
 
 **Next:** the machine has a rule it could apply and a real reason to. What
 does *doing* it actually mean here?
 [Acting →](14-acting.md)
+</content>

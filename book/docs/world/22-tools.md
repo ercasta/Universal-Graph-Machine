@@ -51,11 +51,10 @@ Three details in that rule are load-bearing:
   scope — `minus` cannot hand back a fresh node with the same name as the
   numeral `7` the corpus already has, or the rule would fire and every
   question about the result would answer nothing.
-- **`-purse($a, $x)`** retracts the old amount. This replaced the old `?`
-  mark, which is gone entirely now — not just as a sign character but as a
-  concept. There is no grade of belief between believed and not; a
-  proposition is anchored or it isn't. Erasing the stale purse and asserting
-  the new one, in the same application, is what "update a value" means here.
+- **`-purse($a, $x)`** retracts the old amount. There is no grade of belief
+  between believed and not; a proposition is anchored or it isn't. Erasing
+  the stale purse and asserting the new one, in the same application, is
+  what "update a value" means here.
 - **`-pays($a, $b, $n)`** consumes the trigger. Without it the rule matches
   again next tick — its own antecedent is still fully true, since nothing
   about `pays(anna, bo, 3)` changed — and an application that changes
@@ -131,9 +130,9 @@ answered which request, and no rule could ask.
 
 If your transfer waits on a die roll, a person, or anything outside, then
 part-way through the purses genuinely have not changed — and there is no
-mid-way value to assert, because `?` doesn't exist any more, in any form.
-The honest move is: don't touch the amounts until settlement, and mark the
-in-between state with an ordinary fact.
+mid-way value to assert; a proposition is asserted or it isn't, nothing in
+between. The honest move is: don't touch the amounts until settlement, and
+mark the in-between state with an ordinary fact.
 
 ```
 rule <trust_bank> = implies( { +says(bank, $p), no $p }, { +$p } )
@@ -166,10 +165,9 @@ purse(anna, 7)   purse(bo, 8)   -- pending, pays and confirmed all consumed
 ```
 
 No marker anyone forgot to check: `pending(...)` is either there or it
-isn't, and while it's there the purses simply have not moved. That's a
-plainer honesty than `?` ever offered — an observer that reads `purse(anna,
-$x)` mid-transfer gets the *true, unrevised* answer, not a special third
-value meaning "ask again later."
+isn't, and while it's there the purses simply have not moved. An observer
+that reads `purse(anna, $x)` mid-transfer gets the *true, unrevised* answer,
+not a special third value meaning "ask again later."
 
 The tempting alternative — skip `pending` and just leave the purse
 untouched — works by accident here and fails the moment two transfers

@@ -2,9 +2,7 @@
 
 Chapter 27 ended at the table: everything live gets a score, and the loop works
 the table from the top. This chapter is what that loop is — and it is the loop
-this design ships. It arrived as a challenger to a very different one, won on
-measurement, and the story of the match is kept at the end of the chapter,
-because the case for the winner *is* the comparison.
+this design ships.
 
 ## The loop
 
@@ -31,7 +29,8 @@ rules* whose postconditions spend attention — **refocusing is a rule**
 
 A score is one of two numbers: rules the bundle marks `standing` sit at the
 apparatus's height, and everything else sits at the floor. There is no third
-place to be — and how that came to be the whole of it is the buff story, below.
+place to be, and every postcondition that touches this table targets a node —
+never a rule (below).
 
 ## Stopping, and what it is worth
 
@@ -72,14 +71,13 @@ it knows a rule said stop, exactly as it knows one said attend.
     feature will find it.
 
 !!! note "Deep dive: what stopping costs"
-    The loop this one replaced refused to stop **quietly** on something it was
-    asked for — an open goal *outranked* a satisfaction signal (Chapter 26).
-
-    This loop cannot make that refusal, and the reason is exact: the veto is an
-    **aggregate** — *nothing else is wanted and unmet* — and a rule cannot
-    speak about the set of its own matches. Measured: give it two wants, make
-    one reachable, and it stops with the other still wanted and still unmet —
-    three moves, and an unmet want left behind.
+    This loop has no way to refuse to stop **quietly** on something it was
+    asked for — an open goal outranking a satisfaction signal is Chapter 26's
+    argument, but the veto that would enforce it is an **aggregate** —
+    *nothing else is wanted and unmet* — and a rule cannot speak about the set
+    of its own matches. Measured: give it two wants, make one reachable, and
+    it stops with the other still wanted and still unmet — three moves, and an
+    unmet want left behind.
 
     So the guarantee becomes a corpus's, which is the same trade the norms
     decision made — an engine guarantee becoming a corpus property **with an
@@ -121,32 +119,25 @@ postcondition, not a new engine case — the identity ops (`merge`, `unmerge`,
 needed a new case in the loop above. And note what `attend` names: a **node**
 the move itself bound — a thing in the world — never a rule.
 
-## There used to be three more, and they moved a score
-
-`boost(<R>, n)`, `damp(<R>, n)` and `reset` were postconditions too, and they
-are retired — not because they didn't work, but because of what they *named*:
+## A postcondition names a thing, never a rule
 
 > **A rule id goes stale the moment a rule is adopted, composed or renamed. A
 > corpus of experience written against rule names stops loading — rather than
 > going quietly wrong.**
 
 A lesson has to survive the agent changing its own rules, and a lesson about a
-*thing* (`attend($x)`) does, where a lesson about a *rule* (`boost(<R>)`)
-cannot. Everything that existed to keep buffs healthy went with them: the decay
-that stopped a self-lifting pair running away, the saturation that kept the
-scale stable, the trace that rebuilt the table, the reranker. What is left
-cannot decay, so there is nothing to tune.
+*thing* (`attend($x)`) does, where a lesson about a *rule* cannot. Every
+postcondition that spends attention targets a node, never a rule.
 
-The replacement is leaner than what it replaced. An `attention(x)` claim is
-**recomputed at every move and kept nowhere** — *what is in front of me is
-recomputed; what I was doing persists and fades* — so there is no lifetime knob
-and no runaway to guard against. When the claim is denied, it is over.
+An `attention(x)` claim is **recomputed at every move and kept nowhere** —
+*what is in front of me is recomputed; what I was doing persists and fades* —
+so there is no lifetime knob and no runaway to guard against. When the claim
+is denied, it is over.
 
-And one thing became an error rather than a silence: a ranking-time `when`
-trigger used to nudge scores inside a shortlist, and now the surface **refuses
-it** with a message. Such a trigger ran on rules that had not applied and might
-never apply — a deposit from there would be the agent claiming to think about
-something because it considered thinking about it.
+A ranking-time `when` trigger — one meant to nudge scores inside a shortlist —
+is refused at load with a message: such a trigger would run on rules that had
+not applied and might never apply, and a deposit from there would be the agent
+claiming to think about something because it considered thinking about it.
 
 ## Attention reaches both halves
 
@@ -330,51 +321,15 @@ Tweety is the control here, and the whole reason the table is worth printing.
 Without an ordinary bird in the fixture, rows three and four look identical and
 the lever that breaks flight passes.
 
-## The match that settled it
+> **The table loop is the kernel.**
 
-This loop arrived as a proposal beside a very different incumbent: recall
-proposes, **everything** proposed is matched, defeat and quiescence filter,
-arbitration ranks, one move is taken. That loop materialised an *option set* on
-every tick — and the obvious objection, that most of it must be waste, was
-measured and found wrong: **99.6% of those candidates genuinely applied**. The
-option set was the price of being able to say *nothing else applied*, which is
-what `blocked` and `<give-up>` are built on (Chapter 13).
-
-So the two ran side by side, on the same corpora, with an instrument reporting
-every conclusion either reached that the other did not — ticks first,
-conclusions second:
-
-| corpus | ticks (old / table) | conclusions | only the old loop | only the table |
-|---|---|---|---|---|
-| `delay.ugm` | 11 / 16 | 221 / 232 | `close` ×8 | `spent` ×7, `settled` ×7 |
-| `worked.ugm` | 12 / 11 | 163 / 176 | — | `settled` ×4, `spent` ×4 |
-| `quest-p1.ugm` | 18 / 21 | 186 / 206 | — | `settled` ×5, `spent` ×5, `close` ×5 |
-| `dungeon` | 148 / 155 | 737 / 746 | `close` ×10, `defeated` ×1 | `spent` ×7, `settled` ×7 |
-
-Read the third column as a **work list**: everything the table loop dropped was
-a record the old tick kept *because* it materialised an option set. Most were
-recovered as rules; the defeat record was recovered at the time, and has since
-gone for good along with precedence itself (Chapter 17); and one is genuinely
-gone — `close` over
-the **whole** option set rather than over a window, a claim about a set the
-table deliberately never builds. That loss is named, measured, and accepted.
-
-The decision, taken after all of the above ran:
-
-> **The table loop is the kernel** — not an optimisation beside the old one.
-
-And the method is worth as much as the decision:
+And the method behind it is worth as much as the loop itself:
 
 > **Subtract, do not rewrite.** Each definition that moves out of the host
 > language gets a gate; when the gate is green, its Python goes.
 
-For a while the old loop stayed on as the slow definition a gate held the
-kernel to — Chapter 32's rule about optimisations, applied to the loop itself.
-Then the comparison settled, and the old loop and the gate that compared them
-were deleted together. What remains of them is this section, the checks that
-keep the named losses honest, and `python -m ugm.core.attention` — which now
-runs the worked examples above rather than a comparison, because there is no
-second loop left to compare against.
+`python -m ugm.core.attention` runs the worked examples above and keeps the
+checks that hold this chapter's claims honest.
 
 ---
 

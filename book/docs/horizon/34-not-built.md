@@ -77,37 +77,32 @@ to decide a rule is wrong; only a corpus can say that, in a rule of its own.
 
 ## Deliberate, and a real cost
 
-**A belief carries no record of how it was reached.** This is a change from
-an earlier version of this engine, not an original design choice, and it's
-worth being honest about the size of it: belief here is presence —
-`believed(p)` holds or it doesn't — and that presence carries no sign, no
-licence, no chain back to what produced it. The cost is concrete: nothing in
-this engine can currently answer *why do you believe this*, for any belief,
-of any kind. What you get instead is what's believed *now*, newest-first,
-and — at load time — a report of every name a rule reads that nothing
-anywhere writes, which catches a large fraction of the corpus bugs a trail
-would have explained. It does not catch all of them, and there is no
-programmatic substitute for "walk me back from this conclusion to the facts
-it rests on." Chapter 9's "shows its work" is now that report plus what's
-currently believed, not a kept derivation.
+**A belief carries no record of how it was reached.** It's worth being
+honest about the size of this: belief here is presence — `believed(p)` holds
+or it doesn't — and that presence carries no sign, no licence, no chain back
+to what produced it. The cost is concrete: nothing in this engine can
+currently answer *why do you believe this*, for any belief, of any kind.
+What you get instead is what's believed *now*, newest-first, and — at load
+time — a report of every name a rule reads that nothing anywhere writes,
+which catches a large fraction of the corpus bugs a trail would have
+explained. It does not catch all of them, and there is no programmatic
+substitute for "walk me back from this conclusion to the facts it rests on."
+Chapter 9's "shows its work" is that report plus what's currently believed,
+not a kept derivation.
 
-**`causes` is gone, not merely restricted.** It used to mean *the conclusion
-lands in a later moment, so it persists once you stop asking about the cause*
-— useful for "water you stopped heating stays boiled." With no moments left
-to land in, it did nothing `implies` didn't already do, so it was removed
-rather than kept as a label over the same behaviour. The cost: a corpus that
-wants persistence-through-time has to write time as an ordinary relation of
-its own and reason over it explicitly — nothing built in does that for you
-any more.
+**No connective carries persistence-through-time.** `implies` is the only
+connective, and its consequent lands now, with no built-in way for a
+conclusion to persist once its antecedent stops holding (*water you stopped
+heating stays boiled*, say). The cost: a corpus that wants
+persistence-through-time has to write time as an ordinary relation of its
+own and reason over it explicitly — nothing reserved does that for you.
 
-**The connectivity/"islands" measurement no longer runs.** An earlier version
-of this engine kept a full token-level provenance web — which claim rested on
-which — and measured it: dead rules, isolated relations, connected components.
-That machinery went with the derivation trail above. The static, type-level
-web — which relations a rule's antecedent and consequent connect, computed
-straight off the rules with nothing run — survives and is what Chapter 33
-measures. The dynamic, per-run version does not, and nothing here currently
-recomputes an equivalent.
+**Only the static, type-level web is measured.** Which relations a rule's
+antecedent and consequent connect is computed straight off the rules, with
+nothing run, and is what Chapter 33 measures. The dynamic, per-run
+version — which particular claim rested on which, at runtime — is not:
+nothing here recomputes dead rules, isolated relations or connected
+components against a live derivation.
 
 ## Genuinely absent
 
@@ -196,8 +191,7 @@ that checks it.
 
 **Loop detection.** A rule whose own consequent restores its own antecedent
 can run forever, caught only by `bounded(ticks)` after the fact. Detecting
-the pattern ahead of time was designed and measured once, against corpora
-this project no longer ships, and deliberately left unbuilt for want of a
+the pattern ahead of time is deliberately left unbuilt, for want of a
 second, different failing example to check a detector against. A detector
 nobody can falsify is not a detector; it's a guess with a green checkmark on
 it.
@@ -213,11 +207,6 @@ regardless of whether you ever use this machine.
 
 > **A claim with no measurement behind it is an opinion, and it should be
 > marked as one.**
-
-This chapter exists because of that second rule as much as the first: most of
-what it used to say described machinery that has since been cut, and leaving
-the old prose standing would have been exactly the failure mode it warns
-against.
 
 ---
 

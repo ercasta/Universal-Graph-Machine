@@ -86,36 +86,25 @@ Chapter 8 has the load-time version of this measurement in a smaller corpus,
 worked by hand. Here it's the general instrument, run against everything this
 repository ships.
 
-## What this chapter used to measure, and no longer can
+## What this web is, and isn't
 
-An earlier version of this engine kept a full derivation trail — every belief
-stamped with which rule produced it and what that rule consumed — and this
-chapter used to build a second web on top of that trail: entries as nodes,
-`rests_on` as edges, connectivity components as "islands," the terms whose
-removal disconnects the web as "bridges." It was a real measurement, on a
-real corpus, and it agreed with a prediction made before the numbers came
-back.
+Belief is presence: `believed(p)` holds or it doesn't, with no record
+attached of which rule produced it or what that rule consumed. So the web
+this chapter measures is **type-level** — relation names joined by the rules
+that read them, read off the rules themselves, statically, before anything
+runs — not a token-level web of which particular claim rested on which.
+Chapter 34 has the honest accounting of what a token-level trail would buy
+and why this engine doesn't keep one.
 
-That machinery is gone. Belief is now presence — `believed(p)` holds or it
-doesn't — and there is, on purpose, no provenance trail attached to a belief
-to build a token-level web out of (Chapter 34 has the honest accounting of
-what that costs). The **type-level** web above — relation names joined by the
-rules that read them — survives, because it never depended on the trail: it's
-read off the rules themselves, statically, before anything runs. The
-**token-level** web — which particular claim rested on which — does not
-survive, and nothing in this repository currently recomputes an equivalent.
-
-The same is true of the standing philosophical objection to inferential
-meaning, Prior's `tonk` — a connective that lets anything be derived from
-anything, which a purely structural web-of-relations check cannot catch
-(both `tonk`'s introduction and elimination rules are perfectly ordinary
-`implies` rules; nothing about their *shape* is wrong). Belnap's answer,
-**conservative extension** — does adding this rule license new conclusions in
-the *old* vocabulary? — is still the right test in principle. What measured it
-here was a gate that mutated a rulebase and reran the suite, and that gate is
-one of the instruments this rewrite did not keep. The argument stands; the
-measurement of it, for now, does not, and a claim with no measurement behind
-it is marked as one rather than asserted as fact.
+The standing philosophical objection to inferential meaning, Prior's `tonk` —
+a connective that lets anything be derived from anything — is worth naming
+for the same reason: a purely structural web-of-relations check cannot catch
+it, because both `tonk`'s introduction and elimination rules are perfectly
+ordinary `implies` rules; nothing about their *shape* is wrong. Belnap's
+answer, **conservative extension** — does adding this rule license new
+conclusions in the *old* vocabulary? — is the right test in principle, and
+this repository has no instrument that runs it. The argument stands; a claim
+with no measurement behind it is marked as one rather than asserted as fact.
 
 ## Where this sits in the literature
 

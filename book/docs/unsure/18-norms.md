@@ -134,28 +134,10 @@ working. So the norm gate ships with a **planted violation carried as a
 control** — the corpus above is essentially it — and the check asserts that the
 refusal happens, not merely that nothing bad did.
 
-!!! note "Deep dive: what a norm used to be"
-    A norm used to be a different kind of thing: `forbidden(doing(harm($x)))`,
-    a stored pattern consulted by the machinery at every write and indexed by
-    the relation about to be written. It was fast, and it was off the recall
-    path, which was the property that mattered.
-
-    What it could not do was ask a question. A stored pattern says *never this
-    shape* and nothing else, so a conditional norm — *not this, unless an
-    evacuation was ordered* — had to be assembled out of rules that concluded
-    and denied the prohibition itself.
-
-    Folding it into the trigger seam removed a whole mechanism and made
-    prohibitions conditional in the ordinary way. It also cost something honest:
-    the old gate ran on **every** write, and a trigger runs on what a rule
-    concludes. A norm now binds what the agent concludes and does, not what a
-    channel reports — which is the right line, since recording that someone said
-    something is not the agent doing it, but it is less reach than before.
-
-    One limitation from Chapter 6 also went with it. Deciding whether a stored
-    generic pattern covers a particular proposition is matching, and matching is
-    floor — so a *rule* could not ask *would this be forbidden?*. A trigger is a
-    rule asking exactly that, about a conclusion that has not landed yet.
+A norm binds what the agent concludes and does, not what a channel reports —
+recording that someone said something is not the agent doing it. And because a
+trigger is an ordinary rule, a rule can ask *would this be forbidden?* about a
+conclusion that has not landed yet, the same way it asks anything else.
 
 ---
 

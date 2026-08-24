@@ -4,11 +4,7 @@ So far every rule has been read forwards: *these things hold, therefore this
 follows*.
 
 A rule can also be asked the other way: *what could produce this?* That
-question is answered today by one shipped mechanism — **recall** — and it is
-worth being exact about how far recall actually goes, because the rest of
-backward reading (turning a candidate into subgoals, checking whether it
-fits) is a design argument this project has made and not yet connected to
-running code.
+question is answered by **recall**.
 
 ```
 rule <boil>
@@ -67,37 +63,20 @@ recalled(<boil>, boiling(kettle)): believed
 bare variable. `<trust>` never gets a bucket, so recall never surfaces it,
 with no special case written for it — the index is simply built that way.
 
-## Two requirements this still has to satisfy
+## Recall and application share one node
 
-Even though the mechanism is thin today, the requirements the fuller version
-would have to meet are already settled, because they follow from what a rule
-*is* rather than from how much of backward reading got built:
+> Reading a rule backwards and applying it forwards are two queries over the
+> same rule, never two separate statements. There is one node, `<boil>`, and
+> direction is a **query over it**.
 
-> Planning would read a rule **backwards**. Execution reads it **forwards**.
-> Both readings must come from the same statement.
+That matters because a rule read backwards is read as its converse. *Four
+wheels ⇒ car*, run backwards, licenses *a cart is a car* — legitimate as a
+hypothesis, wrong if treated as entailment. Recall keeps the two apart:
+`recalled(<boil>, boiling(kettle))` and an ordinary forward conclusion of
+`boiling(kettle)` are different relations, deposited by different code
+paths, so a corpus can always tell which one it's looking at.
 
-Two statements — one per direction — would drift apart with no way to detect
-the disagreement, because neither is the premise of the other. There is one
-node, `<boil>`, and direction is a **query over it**, never a field in it.
-Recall already honours this: it reads the same rule object execution would
-apply, off the same consequent.
-
-> **The reading must be recoverable.**
-
-Reading a rule backwards is reading its converse. *Four wheels ⇒ car*, run
-backwards, licenses *a cart is a car* — legitimate as a hypothesis, wrong if a
-planner treats it as entailment. Today recoverability is cheap to get right
-because `recalled(<R>, p)` and an ordinary forward conclusion of `p` are
-different relations, deposited by different code paths, and a corpus can
-always tell which one it's looking at. A fuller backward reader would owe the
-same guarantee under more pressure — a recalled candidate that gets
-*expanded* has to keep saying so all the way down, and nothing today builds
-that far.
-
-## Why a rule can't do this itself
-
-Recall is a function the machine runs, not something a rule computes, and
-that's not an accident of how far the implementation got — it's forced.
+## Recall is a service, not something a rule computes
 
 Reading a rule backwards means matching a goal against a stored pattern, and
 that's the operation no rule may perform (Chapter 6): matching is a floor
@@ -111,31 +90,21 @@ binding, because:
 Whatever answers *would this rule produce this goal* has to hand back
 something a rule can use, which means the answer has to arrive **already
 instantiated** — a service, in the same family as `kb.answerer` and
-`kb.computator` (Chapter 22), not a sixth floor primitive. A primitive a rule
-invoked would hand back a binding the rule still couldn't use; the moment the
-answer is instantiated, whatever computed it is doing the substitution too,
-which makes it a request rather than a primitive addition to the floor.
+`kb.computator` (Chapter 22), not a sixth floor primitive.
 
 > A floor item returns a **binding**. A service returns a **thing**.
 
-Recall is the first, thin instance of such a service: given a goal, it
-returns rule references, already resolved against the goal's relation — no
-binding leaks out. Turning that into `+need(<R>, goal, <subgoal>)` — one
-instantiated subgoal per antecedent member, the way Chapter 12 describes — is
-the same shape of service, sketched, and not built. `docs/feature-requests.md`
-and `horizon/34-not-built.md` track it; neither shows it as shipped, so this
-chapter won't claim it is.
+Recall is exactly such a service: given a goal, it returns rule references,
+already resolved against the goal's relation — no binding leaks out.
 
 ## What this buys you today
 
-Not a planner. What it buys is a fast, exact answer to *what in this corpus
-even claims to produce this relation* — the first move a planner would need,
-and the one piece of it that turned out cheap enough to ship as an ordinary
-index rather than a search. `<boil>` recalled in one lookup, no scan, no
-binding computed early and thrown away.
+A fast, exact answer to *what in this corpus even claims to produce this
+relation*. `<boil>` recalled in one lookup, no scan, no binding computed
+early and thrown away.
 
 ---
 
-**Next:** what a corpus does with a recalled candidate once you're willing to
-follow it further — where the design goes, and where it currently stops.
+**Next:** what a corpus does with a recalled candidate.
 [Plans and subgoals →](12-plans.md)
+</content>

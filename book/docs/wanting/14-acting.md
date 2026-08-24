@@ -4,10 +4,7 @@
 
 `attack(hero, goblin1)` is a fact like any other. A rule concludes it like
 any other conclusion. There is no action construct, no operator schema, and
-no plan-step type alongside the rules — and that much of this chapter's
-argument still holds exactly. What has changed is the machinery this book
-used to describe for carrying an intent *out* of the agent: it isn't built,
-and this chapter says so plainly rather than describing it as if it ran.
+no plan-step type alongside the rules.
 
 ## What's real: declare it, conclude it, read it
 
@@ -37,7 +34,7 @@ a host can trust was reached the way the corpus says it was reached.
 ## The marker: same act, different behaviour
 
 An intent that arrives at a rule as `declares($act, $r)` has two parts worth
-telling apart, and a corpus was already doing this before anyone wrote it up:
+telling apart:
 
 ```
 rule <trust-player> = implies(
@@ -95,52 +92,29 @@ stopped steering looks identical to one with nothing to say. Chapter 13's
 silence taxonomy, arriving inside one agent: check what actually got
 concluded, not just whether the run finished cleanly.
 
-## What this chapter used to claim, and doesn't any more
+## Deciding and acting stay two different things
 
-Earlier drafts described a boundary the machine enforced: a rule concludes
-`+doing(p)`, a shipped rule `<assert-act>` writes `+p` on the strength of it,
-another shipped rule `<did>` and a channel called `emitted` carry the intent
-past an anchored edge automatically. None of that exists. `grep`ping the
-engine for `doing`, `assert-act`, or `emitted` returns nothing, and
-`Machine`'s own reserved-name table has no entry for any of them.
+A conclusion is a claim, and it can be deposited freely. An **act**
+shouldn't be — deciding to act and acting are two different things, and only
+the first should be recoverable purely from what got concluded. Today that
+separation is a matter of convention, not something the engine enforces: a
+corpus concludes `deploy($s)` or `attack(goblin1)`, and it's up to the host
+wrapping the `Machine` to treat that belief as the trigger for a real effect
+exactly once, the way `tools_approval.ugm`'s `kb.answerer` binding does.
+Nothing stops a corpus from writing the same conclusion twice, or a host
+from acting on it twice — that discipline lives outside the engine.
 
-The reasoning behind that design is still worth having, because whatever
-eventually gets built to formalise "this agent acted" will face the same
-argument:
-
-> A conclusion is a claim, and it can be deposited freely. An **act**
-> shouldn't be — deciding to act and acting are two different things, and
-> only the first should be recoverable purely from what got concluded.
-
-Today that separation is enforced by convention, not by the engine: a corpus
-concludes `deploy($s)` or `attack(goblin1)`, and it's up to the host wrapping
-the `Machine` to treat that belief as the trigger for a real effect exactly
-once, the way `tools_approval.ugm`'s `kb.answerer` binding does. Nothing
-stops a corpus from writing the same conclusion twice, or a host from acting
-on it twice; that discipline lives outside the engine today, not inside it.
-
-## Supposition's containment is gone too, and this was the case for it
-
-An earlier design kept hypotheses in walled frames precisely so a conclusion
-drawn *inside* one couldn't leak out and be mistaken for a real effect — the
-worry chapter this used to be was built to answer. `horizon/34-not-built.md`
-confirms directly: "the supposition machinery is gone... which removes the
-mechanism and not the problem." A corpus that wants to reason about a
-hypothesis today writes it into the proposition itself — `given(h1, p)` — and
-contains its claims exactly as well as it writes them. There's no boundary
-left for "acting" to have been the one case that got muting right; that
-claim described a mechanism that no longer runs, so this book won't repeat
-it as if it still applies.
+A corpus that wants to reason about a hypothesis writes it into the
+proposition itself — `given(h1, p)` — and contains its claims exactly as
+well as it writes them.
 
 ---
 
-That's Part 3, honestly scoped: the machine can conclude that something
-should be done, and a host reading its beliefs can act on that — and that's
-as far as the shipped engine goes. `docs/feature-requests.md` and
-`horizon/34-not-built.md` are where the rest of "wanting" — subgoal
-expansion, a genuine acting boundary, an open-goal veto the loop itself
-enforces — is tracked as design, not fiction dressed as a feature.
+That's Part 3: the machine can conclude that something should be done, and a
+host reading its beliefs can act on that. That's as far as the engine goes;
+the rest is up to the corpus and the host around it.
 
 **Next:** everything so far has been stated flatly. Time to say things
 you're not sure about.
 [How strongly →](../unsure/15-how-strongly.md)
+</content>

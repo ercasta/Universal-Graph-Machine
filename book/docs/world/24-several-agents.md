@@ -83,25 +83,16 @@ agent no rule ever told.
 
 ## What crosses, and what doesn't
 
-Probed against the current parser, not assumed from an older one:
-
 | | |
 |---|---|
 | a proposition — `locked(door1)` | re-reads fine |
-| an atom of any shape — `moment(m1)` | re-reads fine; nothing is special about the word `moment` any more |
+| an atom of any shape — `moment(m1)` | re-reads fine — nothing is special about the word `moment` |
 | a rule's **name** — `<narrate>` | re-reads fine, as an ordinary term |
 | anything containing a variable | **refused**, at the receiver's parser |
 
-That table is shorter than it used to be, on purpose. `moment` and `entry`
-were refused once because they named a locus and an entry — real,
-structural things a corpus could not be allowed to fabricate. Neither
-exists any more (Chapter 19), so there is nothing special left to refuse:
-`moment(m1)` crosses exactly like `kettle(m1)` would, because as far as the
-parser is concerned that's all it now is.
-
-What *is* still refused, and for the same reason it always was: a fact may
-not contain an unbound variable, on either side of the wire. `say ch:
-+locked($x)` fails to parse before it ever reaches a channel.
+What *is* refused: a fact may not contain an unbound variable, on either
+side of the wire. `say ch: +locked($x)` fails to parse before it ever
+reaches a channel.
 
 ## Two real ceilings
 
@@ -212,13 +203,9 @@ walker.ugm: 5 ticks, ended quiescent
 found(child(child(w0, r2), r3), r3): believed
 ```
 
-!!! warning "Termination is a denial — and under the scratchpad, that's now wrong"
+!!! warning "Termination must not be a denial"
     The obvious way to write `<done>` is to erase the walker's position once
-    it succeeds: `implies({+found($w,$x)}, {-at($w,$x)})`. Under the old
-    chain that was safe — a denied claim stayed on the record, so nothing
-    downstream could be fooled into thinking it had never happened.
-
-    Under the scratchpad it is a bug, and a genuinely instructive one:
+    it succeeds: `implies({+found($w,$x)}, {-at($w,$x)})`. That's a bug:
     `<fork>`'s own guard is `no at(child($w,$y), $y)` — *absence*, checked
     against the state as it stands right now. Erase `at(child(w0,r2), r3)`
     once the walker is done with it, and that absence guard is satisfied
@@ -234,30 +221,21 @@ found(child(child(w0, r2), r3), r3): believed
     5  done  ...                                    -- and erased again
     ```
 
-    The fix is the same one Chapter 21 landed on for arrivals: a denial and
-    an absence guard are not partners, they're the same trap with a
-    different name. **Terminate additively.** `<done>` writes `done($w)`
-    rather than erasing `at($w,$x)`, and every other walker rule guards on
-    `no done($w)` instead. Nothing here is ever un-concluded; the walker is
-    simply marked finished, and finished stays finished because nothing
-    erases it.
+    The fix: a denial and an absence guard are not partners, they're the
+    same trap with a different name. **Terminate additively.** `<done>`
+    writes `done($w)` rather than erasing `at($w,$x)`, and every other
+    walker rule guards on `no done($w)` instead. Nothing here is ever
+    un-concluded; the walker is simply marked finished, and finished stays
+    finished because nothing erases it.
 
     > **A fact that's been erased is exactly as absent as one that was
     > never asserted.** Anything that reads absence to know when to stop
     > has to be told to stop by something that only ever grows.
 
-This reverses the old chapter's own conclusion (*"termination is a denial,
-and it is not retroactive"*) — which was correct for the chain it was
-written against and is a real trap for the scratchpad that replaced it.
-
 **What this doesn't do.** Cycles are still unbounded — a maze with a loop
 grows `child(child(child(…)))` without a limit, and *do not go where you
 have been* needs a negation over the walker's own path, which nobody built
-here. The comparative measurements the old chapter carried (spawn-versus-
-move tick counts, by-path-versus-by-node dedup counts) came from probes
-that no longer exist in this repo, so they aren't repeated — a number this
-book won't stand behind is a number it doesn't print. What's verified above
-is the corrected mechanism, run for real against the current engine.
+here.
 
 ## Why this is the natural home for `blocked`
 
@@ -276,8 +254,7 @@ all.
 ---
 
 That's Part 5. The machine now handles stretches, indefinite patterns,
-other people's words, numbers, and other minds — all of it, now, without a
-history to lean on.
+other people's words, numbers, and other minds.
 
 The remaining parts are optional. They turn the machine around to look at
 itself.

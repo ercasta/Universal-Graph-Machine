@@ -49,15 +49,23 @@ Three items. And the test of whether the line is drawn correctly:
 Not one of those says anything about time, belief, evidence, causation or the
 world. They're about how structure is built, matched and committed.
 
-That's down from five. Two items that used to stand here — a register that
-recorded where a write landed, and a stamp that recorded what produced every
-mint — left the floor entirely, and the reason each left is worth stating
-before the three that remain.
-
 ### 1. Structure and ordering
 
 Chapter 1, in full. Nodes, ordered members, nothing else. This is the medium,
 and no convention can supply it because every convention is written in it.
+
+A write is `Gate.write`, and it does one thing: mint the anchor `believed(p)`.
+`Graph._mint` records a relation, its members, and whether the node is
+generic — nothing else. There is no record anywhere of what produced a node:
+which rule, under which substitution, in which state. That is a real cost, not
+a simplification — see the "Deliberate, and a real cost" list in
+[what is not built](../horizon/34-not-built.md).
+
+The attention stack (`Machine._frames`, `push`/`pop`) sits nearby and is easy
+to mistake for part of this. It isn't: a frame is Python state scoping what
+the agent is thinking about, never consulted by a write and never itself a
+graph node a rule could read or move — only `attentioned($x)`, a filter, sees
+into it at all.
 
 ### 2. Variables and substitution
 
@@ -76,49 +84,20 @@ with this. A rule is a rule *because* it's generic; a pattern is a pattern
 *because* something substitutes into it. Remove this and there's no rule layer
 to write conventions in.
 
-!!! note "Deep dive: which slots may be generic was never argued"
-    A relation instance whose *relation slot* holds a variable — `$p($x)` — is an
-    ordinary generic node, and the substrate could always build one.
+!!! note "Deep dive: which slots may be generic"
+    A relation instance whose *relation slot* holds a variable — `$p($x)` — is
+    an ordinary generic node, and the substrate can build one. `ugm/core/rules.py`'s
+    `candidates` carries the case: a member whose relation is a variable takes
+    the whole believed set as its pool, the same one a bare variable member
+    gets.
 
-    `ugm/core/rules.py`'s `candidates` still carries the case: a member whose
-    relation is a variable takes the whole believed set as its pool, the same
-    one a bare variable member gets. Nobody had asked which of three separate
-    refusals — the surface wouldn't parse it, the unifier compared the relation
-    slot by identity, substitution wouldn't rebuild one — was the *reason* it
-    used to be unmatchable, so it read as a property of the floor. It isn't.
-    Genericity is floor; *which slots may be generic* is a choice.
+    Genericity is floor. *Which slots may be generic* is a choice — a design
+    decision about what the surface parses and the matcher accepts, not a
+    consequence of the self-reference argument above.
 
-### Two items that left
-
-**A register.** Writes used to land at a locus — a moment the machinery was
-currently standing in — and something had to point at which one. That pointer
-was floor, on the argument that finding it would itself need a read, and a read
-needs somewhere to stand.
-
-The locus is gone (`+on($x,$y) at $m` is refused at load, in full, by the
-parser). A write today is `Gate.write`, and it does one thing: mint the anchor
-`believed(p)`. Nothing about *where* survives to ask about — `gate.py`'s own
-docstring says plainly what's left: *"one function in, one function out."* The
-pointer had a job only as long as writes needed a place to land, and once they
-stopped needing one there was no question left for a register to answer.
-
-The attention stack (`Machine._frames`, `push`/`pop`) sits nearby and is easy to
-mistake for the register's replacement. It isn't one: a frame is Python state
-scoping what the agent is thinking about, never consulted by a write and never
-itself a graph node a rule could read or move — only `attentioned($x)`, a
-filter, sees into it at all.
-
-**A stamp on every mint.** Every node used to record what produced it: which
-rule, under which substitution, in which state. That was the derivation
-record, and `gate.py` says where it went in one line: *"The licence and the
-source were the derivation record, and the derivation record went with the
-chain."* `Graph._mint` today records a relation, its members, whether it's
-generic — and nothing else. Ask what produced a node and there is no answer
-stored anywhere to ask for; `Machine` has no `why`.
-
-This is a real cost, not a tidy simplification, and the book doesn't pretend
-otherwise — see the "Deliberate, and a real cost" list in
-[what is not built](../horizon/34-not-built.md).
+A member cannot bind a locus (`+on($x,$y) at $m` is refused at load): a member
+says what holds, not where it sits. Write ordinary relations of your own if
+you need to talk about position or order.
 
 ### 3. One total step
 
@@ -132,9 +111,6 @@ broken by authored order, and it has no case in which it declines to answer.
 
 The floor requires only that the final tiebreak **does not itself reason**. It
 does not require that the answer be kept anywhere, or that there be much of it.
-An earlier draft said *a lookup over an authored precedence table*; the table
-went first, and then the precedence relations it cached went too, and totality
-was never what was at stake in either.
 
 ## Two grounds, not one
 
@@ -152,12 +128,7 @@ needed in order to do the thing itself**. And both take the same escape —
 **a function, not a search**.
 
 Ordering is a choice, and should be defended as one: it could be given up, at
-the price of complexity. The two items that used to sit beside it on a third
-ground — **by guarantee**, fully reducible but kept for what giving them up
-would have cost — are the register and the stamp, and both were in fact given
-up. The register cost nothing measurable once the locus went with it; the
-stamp cost the derivation trail, which is why it's listed as a real cost above
-rather than folded quietly into "simplified."
+the price of complexity.
 
 ## Descent should be measured, not argued
 
@@ -168,26 +139,17 @@ on every relation instance, you can't write `on(a, b)` without committing to
 which is which, and positions aren't freely coinable.
 
 Where the analogy bites is the disanalogy. In language that happens over
-centuries and nobody decides it. In earlier drafts of this design it happened in
-one sitting, which is how moments, entries, signs, connectives and goals all
-ended up on the floor with no evidence behind them.
-
-So:
+centuries and nobody decides it. A design gets to draw this line in one
+sitting instead — which is exactly why the line has to be checked, not just
+argued for:
 
 > **A convention descends to the floor only by measured use:** high frequency,
 > on the path of an irreducible primitive, and bleached of domain content.
 
 All three are checkable, and the checking has repeatedly overturned the
-expectation it was run to confirm. A census retired the **grade** — 4 of 3,740
-rules authored a non-certain one. A second census retired the **precedence
-table** — deleting it cost 6.42s against 6.38s — and a third went through every
-precedence claim in the repository, found that four of seven were doing
-nothing and the rest were premises in disguise, and retired the relations
-themselves. The same discipline, applied again later, is what took the
-register and the stamp off this very list.
-
-None was cut for being wrong. All were cut for being *unused where it counted*,
-which is a measurement and not an argument.
+expectation it was run to confirm — a census over the rule corpus, or a timed
+run with and without a proposed mechanism, settles the question rather than a
+designer's intuition about it.
 
 > **Closed is a rate, not a kind.** A closed set defended well is
 > indistinguishable, from the inside, from a closed set nobody has checked.
@@ -213,8 +175,7 @@ compiled path still has a slow definition to be held to:
 is checked against `_has_var_slow`, the walked definition, every time the
 substrate's own suite runs it — an index is a re-implementation of what it
 indexes, and it has to be held to it. Chapter 32 has the rest of what still
-checks itself this way, and it is a shorter list than it used to be, for the
-same reason the floor above it is a shorter list.
+checks itself this way.
 
 The second clause isn't decoration. A convention compiled into the host language
 **is not interruptible**, and Chapter 25 spends its length arguing that being

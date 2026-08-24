@@ -32,17 +32,9 @@ In exchange for that extra hop, nothing in the system ever has to *remember*
 that a bare proposition means nothing. It structurally cannot be mistaken for
 a claim, because nothing points at it as believed.
 
-!!! note "There used to be two more members, and both are gone"
-    An entry — the older name for this node — once carried a **sign**
-    (`+`/`−`/`?`, a value stored *on* the claim) and, before that, a **locus**
-    (which moment the claim was *about*, as distinct from when it was made).
-    The locus went first, and the story of that cut is Chapter 5's. The sign
-    went with the second cut, and it's a bigger one: there is no longer a
-    history for a sign to distinguish an entry's place *in*. What a claim
-    used to say with a stored value, it now says by an **act** — asserting
-    mints this node, erasing deletes it. Chapter 3 is the full account of what
-    that trade cost and bought. Chapter 4 is what happened to the history
-    itself.
+What a claim says, it says by an **act**: asserting mints this node, erasing
+deletes it. There is nothing stored on the anchor beyond its presence —
+Chapter 3 is the full account of what that buys.
 
 ## Asserting twice is not two things
 
@@ -71,18 +63,11 @@ leaned on the flip side of this — a rule that could *keep* matching has to be
 the one that stops itself, because the machine will not decide on your behalf
 that reapplying it would be pointless.
 
-## What that costs
+## What erasing costs
 
-Under the old design, two *different* claims about one proposition were two
-different nodes — an entry was "an act of claiming," and two acts were two
-entries, deposited at different points in a history. That bought something
-real: *the world changed* (a new, later claim) and *I was wrong* (a fact about
-the old claim, which stayed put, unretouched) were different shapes in memory,
-and both stayed readable afterwards.
-
-That capability is gone along with the history it depended on. Believe
-`poisoned(a)`, then erase it — the anchor is *deleted*, not superseded. Nothing
-about the earlier belief survives the erasure automatically:
+Believe `poisoned(a)`, then erase it — the anchor is *deleted*, not
+superseded. Nothing about the earlier belief survives the erasure
+automatically:
 
 ```
 rule <cure> = implies( { +healed($x), +poisoned($x) }, { -poisoned($x) } )
@@ -100,8 +85,7 @@ state, that has to be written down on purpose — an ordinary fact deposited
 alongside the erasure, `{-poisoned($x), +cured($x)}`, not something the
 substrate hands you for free. **Never considered** and **considered and
 retracted** are, by default, the same state: absence. That is honest — nothing
-here remembers on your behalf — and it is a real narrowing from what the older
-design could say. Chapter 4 explains what was bought back in return.
+here remembers on your behalf.
 
 ## Where the regress stops
 
@@ -186,6 +170,5 @@ is always to put the variable where the rule's own variables live.
 
 ---
 
-**Next:** the two ways a rule can look at absence — and the one thing left
-that used to need a third.
+**Next:** the two ways a rule can look at absence.
 [Three signs, and silence →](03-signs.md)

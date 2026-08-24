@@ -70,37 +70,23 @@ And the same fact from the other direction:
 Which is why Chapter 27 comes after this one, and why the order **stopping →
 recall → learning** is the order the pieces had to be built in.
 
-## Quiescence used to be made of rules, and no longer is
+## Quiescence asks nothing; the rule has to
 
-Earlier in this project, quiescence asked a semantic question: *would applying
-this candidate change anything?* Answering it was six rules, and getting there
-was the last thing standing between that design and a fully rule-level kernel,
-because it looked like it needed something the language couldn't say — a claim
-about a **set**, *no conclusion of this application would change anything*.
-Measured on the gate that held the compiled verdict to those six rules: **145
-candidates compared, 0 disagreeing.** And caching the verdict re-tested the same
-answer 99.8% of the time, worth a factor of two on a quadratic that stayed a
-quadratic — a result kept here as a reminder that *removes the cost per
-candidate* and *removes the candidate* are different claims, easy to conflate
-in the moment a number improves.
+The table loop (Chapter 28) does not ask *would applying this candidate change
+anything?* There is no per-candidate filter: a rule that matches and writes
+nothing new is offered again, on the next tick, at the same score. *This rule
+has nothing further to give* is the corpus's judgement, never the engine's —
+made with a guard. `no mortal($x)` on `<mortal>` above is what stops it.
 
-The table loop (Chapter 28) does not ask that question at all. There is no
-per-candidate filter any more: a rule that matches and writes nothing new is
-offered again, on the next tick, at the same score, because *this rule has
-nothing further to give* became the corpus's judgement rather than the
-engine's — the same move that turned `boost`/`damp`/`reset` into `attend`
-(Chapter 28) turned *would this change anything* into a question a rule
-answers about itself, with a guard: `no mortal($x)` on `<mortal>` above is what
-stops it, not a compiled verdict watching from outside.
+> **A rule must guard its own conclusion, or it re-applies forever.**
 
-That is cheaper — nothing is compared against a cache, because nothing is
-cached — and it moves a real cost onto the author: an unguarded rule that keeps
-matching does not merely re-derive nothing, it **occupies every tick**, because
+That moves a real cost onto the author: an unguarded rule that keeps matching
+does not merely re-derive nothing, it **occupies every tick**, because
 declaration order breaks every tie the same way. Chapter 28's penguin table
 shows exactly this: `<flies>` without `no flies($x)` never gives `<flightless>`
 a turn, for four hundred ticks, and the run never reaches quiescence at all.
-*An occasion is consumed. A fact is not* (`docs/authoring.md` §0) is no longer
-a style note — it's what keeps the loop moving.
+*An occasion is consumed. A fact is not* (`docs/authoring.md` §0) is what keeps
+the loop moving.
 
 ## Quiescence is still a place the machinery can decline silently
 
@@ -117,10 +103,9 @@ That was one short.
 
 *Nothing matches* is a state a run reports (`ended quiescent`), but *this rule
 keeps matching and keeps writing nothing* looks, from outside, exactly like
-useful work — the loop has no way to say which one happened, because it no
-longer asks. That's the price of dropping the six-rule check: a capability
-(the machinery telling a rule apart from a rule that has gone stale) traded for
-a cheaper loop and a guard the corpus now has to remember to write.
+useful work — the loop has no way to say which one happened, because it never
+asks. Telling a rule that's still working from one that has gone stale is the
+guard's job, and the corpus has to remember to write it.
 
 ## Doubt, and settling it
 

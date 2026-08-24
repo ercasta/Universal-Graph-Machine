@@ -57,10 +57,8 @@ what is *not* — `no poisoned(b)` holds by default only until something asserts
 
 ## 2. There's no precedence relation. The exception goes inside the rule.
 
-There used to be an `overrides`/`supersedes` fact a corpus could write beside two competing rules;
-it's gone from the engine now. The only ways left to control which of two applicable rules wins are
-**authored order** (see §5) and putting the exception **inside the losing rule**, as a negated
-member — which is what `unless` means here and was always the more precise tool anyway:
+Two ways to control which of two applicable rules wins: **authored order** (see §5), and putting the
+exception **inside the losing rule**, as a negated member — which is what `unless` means here:
 
 ```
 rule <regen> = implies( { +wounded($x), no poisoned($x) }, { +heals($x) } )
@@ -69,12 +67,10 @@ rule <regen> = implies( { +wounded($x), no poisoned($x) }, { +heals($x) } )
 Write it inline, not beside the rule: a rule's variables are scoped to its own statement, so a fact
 naming the exception separately can't reach the rule's own `$x`.
 
-## 3. The connective decides whether a loop terminates
+## 3. Only `implies` exists. A rule can still loop.
 
-There's one connective (`implies`) since `causes` was retired — it's refused at load with a message.
-Under the old two-connective design the criterion was: *an occasion warrants a re-ask only if
-re-asking cannot produce one.* With only `implies`, that risk is narrowed but not eliminated — see §0:
-what still loops is a rule whose antecedent survives its own consequent.
+There's one connective. A rule whose antecedent survives its own consequent re-applies forever — see
+§0.
 
 ## 4. What works, and is worth building on
 
@@ -122,9 +118,8 @@ actually knows yet.
 
 - **Two rules that say the same thing are two rules.** Restating isn't revising — deny the one you
   meant to change.
-- **Authored order is the arbitration tiebreak** when nothing else settles it, since there's no
-  precedence relation any more (see §2). If you care which of two applicable rules goes first, that's
-  the only lever — don't be surprised by it either.
+- **Authored order is the arbitration tiebreak** when nothing else settles it — the only lever there
+  is (see §2). If you care which of two applicable rules goes first, don't be surprised by it.
 - **A reserved name in an argument position is reported at load**, not refused — `plus`/`minus` are
   the sign atoms, so `calc(minus, 5, 2)` silently means something else than an author might expect.
   Numerals are excluded from the report, since sharing the numeral the machinery uses is correct.

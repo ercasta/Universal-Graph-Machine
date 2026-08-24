@@ -28,9 +28,9 @@ which this generalises:
 
 Given Chapter 6's antecedent, a shape needs no new construct. It's a
 **recursive definition over stretches**, written as ordinary rules in
-ordinary vocabulary. Chapter 19 told the current story of what a stretch is:
-two node names, carried as arguments of a proposition the corpus asserts —
-nothing minted, nothing derived, no chain underneath any more.
+ordinary vocabulary. Chapter 19 described what a stretch is: two node names,
+carried as arguments of a proposition the corpus asserts — nothing minted,
+nothing derived.
 
 *Taking turns* needs at least two turns, so that's the base case; the step
 case consumes one turn and defers the rest:
@@ -40,13 +40,11 @@ case consumes one turn and defers the rest:
 <TT-step>   one turn, followed by a stretch over which the others took turns
 ```
 
-## Succession is now the corpus's to assert
+## Succession is the corpus's to assert
 
-The old chain gave a rule `anc`/`pred` for free: two moments and an ordering
-between them, derivable by walking history. That walk is gone along with the
-history it walked (Chapter 19). So the recursion has to be handed its own
-succession as ordinary facts — nobody is going to infer *turn 2 comes right
-after turn 1* on the corpus's behalf any more:
+Nothing derives an ordering between two moments. The recursion has to be
+handed its own succession as ordinary facts — nobody infers *turn 2 comes
+right after turn 1* on the corpus's behalf:
 
 ```
 rule <TT-base>
@@ -92,33 +90,21 @@ what it believes, newest first:
 ```
 
 Ten stretches, every one of them from a five-turn alternation, with the
-argument order correct in each — the recursion working exactly the way it
-did under the chain, over facts the corpus now states outright instead of
-inheriting from history.
+argument order correct in each — the recursion working over facts the corpus
+states outright, each turn its own distinct proposition (see below).
 
-## Why the raw-chain trick is gone, and what took its place
+## Every distinct claim survives
 
-The old chapter spent its middle third on a genuinely subtle point: a
-matcher that only sees the *resolved* state can't recognise `<TT-step>`,
-because the earlier turn it needs has been superseded by later ones with
-the same actor — so the recognisers had to read the raw, unresolved chain
-instead, and got away with it only because their conclusions were
-"structural," never a claim.
+`turn(1, anna)` and `turn(3, anna)` are **different propositions** —
+different arguments, different nodes — so neither supersedes the other. Both
+are simply believed, simultaneously, for as long as nobody erases either.
+That is what lets `<TT-step>` see the earlier turn it needs even after later
+turns by the same actor are also believed.
 
-None of that applies any more, and not because it was patched — because the
-problem it solved doesn't exist. `turn(1, anna)` and `turn(3, anna)` are
-**different propositions** — different arguments, different nodes — so
-neither supersedes the other under the scratchpad. Both are simply believed,
-simultaneously, for as long as nobody erases either. There is no resolved
-state distinct from a raw one to read around. One matcher, one state, and
-the whole "structure versus claim" distinction that made the old three-rule
-shape necessary is gone with the thing that forced it.
-
-What is still necessary, and is new rather than inherited: the `no
-turns($n, $m, $a, $b)` guard on both rules. Without it each rule keeps
-matching the same already-true conclusion, and the run never reaches
-quiescence — it burns through the tick limit finding nothing new. That's
-Chapter 19's discovery again, arriving here:
+What *is* necessary: the `no turns($n, $m, $a, $b)` guard on both rules.
+Without it each rule keeps matching the same already-true conclusion, and
+the run never reaches quiescence — it burns through the tick limit finding
+nothing new:
 
 > **An application that changes nothing is offered again.** A shape's own
 > recursion has to stop itself; nothing else will.
@@ -173,10 +159,10 @@ fact +size(g1, 3)        ...and it has three members, if you happen to know
 Membership is not stored, for the same reason a stretch's contents aren't.
 What you know about the group is said about the group.
 
-The same move works for a **scalar you don't know**. There is no longer a
-grade to say *unknown* with (`?` is gone as any kind of sign — a proposition
-is asserted or it isn't, nothing in between). So don't name the value; name
-the **relationship**, and say what's known of it:
+The same move works for a **scalar you don't know**. There is no grade to
+say *unknown* with — a proposition is asserted or it isn't, nothing in
+between. So don't name the value; name the **relationship**, and say what's
+known of it:
 
 ```
 rule <pour> = implies( { +poured($g), no rises($g) },
@@ -190,7 +176,7 @@ fact +brim(g1, low)
 
 ```
 $ python -m ugm pour.ugm --ask "overflows(g1)"
-pour.ugm: 2 ticks, ended quiescent
+pour.ugm: 3 ticks, ended quiescent
 overflows(g1): believed
 ```
 

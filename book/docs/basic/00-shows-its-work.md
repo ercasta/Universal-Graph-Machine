@@ -102,16 +102,10 @@ Parts 6 to 8 turn the machine around to look at itself: its own commitments as
 ordinary facts, the things that genuinely could not be taught, and how
 something made of rules manages to read its first rule at all.
 
-!!! note "Deep dive: what happened to *why*"
-    An earlier version of this engine answered a second question after every
-    run — `--why mortal(paul)` — and walked back a proof: which rule, which
-    premises, all the way to what you'd typed. That machinery is gone. It
-    depended on every claim carrying a licence and a place in a history, and
-    both went when the history did (Chapters 4 and 5 tell that story in full).
-    What's left is honest about the trade: `python -m ugm` prints the whole of
-    what's believed, and nothing is hidden behind a summary — but there is no
-    programmatic explanation trail either, in this repo, right now. It's listed
-    as a real gap, not a secret, in Chapter 34.
+`python -m ugm` prints the whole of what's believed, and nothing is hidden
+behind a summary — but there is no programmatic explanation trail: no
+`--why`, no walking a conclusion back to the facts it rests on. That's listed
+as a real gap, not a secret, in Chapter 34.
 
 ---
 

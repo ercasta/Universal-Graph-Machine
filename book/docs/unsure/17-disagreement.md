@@ -70,48 +70,21 @@ sitting in the graph, so the check fails and `<regen>` doesn't apply. Absence
 is not denial, and here that's what makes the premise cheap: nobody had to
 assert `b`'s innocence for it to hold.
 
-## The machine used to have more than this, and it was worse
+## There's no precedence relation
 
-For most of this design's life there were two precedence relations, and the
-chapter you are reading was about choosing between them.
+Nothing in this design ranks one rule over another. There is no `overrides`,
+no `supersedes` — check the machine's own vocabulary and neither name means
+anything to it. Write `fact overrides(<poison>, <regen>)` into the corpus
+above and nothing changes: it's an ordinary, uninterpreted proposition,
+exactly as inert as any other name a corpus never wires a rule to read.
 
-- **`overrides(A, B)`** — if A applied at all this tick, B does not. Per tick,
-  per rule.
-- **`supersedes(A, B)`** — A defeats B where the two consumed the same entry.
+> **There's no precedence relation. The exception goes inside the rule.**
 
-Neither survived. Pointed at the case above, `overrides` did exactly what
-`dormant` does: `a` correct, `b` collateral damage, permanently, because `a`
-stays poisoned so poison matches every tick. `supersedes` did nothing at all
-here — these two applications consumed `poisoned(a)` and `wounded(a)`, which
-have nothing in common — so both rules applied and the ordinary read decided it:
-`<poison>` wrote second, later supersedes earlier, and `b` healed by accident
-rather than by anything anyone wrote.
-
-Today neither name means anything to the engine at all — check the machine's
-own vocabulary and there is no `overrides`, no `supersedes`, nowhere. Writing
-`fact overrides(<poison>, <regen>)` into the corpus above changes nothing:
-the run is byte-for-byte identical with the fact and without it, because
-nothing ever reads it. That is a stronger fact than "retired" — it isn't a
-mechanism that got worse and was removed, it's an ordinary, uninterpreted
-proposition now, exactly as inert as any other name a corpus never wires a
-rule to read.
-
-> **Precedence ordered rules. It never carved out cases, and the exception is
-> always a case.**
-
-What finally retired them was going through every precedence in the repository
-and asking what it was really saying. There were seven, and not one of them
-needed a precedence relation:
-
-| what it said | what it says now |
-|---|---|
-| `overrides(<gob-flees>, <gob-acts>)` | `no hp($x, 1)` — a premise about the state |
-| `overrides(<hero-acts>, <hero-holds>)` | nothing: acting spends `may(hero)`, so the loser has no right left to act on |
-| `overrides(<halt>, …)` ×4 | nothing: each actor already requires its combatants present |
-| `supersedes(<outcome>, <assert-act>)` | `no substituted($what)` in the bundled rule, per act |
-
-Four of the seven were doing no work at all. The rest were premises wearing a
-mechanism's clothes.
+There is no relation to name `<poison>` and `<regen>` together, no matter how
+that relation is spelled. The exception goes **inside the losing rule**, as a
+negated member, because the antecedent of `<regen>` is the only place it can
+live and still see the variable it's about — a fact naming the exception
+separately, from outside the rule, can't reach `<regen>`'s own `$x`.
 
 ## When taking a rule out *is* the right answer
 
@@ -141,8 +114,9 @@ alarm: not believed
 ```
 
 Two moves, and the run reaches quiescence. What makes that safe is the same
-thing that made precedence unnecessary: the loser here has genuinely stopped
-being considered, rather than being ranked low and applying later anyway.
+thing that makes a premise the right tool for an individual exception: the
+loser here has genuinely stopped being considered, rather than being ranked
+low and applying later anyway.
 
 ## Arbitration is scheduling, not decision
 
@@ -155,8 +129,9 @@ there next tick, and if its situation still holds it will get its turn. The
 machine runs to quiescence, so **ordering alone is not defeasibility** — a low
 score delays a rule and never removes one.
 
-That is exactly why a score could not have replaced precedence, and why the
-thing that replaced it was premises rather than ranking.
+That is exactly why authored order can't do the job a premise does: order is a
+tiebreak among rules that both apply, not a way to take one out of
+consideration. Only a premise — or `dormant`, wholesale — does that.
 
 Which has a consequence that took a while to see, and it's a nice one:
 
@@ -189,25 +164,23 @@ anything.
 
 ## What the machinery knows, it writes down
 
-While precedence existed, every defeat was deposited: `defeated(<loser>,
-<winner>)`. Not because someone wanted a log, but because the machinery knew
-something and no rule could ask about it — the recurring defect this project
-names explicitly:
+Whatever settles a disagreement between rules should be something a rule can
+read, never something only the machinery holds internally:
 
 > **Something the machinery knows and no rule can ask about is a defect, and the
 > repair is always to deposit the record.**
 
-That record went with the relation, and the reason is worth having: the claim
-that takes a rule out is now the corpus's own. A rule concluded `dormant(<R>)`,
-dated and attributable, and a rule can read it — so there is nothing left for
-the machinery to write down on its behalf.
+In the `<referee>` example above, the claim that takes `<hot>` out is the
+corpus's own: a rule concluded `dormant(<hot>)`, dated and attributable, and
+any rule can read it. There is nothing left for the machinery to track on a
+corpus's behalf.
 
 The pattern itself is stable enough to use as a search: **anything the loop
 computes per tick and does not write down is a candidate.** A run still
 working when the tick limit bites deposits `bounded(ticks)`, so a corpus can
 notice its own runaway rather than a human watching the console for it. The
-strength of a claim became a wrapping term (Chapter 15). And the newest one:
-when a trigger changes what a rule concluded, that is `rewrote(<T>, old, new)`
+strength of a claim is a wrapping term (Chapter 15). And the newest one: when
+a trigger changes what a rule concluded, that is `rewrote(<T>, old, new)`
 (Chapter 16), because a conclusion that is not what the rule said it concluded
 cannot be reported as the rule's alone.
 

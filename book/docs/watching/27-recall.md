@@ -3,31 +3,22 @@
 Before the machine can choose a rule, something has to hand it a set of rules to
 choose from.
 
-That step is called **recall**, and it is the most consequential *policy* in the
-design — which is why the fact that it was once listed as a primitive is worth
-correcting out loud. Earlier drafts named four primitives: recall, match, write,
-arbitrate. Against the actual floor (Chapter 30) they decompose unevenly:
-
-| earlier primitive | verdict |
-|---|---|
-| **match** | floor |
-| **write** | floor — a register to write into, a stamp on the result |
-| **arbitrate** | *totality* is floor. *Precedence* is a claim in the graph. |
-| **recall** | **entirely convention.** An index plus a policy. |
-
-One of the four was never a primitive at all. Calling it one obscured that it is
-a **choice**.
+That step is called **recall**, and it is the most consequential *policy* in
+the design — not a primitive. Against the actual floor (Chapter 30), match and
+write are floor operations; arbitrate is only partly floor, since *totality*
+is floor but *precedence* is a claim in the graph; and recall is **entirely
+convention** — an index plus a policy. Calling recall a primitive would
+obscure that it is a **choice**.
 
 ## Two layers share the job
 
 **Recall is coarse.** It answers *which rules are live at all*. A rule claimed
 `dormant` is skipped unless something has marked it `due`; a budget caps how
 many rules are considered at once — and the cap may not starve a woken callback
-or a `standing` rule, a carve-out you will meet again below. One measurement
-shaped this layer more than any other: **nothing derived narrows this step.**
-An earlier version ordered the candidates by learned preference before cutting,
-and the ordering changed no outcome; the preference machinery it leaned on is
-retired, and the cut is now just a cut.
+or a `standing` rule, a carve-out you will meet again below.
+
+> **Nothing derived narrows this step.** The cut is just a cut — nothing is
+> ordered by preference before it happens.
 
 **The table is fine.** Everything live gets a score — `standing` rules at the
 apparatus's height, everything else at the floor — and the loop of Chapter 28
@@ -36,11 +27,8 @@ are *matched at all* is decided by the score; **attention on a thing**
 (`attention(goblin1)` — an ordinary claim about a node, never about a rule)
 lifts the rules that could be about it into the window.
 
-The rest of this chapter is three laws that any such mechanism has to obey.
-They were learned on an earlier recall design — an index over conclusions, a
-summed preference score, a learned tuning pass — and when that design was
-replaced by the table, the laws transferred whole. That is usually the sign
-they were about the problem rather than the mechanism.
+The rest of this chapter is three laws that any such mechanism has to obey —
+about the problem recall solves, not about the table that solves it today.
 
 ## Nothing came to mind is not nothing is left to do
 
@@ -123,13 +111,10 @@ smaller than it looks from outside.
 ## Callbacks are directed recall
 
 An **occasion** is a fact the machinery deposits when something notable
-happens. The vocabulary is smaller than it once was — `quiet`, `blocked`,
-`unsupported` and `refused` were signals the old option-set loop could afford,
-because it had already matched everything and could say precisely what it
-lacked; the table loop never materialises that set, so it can't. What survives
-into the table loop is `bounded(ticks)` (the run hit its limit still applying)
-and `close(<a>, <b>)` (Chapter 28's doubt) — both genuinely deposited, both
-things a corpus can key a callback on today.
+happens. The table loop never matches everything, so it can only report what
+it actually saw: `bounded(ticks)` (the run hit its limit still applying) and
+`close(<a>, <b>)` (Chapter 28's doubt) — both genuinely deposited, both things
+a corpus can key a callback on.
 
 A corpus keys on one, and that is the first thing a corpus can say to this
 step: *when this happens, think of me* — the `due` mark that recall's budget

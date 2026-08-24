@@ -147,6 +147,12 @@ rule <cancel>
 ->
   +disrupted($f)
 
+rule <late>
+  +delayed($f, long)
+  no disrupted($f)
+->
+  +disrupted($f)
+
 rule <care>
   +disrupted($f)
   +booked($p, $f)
