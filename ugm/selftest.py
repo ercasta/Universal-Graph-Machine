@@ -735,6 +735,40 @@ def triggers() -> None:
           and any(m3.g.relation_of(p) is m3.REWROTE for p in m3.pad.believed()))
 
 
+def tool_approval() -> None:
+    """`ugm/rules/tools_approval.ugm`: `<hold>` (§19) turns a write into a
+    `pending`, an ordinary tool (§17) answers it, and the two outcomes are
+    two ordinary rules. See `docs/tools-approval.md` and
+    `ugm.probes.tools`."""
+    print("\n--  approval is a corpus, not a feature: §17 tools + §19 "
+          "triggers, composed")
+    path = _corpora.path("tools_approval.ugm")
+
+    def run(decision: str):
+        m = Machine()
+        pre = load(m, "", scope="ops")
+        pre.answerer("approve", "pending", lambda mach, prop: pre.atom(decision))
+        kb = load_file(m, path, scope="ops")
+        steps = m.run(limit=20)
+        return m, kb, steps
+
+    m, kb, steps = run("yes")
+    check("--", "approved reaches quiescence with the action taken",
+          steps[-1].state == "quiescent" and m.holds(kb.term("deploy(web)")))
+    check("--", "...and the pending record and its answer are both consumed, "
+                 "not left for a later approval to match again",
+          not m.holds(kb.term("pending(deploy(web))"))
+          and not m.holds(kb.term("answered(approve, pending(deploy(web)), "
+                                   "yes)")))
+
+    m2, kb2, steps2 = run("no")
+    check("--", "denied reaches quiescence with the action never taken",
+          steps2[-1].state == "quiescent"
+          and not m2.holds(kb2.term("deploy(web)")))
+    check("--", "...and nothing is left pending",
+          not m2.holds(kb2.term("pending(deploy(web))")))
+
+
 # -- attention --------------------------------------------------------------
 
 
@@ -1274,6 +1308,39 @@ def lanes() -> None:
           m3.holds(kb3.term("noted(a)")))
 
 
+def circuit_breaker() -> None:
+    """`ugm/rules/circuit_breaker.ugm`, against a rule built to never stop
+    matching (`<flaky>`: two bindings of `+p($x)`, no guard consuming
+    either). Composes triggers, `dormant`/`due` and a lane -- see the
+    corpus's own header for why each is load-bearing."""
+    print("\n--  a circuit breaker: triggers count every selection, a lane "
+          "keeps the trip rule from being starved by what it watches")
+    path = _corpora.path("circuit_breaker.ugm")
+    src = """
+        fact +p(a)
+        fact +p(b)
+        rule <flaky> = implies( { +p($x) }, { +q(a) } )
+
+        fact +watched(<flaky>, flaky_tag)
+        fact +tries(flaky_tag, 0)
+        fact +threshold(flaky_tag, 5)
+    """
+    m = Machine()
+    ldr = load(m, "", scope="cb")
+    ldr.computator("plus", lambda a, b: int(a) + int(b))
+    ldr.computator("at_least", lambda a, b: "yes" if int(a) >= int(b) else None)
+    kb = load(m, src, scope="cb")
+    flaky = kb.rule_nodes["flaky"]
+    load_file(m, path, scope="cb")
+    steps = m.run(limit=50)
+    check("--", "it trips BEFORE the tick budget runs out",
+          steps[-1].state == "quiescent" and len(steps) < 50)
+    check("--", "at exactly its own threshold, not before and not after",
+          m.holds(m.g.rel(kb.atom("tries"), kb.atom("flaky_tag"), m._numeral(5))))
+    check("--", "and the watched rule is the one that went dormant",
+          m.holds(m.g.rel(m.DORMANT, flaky)))
+
+
 def experts() -> None:
     print("\n§20 experts: computed FROM the nodes pushed, never named by the "
           "rule that pushed them")
@@ -1422,6 +1489,7 @@ def main() -> int:
     the_bundle()
     tools()
     triggers()
+    tool_approval()
     attention()
     reference_lines()
     rhs_tail()
@@ -1431,6 +1499,7 @@ def main() -> int:
     line_form()
     frames()
     lanes()
+    circuit_breaker()
     experts()
     surface()
     the_web()

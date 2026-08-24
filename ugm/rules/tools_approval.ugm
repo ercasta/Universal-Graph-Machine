@@ -1,0 +1,37 @@
+# Tool activation, gated by approval -- the worked example for
+# docs/tools-approval.md.
+#
+# No new engine primitive: `action` is the discoverable palette, `<hold>` is
+# an ordinary write-time trigger (`intercepts`/`producing`/`instead`, same as
+# `selftest.triggers`), and the approval itself is an ordinary tool -- a
+# Python `answerer` bound to the `pending` relation, registered by whatever
+# loads this corpus (see `ugm/probes/tools.py`). It may answer instantly, or
+# block on a real human; the corpus cannot tell the difference and does not
+# need to.
+#
+# The strategy lives entirely in `<hold>`: this one holds every `deploy`
+# action for approval. A different strategy is a different `<hold>` -- ask
+# only for a `production` service, auto-approve everything, always deny --
+# swapped in without touching `<request>`, `<approved>` or `<denied>`.
+
+action deploy($service)
+
+fact +want(deploy(web))
+
+rule <request> = implies( { +want(deploy($s)) },
+                          { +deploy($s), -want(deploy($s)) } )
+
+fact +intercepts(<hold>, after)
+rule <hold> = implies( { +producing(<request>, deploy($s)) },
+                       { +instead(deploy($s), pending(deploy($s))) } )
+
+# The two ways an answer resolves. Each consumes the record it answers, so
+# neither rule matches twice for the same request -- the same discipline
+# `docs/guide.md`'s `<pay>` example spends on `-pays(...)`.
+rule <approved> = implies( { +answered(<approve>, pending(deploy($s)), yes) },
+                           { +deploy($s), -pending(deploy($s)),
+                             -answered(<approve>, pending(deploy($s)), yes) } )
+
+rule <denied> = implies( { +answered(<approve>, pending(deploy($s)), no) },
+                         { -pending(deploy($s)),
+                           -answered(<approve>, pending(deploy($s)), no) } )

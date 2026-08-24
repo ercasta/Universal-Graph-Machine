@@ -38,7 +38,11 @@ ROLES: Dict[str, List[str]] = {
     # agent has and cannot use.
     "belief": ["believed", "erased"],
     # R3/R4: rules are subjects, and rules are askable.
-    "rules as data": ["rule", "ant", "con", "computes", "names"],
+    #  `action` joins `computes` rather than "the seam to a world": it is a
+    # claim ABOUT a pattern the agent may deliberately produce, deposited the
+    # same way `reify` deposits `ant(<R>, heat($a, $w))` -- not an act itself
+    # and not something that arrived from outside.
+    "rules as data": ["rule", "ant", "con", "computes", "names", "action"],
     # The agent reasoning about its own reasoning: what comes to mind, what is
     # worth thinking about, and how much of either there may be.
     "the agent's deliberation": [

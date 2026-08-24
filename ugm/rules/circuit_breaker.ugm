@@ -1,0 +1,50 @@
+# A generic circuit breaker: watch any rule, at a threshold of its own,
+# without editing the rule being watched. Three pieces, none of them new
+# engine machinery:
+#
+#   `dormant`/`due`   already the disable switch (`core/attention.py:_dormant`)
+#   triggers          already see every SELECTION of a rule, even a
+#                     no-op reselection -- `_intercept` runs before the
+#                     "already believed, skip" check in `_apply`
+#   lanes             already a guaranteed turn per round, independent of
+#                     who wins `main`'s selection that tick
+#
+# Why all three are load-bearing, found by testing rather than reasoning:
+#
+#   A RULE REFERENCE IS TAINTED. `<watched-rule>`'s own graph node has
+#   `has_var = True` -- a rule's reification structurally contains its own
+#   antecedent/consequent variables, and `has_var` propagates. So a
+#   variable bound to a rule (`$r`) cannot be written into a NEW fact
+#   safely: a trigger's own addition containing it is silently dropped
+#   (`_obey`'s "still generic, not an instruction" check), and
+#   `no dormant($r)` silently fails to MATCH at all, guard included. Route
+#   "which rule" through a plain, untainted TAG instead
+#   (`watched(<R>, some_tag)`), and count/guard against the tag. `$r` is
+#   only ever written where the engine's own `_dormant` requires the real
+#   node: the final `+dormant($r)`.
+#
+#   A RULE THAT ALWAYS WINS STARVES ITS OWN WATCHDOG. Built as an ordinary
+#   competing rule, `<trip>` never fired against a rule that always
+#   matches: the runaway rule keeps winning `main`'s one-selection-per-tick
+#   arbitration forever, and an equally-ranked competitor never gets a
+#   turn -- including the one rule that would turn it off. A LANE fixes
+#   this: `<trip>` in its own lane gets a turn every ROUND regardless of
+#   what `main` selects that tick (`docs/tools-approval.md`'s sibling
+#   finding: consuming your own trigger is not enough when something ELSE
+#   is what needs to act).
+#
+# To watch a rule: `fact +watched(<the-rule>, a-tag)`, `fact +tries(a-tag, 0)`,
+# `fact +threshold(a-tag, N)`. Everything below is shared by every watched
+# rule; adding one costs three facts, not a new rule.
+
+fact +intercepts(<watchdog>, after)
+rule <watchdog> = implies(
+    { +producing($r, $c), +watched($r, $tag), +tries($tag, $n), plus($n, 1) as $n2 },
+    { -tries($tag, $n), +tries($tag, $n2) } )
+
+rule <trip> = implies(
+    { +watched($r, $tag), +tries($tag, $n), +threshold($tag, $max),
+      at_least($n, $max) as $over, no dormant_tag($tag) },
+    { +dormant($r), +dormant_tag($tag) } )
+fact +lane(<trip>, watchdog)
+fact +lane_order(watchdog, 1)

@@ -207,6 +207,8 @@ class Machine:
         self.ANSWERS = self.g.atom("answers")
         self.ANSWERED = self.g.atom("answered")
         self.COMPUTES = self.g.atom("computes")
+        # -- the action palette (`text._action`) ----------------------------
+        self.AFFORDED = self.g.atom("action")
         self.LOADED = self.g.atom("loaded")
         self.SCOPED = self.g.atom("scoped")
 
@@ -263,7 +265,7 @@ class Machine:
             "declined": self.DECLINED, "unattended": self.UNATTENDED,
             "attentioned": self.ATTENTIONED, "label": self.LABEL,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
-            "computes": self.COMPUTES,
+            "computes": self.COMPUTES, "action": self.AFFORDED,
             "loaded": self.LOADED, "scoped": self.SCOPED,
             "intercepts": self.INTERCEPTS, "producing": self.PRODUCING,
             "after": self.AFTER,
@@ -299,7 +301,7 @@ class Machine:
             self.BOUNDED, self.CLOSE,
             self.ATTENTION, self.SPAN, self.DEPTH, self.KNOWS,
             self.PUSHED, self.POPPED, self.SUITS, self.DECLINED,
-            self.ANSWERS, self.ANSWERED, self.COMPUTES,
+            self.ANSWERS, self.ANSWERED, self.COMPUTES, self.AFFORDED,
             self.LOADED, self.SCOPED,
             self.INTERCEPTS, self.PRODUCING, self.REWROTE,
             self.DELTA, self.MISSING, self.MATCHED, self.EXTRA,
