@@ -530,7 +530,8 @@ class Parser:
             # it without naming any individual.
             self.expect("(")
             target = self.term()
-            weight = 1
+            weight = None
+            decay = None
             if self.at(","):
                 # The learned buff, and it weighs a NODE rather than a rule.
                 # `attend($x, 3)` says *of what this move touched, that one
@@ -551,15 +552,32 @@ class Parser:
                     raise ParseError(
                         f"line {n.line}: how much to attend is a numeral")
                 weight = sign * int(n.text)
+                if self.at(","):
+                    # `attend($x, 5, 2)` -- HOW FAST it is forgotten, when
+                    # once a tick is not the rate meant. Separate from the
+                    # strength on purpose: *this matters a lot but briefly*
+                    # and *this matters mildly but for a while* are different
+                    # claims, and one number cannot make both.
+                    self.next()
+                    d = self.next()
+                    if not d.text.isdigit():
+                        raise ParseError(
+                            f"line {d.line}: how fast to forget is a numeral")
+                    decay = int(d.text)
             self.expect(")")
-            return (Attend(target, weight), 0)
+            return (Attend(target, weight, decay), 0)
         if t.kind == "name" and t.text == "push":
             # **A frame, not a filter.** Three fixes for the queue's
-            # forgetting have been tried here and all three were filters on a
-            # flat queue -- claimed vs derived, excluding bookkeeping, a learned
-            # weight. None of them can help, because at span 7 a long enough
-            # sub-line evicts anything however well chosen. `push` suspends
-            # instead: the outer frame is off the queue entirely.
+            # forgetting were tried here and all three were filters on a flat
+            # queue of fixed length -- claimed vs derived, excluding
+            # bookkeeping, a learned weight. None could help, because at a
+            # span of 7 a long enough sub-line evicted anything however well
+            # chosen. The span is gone now (a claim fades on its own clock
+            # instead, `Machine._fade_attention`), which answers the crowding
+            # but NOT this: a sub-line that runs long enough still lets the
+            # outer focus fade, and *suspended* is a different claim from
+            # *forgotten slowly*. `push` suspends: the outer frame is off the
+            # queue entirely, on a clock of its own that is not ticking.
             #
             #  It names NODES, variadically, and the leftmost lifts hardest --
             # `attend($x)` is the precedent, and the variables are the HOST

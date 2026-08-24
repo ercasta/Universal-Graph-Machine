@@ -61,10 +61,14 @@ class Answerer(NamedTuple):
     fn: object  # fn(machine, proposition) -> NodeId | None
 
 
-#: How many things may be attended at once. A knob, so `attention_span(3)` in a
-#: corpus narrows it -- and a narrower span is a STEEPER gradient over fewer
-#: things, which is what *concentrating* would mean here.
-ATTENTION_SPAN = 7
+ATTENTION_START = 5
+
+#: What a claim loses per tick when nobody says.
+ATTENTION_DECAY = 1
+
+#: What an incidental touch is worth -- what `_attend_written` gives a node
+#: no one ever claimed. One tick, and then it is somebody else's turn.
+ATTENTION_BRUSH = 1
 
 #: How deep the attention stack may go. A backstop against a corpus that pushes
 #: its way down for ever on ever-changing nodes, which the cycle test cannot
@@ -86,10 +90,15 @@ class Frame:
     being discarded with the frame -- there is nothing to erase separately.
     """
 
-    __slots__ = ("queue", "on", "weights")
+    __slots__ = ("queue", "attention_spec", "on", "weights")
 
     def __init__(self, on=()) -> None:
         self.queue: List[Tuple[NodeId, int]] = []
+        # node -> (start, decay). The queue holds what a claim is worth
+        # NOW; this holds what it was worth when made and how fast it
+        # goes, so a move touching it again can restore it to its own
+        # start rather than to some number the toucher chose.
+        self.attention_spec: Dict[NodeId, Tuple[int, int]] = {}
         self.on: Tuple[NodeId, ...] = tuple(on)
         # STANDING attention, by MAGNITUDE rather than position -- what
         # `attend($x, n)` means beside pushing `$x` onto `queue`. This used to
@@ -298,6 +307,11 @@ class Machine:
         
         self._evicted: set = set()
         self._readmitted = 0
+        # Attended since the last fade. A claim keeps its full strength
+        # through the tick AFTER the one that made it -- otherwise
+        # `_attend_written`, whose whole job is to lift the next tick,
+        # would be faded to nothing before that tick ever matched.
+        self._fresh_attention: set = set()
         self._frames: List[Frame] = [Frame()]
         self._floor = 0
         self._step_table = None
@@ -539,12 +553,14 @@ class Machine:
             return
         self._note(self.g.rel(self.DECLINED, what, node, self.g.atom(why)))
 
-    def _attend(self, node: NodeId, weight: int = 1) -> bool:
+    def _attend(self, node: NodeId, weight=None, decay=None) -> bool:
         """*Think about this one.* -- what a postcondition spends when it
         attends, and an ordinary claim when it lands. Engine state, scoped to
         the frame -- see `Frame.weights`'s own comment for why this is not a
         believed proposition. True if this changed the standing weight."""
-        self._push_attention(node, weight)
+        if weight is None:
+            weight = ATTENTION_START
+        self._push_attention(node, weight, decay)
         weights = self._frames[-1].weights
         if weights.get(node) == weight:
             return False
@@ -583,8 +599,8 @@ class Machine:
             self._nodes_of(m, out)
         return out
 
-    def _push_attention(self, node: NodeId, weight: int = 1) -> None:
-        """To the top, and whatever falls off the bottom is forgotten.
+    def _push_attention(self, node: NodeId, start=None, decay=None) -> None:
+        """To the top, at its strength. Nothing falls off the bottom.
 
         Re-attending something already in the queue MOVES it up rather than
         adding it twice: a thing thought about twice is one thing thought about
@@ -598,13 +614,71 @@ class Machine:
             # sub-line evicted while it was still live.
             self._readmitted += 1
             self._evicted.discard(node)
+        # `start is None` is a REVISIT: the right-hand side of some rule
+        # touched this node without saying anything about how much it
+        # matters. That RESTORES the claim to its own start -- it does not
+        # restate it at the toucher's strength. `_attend_written` brushes
+        # every node a move wrote, and a deliberate `attend($dir, 5)` names a
+        # folder the very move that named it also writes to; restating would
+        # let the move's own bookkeeping demote the claim it was making, in
+        # the tick it was made. Touched again is *not forgotten yet*, and a
+        # node no one ever claimed is worth a brush and no more.
+        spec = self._frames[-1].attention_spec
+        if start is None:
+            start, decay = spec.get(node, (ATTENTION_BRUSH, ATTENTION_DECAY))
+        else:
+            start = max(1, start)
+            decay = ATTENTION_DECAY if decay is None else max(1, decay)
+        spec[node] = (start, decay)
         queue[:] = [(n, w) for n, w in queue if n != node]
-        queue.insert(0, (node, max(1, weight)))
-        span = self._knob(self.SPAN, ATTENTION_SPAN)
-        if span is not None and span > 0:
-            for n, _w in queue[span:]:
-                self._evicted.add(n)
-            del queue[span:]
+        queue.insert(0, (node, start))
+        self._fresh_attention.add(node)
+        # NOTHING is dropped here. The queue used to be truncated to a span,
+        # which asked only WHEN a thing arrived and never how much it was
+        # said to matter -- so a deliberate `attend($dir, 5)` could be shoved
+        # out by the seven nodes its own move incidentally wrote, in the tick
+        # it was made. Length is the wrong bound. The only way out is
+        # `_fade_attention`: a claim lasts as long as its strength and then
+        # it is gone, and being third in line is not a reason for anything.
+
+    def _fade_attention(self) -> int:
+        """One tick of forgetting: every claim loses a point, and a claim at
+        zero is not a claim. Returns how many fell out.
+
+        Attention is a QUEUE whose strength is a NUMBER OF TICKS, not a
+        position in a list of fixed length. `attend($x, 5)` means *this
+        matters for five ticks*, and after five it is gone without anything
+        having to say so. That is what replaced the span outright rather than
+        merely backing it up: what a move incidentally wrote arrives at
+        strength 1 and is gone by the tick after next, so the details of one
+        move stop crowding out a standing claim made three moves ago -- which
+        they did,
+        because eviction only ever asked WHEN a thing arrived and never HOW
+        MUCH it was said to matter.
+
+        Nothing attended since the last fade is touched. A node pushed during
+        tick N is meant to lift tick N+1; decrementing it at the top of N+1
+        would delete it unmatched, and `_attend_written`'s weight of 1 would
+        mean *never seen* rather than *seen once*.
+        """
+        queue = self._frames[-1].queue
+        spec = self._frames[-1].attention_spec
+        before = len(queue)
+        faded = []
+        for n, w in queue:
+            if n in self._fresh_attention:
+                faded.append((n, w))
+                continue
+            faded.append((n, w - spec.get(n, (1, ATTENTION_DECAY))[1]))
+        kept = [(n, w) for n, w in faded if w > 0]
+        alive = {n for n, _w in kept}
+        for node, _w in faded:
+            if node not in alive:
+                self._evicted.add(node)
+                spec.pop(node, None)
+        queue[:] = kept
+        self._fresh_attention.clear()
+        return before - len(kept)
 
     def _unattend(self) -> int:
         """Stop thinking about whatever it was -- `reset`, for attention.
@@ -617,6 +691,7 @@ class Machine:
         """
         dropped = len(self._attended())
         self._attention = []
+        self._frames[-1].attention_spec.clear()
         self._frames[-1].weights.clear()
         return dropped
 
@@ -627,9 +702,20 @@ class Machine:
         what the agent turned to last is what it is most about. A standing
         weight not in the queue goes at the BOTTOM -- lasting and recent are
         different claims, and the queue is about the second.
+
+        ⚠ The tail is appended NEWEST-FIRST too, and that is not cosmetic.
+        `weights` is a dict in insertion order, so iterating it plainly puts
+        the node attended FIRST nearest the top of the tail -- and everything
+        downstream reads position as recency (`attention._attended_first`
+        ranks by `len(attended) - i`). Plain iteration therefore handed the
+        OLDEST claim the larger multiplier, the exact reverse of what the
+        queue means, and it showed up the moment two things were attended in
+        turn and both had faded out of the queue into the tail: the folder
+        attended first won a binding against the folder attended last.
+        Recency has one direction here or it has none.
         """
         out: List[NodeId] = [n for n, _w in self._attention]
-        for node in self._frames[-1].weights:
+        for node in reversed(list(self._frames[-1].weights)):
             if node not in out:
                 out.append(node)
         return out

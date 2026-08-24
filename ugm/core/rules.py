@@ -61,16 +61,23 @@ class Attend:
     about. A post rather than a member: it changes what is considered next, and
     claims nothing about the world."""
 
-    def __init__(self, term, weight: int = 1) -> None:
+    def __init__(self, term, weight=None, decay=None) -> None:
         self.term = term
         # The weight rides along: `attend($x, 3)` says this node matters more
         # than whatever else lands in the queue at the same depth -- a
         # calibration that names a NODE rather than a rule, which is what makes
         # it survive a rule being renamed or rewritten.
+        #
+        # It is also a LIFESPAN: the strength a claim starts at and is restored
+        # to when a move touches it again, losing `decay` a tick until it is
+        # gone. None for either means *no opinion* -- `Machine` supplies the
+        # medium, because a corpus that does not care how long should not have
+        # to name a number to say so.
         self.weight = weight
+        self.decay = decay
 
     def __repr__(self) -> str:
-        return f"attend({self.term}, {self.weight})"
+        return f"attend({self.term}, {self.weight}, {self.decay})"
 
 
 class _Unattend:

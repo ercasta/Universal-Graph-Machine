@@ -797,14 +797,30 @@ def attention() -> None:
           dropped >= 2 and not m._frames[-1].weights
           and not m._attention)
 
-    #  The span is a knob a corpus turns.
+    #  The queue is bounded by TIME, not by length.
     m2 = Machine()
-    kb2 = load(m2, "fact +attention_span(2)")
+    kb2 = load(m2, "")
     for n in ("x", "y", "z"):
         m2._attend(kb2.atom(n))
-    check("§20", "the queue is BOUNDED, and the bound is a knob a corpus "
-                 "turns rather than a constant it cannot reach",
-          len(m2._attention) == 2)
+    held = len(m2._attention)
+    for _ in range(12):
+        m2._fade_attention()
+    check("§20", "the queue is bounded by TIME rather than by length: a claim "
+                 "lasts as long as its strength and then it is gone, and being "
+                 "third in line is not a reason to forget anything",
+          held == 3 and not m2._attention)
+
+    #  A strong claim outlives a busy move, which a span could not promise.
+    m3 = Machine()
+    kb3 = load(m3, "")
+    m3._attend(kb3.atom("folder"), weight=5)
+    for i in range(9):          # nine incidental touches, as one move makes
+        m3._push_attention(kb3.atom("noise%d" % i))
+    m3._fade_attention(); m3._fade_attention()
+    kept = dict((m3.g.show(n), w) for n, w in m3._attention)
+    check("§20", "and the claim survives the bookkeeping of its own move -- "
+                 "nine incidental touches no longer push a deliberate one out",
+          kept.get("folder") == 4 and not any(k.startswith("noise") for k in kept))
 
 
 def reference_lines() -> None:

@@ -421,6 +421,11 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         table.now = tick
         table.ticked += 1
 
+        # Attention fades before anything is matched against it, so a tick
+        # is chosen by what still matters NOW rather than by what happened
+        # to be pushed most recently. See `Machine._fade_attention`.
+        m._fade_attention()
+
         # Lanes (§ lanes): one pass through the table per lane, in order,
         # against the ONE shared frame -- a judge rule sees what a regular
         # rule just wrote, in the same tick, because a gut feeling is meant
@@ -625,7 +630,7 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
                 # node matters more than whatever else is in the queue at the
                 # same depth -- a calibration that names a node instead of a
                 # rule.
-                m._attend(node, weight=target.weight)
+                m._attend(node, weight=target.weight, decay=target.decay)
             continue
         if isinstance(target, Push):
             # A CALL. The nodes are the host rule's own variables, bound by
