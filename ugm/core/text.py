@@ -22,6 +22,13 @@ from .rules import (ABSENT, ASSERT, ERASE, IMPLIES, STOP, UNATTEND, Attend, Dest
 # anchors its denial).
 SIGNS = {"+": ASSERT, "-": ERASE}
 
+# Keywords that open a new top-level statement -- reached mid-block, one of
+# these ends a line-form rule with no `->`/blank line said explicitly. A
+# domain that names a relation identically to one of these words needs a
+# blank line before it; none of the shipped corpora do.
+_LINE_FORM_STOPS = {"alt", "rule", "fact", "say", "expert", "action", "alias",
+                    "after", "frozen", "learned", "when"}
+
 
 class ParseError(Exception):
     pass
@@ -322,6 +329,13 @@ class Parser:
                 f"writes it -- `rule <{name_tok.text}> = ...`. The marker is what keeps rule "
                 f"names out of the relation namespace."
             )
+        # `rule <name>` with no `=` following is the LINE form
+        # (`new_substrate.md`'s own sketch): one member per line, `->`
+        # between antecedent and consequent, no braces or commas. Same
+        # `Statement` either way -- this is a second surface over one
+        # grammar, not a second kind of rule.
+        if not self.at("="):
+            return self._rule_lines(name_tok, line)
         self.expect("=")
         conn = self.next()
         if conn.text != IMPLIES:
@@ -368,6 +382,75 @@ class Parser:
             posts = (PostClause((), tuple(spends), False, False),)
         return Statement("rule", name_tok.text, conn.text, ant, con, None, "",
                          line, posts, alts)
+
+    # -- the line form: `rule <name>` / one member per line / `->` --------
+    #
+    # `new_substrate.md`'s own sketch, with no scoring brackets or attention
+    # multipliers built yet (those stay undesigned -- see the doc's own
+    # "Working notes"). What IS built: the shape. A block ends at a physical
+    # line gap (a blank line, or a comment line -- comments belong between
+    # rules in this form, not inside one), at `alt`/`->`/`=>`, at the next
+    # top-level statement, or at end of input. There is no comma to lean on,
+    # so the gap and the keywords are the only block boundaries there are.
+
+    def _rule_lines(self, name_tok: Tok, line: int) -> Statement:
+        ant = self._member_block()
+        alts: Optional[Tuple[Tuple[RuleMember, ...], ...]] = None
+        if self.at("alt"):
+            branches = []
+            while self.at("alt"):
+                self.next()
+                branches.append(self._member_block())
+            alts = tuple(branches)
+        if not self._looking_at("-", ">"):
+            t = self.peek()
+            where = f"line {t.line}" if t is not None else "end of input"
+            raise ParseError(
+                f"{where}: a line-form rule's antecedent ends with `->`, one "
+                f"member per line, no braces or commas"
+            )
+        self.next()
+        self.next()
+        con = self._member_block()
+        posts: Tuple[PostClause, ...] = ()
+        if self._looking_at("=", ">"):
+            self.next()
+            self.next()
+            spends = [self.spend()]
+            while self.at(","):
+                self.next()
+                spends.append(self.spend())
+            posts = (PostClause((), tuple(spends), False, False),)
+        return Statement("rule", name_tok.text, IMPLIES, ant, con, None, "",
+                         line, posts, alts)
+
+    def _member_block(self) -> Tuple[RuleMember, ...]:
+        out = [self.member()]
+        while self._more_members():
+            out.append(self.member())
+        return tuple(out)
+
+    def _more_members(self) -> bool:
+        t = self.peek()
+        if t is None:
+            return False
+        if t.line - self.toks[self.i - 1].line >= 2:
+            return False
+        if self._looking_at("-", ">") or self._looking_at("=", ">"):
+            return False
+        if t.kind == "name" and t.text in _LINE_FORM_STOPS:
+            return False
+        return True
+
+    def _looking_at(self, a: str, b: str) -> bool:
+        """Two adjacent punctuation tokens, on the same source line -- how
+        `->` and `=>` are told apart from an ordinary `-`/`=` inside a
+        member, since neither is its own token in the lexer."""
+        t = self.peek()
+        t2 = self.toks[self.i + 1] if self.i + 1 < len(self.toks) else None
+        return (t is not None and t.kind == "punct" and t.text == a
+                and t2 is not None and t2.kind == "punct" and t2.text == b
+                and t2.line == t.line)
 
     def trigger(self, t: Tok) -> Statement:
         """`after <A> { ... } => attend($x, 3)`.

@@ -34,6 +34,8 @@
 # application that changed nothing is offered again, so a rule that does not
 # stop itself never stops. `no says(...)` is the whole of the stopping, and it
 # is a premise -- readable, overridable, and wrong out loud if it is wrong.
-rule <intake> = implies(
-    { +arrived($channel, $said), no says($channel, $said) },
-    { +says($channel, $said) } )
+rule <intake>
+  +arrived($channel, $said)
+  no says($channel, $said)
+->
+  +says($channel, $said)

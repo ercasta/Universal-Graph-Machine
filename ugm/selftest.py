@@ -1115,6 +1115,88 @@ def alt_branches() -> None:
           threw)
 
 
+def line_form() -> None:
+    """The LINE surface (`new_substrate.md`'s own sketch): `rule <name>`,
+    one member per line, `->` between antecedent and consequent, no braces
+    or commas. A second surface over the identical grammar the brace form
+    already builds -- same `Statement`, same `Rule`, checked against it."""
+    print("\n§8  the line form -- `rule <name>` / one member per line / `->`, "
+          "no braces or commas")
+    braced = ("fact +heat(anna, kettle)\nfact +water(kettle)\n"
+              "rule <boil> = implies({+heat($a, $w), +water($w), "
+              "no boiling($w)}, {+boiling($w), -liquid($w)})")
+    lined = ("fact +heat(anna, kettle)\nfact +water(kettle)\n"
+             "rule <boil>\n  +heat($a, $w)\n  +water($w)\n  no boiling($w)\n"
+             "->\n  +boiling($w)\n  -liquid($w)\n")
+    m1 = Machine(); kb1 = load(m1, braced); m1.run(limit=5)
+    m2 = Machine(); kb2 = load(m2, lined); m2.run(limit=5)
+    check("§8", "the line form reaches the same belief as the brace form it "
+                "reshapes -- one grammar, two surfaces",
+          m2.holds(kb2.term("boiling(kettle)"))
+          and not m2.holds(kb2.term("liquid(kettle)")))
+
+    # No blank line between two line-form rules -- the next `rule` keyword
+    # ends the block on its own, the way `delay.ugm`'s <cancel>/<late> need.
+    m3 = Machine()
+    kb3 = load(m3, "fact +cancelled(bl204)\n"
+                   "rule <cancel>\n  +cancelled($f)\n  no disrupted($f)\n"
+                   "->\n  +disrupted($f)\n"
+                   "rule <late>\n  +delayed($f, long)\n  no disrupted($f)\n"
+                   "->\n  +disrupted($f)\n")
+    m3.run(limit=5)
+    names3 = [r.name for r in m3.rules.rules]
+    check("§8", "two line-form rules back to back, no blank line between -- "
+                "the next `rule` keyword ends the block by itself",
+          m3.holds(kb3.term("disrupted(bl204)"))
+          and "cancel" in names3 and "late" in names3)
+
+    # `alt(...)` and the `=>` tail, both in line form -- the two RHS pieces
+    # the microprogram port actually needed, not just the declarative case.
+    m4 = Machine()
+    kb4 = load(m4, "fact +turn(hero)\nfact +may(hero)\nfact +present(hero)\n"
+                   "fact +intends(hero, attack(goblin1), 1)\n"
+                   "fact +present(goblin1)\n"
+                   "rule <hero-acts>\n  +turn(hero)\n  +may(hero)\n"
+                   "  +present(hero)\n"
+                   "alt\n  $intent = intends(hero, attack($t), $r)\n"
+                   "  +present($t)\n"
+                   "alt\n  $intent = intends(hero, attack($d), $r)\n"
+                   "  no present($d)\n  +monster($t)\n  +present($t)\n"
+                   "->\n  -may(hero)\n  -$intent\n  +attack(hero, $t)\n")
+    m4.run(limit=5)
+    names4 = [r.name for r in m4.rules.rules]
+    check("§8", "`alt` in line form compiles to one Rule per branch, same "
+                "as the brace form",
+          m4.holds(kb4.term("attack(hero, goblin1)"))
+          and "hero-acts" in names4 and "hero-acts#2" in names4)
+
+    m5 = Machine()
+    pre5 = load(m5, "", scope="s5")
+    pre5.answerer("dice", "roll", lambda mach, prop: None)
+    kb5 = load(m5, "fact +need(roll(d20, hit(hero, orc)))\n"
+                   "rule <ask>\n  $nd = need($r)\n->\n  -$nd\n"
+                   "  +answered(<dice>, $r, 5)\n"
+                   "rule <wound>\n"
+                   "  $hit = answered(<dice>, roll(d20, hit($a, $d)), $n)\n"
+                   "->\n  +seen($a)\n"
+                   "=> forget $hit\n", scope="s5")
+    m5.run(limit=10)
+    check("§8", "`=> forget $hit` in line form erases the answer and its "
+                "request together, exactly as the brace form's tail does",
+          not m5.holds(kb5.term("answered(<dice>, roll(d20, hit(hero, orc)), 5)"))
+          and not m5.holds(kb5.term("roll(d20, hit(hero, orc))"))
+          and m5.holds(kb5.term("seen(hero)")))
+
+    threw = False
+    try:
+        load(Machine(), "fact +p(a)\nrule <bad>\n  +p($x)\n\nfact +q(a)")
+    except ParseError:
+        threw = True
+    check("§8", "a line-form rule missing `->` is refused at load, not "
+                "silently read as something else",
+          threw)
+
+
 def frames() -> None:
     print("\n§20 frames: the attention stack and the consultation stack are "
           "one construct")
@@ -1300,6 +1382,7 @@ def main() -> int:
     rhs_graph_ops()
     prefix_binding()
     alt_branches()
+    line_form()
     frames()
     experts()
     surface()

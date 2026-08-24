@@ -1,8 +1,48 @@
-# Handoff — 2026-08-23 (the new substrate: identity, predicates, the RHS, and the dungeon recovered)
+# Handoff — 2026-08-24 (the line form)
 
-    python -m ugm.selftest             161 checks, 0 failing   <- was 125 at session start
+    python -m ugm.selftest             166 checks, 0 failing   <- was 161 at session start
     python -m ugm.probes.dungeon        (14 seeds, always quiescent, always resolves)
-    python -m ugm.probes.dungeon_micro  (same 14 seeds, 0 mismatches against the control)
+    python -m ugm.probes.dungeon_micro  (same 14 seeds, 0 mismatches against the control -- reconfirmed)
+
+## Built: the line form
+
+`new_substrate.md`'s own sketch (`rule <name>` / one member per line / `->`,
+no braces or commas) had never been built -- everything shipped so far,
+`dungeon_micro.ugm` included, still used the brace/comma form of `implies`.
+Built as a second surface over the SAME grammar: `text.Parser.rule()` now
+looks at what follows `rule <name>` and dispatches to `_rule_lines` when
+there is no `=`, producing the identical `Statement` the brace form does --
+so nothing downstream of parsing (`Loader._rule`, `alt` compilation, tail
+posts) changed at all.
+
+A block (antecedent, one `alt` branch, consequent) ends at a physical line
+gap, at `alt`/`->`/`=>`, at the next top-level keyword, or at end of input --
+there is no comma to lean on, so those are the only boundaries there are.
+`->` and `=>` are not new tokens; `-`/`>` and `=`/`>` were already two
+punctuation tokens each, told apart from an ordinary member by being
+adjacent on the same source line.
+
+Scoring brackets (`[+7, m:1.2]`) and attention multipliers, the other half of
+the doc's sketch, are NOT built -- deliberately out of scope this pass, on
+the user's own call: that design is still open (sigmoid deferred, multiplier
+bounds undeclared, shared-set gating undesigned), so building it now would
+be inventing semantics rather than reshaping a syntax that already works.
+
+**Converted**: `bundle.ugm`, `delay.ugm`, `worked.ugm`, `dungeon_micro.ugm`
+-- the four corpora that existed -- kept semantically identical, just
+reshaped. Verified three ways: the suite (166/0, six new checks for the line
+form itself, kill-probed by disabling the dispatch and watching load fail),
+`dungeon_micro` against `dungeon`'s control across the same 14 seeds (0
+mismatches, unchanged from before the reshape), and `ugm.gates.vocabulary`,
+which actually RUNS `delay.ugm` (unchanged output; its two pre-existing
+failures are unrelated -- confirmed identical on the unmodified tree via
+`git stash`).
+
+`dungeon.ugm` (the control corpus) is deliberately NOT converted -- it
+exists to be the brace-form baseline `dungeon_micro.ugm` is checked
+against, and converting both would leave nothing to compare.
+
+## Everything below is the 2026-08-23 session, unchanged
 
 Everything below is `docs/new_substrate.md`, in the order it was built, with the seams
 between build and design conversation kept -- the doc has the exact code-level detail

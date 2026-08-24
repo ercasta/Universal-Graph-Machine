@@ -2,20 +2,33 @@
 # A domain deliberately far from a D&D fight: entitlements, exceptions and
 # duties rather than actors, turns and damage.
 
-rule <cancel>  = implies( { +cancelled($f), no disrupted($f) },
-                          { +disrupted($f) } )
-rule <late>    = implies( { +delayed($f, long), no disrupted($f) },
-                          { +disrupted($f) } )
+rule <cancel>
+  +cancelled($f)
+  no disrupted($f)
+->
+  +disrupted($f)
+rule <late>
+  +delayed($f, long)
+  no disrupted($f)
+->
+  +disrupted($f)
 
 # the duty of care is owed whatever the cause
-rule <care> = implies( { +disrupted($f), +booked($p, $f),
-                        no owed($p, meals) },
-                       { +owed($p, meals), +owed($p, lodging) } )
+rule <care>
+  +disrupted($f)
+  +booked($p, $f)
+  no owed($p, meals)
+->
+  +owed($p, meals)
+  +owed($p, lodging)
 
 # a storm is outside the carrier's control; a crew shortage is not, and that is
 # now said by the ABSENCE of a rule rather than by one.
-rule <weather> = implies( { +cause($f, storm), no extraordinary($f) },
-                          { +extraordinary($f) } )
+rule <weather>
+  +cause($f, storm)
+  no extraordinary($f)
+->
+  +extraordinary($f)
 
 # ...but compensation is not, if the cause was outside the carrier's control.
 # This is `unless`, written where a rule's variables live.
@@ -37,24 +50,40 @@ rule <weather> = implies( { +cause($f, storm), no extraordinary($f) },
 # ABOVE this rule deliberately: authored order is the arbitration tiebreak, so
 # a storm is recognised before compensation is asked about. Written the other
 # way round, raj is compensated for a storm -- measured, not supposed.
-rule <compensate> = implies(
-    { +disrupted($f), +booked($p, $f), no extraordinary($f),
-      no owed($p, money) },
-    { +owed($p, money) } )
+rule <compensate>
+  +disrupted($f)
+  +booked($p, $f)
+  no extraordinary($f)
+  no owed($p, money)
+->
+  +owed($p, money)
 
 # the amount depends on how far the passenger was going
-rule <far>   = implies( { +owed($p, money), +flying($p, $f), +distance($f, long),
-                         no amount($p, 600) },
-                        { +amount($p, 600) } )
-rule <near>  = implies( { +owed($p, money), +flying($p, $f), +distance($f, short),
-                         no amount($p, 250) },
-                        { +amount($p, 250) } )
+rule <far>
+  +owed($p, money)
+  +flying($p, $f)
+  +distance($f, long)
+  no amount($p, 600)
+->
+  +amount($p, 600)
+rule <near>
+  +owed($p, money)
+  +flying($p, $f)
+  +distance($f, short)
+  no amount($p, 250)
+->
+  +amount($p, 250)
 
 # re-routing: a seat on another service to the same place
-rule <reroute> = implies(
-    { +disrupted($f), +booked($p, $f), +goes($f, $dest),
-      +goes($g, $dest), +seats_free($g), no rerouted($p, $g) },
-    { +rerouted($p, $g) } )
+rule <reroute>
+  +disrupted($f)
+  +booked($p, $f)
+  +goes($f, $dest)
+  +goes($g, $dest)
+  +seats_free($g)
+  no rerouted($p, $g)
+->
+  +rerouted($p, $g)
 
 fact +cancelled(bl204)
 fact +cause(bl204, crew)
