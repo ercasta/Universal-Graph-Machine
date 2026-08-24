@@ -18,11 +18,14 @@ dependencies = []
 #  Subpackages listed explicitly: `packages = ["ugm"]` alone ships ugm/*.py
 # and silently drops core/, gates/ and probes/ from the wheel -- an install
 # that imports nothing, found in the release sweep. `ugm.learning` was listed
-# here too until an editable install broke on it: no such directory exists
-# on disk (and nothing imports it) -- a stale entry from a package that was
-# never built, or was built and removed without this list being updated.
+# here too until an editable install broke on it: no such directory existed
+# on disk. It does again -- calibration searches a corpus's numbers against
+# episodes -- so it is listed, and the note stays as the reason to check
+# rather than assume.
 [tool.setuptools]
-packages = ["ugm", "ugm.core", "ugm.gates", "ugm.probes"]
+packages = ["ugm", "ugm.core", "ugm.gates", "ugm.learning", "ugm.probes"]
 
+#  `rules/*.ugm` does not reach `rules/episodes/`, and a glob that silently
+# drops a subdirectory is the same failure as the packages list above.
 [tool.setuptools.package-data]
-ugm = ["rules/*.ugm"]
+ugm = ["rules/*.ugm", "rules/episodes/*.ugm"]

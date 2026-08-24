@@ -1,0 +1,25 @@
+# An episode: the starting condition, what is in mind, and the judge, in one
+# file. Nothing else is needed to run it.
+#
+# Two intakes are on the table. What is in mind is the EVENT intake(e2, mary)
+# and the PARTICIPANT person(paul) -- so a corpus whose multiplier hangs on
+# the participant picks e1, and one whose multiplier hangs on the event picks
+# e2. The judge wants e2. Only the numbers can get it there; no rule here or
+# in the corpus changes.
+
+fact +person(paul)
+fact +person(mary)
+fact +intake(e1, paul)
+fact +intake(e2, mary)
+
+# What is in mind. `unattend` first, or everything the load just brushed is
+# still in the pool and the two claims below decide nothing.
+rule <focus> = implies( { +intake(e2, mary), no focused }, { +focused } )
+=> unattend, attend(intake(e2, mary), 9), attend(person(paul), 9)
+fact +lane(<focus>, setup)
+fact +lane_order(setup, 0)
+
+# The judge. Ordinary rules, in the same machine, subject to everything the
+# loop does -- which is why a missing verdict is read as failure rather than
+# as nothing having gone wrong.
+rule <judge-ok> = implies( { +picked(e2) }, { +succeeded, +score(1) } )

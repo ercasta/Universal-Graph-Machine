@@ -1551,6 +1551,53 @@ def the_web() -> None:
           read.get("p") == 1 and written.get("q") == 1)
 
 
+def calibration() -> None:
+    """Search the numbers, never the rules."""
+    from .learning import Episode, calibrate, mutate, numbers, run_episode
+    import random
+
+    print("\n--  calibration: an episode is a file, and only numbers move")
+    corpus = ("rule <pick> = implies(\n"
+              "    { $z = intake($e, $who) [+1, attention_multiplier:0],\n"
+              "      $w = person($who) [+1, attention_multiplier:9],\n"
+              "      no chosen },\n"
+              "    { +picked($e), +chosen } )\n")
+    ep = Episode(_corpora.path("episodes/pick_the_event.ugm"))
+
+    check("--", "an episode is one file -- the starting condition, what is in "
+                "mind, and the judge -- and the corpus as authored FAILS it, "
+                "so there is something to search for",
+          run_episode(corpus, ep)[0] is False)
+
+    hand = corpus.replace("intake($e, $who) [+1, attention_multiplier:0]",
+                          "intake($e, $who) [+1, attention_multiplier:9]") \
+                 .replace("person($who) [+1, attention_multiplier:9]",
+                          "person($who) [+1, attention_multiplier:0]")
+    check("--", "...and moving the multiplier from the participant's line to "
+                "the event's passes it, which is the whole claim of per-line "
+                "scoring stated as an episode",
+          run_episode(hand, ep)[0] is True)
+
+    best, fit, history = calibrate(corpus, [ep], rounds=12, population=6, seed=7)
+    check("--", "the search finds a calibration the author did not write",
+          history[0] == 0.0 and fit > 0.0)
+    check("--", "...and it is the ORIGINAL corpus with different numbers: "
+                "every rule, every line and every variable is untouched",
+          [w for w in best.split() if not any(c.isdigit() for c in w)]
+          == [w for w in corpus.split() if not any(c.isdigit() for c in w)])
+
+    rng = random.Random(3)
+    many = {mutate(corpus, rng, 2) for _ in range(40)}
+    check("--", "a mutator only ever moves a bracket or an attend tail -- no "
+                "candidate in forty is a different rule",
+          all(len(numbers(c)) == len(numbers(corpus)) for c in many))
+
+    check("--", "a judge that never got a turn is a FAILURE, not a pass -- "
+                "the judge is ordinary rules in the same machine, so a "
+                "calibration could otherwise starve the thing scoring it",
+          run_episode("", ep)[2] == "no verdict")
+
+
 # -- the shipped corpora ----------------------------------------------------
 
 
@@ -1632,6 +1679,7 @@ def main() -> int:
     string_literals()
     frames()
     lanes()
+    calibration()
     circuit_breaker()
     surface()
     the_web()
