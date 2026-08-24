@@ -11,9 +11,33 @@ built into the engine.**
 UGM is a self-contained Python library with no dependencies.
 
 ```bash
-python -m ugm.selftest              # 537 checks, 0 failing
-python -m ugm ugm/rules/delay.ugm --why "owed(ana,money)"
+python -m ugm.selftest              # 183 checks, 0 failing
+python -m ugm ugm/rules/delay.ugm --ask "owed(ana,money)"
 ```
+
+## Try it: a REPL over a real domain
+
+```bash
+python -m ugm.fs_repl
+```
+
+No file to name, no setup — it loads `ugm/rules/fs/fs_demo.ugm` (and anything else you drop into
+that folder) automatically, and you're talking to it:
+
+```
+ugm> show files in "C:\Users\you\Documents"
+  + file(...), size(...), created(...)   -- the `ls` tool, an ordinary rule away
+
+ugm> cleanup "C:\Users\you\Documents" 7
+approve rename(notes.txt -> stale-notes.txt)? [y/N]
+```
+
+The REPL itself knows nothing about "showing" a directory or "cleaning up" old files — typing
+something that isn't `.ugm` syntax is heard as `sentence(show, files, in, "...")`, and it means
+whatever an ordinary rule in the loaded corpus says it means (`<intake-show>`). A rename is held for
+approval by the same write-time trigger any corpus could use, not a special case in the engine
+(`docs/tools-approval.md`). Typos against the corpus's own vocabulary get fixed and echoed; `/godmode`
+switches to authoring `.ugm` text directly, live.
 
 ## How it works
 
@@ -182,7 +206,7 @@ failure, plus a set of gates that each hold a fast path to a slow definition on 
 every fixture**:
 
 ```bash
-python -m ugm.selftest           # 537 checks, 0 failing
+python -m ugm.selftest           # 183 checks, 0 failing
 ./tools_sweep.sh                 # every module with a main(), found on disk
 
 python -m ugm.gates.agreement    # the kept resolution against the raw walk
