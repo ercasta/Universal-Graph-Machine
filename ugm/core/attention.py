@@ -345,48 +345,71 @@ def _attended_first(found: List[Application], attended: Sequence[NodeId],
     rank = {node: (len(attended) - i) * weights.get(node, 1)
             for i, node in enumerate(attended)}
 
-    def touched(a: Application) -> set:
-        """Every node this application MATCHED, not only what it BOUND.
+    seen_nodes: dict = {}
 
-        A rule whose antecedent names a thing outright binds no variable to
-        it -- `+says(user, sentence(show, big))` binds nothing but `$min` --
-        so scoring the bindings alone made every such rule invisible to
-        attention and, being invisible, ungated: exactly the rules that most
-        want gating, since an utterance is the thing attention is best at
-        telling apart from its own repetition.
-
-        Decomposed, so the sentence INSIDE the arrival counts. An `absent`
-        member matched by not being there touched nothing, and is skipped.
-        """
-        out = set(a.bindings.values())
-        for member in rule_antecedent:
-            if member.sign == ABSENT:
-                continue
-            try:
-                node = substitute(g, member.pattern, a.bindings)
-            except Exception:
-                continue
+    def parts(node):
+        """Every node a grounded line is made of, cached across applications."""
+        got = seen_nodes.get(node)
+        if got is None:
+            got = set()
             stack = [node]
             while stack:
                 n = stack.pop()
-                if n is None or n in out:
+                if n is None or n in got:
                     continue
-                out.add(n)
+                got.add(n)
                 rel = g.relation_of(n)
                 if rel is not None:
                     stack.append(rel)
                 stack.extend(g.members(n))
-        return out
+            seen_nodes[node] = got
+        return got
 
-    def weight(a: Application) -> int:
-        # Weighted by POSITION, so an application about what the agent just
-        # turned to beats one about what it is about to forget. Summed,
-        # unlike the rule lift: touching two attended things really is more
-        # about them than touching one, because an application is the whole
-        # move rather than a reason to look.
-        return sum(rank.get(v, 0) for v in touched(a) if v in at)
+    def score(a: Application):
+        """`sum_i c_i * m_i(what line i bound)`, and whether it overlaps.
 
-    scored = [(weight(a), i, a) for i, a in enumerate(found)]
+        PER LINE, which is the whole of it. Summing attention over everything
+        an application touched cannot say *attention on the event matters,
+        attention on the participants does not* -- and a rule-level priority
+        cannot say it either. The multiplier hangs on the line, so the corpus
+        chooses which binding attention is allowed to lift.
+
+        An `absent` member matched by NOT being there bound nothing, so it
+        contributes its constant and no attention.
+        """
+        total = 0.0
+        overlaps = False
+        for member in rule_antecedent:
+            att = 0
+            if member.sign != ABSENT:
+                try:
+                    node = substitute(g, member.pattern, a.bindings)
+                except Exception:
+                    node = None
+                if node is not None:
+                    # WHAT THE LINE BOUND, not everything it is made of.
+                    # `$z=intake($x, $y)` binds the event; taking the max over
+                    # the decomposition would let attention on a participant
+                    # lift the event's line, and then a multiplier hung on the
+                    # event says nothing a rule-level priority could not. The
+                    # participants get their own lines, with their own numbers.
+                    here = a.bindings.get(member.binds) if member.binds else None
+                    att = rank.get(here if here is not None else node, 0)
+                    if att:
+                        overlaps = True
+                    # The overlap GATE is a different question from the score,
+                    # and it asks about the whole line: a rule about something
+                    # attended runs, even where the multiplier is hung
+                    # elsewhere.
+                    if not overlaps and any(v in at for v in parts(node)):
+                        overlaps = True
+            total += member.weight * (1.0 + member.att_mult * att)
+        return total, overlaps
+
+    scored = []
+    for i, a in enumerate(found):
+        total, overlaps = score(a)
+        scored.append((total if overlaps else 0, i, a))
     # An application about NOTHING the agent is attending to does not apply.
     # Not merely last: gone. That is the whole of what a corpus otherwise has
     # to write by hand, and writing it by hand is worse than useless -- it

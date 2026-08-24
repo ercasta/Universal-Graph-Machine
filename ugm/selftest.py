@@ -860,6 +860,32 @@ def attention() -> None:
                  "nothing happens",
           after.get("pinned") == 1 and "capped" not in after)
 
+    #  Per-line scoring: which line the multiplier hangs on decides.
+    def _pick(on_event):
+        ev = "[+1, attention_multiplier:9]" if on_event else "[+1, attention_multiplier:0]"
+        pa = "[+1, attention_multiplier:0]" if on_event else "[+1, attention_multiplier:9]"
+        mm = Machine()
+        k = load(mm, "fact +person(paul)\nfact +person(mary)\n"
+                     "fact +intake(e1, paul)\nfact +intake(e2, mary)\n"
+                     "rule <pick> = implies( { $z = intake($e, $who) " + ev +
+                     ", $w = person($who) " + pa + " }, { +picked($e) } )")
+        mm._unattend()
+        mm._attend(k.term("intake(e2, mary)"), weight=9)
+        mm._attend(k.term("person(paul)"), weight=9)
+        mm.run(limit=1)
+        return [mm.g.show(p) for p in mm.pad.believed()
+                if mm.g.show(p).startswith("picked")]
+
+    check("§20", "a line carries its own contribution and its own attention "
+                 "multiplier, and WHICH LINE it hangs on decides: the same "
+                 "rule over the same facts picks the attended EVENT or the "
+                 "attended PARTICIPANT depending on nothing but that",
+          _pick(True) == ["picked(e2)"] and _pick(False) == ["picked(e1)"])
+
+    check("§20", "...and all lines still have to match -- a bracket is a "
+                 "score, never a filter",
+          len(_pick(True)) == 1)
+
 
 def reference_lines() -> None:
     """`attentioned($x)` and a label test -- PREDICATES (`new_substrate.md`):

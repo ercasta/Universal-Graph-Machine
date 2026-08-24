@@ -244,6 +244,12 @@ class Member(NamedTuple):
     sign: str
     pattern: NodeId
     binds: Optional[NodeId] = None
+    # `[+3, attention_multiplier:1.2]`, carried from the surface. The weight
+    # is a constant known at load; the multiplier is the only part that reads
+    # anything varying per application. Neither affects WHETHER the member
+    # matches -- all lines must -- only which applicable rule wins.
+    weight: int = 1
+    att_mult: float = 1.0
 
 
 class Rule:

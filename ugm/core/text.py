@@ -43,7 +43,7 @@ class Tok(NamedTuple):
     line: int
 
 
-_PUNCT = set("(){},=:@+-?>")
+_PUNCT = set("(){}[],=:@+-?>.")
 # `>` is punctuation only as the second half of `=>`, which is what a
 # postcondition's arrow is. `<` never reaches here -- it opens a rule name.
 
@@ -197,6 +197,12 @@ class RuleMember(NamedTuple):
     sign: str
     term: Term
     binds: Optional[Term] = None
+    # `[+3, attention_multiplier:1.2]` -- what this LINE contributes to the
+    # rule's score, and how much attention on what it bound lifts that
+    # contribution. Not a filter: every line still has to match. This decides
+    # which of the applicable rules wins.
+    weight: int = 1
+    att_mult: float = 1.0
 
 
 class PostClause(NamedTuple):
@@ -731,7 +737,59 @@ class Parser:
                     f"it once"
                 )
             binds = prefix_binds
-        return RuleMember(sign, term, binds)
+        weight, att_mult = self._line_score(t.line)
+        return RuleMember(sign, term, binds, weight, att_mult)
+
+    def _line_score(self, line: int) -> "Tuple[int, float]":
+        """`[+3, attention_multiplier:1.2]` -- optional, on any member.
+
+        The bracketed constant is known at load, so a rule's authored
+        contribution costs nothing per application; only the multiplier reads
+        anything that changes. Which line the multiplier hangs on is the whole
+        point: *attention on the event matters, attention on the participants
+        does not* is a claim a rule-level priority cannot make.
+        """
+        if not self.at("["):
+            return 1, 1.0
+        self.next()
+        sign = 1
+        if self.at("-"):
+            self.next(); sign = -1
+        elif self.at("+"):
+            self.next()
+        n = self.next()
+        if not n.text.isdigit():
+            raise ParseError(
+                f"line {line}: a line's contribution is a numeral")
+        weight = sign * int(n.text)
+        att_mult = 1.0
+        while self.at(","):
+            self.next()
+            key = self.next()
+            if key.text != "attention_multiplier":
+                raise ParseError(
+                    f"line {line}: {key.text!r} is not something a line can "
+                    f"carry -- `attention_multiplier` is the only one")
+            if not self.at(":"):
+                raise ParseError(f"line {line}: expected `:` after {key.text}")
+            self.next()
+            whole = self.next()
+            if not whole.text.isdigit():
+                raise ParseError(
+                    f"line {line}: an attention multiplier is a numeral")
+            text = whole.text
+            if self.at("."):
+                self.next()
+                frac = self.next()
+                if not frac.text.isdigit():
+                    raise ParseError(
+                        f"line {line}: an attention multiplier is a numeral")
+                text = f"{text}.{frac.text}"
+            att_mult = float(text)
+        if not self.at("]"):
+            raise ParseError(f"line {line}: expected `]`")
+        self.next()
+        return weight, att_mult
 
     @staticmethod
     def _show_term(term: "Term") -> str:
@@ -1465,7 +1523,8 @@ class Loader:
         built: List[Member] = []
         for m in written:
             member = Member(m.sign, self.build(m.term, scope),
-                            self.build(m.binds, scope) if m.binds else None)
+                            self.build(m.binds, scope) if m.binds else None,
+                            getattr(m, "weight", 1), getattr(m, "att_mult", 1.0))
             if member.sign == ABSENT and self.m.g.has_var(member.pattern):
                 # An absence is a CHECK, not a binder: `no p($x)` with $x free
                 # is *for no $x* -- the negative existential §9 says a member
