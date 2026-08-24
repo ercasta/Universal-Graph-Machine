@@ -441,12 +441,12 @@ def applying() -> None:
         rule <boil> = implies( { +heat($a, $w) }, { +boiling($w) } )
         rule <off>  = implies( { +boiling($w), +cold($w) }, { -boiling($w) } )
     """)
-    check("§16", "a corpus whose rules answer each other stops, and it is "
-                 "ATTENTION that ends it rather than the loop's bound -- the "
-                 "pair really does undo each other and nothing remembers it, "
-                 "but neither move is about anything still attended once the "
-                 "claims have faded, so there is nothing left to reselect",
-          osc.run(limit=12)[-1].state == "quiescent")
+    check("§16", "a corpus whose rules answer each other stops, and the loop "
+                 "says WHY: `unattended`, not `quiescent`. The pair really "
+                 "does undo each other and nothing remembers it -- but each "
+                 "still MATCHES, so calling that a finished search would be "
+                 "the loop stating a falsehood about its own silence",
+          osc.run(limit=12)[-1].state == "unattended")
 
     #  There is no inert set. A rule whose conclusion is already anchored
     # applies again, and the engine does not stop it -- deciding a rule has
@@ -460,9 +460,9 @@ def applying() -> None:
     check("§6", "a rule whose conclusion is already anchored is still OFFERED "
                 "again -- there is no inert set, and deciding a rule has "
                 "nothing further to give is not the engine's judgement -- but "
-                "it runs out of subject rather than out of ticks: the claims "
-                "its match is about fade, and it stops being selected",
-          steps2[-1].state == "quiescent" and len(steps2) < 20)
+                "it runs out of SUBJECT rather than out of ticks, and the run "
+                "ends `unattended` because the match is still there",
+          steps2[-1].state == "unattended" and len(steps2) < 20)
 
     #  ...and the corpus stops it, by asking for the absence of what it
     # wrote. An ordinary premise, readable and overridable, where the inert set
@@ -900,6 +900,23 @@ def attention() -> None:
         mm.run(limit=1)
         return [mm.g.show(p) for p in mm.pad.believed()
                 if mm.g.show(p).startswith("took")]
+
+    #  A silence with work still in it is not a finished search.
+    mz = Machine()
+    kz = load_file(mz, _corpora.path("worked.ugm"))
+    zsteps = mz.run(limit=100)
+    from .core.rules import match as _match
+    took = {s.applied.rule.name for s in zsteps if s.applied is not None}
+    outstanding = [r.name for r in mz.rules.rules
+                   if r.name not in took
+                   and _match(mz.g, mz.pad, r, computes=mz.rules.computes,
+                              predicates=mz.rules.predicates)]
+    check("§20", "a run that stops holding a FULL match it never offered says "
+                 "`unattended` rather than `quiescent` -- the facts are all "
+                 "still believed and the rule still matches, so what faded "
+                 "was not the knowledge but the grip on there being something "
+                 "left to do about it",
+          not outstanding or zsteps[-1].state == "unattended")
 
     check("§20", "the STRONGER claim wins whether it was made first or last "
                  "-- queue position is not a signal, because under decay the "

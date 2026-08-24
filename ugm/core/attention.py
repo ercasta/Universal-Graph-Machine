@@ -506,6 +506,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         round_applied = False
         doubted = False
         stopped = False
+        unattended = 0
         for lane_name in _lane_order(m):
             # Everything attention-shaped below resolves through this.
             m._lane = lane_name
@@ -544,8 +545,15 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                     # ...and WHICH of them, which the loop has never chosen.
                     # It takes the first survivor and breaks, so the binding
                     # was decided by the walk. Free: `found` is already here.
+                    had = len(found)
                     found = _attended_first(found, attended,
                                             m._attention_weights(), m.g)
+                    if had and not found:
+                        # MATCHED and then discarded on attention grounds.
+                        # Free to notice -- the work of matching is already
+                        # done -- and the loop is otherwise about to call
+                        # this silence a finished search.
+                        unattended += 1
                     #  There is NO per-candidate filter left. An application
                     # that was tried and changed nothing is offered again,
                     # because deciding that a rule has nothing further to give
@@ -636,13 +644,27 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         if stopped:
             break
         if not round_applied and not doubted:
-            # Nothing in ANY lane matched, and the shortlist walk above has
+            # Nothing in ANY lane applied, and the shortlist walk above has
             # already been through every non-dormant rule in every lane -- so
             # there is nothing left to widen to.
             # The run is over, and WHICH silence it was goes on the record:
             # the option-set loop's callers read `steps[-1].state` in 33
             # places to tell a finished search from one that hit the limit.
-            steps.append(Step(arrivals, 0, tried, None, (), "quiescent"))
+            #
+            # ⚠ `unattended` is NOT `quiescent`, and conflating them made the
+            # loop state a falsehood. A rule can match completely and be
+            # discarded because nothing it is about is in mind -- and
+            # widening cannot rescue that, because widening matches MORE
+            # rules and the filter drops those too. Reporting a finished
+            # search there breaks this file's own guarantee that a dry
+            # shortlist is not a finished search. Measured on `worked.ugm`:
+            # `quiescent` with <boil> and <weather> both fully matched and
+            # neither ever offered.
+            if unattended:
+                m._note(m.g.rel(m.UNATTENDED, m.g.atom(str(unattended))))
+                steps.append(Step(arrivals, 0, tried, None, (), "unattended"))
+            else:
+                steps.append(Step(arrivals, 0, tried, None, (), "quiescent"))
             break
     # The loop ran out of ITERATIONS, not out of work.
     # → docs/design/attention.md#the-loop-ran-out-of-iterations-not-out-of-w
