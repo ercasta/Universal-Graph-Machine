@@ -674,8 +674,16 @@ class Machine:
         alive = {n for n, _w in kept}
         for node, _w in faded:
             if node not in alive:
+                # The claim goes; what it was WORTH stays. Discarding the
+                # spec here throws away the one fact that makes a later
+                # mention mean anything: a folder attended at 5, faded out,
+                # and then named again came back at a brush's 1 -- so
+                # bringing something up again could never outrank whatever
+                # had been said more recently, however deliberate the
+                # original claim. Forgetting a thing is not the same as
+                # forgetting how much it mattered, and only the first of
+                # those is what fading is for.
                 self._evicted.add(node)
-                spec.pop(node, None)
         queue[:] = kept
         self._fresh_attention.clear()
         return before - len(kept)

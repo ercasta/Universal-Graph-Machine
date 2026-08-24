@@ -822,6 +822,21 @@ def attention() -> None:
                  "nine incidental touches no longer push a deliberate one out",
           kept.get("folder") == 4 and not any(k.startswith("noise") for k in kept))
 
+    #  Bringing something up again is worth what it was worth.
+    m4 = Machine()
+    kb4 = load(m4, "")
+    m4._attend(kb4.atom("folder"), weight=5)
+    for _ in range(8):
+        m4._fade_attention()
+    faded = not m4._attention
+    m4._push_attention(kb4.atom("folder"))      # merely MENTIONED, no weight
+    back = dict((m4.g.show(n), w) for n, w in m4._attention)
+    check("§20", "a claim that faded away and is mentioned again comes back at "
+                 "what it was WORTH, not at a brush's 1 -- fading forgets the "
+                 "thing, never how much it mattered, or bringing something up "
+                 "could not outrank whatever was said more recently",
+          faded and back.get("folder") == 5)
+
 
 def reference_lines() -> None:
     """`attentioned($x)` and a label test -- PREDICATES (`new_substrate.md`):
