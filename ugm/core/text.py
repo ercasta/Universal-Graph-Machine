@@ -26,7 +26,7 @@ SIGNS = {"+": ASSERT, "-": ERASE}
 # these ends a line-form rule with no `->`/blank line said explicitly. A
 # domain that names a relation identically to one of these words needs a
 # blank line before it; none of the shipped corpora do.
-_LINE_FORM_STOPS = {"alt", "rule", "fact", "say", "expert", "action", "alias",
+_LINE_FORM_STOPS = {"alt", "rule", "fact", "say", "action", "alias",
                     "after", "frozen", "learned", "when"}
 
 
@@ -274,39 +274,6 @@ class Parser:
             raise ParseError(f"line {t.line}: expected `rule`, `fact` or `say`, found {t.text!r}")
         if t.text == "rule":
             return self.rule(t.line)
-        if t.text == "expert":
-            # Which expert the rules below belong to. It declares nothing
-            # the surface could not already write -- knows(geometry, <R>) is an
-            # ordinary fact, and staying an ordinary fact is what makes *which
-            # rules does this expert have* an ordinary query (R4).
-            #
-            # `expert geometry extends arithmetic` was here, and inheritance
-            # with it. Deleted 08-22: an expert that absorbs another's rules
-            # wins the questions it borrowed, and duplicating a DISCRIMINATING
-            # term raises its document frequency so it loses weight for
-            # everyone -- including experts that inherited nothing. Measured in
-            # docs/models.md 12. Sharing a rule every expert holds stays free,
-            # because df == total gives it idf zero, so the replacement is to
-            # write the `knows` fact out.
-            # →
-            # docs/design/text.md#which-expert-the-rules-below-belong-to-and-op
-            name = self.next()
-            if name.kind != "name":
-                raise ParseError(
-                    f"line {name.line}: `expert` names an expert, and an expert "
-                    f"is an ordinary atom rather than a statement -- so it is "
-                    f"written without angle brackets"
-                )
-            nxt = self.peek()
-            if nxt is not None and nxt.kind == "name" and nxt.text == "extends":
-                raise ParseError(
-                    f"line {nxt.line}: expert inheritance was deleted. Write "
-                    f"the rules out with `fact +knows({name.text}, <R>)` -- "
-                    f"which is free for a rule every expert holds, and is the "
-                    f"thing you do not want for one that discriminates "
-                    f"(docs/models.md 12)"
-                )
-            return Statement("expert", name.text, "", (), (), None, "", t.line)
         if t.text == "action":
             # The action palette, declared: action move($x, $y) A SIGNATURE
             # and nothing else.  No angle brackets.
@@ -596,8 +563,7 @@ class Parser:
             #
             #  It names NODES, variadically, and the leftmost lifts hardest --
             # `attend($x)` is the precedent, and the variables are the HOST
-            # rule's own, bound by the move that spent it. What it does NOT name
-            # is an expert: that is computed from the nodes.
+            # rule's own, bound by the move that spent it.
             self.expect("(")
             terms = [self.term()]
             while self.at(","):
@@ -1181,20 +1147,9 @@ class Loader:
         for s in named:
             if not _mentions_a_rule(s.member.term):  # type: ignore[union-attr]
                 self._name(s)
-        # Which expert owns what. Read in authored order and applied to the
-        # rules that follow the declaration, so a file reads top to bottom.
-        owner: Dict[str, str] = {}
-        current = ""
-        for s in statements:
-            if s.kind == "expert":
-                current = s.name
-            elif s.kind == "rule" and current:
-                owner[s.name] = current
         for s in statements:
             if s.kind == "rule":
                 self._rule(s)
-                if s.name in owner:
-                    self._expert_knows(owner[s.name], s.name)
         for s in named:
             if s.name not in self.rule_nodes:
                 self._name(s)
@@ -1626,22 +1581,6 @@ class Loader:
             self.m.gate.erase(prop)
         else:
             self.m.gate.write(prop, generic=generic)
-
-    def _expert_fact(self, rel: str, a: NodeId, b: NodeId) -> None:
-        """`knows`, written the way any other fact is written.
-
-        Through the gate, mentioning, and stamped like everything else --
-        because *which rules does this expert have* has to be an ordinary query
-        over the graph (R4), not a table the loader keeps. This is the same
-        lesson as `precedence is read, not kept`: the loader's copy would be a
-        cache of a claim, and the claim is the definition.
-        """
-        # A rule node carries the variables of its own patterns, so a claim
-        # ABOUT one is a mention rather than a generic claim (§13).
-        self.m.gate.write(self.m.g.rel(self.atom(rel), a, b), generic=True)
-
-    def _expert_knows(self, expert: str, rule_name: str) -> None:
-        self._expert_fact("knows", self.atom(expert), self.rule_nodes[rule_name])
 
     # `_maybe_precedence` was here: it read `overrides(A, B)` off a statement as
     # the loader parsed it and seeded §14's precedence table. It is gone, and

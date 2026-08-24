@@ -58,11 +58,6 @@ ROLES: Dict[str, List[str]] = {
         # line of work for another, so a frame is deliberation in exactly the
         # sense `attention` is, one construct up.
         "pushed", "popped", "frame_depth", "declined", "unattended",
-        # ...and which expert a frame belongs to, and how well each suits what
-        # the frame is about, in hundredths: the pick AND the scores it beat,
-        # because an unarguable step cannot buy back vetoability and must not
-        # lose legibility.
-        "knows", "suits",
         # The gap between two states, which a rule cannot compute because it
         # cannot speak about a set. Both states exist right now, so this is a
         # diff and not a memory -- which is why it survived the chain.

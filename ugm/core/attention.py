@@ -366,40 +366,22 @@ def _queries(m: Machine, posts: Sequence[Post]) -> set:
 
 def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         chooser=None, watch=None,
-        pool: Optional[Sequence[Rule]] = None,
         table: Optional["Table"] = None) -> Report:
     """The loop, in full. Everything else in this file is bookkeeping."""
 
-    
     queries = _queries(m, posts)
-    # pool is what makes an EXPERT possible: one shared graph, one shared
-    # chain, and a table over a SUBSET of the rules. Whether the pool was
-    # HANDED to us decides whether it may grow.
-    # → docs/design/attention.md#pool-is-what-makes-an-expert-possible-one-s
-    fixed = pool is not None
-    if pool is None:
-        pool = m.rules.rules
-    pool = [r for r in pool if r.name not in queries]
+    rules = [r for r in m.rules.rules if r.name not in queries]
     # A caller may bring its own table, and docs/interpretation-feedback.md
     # is right that the day it matters is the day something else changes.
     # The ticks continue from table.now rather than restarting at 0.
     # → docs/design/attention.md#a-caller-may-bring-its-own-table-and-doc
     if table is None:
-        table = Table(m.g, pool, _standing(m))
+        table = Table(m.g, rules, _standing(m))
     # The frame this run serves, and the floor it may not pop past. A
-    # nested run -- a consultation, a supposition, a table of agents -- starts on
-    # whatever frame its caller was in, and popping the caller's frame out from
-    # under it would be this stack's version of the bug `probes/experts.py`
-    # records: a structure that looks like a stack and is not one.
+    # nested run -- a supposition, a table of agents -- starts on whatever
+    # frame its caller was in, and popping the caller's frame out from under
+    # it would be a structure that looks like a stack and is not one.
     root = len(m._frames) - 1
-    served = m._frames[root]
-    # Set unconditionally, and this was a `if served.table is None`. A frame
-    # keeps its table so a SUSPENDED line of work can be resumed inside a run;
-    # across runs the caller decides, by passing one or not. Guarding the
-    # assignment meant a second `run()` over a different pool resumed the FIRST
-    # run's table -- the settling run's, holding one rule -- and the loop went
-    # quiescent the moment it popped back to the root, with nothing to say why.
-    served.table = table
     root_table = table
     prev_floor = m._floor
     m._floor = root
@@ -415,9 +397,9 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     doubts = 0
     widenings = 0
     windows: List[int] = []
-    # Sampled rather than reset: the graph is shared -- an expert, a table of
-    # agents and a supposition all run over one -- so a run reports the scans
-    # IT caused and clears nothing another caller is still counting.
+    # Sampled rather than reset: the graph is shared -- a table of agents and
+    # a supposition all run over one -- so a run reports the scans IT caused
+    # and clears nothing another caller is still counting.
     scans0 = {k: list(v) for k, v in m.g.scans.items()}
     t0 = time.time()
     for tick in range(base, base + limit):
@@ -428,45 +410,11 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         # rule-level read is a fixpoint, so an unanchored one gives every
         # proposition its candidates and its winner. See `ask_read`.
         # → docs/design/attention.md#not-a-phase-the-world-may-have-spoken-since-the
-        # *Whose line of work is this?** A `push` spent last tick left a
-        # new frame on the stack, and the loop picks up ITS table here. That is
-        # the whole of what turns a consultation into a resume: `experts.py`
-        # re-runs the caller with a FRESH table on every return, and `tick`'s own
-        # docstring says what that costs -- *a caller stepping by hand would lose
-        # every buff between one tick and the next and be measuring a different
-        # agent each time*.
-        #
-        # A frame with no expert keeps the rules of the frame below, table and
-        # all: a push that discriminated nothing suspends attention without
-        # changing whose rules are in play, and that case is worth having alone.
-        current = m._frames[-1]
-        if current is not served:
-            served = current
-            if current.table is None:
-                current.table = (
-                    Table(m.g, m._expert_pool(current.expert), _standing(m))
-                    if current.expert is not None else table
-                )
-            table = current.table
         # A rule the agent authored since the last tick enters the table now.
-        if current.expert is not None:
-            # **From the EXPERT's pool, re-read, and this was `do not absorb
-            # at all`.** Absorbing every authored rule into a consulted expert's
-            # table would undo the `pool` argument one construct along -- but
-            # absorbing NOTHING is the other error, and it is the one `absorb`
-            # was written about: *the rule was live, it was the node the graph
-            # described, and it never applied because nothing had a score for
-            # it.* Measured: an expert that concludes `knows(medic, <splint>)`
-            # mid-run has `<splint>` in its POOL and not in its TABLE, so a
-            # resumed consultation is STALER than the re-run it replaces --
-            # `set(bob)` never concluded. A frame holds its expert by name
-            # precisely so the pool can grow; this is the half of that which
-            # reaches the table.
-            table.absorb([r for r in m._expert_pool(current.expert)
-                          if r.name not in queries], _standing(m))
-        elif not fixed:
-            table.absorb([r for r in m.rules.rules if r.name not in queries],
-                         _standing(m))
+        # A push suspends attention, not whose rules are in play, so the one
+        # table serves every frame this run touches.
+        table.absorb([r for r in m.rules.rules if r.name not in queries],
+                     _standing(m))
 
         arrivals = m.channels.since_last_tick() or 0
 
@@ -629,8 +577,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     return Report(
         # The ROOT table, not whichever frame the run ended in. A caller that
         # handed its table in gets that table back, which is what `a table can
-        # outlive a run` is about, and a consulted expert's table belongs to its
-        # frame rather than to this report.
+        # outlive a run` is about.
         len(applied), applied, time.time() - t0, tried, _state(m), root_table,
         doubts, windows, widenings, steps,
         sum(v[0] for v in scanned.values()), scanned,
@@ -682,8 +629,8 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
             continue
         if isinstance(target, Push):
             # A CALL. The nodes are the host rule's own variables, bound by
-            # the move that spent this -- and the expert is computed from them,
-            # never named. Ground only, like `attend`, and for the same reason.
+            # the move that spent this. Ground only, like `attend`, and for
+            # the same reason.
             nodes = []
             for term in target.terms:
                 node = _ground(m, table, term, bindings)
@@ -693,8 +640,8 @@ def _spend_one(m: Machine, table: Table, tick: int, by: str, spends, frozen,
             continue
         if isinstance(target, Pop):
             # ...and a RETURN. The loop finds the restored frame at the top of
-            # the next tick and picks its table back up, which is what makes the
-            # caller's re-run a resume.
+            # the next tick and carries on against the one shared table, which
+            # is what makes the caller's re-run a resume rather than a restart.
             node = _ground(m, table, target.term, bindings)
             m._pop_frame(node if node is not None and not m.g.has_var(node)
                          else None)

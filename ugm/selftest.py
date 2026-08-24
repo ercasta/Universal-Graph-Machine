@@ -1406,32 +1406,6 @@ def circuit_breaker() -> None:
           names[names.index("revive") + 1] == "flaky")
 
 
-def experts() -> None:
-    print("\n§20 experts: computed FROM the nodes pushed, never named by the "
-          "rule that pushed them")
-    m = Machine()
-    kb = load(m, """
-        expert geometry
-        rule <area>  = implies( { +plot($p, $n) }, { +square($p) } )
-        expert baker
-        rule <bake>  = implies( { +dough($d) },    { +loaf($d) } )
-        fact +plot(plot1, 12)
-    """)
-    got, scores = m._pick_expert([kb.term("plot(plot1, 12)")])
-    check("§20", "the expert is picked by what its rules are ABOUT",
-          got == kb.atom("geometry"))
-    check("§20", "...and the scores it beat are deposited too, because an "
-                 "unarguable step still has to be legible",
-          len(scores) == 2)
-    nothing, _ = m._pick_expert([kb.atom("weather")])
-    check("§20", "nothing to discriminate is answered with NOTHING, because "
-                 "picking the first expert declared would be a coin flip "
-                 "wearing a mechanism's clothes", nothing is None)
-    check("§20", "an expert's pool is READ, never kept -- `knows` can be "
-                 "concluded mid-run",
-          [r.name for r in m._expert_pool(kb.atom("baker"))] == ["bake"])
-
-
 # -- the surface ------------------------------------------------------------
 
 
@@ -1566,7 +1540,6 @@ def main() -> int:
     frames()
     lanes()
     circuit_breaker()
-    experts()
     surface()
     the_web()
     worked_corpora()

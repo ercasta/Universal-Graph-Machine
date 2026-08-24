@@ -11,7 +11,6 @@ See docs/design/machine.md.
 
 from .. import corpora as _corpora
 import inspect
-import math
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from .channels import Arrival, Channels
@@ -72,40 +71,25 @@ ATTENTION_SPAN = 7
 #: see -- the nodes are different every time.
 FRAME_DEPTH = 8
 
-# REVIEW NOTE: at each step the engine should activate the winning expert based on the attention, 
-# not only on frame pushing. 
-
-
 
 class Frame:
-    """One turn of attention: a queue, the EXPERT whose rules are in play, and
-    that expert's table.
+    """One turn of attention: a queue of nodes, and what was pushed to open it.
 
-    The attention stack and the consultation stack are one construct, not two.
-    `push` is how one expert calls another and `pop` is how it gets the result
-    back. A frame is not only a queue of nodes: it is everything a sub-line of
-    work has that the line above it must not lose.
+    `push` suspends a line of work for another and `pop` returns to it. A
+    frame is not only a queue of nodes: it is everything a sub-line of work
+    has that the line above it must not lose.
 
     The graph is untouched by push and pop. This is not a transaction, there is
     no rollback, and nothing derived inside a frame stops existing when it is
     popped. Attention management is the whole of this. The one thing a pop does
     take back is the frame's own STANDING weights, and it does so simply by
     being discarded with the frame -- there is nothing to erase separately.
-
-    The expert is held by NAME -- a node -- never as a frozen rule list, and
-    `_expert_pool` is read on demand: `knows($e, $r)` can be CONCLUDED mid-run
-    by an ordinary rule, and a pool frozen at push time could not see one.
     """
 
-    __slots__ = ("queue", "expert", "table", "on", "weights")
+    __slots__ = ("queue", "on", "weights")
 
-    def __init__(self, expert: Optional[NodeId] = None, on=()) -> None:
+    def __init__(self, on=()) -> None:
         self.queue: List[Tuple[NodeId, int]] = []
-        # None means *the rules of the frame below*: a push that discriminates
-        # nothing suspends attention without changing whose rules are in play,
-        # which is the pure attention-stack case and is worth having alone.
-        self.expert = expert
-        self.table = None
         self.on: Tuple[NodeId, ...] = tuple(on)
         # STANDING attention, by MAGNITUDE rather than position -- what
         # `attend($x, n)` means beside pushing `$x` onto `queue`. This used to
@@ -188,10 +172,8 @@ class Machine:
         self.ATTENTION = self.g.atom("attention")
         self.SPAN = self.g.atom("attention_span")
         self.DEPTH = self.g.atom("frame_depth")
-        self.KNOWS = self.g.atom("knows")
         self.PUSHED = self.g.atom("pushed")
         self.POPPED = self.g.atom("popped")
-        self.SUITS = self.g.atom("suits")
         self.DECLINED = self.g.atom("declined")
         self.UNATTENDED = self.g.atom("unattended")
         # -- reference lines (`new_substrate.md`) --------------------------
@@ -259,9 +241,7 @@ class Machine:
             "attention": self.ATTENTION,
             "attention_span": self.SPAN,
             "frame_depth": self.DEPTH,
-            "knows": self.KNOWS,
             "pushed": self.PUSHED, "popped": self.POPPED,
-            "suits": self.SUITS,
             "declined": self.DECLINED, "unattended": self.UNATTENDED,
             "attentioned": self.ATTENTIONED, "label": self.LABEL,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
@@ -299,8 +279,8 @@ class Machine:
             self.DORMANT, self.DUE, self.STANDING,
             self.LANE, self.LANE_ORDER,
             self.BOUNDED, self.CLOSE,
-            self.ATTENTION, self.SPAN, self.DEPTH, self.KNOWS,
-            self.PUSHED, self.POPPED, self.SUITS, self.DECLINED,
+            self.ATTENTION, self.SPAN, self.DEPTH,
+            self.PUSHED, self.POPPED, self.DECLINED,
             self.ANSWERS, self.ANSWERED, self.COMPUTES, self.AFFORDED,
             self.LOADED, self.SCOPED,
             self.INTERCEPTS, self.PRODUCING, self.REWROTE,
@@ -490,10 +470,9 @@ class Machine:
     def _push_frame(self, nodes):
         """Suspend what the agent was doing and open a frame on `nodes`.
 
-        This is a call. The nodes are what the new line of work is about; the
-        expert is computed FROM them, so `push` names nodes and never an expert
-        -- a rule that had to name one would be choosing the callee, which is
-        the thing selection exists to do.
+        This is a call: `push($a, $b)` suspends the current line of work and
+        opens a new one about the nodes named. What it runs there is whatever
+        the table finds -- picking is attention's job, not push's.
 
         Returns None if the push did not happen, and that is RECORDED: a
         consultation that returned nothing and one that was never opened are
@@ -503,24 +482,17 @@ class Machine:
         if not nodes:
             # Ground only, and silently so. A frame about no one is not a frame.
             return None
-        expert, scores = self._pick_expert(nodes)
-        for cand, score in scores:
-            # The pick and the scores it beat, before the frame is opened, so
-            # they stand even when the push is then declined.
-            self._note(self.g.rel(self.SUITS, cand, self._numeral(score)))
-        key = (expert, frozenset(nodes))
-        if any((f.expert, frozenset(f.on)) == key for f in self._frames):
-            # The cycle test is on the PAIR -- the expert AND what it is being
-            # asked about -- never on the expert alone. `A -> B -> A` about
-            # something NEW is ordinary recursion and must stay allowed; the
-            # same expert on the same nodes is the loop.
+        key = frozenset(nodes)
+        if any(frozenset(f.on) == key for f in self._frames):
+            # `A -> B -> A` about something NEW is ordinary recursion and must
+            # stay allowed; the same nodes again is the loop.
             self._declined_frame(self.PUSHED, nodes[0], "already_open")
             return None
         if len(self._frames) >= (self._knob(self.DEPTH, FRAME_DEPTH)
                                  or FRAME_DEPTH):
             self._declined_frame(self.PUSHED, nodes[0], "too_deep")
             return None
-        frame = Frame(expert, nodes)
+        frame = Frame(nodes)
         self._frames.append(frame)
         # Reversed, so the FIRST node named ends up at the front of the new
         # queue: `push($a, $b)` reads left to right and position is the
@@ -528,9 +500,7 @@ class Machine:
         for node in reversed(nodes):
             self._attend(node)
         for node in nodes:
-            self._note(self.g.rel(self.PUSHED, expert, node)
-                       if expert is not None
-                       else self.g.rel(self.PUSHED, node))
+            self._note(self.g.rel(self.PUSHED, node))
         return frame
 
     def _pop_frame(self, node: Optional[NodeId] = None) -> bool:
@@ -553,12 +523,9 @@ class Machine:
             # pops too often is arguing with itself and that is its business.
             self._declined_frame(self.POPPED, node, "at_root")
             return False
-        frame = self._frames.pop()
+        self._frames.pop()
         if node is not None and not self.g.has_var(node):
             self._attend(node)
-        if frame.expert is not None and node is not None:
-            self._note(self.g.rel(self.POPPED, frame.expert, node))
-        elif node is not None:
             self._note(self.g.rel(self.POPPED, node))
         return True
 
@@ -571,128 +538,6 @@ class Machine:
         if node is None:
             return
         self._note(self.g.rel(self.DECLINED, what, node, self.g.atom(why)))
-
-    # -- picking the expert ------------------------------------------------
-
-    def _expert_pool(self, expert: Optional[NodeId]) -> List["Rule"]:
-        """The rules this expert may consider, read off the graph.
-
-        Read, never kept: a registry built at load could not see a `knows` a
-        rule concluded, and an ordinary rule can conclude one.
-        """
-        if expert is None:
-            return list(self.rules.rules)
-        by_node = {r.node: r for r in self.rules.rules}
-        out: List["Rule"] = []
-        for inst in self.g.instances_of(self.KNOWS):
-            members = self.g.members(inst)
-            if len(members) != 2 or members[0] is not expert:
-                continue
-            if not self._claims(inst):
-                continue
-            r = by_node.get(members[1])
-            if r is not None and r not in out:
-                out.append(r)
-        # Declaration order, so the table's tiebreak means what it means
-        # everywhere else: the order the author wrote them in.
-        order = {r.node: i for i, r in enumerate(self.rules.rules)}
-        out.sort(key=lambda r: order.get(r.node, 0))
-        return out
-
-    def _experts(self) -> List[NodeId]:
-        """Everyone who knows anything, in the order the graph met them."""
-        out: List[NodeId] = []
-        for inst in self.g.instances_of(self.KNOWS):
-            members = self.g.members(inst)
-            if len(members) != 2 or self.g.has_var(members[0]):
-                continue
-            if not self._claims(inst):
-                continue
-            if members[0] not in out:
-                out.append(members[0])
-        return out
-
-    def _terms_of(self, expert: NodeId) -> Dict[NodeId, int]:
-        """What an expert's rules are ABOUT: ground terms, counted.
-
-        Decomposed with `_nodes_of`, which is attention's own scoring: a
-        proposition is every node it is made of, and each part counts.
-        """
-        counts: Dict[NodeId, int] = {}
-        for r in self._expert_pool(expert):
-            for mm in list(r.antecedent) + list(r.consequent):
-                for node in self._nodes_of(mm.pattern, []):
-                    if self.g.is_var(node) or self.g.has_var(node):
-                        continue
-                    counts[node] = counts.get(node, 0) + 1
-        return counts
-
-    def _idf(self):
-        """`(terms per expert, inverse document frequency)`.
-
-        Share only what everybody shares: a term in every pool tells you
-        nothing about which pool to reach for, and that is what the idf factor
-        is for rather than a stopword list somebody has to maintain.
-        """
-        docs = {e: self._terms_of(e) for e in self._experts()}
-        if not docs:
-            return {}, {}
-        n = len(docs)
-        seen: Dict[NodeId, int] = {}
-        for terms in docs.values():
-            for term in terms:
-                seen[term] = seen.get(term, 0) + 1
-        # `log(n / c)`, so a term in EVERY pool has idf exactly zero and can
-        # move no score at all. That exactness is the property, not an
-        # accident: it is what lets a corpus share a name across every expert
-        # -- an anchor, a slot key -- and know it costs nothing in routing.
-        idf = {t: math.log(n / c) for t, c in seen.items()}
-        return docs, idf
-
-    def _pick_expert(self, nodes):
-        """Which expert a frame about `nodes` belongs to, by TF-IDF.
-
-        Unarguable, and knowingly so -- like attention it is life or death, and
-        an expert that is never picked cannot object that it was not. The
-        mitigation is not making it arguable; it is depositing the pick AND the
-        scores it beat, so nothing about it is hidden.
-
-        Returns `(expert or None, [(expert, hundredths) ...])`. **None when
-        nothing discriminates**: a score of zero everywhere means the terms are
-        in every pool or in none, and picking the first expert declared would
-        be a coin flip wearing a mechanism's clothes -- so the frame keeps the
-        rules of the frame below and says so.
-        """
-        docs, idf = self._idf()
-        if not docs:
-            return None, []
-        # The query, decomposed exactly as an expert's pool is, with a BONUS
-        # for compounds: matching a whole proposition is a stronger signal than
-        # matching the relation it is made of, because the parts are what
-        # everything shares.
-        query: Dict[NodeId, int] = {}
-        for node in nodes:
-            for term in self._nodes_of(node, []):
-                if self.g.is_var(term) or self.g.has_var(term):
-                    continue
-                bonus = 2 if self.g.members(term) else 1
-                query[term] = query.get(term, 0) + bonus
-        scores = []
-        for expert, terms in docs.items():
-            score = 0.0
-            for term, weight in query.items():
-                if term in terms:
-                    score += weight * terms[term] * idf.get(term, 0.0)
-            # Hundredths, so the deposit is a numeral a rule can compare.
-            scores.append((expert, int(round(score * 100))))
-        best = max(s for _e, s in scores)
-        if best <= 0:
-            return None, scores
-        # Ties by the order the graph met the expert, which is authored order.
-        for expert, score in scores:
-            if score == best:
-                return expert, scores
-        return None, scores
 
     def _attend(self, node: NodeId, weight: int = 1) -> bool:
         """*Think about this one.* -- what a postcondition spends when it
