@@ -21,7 +21,7 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .graph import NodeId
 from .machine import Machine, Step
-from .rules import (STOP, UNATTEND, Application, Attend, Destroy, Forget, Label,
+from .rules import (ABSENT, STOP, UNATTEND, Application, Attend, Destroy, Forget, Label,
                     Member, Merge, Pop, Push, Rule, Unlabel, Unmerge, match,
                     substitute)
 
@@ -329,35 +329,88 @@ def _pull(m: Machine, table: "Table",
 
 
 def _attended_first(found: List[Application], attended: Sequence[NodeId],
-                    weights: Optional[dict] = None) -> List[Application]:
-    """Order a rule's own applications by what the agent is thinking about.
+                    weights: Optional[dict] = None,
+                    g=None) -> List[Application]:
+    """Pick a rule's applications by what the agent is thinking about, and
+    order what is left. This is the half no rule-keyed buff can express.
 
-    This is the half no rule-keyed buff can express, and it costs nothing.
     Stable, and that is what keeps the existing tie-break intact.
-
-    See docs/design/attention.md#attended-first.
     """
-    if len(found) < 2:
+    if len(found) < 2 or g is None:
         return found
+    rule_antecedent = found[0].rule.antecedent
     at = set(attended)
     weights = weights or {}
 
     rank = {node: (len(attended) - i) * weights.get(node, 1)
             for i, node in enumerate(attended)}
 
+    def touched(a: Application) -> set:
+        """Every node this application MATCHED, not only what it BOUND.
+
+        A rule whose antecedent names a thing outright binds no variable to
+        it -- `+says(user, sentence(show, big))` binds nothing but `$min` --
+        so scoring the bindings alone made every such rule invisible to
+        attention and, being invisible, ungated: exactly the rules that most
+        want gating, since an utterance is the thing attention is best at
+        telling apart from its own repetition.
+
+        Decomposed, so the sentence INSIDE the arrival counts. An `absent`
+        member matched by not being there touched nothing, and is skipped.
+        """
+        out = set(a.bindings.values())
+        for member in rule_antecedent:
+            if member.sign == ABSENT:
+                continue
+            try:
+                node = substitute(g, member.pattern, a.bindings)
+            except Exception:
+                continue
+            stack = [node]
+            while stack:
+                n = stack.pop()
+                if n is None or n in out:
+                    continue
+                out.add(n)
+                rel = g.relation_of(n)
+                if rel is not None:
+                    stack.append(rel)
+                stack.extend(g.members(n))
+        return out
+
     def weight(a: Application) -> int:
-        # Weighted by POSITION here too, so an application binding what the
-        # agent just turned to beats one binding what it is about to forget.
-        # Summed, unlike the rule lift: binding two attended things really is
-        # more about them than binding one, because a binding is the whole
+        # Weighted by POSITION, so an application about what the agent just
+        # turned to beats one about what it is about to forget. Summed,
+        # unlike the rule lift: touching two attended things really is more
+        # about them than touching one, because an application is the whole
         # move rather than a reason to look.
-        return sum(rank.get(v, 0) for v in a.bindings.values() if v in at)
+        return sum(rank.get(v, 0) for v in touched(a) if v in at)
 
     scored = [(weight(a), i, a) for i, a in enumerate(found)]
-    if not any(w for w, _i, _a in scored):
-        return found  # nothing attended is in play here; do not touch the order
-    scored.sort(key=lambda t: (-t[0], t[1]))
-    return [a for _w, _i, a in scored]
+    # An application about NOTHING the agent is attending to does not apply.
+    # Not merely last: gone. That is the whole of what a corpus otherwise has
+    # to write by hand, and writing it by hand is worse than useless -- it
+    # looks like a filter over folders when it is really the loop's own
+    # question asked in the wrong place.
+    #
+    # The empty pool is the exception, and it is a different claim: when the
+    # agent is attending to nothing at all there is nothing for work to be
+    # about, so everything runs. That is the bootstrap, and the caller has
+    # already made it -- `_attended_first` is only reached under `if
+    # attended:`. Here the pool is known non-empty, so a rule that overlaps
+    # none of it is a rule about something else.
+    overlapping = [t for t in scored if t[0]]
+    if not overlapping:
+        return []
+    # Otherwise attention DECIDES, and not merely orders. An application
+    # binding nothing the agent is attending to is dropped while one that
+    # does exists, so a rule does not have to say `attentioned($x)` to mean
+    # *the one I am looking at* -- which was the corpus writing out, by hand,
+    # the question the loop is already asking. Highest score first, and the
+    # score is position times strength, so it is the thing most recently and
+    # most strongly turned to.
+    overlapping.sort(key=lambda t: (-t[0], t[1]))
+    return [a for _w, _i, a in overlapping]
 
 
 def _queries(m: Machine, posts: Sequence[Post]) -> set:
@@ -437,6 +490,8 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         doubted = False
         stopped = False
         for lane_name in _lane_order(m):
+            # Everything attention-shaped below resolves through this.
+            m._lane = lane_name
             window: List[Application] = []
             top = None
             # Dormancy, and it is the right form of *disable a rule*. A rule
@@ -474,7 +529,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                     # was decided by the walk. Free: `found` is already here.
                     if attended:
                         found = _attended_first(found, attended,
-                                                m._attention_weights())
+                                                m._attention_weights(), m.g)
                     #  There is NO per-candidate filter left. An application
                     # that was tried and changed nothing is offered again,
                     # because deciding that a rule has nothing further to give

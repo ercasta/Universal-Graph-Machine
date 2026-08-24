@@ -781,7 +781,7 @@ def attention() -> None:
                  "the graph believes -- attention is control, not world "
                  "knowledge, and `attentioned($x)` is how a rule asks "
                  "without it being one",
-          kb.atom("a") in m._frames[-1].weights
+          kb.atom("a") in m._lane_state()[2]
           and not m.holds(m.g.rel(m.ATTENTION, kb.atom("a"))))
     m._attend(kb.atom("b"))
     check("§20", "the queue is newest first -- position is the gradient",
@@ -794,7 +794,7 @@ def attention() -> None:
     check("§20", "unattending clears both the queue and the standing "
                  "weights -- a plain dict/list clear now, not an erase loop, "
                  "because there is no belief left to erase",
-          dropped >= 2 and not m._frames[-1].weights
+          dropped >= 2 and not m._lane_state()[2]
           and not m._attention)
 
     #  The queue is bounded by TIME, not by length.
@@ -938,7 +938,7 @@ def rhs_tail() -> None:
                  "about that*, read by magnitude on the standing side and "
                  "never reaching the queue position (`_push_attention` "
                  "floors it at 1)",
-          m1b._frames[-1].weights.get(kb1b.atom("x")) == -5
+          m1b._lane_state()[2].get(kb1b.atom("x")) == -5
           and dict(m1b._attention).get(kb1b.atom("x"), 0) >= 1)
 
     m3 = Machine()
@@ -1334,10 +1334,10 @@ def frames() -> None:
                  "with it -- discarded along with the Frame object, not "
                  "erased from a belief -- or a suspension would leak the "
                  "thing it exists to put away",
-          kb.atom("a") not in m._frames[-1].weights)
+          kb.atom("a") not in m._lane_state()[2])
     check("§20", "...while the node it carried back IS attended, which is "
                  "the attention-level analogue of a return value",
-          kb.atom("answer") in m._frames[-1].weights)
+          kb.atom("answer") in m._lane_state()[2])
     m._pop_frame()
     check("§20", "the root is not popped; it is declined",
           len(m._frames) == depth)

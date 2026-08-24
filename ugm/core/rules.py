@@ -801,7 +801,16 @@ def match(
                 try:
                     ok = pfn(*args)
                 except Exception:
-                    ok = False  # a predicate that raises answers no
+                    return  # a predicate that raises answers no, either sign
+                if want.sign == ABSENT:
+                    # ⚠ The sign is READ here, and this branch returns before
+                    # the `sign == ABSENT` arm below ever sees the member. It
+                    # did not use to be, so `no attentioned($x)` parsed, was
+                    # evaluated as though the `no` were absent, and therefore
+                    # meant its own opposite -- silently, with no error at
+                    # load and none at match. A predicate answers a question;
+                    # `no` asks the other one.
+                    ok = not ok
                 if ok:
                     step(j + 1, bindings)
                 return

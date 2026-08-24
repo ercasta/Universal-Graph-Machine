@@ -66,6 +66,13 @@ ATTENTION_START = 5
 #: What a claim loses per tick when nobody says.
 ATTENTION_DECAY = 1
 
+#: What an ARRIVAL is worth. Deliberately brief: an utterance is an
+#: occasion, not a standing interest, and it has to fall out of mind before
+#: the next one lands or a rule cannot tell the two apart. Long enough that
+#: the rule reading it gets a tick or two to be selected; short enough that
+#: a settle of any real length ends with it gone.
+ARRIVAL_ATTENTION = 2
+
 #: What an incidental touch is worth -- what `_attend_written` gives a node
 #: no one ever claimed. One tick, and then it is somebody else's turn.
 ATTENTION_BRUSH = 1
@@ -90,15 +97,22 @@ class Frame:
     being discarded with the frame -- there is nothing to erase separately.
     """
 
-    __slots__ = ("queue", "attention_spec", "on", "weights")
+    __slots__ = ("queues", "specs", "weight_sets", "on")
 
     def __init__(self, on=()) -> None:
-        self.queue: List[Tuple[NodeId, int]] = []
+        # PER LANE, all three. A lane is a kind of work -- reflex, judge,
+        # watchdog, main -- and what one kind of work is about is not what
+        # another is about. Sharing one queue meant the main lane's chatter
+        # decided what the watchdog was allowed to think about, which is the
+        # scheduler letting the loudest subject also pick the subject.
+        # `attention_span`'s old bound was the same mistake at a different
+        # scale: a single pool that everything competes in.
+        self.queues: Dict[str, List[Tuple[NodeId, int]]] = {}
         # node -> (start, decay). The queue holds what a claim is worth
         # NOW; this holds what it was worth when made and how fast it
         # goes, so a move touching it again can restore it to its own
         # start rather than to some number the toucher chose.
-        self.attention_spec: Dict[NodeId, Tuple[int, int]] = {}
+        self.specs: Dict[str, Dict[NodeId, Tuple[int, int]]] = {}
         self.on: Tuple[NodeId, ...] = tuple(on)
         # STANDING attention, by MAGNITUDE rather than position -- what
         # `attend($x, n)` means beside pushing `$x` onto `queue`. This used to
@@ -112,7 +126,7 @@ class Frame:
         # lets a rule ask without the engine's scheduling state living in the
         # graph. Popped for free: this dict goes with the Frame object, no
         # erase loop needed.
-        self.weights: Dict[NodeId, int] = {}
+        self.weight_sets: Dict[str, Dict[NodeId, int]] = {}
 
 
 class Machine:
@@ -307,6 +321,11 @@ class Machine:
         
         self._evicted: set = set()
         self._readmitted = 0
+        # Which lane is being run right now. The loop sets it per lane pass;
+        # everything that reads or writes attention resolves through it, so
+        # a reflex rule's `attend` lands in the reflex lane's own queue and
+        # `attentioned($x)` asks about the lane doing the asking.
+        self._lane = "main"
         # Attended since the last fade. A claim keeps its full strength
         # through the tick AFTER the one that made it -- otherwise
         # `_attend_written`, whose whole job is to lift the next tick,
@@ -472,14 +491,24 @@ class Machine:
 
     # -- the attention stack -----------------------------------------------
 
+    def _lane_state(self, lane=None):
+        """`(queue, spec, weights)` for a lane on the top frame, made on
+        demand. A lane nobody has attended anything in has an empty pool,
+        and an empty pool is not a constraint -- see `_attended_first`."""
+        lane = lane or self._lane
+        f = self._frames[-1]
+        return (f.queues.setdefault(lane, []),
+                f.specs.setdefault(lane, {}),
+                f.weight_sets.setdefault(lane, {}))
+
     @property
     def _attention(self) -> List[Tuple[NodeId, int]]:
-        """The TOP frame's queue, which is what every reader of it wants."""
-        return self._frames[-1].queue
+        """The top frame's queue FOR THE CURRENT LANE."""
+        return self._lane_state()[0]
 
     @_attention.setter
     def _attention(self, queue) -> None:
-        self._frames[-1].queue = list(queue)
+        self._frames[-1].queues[self._lane] = list(queue)
 
     def _push_frame(self, nodes):
         """Suspend what the agent was doing and open a frame on `nodes`.
@@ -561,7 +590,7 @@ class Machine:
         if weight is None:
             weight = ATTENTION_START
         self._push_attention(node, weight, decay)
-        weights = self._frames[-1].weights
+        _q, _s, weights = self._lane_state()
         if weights.get(node) == weight:
             return False
         weights[node] = weight
@@ -599,7 +628,8 @@ class Machine:
             self._nodes_of(m, out)
         return out
 
-    def _push_attention(self, node: NodeId, start=None, decay=None) -> None:
+    def _push_attention(self, node: NodeId, start=None, decay=None,
+                        lane=None) -> None:
         """To the top, at its strength. Nothing falls off the bottom.
 
         Re-attending something already in the queue MOVES it up rather than
@@ -607,7 +637,7 @@ class Machine:
         recently, and a queue that held duplicates would let one node crowd out
         everything else the agent knows it is doing.
         """
-        queue = self._frames[-1].queue
+        queue, spec, _w = self._lane_state(lane)
         if node in self._evicted:
             # The number the stack has to justify itself against: a node that
             # fell off the bottom and is wanted AGAIN is an outer focus a
@@ -623,7 +653,6 @@ class Machine:
         # let the move's own bookkeeping demote the claim it was making, in
         # the tick it was made. Touched again is *not forgotten yet*, and a
         # node no one ever claimed is worth a brush and no more.
-        spec = self._frames[-1].attention_spec
         if start is None:
             start, decay = spec.get(node, (ATTENTION_BRUSH, ATTENTION_DECAY))
         else:
@@ -661,8 +690,12 @@ class Machine:
         would delete it unmatched, and `_attend_written`'s weight of 1 would
         mean *never seen* rather than *seen once*.
         """
-        queue = self._frames[-1].queue
-        spec = self._frames[-1].attention_spec
+        return sum(self._fade_lane(lane) for lane in list(self._frames[-1].queues))
+
+    def _fade_lane(self, lane: str) -> int:
+        """One lane's worth of that. Every lane ages on the same clock -- a
+        watchdog does not stop forgetting because the main lane is busy."""
+        queue, spec, _w = self._lane_state(lane)
         before = len(queue)
         faded = []
         for n, w in queue:
@@ -698,9 +731,10 @@ class Machine:
         belief a corpus could be reading.
         """
         dropped = len(self._attended())
-        self._attention = []
-        self._frames[-1].attention_spec.clear()
-        self._frames[-1].weights.clear()
+        queue, spec, weights = self._lane_state()
+        queue[:] = []
+        spec.clear()
+        weights.clear()
         return dropped
 
     def _attended(self) -> List[NodeId]:
@@ -723,7 +757,7 @@ class Machine:
         Recency has one direction here or it has none.
         """
         out: List[NodeId] = [n for n, _w in self._attention]
-        for node in reversed(list(self._frames[-1].weights)):
+        for node in reversed(list(self._lane_state()[2])):
             if node not in out:
                 out.append(node)
         return out
@@ -744,7 +778,7 @@ class Machine:
         over the graph in mint order, which is what this docstring used to
         have to rule out rather than simply not produce.
         """
-        claimed = list(self._frames[-1].weights)
+        claimed = list(self._lane_state()[2])
         want = set(claimed)
         out = [n for n, _w in self._attention if n in want]
         for n in claimed:
@@ -757,7 +791,7 @@ class Machine:
         the sum: a node both queued and claimed is not twice as salient, and
         adding them would make the weight a popularity count."""
         out = {n: w for n, w in self._attention}
-        for node, weight in self._frames[-1].weights.items():
+        for node, weight in self._lane_state()[2].items():
             # By MAGNITUDE, not by value: a claimed `-5` is a stronger signal
             # than a queued `+1`, and comparing by value would let any lift at
             # all bury something that says *not this*.
@@ -985,6 +1019,31 @@ class Machine:
         reading does not.
         """
         self.gate.write(self.g.rel(self.ARRIVED, a.channel, a.proposition))
+        # And it is now what the agent is thinking about. Not via
+        # `_attend_written`: an arrival whose proposition is ALREADY believed
+        # writes nothing, so saying the same words a second time would move
+        # nothing at all -- which is exactly the case a rule wants to notice,
+        # because an utterance is identified by its content here and the
+        # repetition is otherwise invisible. Attention is the one part of the
+        # machine that can tell *said again* from *still true*: the claim is
+        # restored to its start whether or not the belief changed, and fades
+        # from there. The queue only -- `_push_attention` rather than
+        # `_attend` -- because a standing weight never fades, and every
+        # sentence ever typed keeping a permanent multiplier is not a memory
+        # of anything.
+        # RESTORED if this is something already claimed, and only given the
+        # arrival's own brief strength if nobody has ever said what it is
+        # worth. Naming a thing is not a claim about how much it matters --
+        # so an utterance that mentions a folder attended at 5 puts it back
+        # at 5, and does not knock it down to an arrival's 2. Stating a
+        # strength here was exactly that bug: mentioning a folder made it
+        # LESS salient than listing it had.
+        _q, spec, _w = self._lane_state("main")
+        self._push_attention(
+            a.proposition,
+            None if a.proposition in spec else ARRIVAL_ATTENTION,
+            lane="main")
+
 
     # -- the loop ----------------------------------------------------------
 
