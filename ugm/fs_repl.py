@@ -2,10 +2,16 @@
 
     python -m ugm.fs_repl [corpus.ugm ...]
 
-Wires `repl_fs`'s tools, the three computators `fs_demo.ugm` reads, and an
-`approve` tool that asks at the terminal, then hands off to `ugm.repl`.
-Extra corpus paths load after `ugm/rules/fs_demo.ugm`, so a rename policy of
-your own can override `<hold-rename>` without editing the shipped one.
+Wires `repl_fs`'s tools, the three computators the shipped corpus reads,
+and an `approve` tool that asks at the terminal, then hands off to
+`ugm.repl`. `circuit_breaker.ugm` is shared infrastructure (§ any domain
+might watch a rule) and loads first, always; everything under
+`ugm/rules/fs/` is THIS domain's own corpus and loads next, whatever is
+there -- drop a `.ugm` file in that folder (a rename policy of your own
+overriding `<hold-rename>`, a rule that reads `<flag-stale>`'s facts) and
+it is picked up on the next run, no path to edit here. Extra corpus paths
+on the command line load last, for a one-off addition that is not meant to
+live in the folder.
 """
 
 import sys
@@ -41,9 +47,10 @@ def _computators(ldr: Loader) -> None:
 
 
 def build(ask=input) -> tuple[Machine, Loader]:
-    """A machine with the fs tools, the approval tool and `fs_demo.ugm`
-    loaded, ready for `ugm.repl.run`. `ask` is the approval prompt -- a
-    function from a message to a line of text -- swappable for a test."""
+    """A machine with the fs tools, the approval tool, `circuit_breaker.ugm`
+    and everything under `ugm/rules/fs/` loaded, ready for `ugm.repl.run`.
+    `ask` is the approval prompt -- a function from a message to a line of
+    text -- swappable for a test."""
     m = Machine()
     ldr = load(m, "", scope="fs")
     repl_fs.register(ldr)
@@ -61,8 +68,13 @@ def build(ask=input) -> tuple[Machine, Loader]:
 
     with open(_corpora.path("circuit_breaker.ugm"), "r", encoding="utf-8") as fh:
         ldr.load(fh.read())
-    with open(_corpora.path("fs_demo.ugm"), "r", encoding="utf-8") as fh:
-        ldr.load(fh.read())
+    loaded = []
+    for corpus_path in _corpora.folder("fs"):
+        with open(corpus_path, "r", encoding="utf-8") as fh:
+            ldr.load(fh.read())
+        loaded.append(corpus_path)
+    if loaded:
+        print("loaded:", ", ".join(loaded))
     return m, ldr
 
 

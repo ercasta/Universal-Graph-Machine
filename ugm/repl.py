@@ -20,7 +20,7 @@ that built `+want(...)` facts directly in Python, because a real path or
 filename (colons, spaces, backslashes) could not survive the tokenizer.
 Gone: the tokenizer now reads a quoted string (`core/text.py`'s lexer), so
 `+want(list("C:\\Users\\ercas\\Documents"))` is ordinary, typeable `.ugm`
-text, and `<list>` (`ugm/rules/fs_demo.ugm`) is the tool -- driven by the
+text, and `<list>` (`ugm/rules/fs/fs_demo.ugm`) is the tool -- driven by the
 engine, not by a REPL command that knew what a directory listing meant.
 
 ## Typing at this prompt is talking on a channel, not authoring

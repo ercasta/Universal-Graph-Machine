@@ -3,7 +3,7 @@ listing and bookkeeping compound into automations, over one graph).
 
 Three answerers -- `ls`, `stat`, `rename` -- and nothing else. `ls`/`stat` are
 read-only and answer freely; `rename` is the one that touches the world, and
-`ugm/rules/fs_demo.ugm` holds it for approval the same way
+`ugm/rules/fs/fs_demo.ugm` holds it for approval the same way
 `tools_approval.ugm` holds `deploy` (§19 triggers, no new machinery).
 
 A tool "builds in the corpus's name scope" (§22): `ls` deposits one
