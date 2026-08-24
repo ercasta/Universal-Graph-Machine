@@ -16,28 +16,30 @@ python -m ugm.selftest                              # 183 checks, 0 failing
 python -m ugm ugm/rules/delay.ugm --ask "owed(ana,money)"
 ```
 
-## Try it: a REPL over a real domain
+## Try it: HarneSkills is the door onto this engine
+
+This repo is the engine only. The REPL — talk to it, one `.ugm` line at a time, typo-correction
+against the loaded corpus's own vocabulary, a plain-English fallback for a line that isn't `.ugm`
+syntax — has moved to **[HarneSkills](https://github.com/ercasta/harneskills)**, a small separate
+repo that depends on this one rather than duplicating it:
 
 ```bash
-python -m ugm.fs_repl
+pip install -e .              # this repo, editable
+pip install -e ../harneskills # or wherever your checkout lives
+harneskills-fs
 ```
 
-No file to name, no setup — it loads `ugm/rules/fs/fs_demo.ugm` (and anything else you drop into
-that folder) automatically, and you're talking to it:
-
 ```
-ugm> show files in "C:\Users\you\Documents"
-  + file(...), size(...), created(...)   -- the `ls` tool, an ordinary rule away
-
-ugm> cleanup "C:\Users\you\Documents" 7
+harneskills> cleanup "C:\Users\you\Documents" 7
 approve rename(notes.txt -> stale-notes.txt)? [y/N]
 ```
 
-The REPL knows nothing about "showing" a directory or "cleaning up" old files — typing something
-that isn't `.ugm` syntax is heard as `sentence(show, files, in, "...")`, and it means whatever an
-ordinary rule in the loaded corpus says it means. A rename is held for approval by the same
-write-time trigger any corpus could use, not a special case in the engine. Typos against the
-corpus's own vocabulary are fixed and echoed; `/godmode` switches to authoring `.ugm` text directly.
+`harneskills-fs` is HarneSkills' own worked example — three file tools, a rename held for approval,
+a circuit breaker watching it — none of it built into the engine, all of it ordinary `.ugm` rules
+(`harneskills/examples/fs/fs_demo.ugm`). Nothing about "showing" a directory or "cleaning up" old
+files is built into the REPL or the tools — a plain-English line means whatever an ordinary rule in
+the loaded corpus says it means, and a rename is held for approval by the same write-time trigger
+any corpus could use, not a special case in the engine.
 
 ## How it works: a loop, some lanes, and rules
 
@@ -112,11 +114,14 @@ ugm/
                               scratchpad -- nothing outside `core` is needed to run an agent
   gates/         vocabulary  every reserved name classified, checked against corpora that ship
   probes/        5 modules   worked examples and measured comparisons -- dungeon fights, the
-                              approval pattern, the circuit breaker, REPL autocorrect
+                              approval pattern, REPL autocorrect
   rules/                     shipped corpora (`worked.ugm`, `delay.ugm`, the dungeon fixtures,
-                              `tools_approval.ugm`, `circuit_breaker.ugm`, `fs/fs_demo.ugm`)
-  repl.py, repl_fs.py, fs_repl.py, corpora.py    the interactive layer and its filesystem demo
-  selftest.py                                    the one test runner
+                              `tools_approval.ugm`, `circuit_breaker.ugm` -- a generic, temporary
+                              rule-suspension pattern any corpus can watch a rule with)
+  corpora.py                 one accessor for a shipped corpus's path, used throughout
+  repl.py, repl_fs.py, fs_repl.py    superseded by HarneSkills (still here, still tested; not
+                              the door a new user should walk through -- see Try It, above)
+  selftest.py                the one test runner
 ```
 
 ## Verification
