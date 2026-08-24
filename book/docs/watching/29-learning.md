@@ -4,32 +4,44 @@ Everything up to here takes the rule set as given. A corpus is authored, the
 bundle ships, and the agent's cleverness is entirely in what it does with what
 it was handed.
 
-This chapter is the other half, and it's Part 2's claim taken seriously:
+This chapter was written to be the other half — Part 2's claim taken
+seriously:
 
 > **A rule is a node. So a rule can be the conclusion of a rule.**
 
-Nothing new is needed for the agent to author one, and everything already true
-of rules is true of what it authors.
+That claim is still true: `reify` (Chapter 10) makes every rule's antecedent
+and consequent ordinary readable structure, `rule($r)`, `ant($r, ...)`,
+`con($r, ...)`, the moment the rule is authored. What follows is a different,
+more honest chapter than the one this replaces, because the three mechanisms
+it was built to describe — composing a derivation into a rule, an agent
+adopting a rule a corpus concluded, and learning a rule from two examples by
+anti-unification — do not exist in the engine as shipped today. They were
+built, they lived in a package called `ugm/learning/`, and that package was
+deleted in the same restructuring that replaced the chain of moments with the
+scratchpad (Part 1's basic chapters): "goal management, the vetoes, attempt, again, the
+call stack, the premise economy, the act vocabulary, expects, and all of
+learning — which comes back on a memory system rather than on a history the
+engine keeps by accident," in the words of the commit that did it. Nothing
+currently in `ugm/core/rules.py` or `ugm/core/machine.py` composes, adopts, or
+anti-unifies anything, and no corpus in this repository builds one.
 
-## Three ways a rule gets made
+What survives is the argument for why each piece would have to work the way it
+did, which is worth keeping — the book already narrates *built, measured, then
+removed* as a first-class device — and the one piece of the chapter that is
+still real: a corpus can attend a node in response to what just happened, and
+that alone is enough to shape the table (Chapter 28) without anything called
+"learning" at all. The gap is tracked honestly in
+[`../horizon/34-not-built.md`](../horizon/34-not-built.md).
+
+## Three ways a rule was meant to get made
 
 ### Composition — collapsing a derivation
 
-Having derived `e` from `a` by way of `b`, `c` and `d`, mint the rule `a → e`
-and use it directly next time.
-
-Measured, over a chain of length *n*:
-
-| n | uncomposed | composed |
-|---|---|---|
-| 2 | 2 | **1** |
-| 4 | 4 | **1** |
-| 8 | 8 | **1** |
-| 16 | 16 | **1** |
-
-*n* steps become one, for any *n*, with the same conclusion.
-
-This is easily confused with compilation, and the two behave oppositely:
+The idea: having derived `e` from `a` by way of `b`, `c` and `d`, mint the rule
+`a → e` and use it directly next time. Measured at the time, over a chain of
+length *n*, *n* steps became one, for any *n*, with the same conclusion — and
+the distinction from compilation was the chapter's sharpest point, and still
+is, as a design argument:
 
 | | **compilation** | **composition** |
 |---|---|---|
@@ -37,32 +49,18 @@ This is easily confused with compilation, and the two behave oppositely:
 | reduces | the cost of one step | **the number of steps** |
 | the gain | a constant factor | algorithmic |
 | inspectable | no | yes |
-| interruptible | at rule boundaries | it *is* a rule boundary |
-| defeasible | no | yes |
 | lives | outside the graph | in the graph |
 
 > **Compilation makes a step cheaper. Composition makes the step unnecessary.**
 
-A composed rule violates nothing: it's data, askable, attributable, defeasible
-like any other rule, and it carries a licence naming the rules it collapses — so
-the trail is recoverable one hop deeper rather than lost.
-
-**Two things it must inherit, and both do.** A constituent that is out of the
-running takes the composition with it — without that, composing would be a way
-past a `dormant` that bound its parts. And a **guard** is inherited by
-construction:
-composition takes the union of the antecedents, and a guard is an ordinary
-negated member, so it comes along without a mechanism.
-
-**And composing across `causes` is refused.** A chain of `implies` collapses
-soundly because every step is read in one moment. A `causes` deposits into a
-*successor*, so the second rule's other premises are read a moment later than
-the first rule's — and flattening them into one antecedent demands them all at
-once. Measured, that loses conclusions. So it's refused.
-
-What composition costs is epistemic rather than structural: intermediate
-conclusions stop being deposited, so **nothing can be surprised inside a
-shortcut**.
+A composed rule, had it shipped, would violate nothing: data, askable,
+attributable, defeasible like any other rule. Two things it would have had to
+inherit: a constituent taken out of the running (`dormant`) takes the
+composition with it, and a guard is inherited for free because composition
+takes the union of the antecedents. And composing across the old `causes` was
+refused, because a `causes` step read its other premises one moment later than
+an `implies` step, and flattening lost conclusions — moot now that `causes`
+itself is gone.
 
 ### Adoption — a rule concludes a rule
 
@@ -70,46 +68,29 @@ shortcut**.
 adopt(<R>)
 ```
 
-**A door, not a question.** It belongs with entering a supposition and
-dispatching an intent, rather than with the answerers. What decides that a rule
-is worth having is a corpus concluding `adopt($r)`; what happens then is not a
-judgement, and there's no verdict for a rule to reach.
-
-Two constraints, both found by building:
-
-**Refused inside a supposition, and that is containment.** A frame's conclusions
-are unreadable from outside by construction — but the rule set is one list
-shared by every frame. A rule adopted while supposing would apply after the
-frame is discharged, and to everything. **Supposing would change what the agent
-believes**, which is the one thing supposing must not do.
-
-(And the refusal is written *inside* the frame, so asking the root whether it
-holds answers nothing however well it worked. Containment caught the check
-before the check caught anything.)
-
-The refusal is worth reading beside Chapter 16's defect, because they are one
-situation with two outcomes. A rule set shared by every frame was noticed, and is
-guarded. The **stratum-0 index** is shared by every frame in exactly the same way
-and is not, so there supposing does change what the agent believes.
-
-**The adopted rule must be the node the graph describes.** Minting a fresh one
-makes the live rule a **twin** of the described one: everything a corpus said
-about the described rule goes to a node that is not a rule, and everything the
-machinery says about the live one names a node no corpus can reach.
-
-This is the **twin trap**, and it has been found seven separate times in this
-project's history:
+The idea: a corpus concludes `adopt($r)` and the named rule goes live, with two
+constraints found while it was being built. **Refused inside a supposition** —
+a frame's conclusions are unreadable from outside by construction, but the
+rule set would have been one list shared by every frame, so adopting inside a
+hypothetical would have applied the rule after the frame discharged, to
+everything, which is exactly what supposing must not do. And **the adopted
+rule must be the node the graph describes** — minting a fresh one makes the
+live rule a twin of the described one, a defect this project's own history
+calls the **twin trap** and had found seven separate times by the time this
+chapter was written:
 
 > **Anything that binds a name has to go through the table that resolves it.**
 
-It was found here only when a standing policy tried to order a learned rule and
-quietly did nothing.
+Neither constraint is exercised by anything today, because there is no
+`adopt`, and — see Chapter 25 — no supposition either. `ugm/core/attention.py`
+still has a comment about what `adopt` would mean for a table (`Table.absorb`
+exists to take in "rules the agent did not start with"), which is the one
+trace left of the feature in the current source.
 
 ### Learning from examples — anti-unification
 
-Given two things that happened, what pattern do they already agree about?
-
-That's the **dual of unification**, and it completes a family:
+The idea: given two things that happened, what pattern do they already agree
+about — the dual of unification:
 
 | operation | asks | answers with |
 |---|---|---|
@@ -117,81 +98,105 @@ That's the **dual of unification**, and it completes a family:
 | **unification** | can these two patterns be made the same? | a substitution over both |
 | **anti-unification** | what do these two things already agree about? | **a pattern** |
 
-The thing that makes it learning rather than noise is small and absolute:
+The argument that made it learning rather than noise was **one mapping across
+premise and conclusion** — generalising the premise and the conclusion with
+separate dictionaries gives a rule whose conclusion mentions things its
+premise never bound, which is either vacuous or wrong. And it would have
+needed to **decline** when two examples share no structure, rather than return
+something vacuous — a difference against nothing is not a difference. None of
+this is implemented; `ugm/core/rules.py` has no anti-unifier, and nothing
+calls one.
 
-> **One mapping across premise and conclusion.**
+## Why a corpus can't write a rule's insides itself, even today
 
-Generalise the premise and the conclusion with *separate* dictionaries and you
-get a rule whose conclusion mentions things its premise never bound — which is
-either vacuous or wrong. One dictionary across both is the difference.
+This part of the argument doesn't depend on the missing tool, and it still
+holds: a corpus cannot write a new rule's insides *as ordinary surface text*,
+for three reasons that are still enforced. A `fact` may not contain a
+variable, so a corpus cannot write a rule's patterns that way. A statement's
+variables are scoped to it, so parts written on separate lines could not share
+a `$x` even if a fact could carry one. And a rule's consequent may carry only
+variables its antecedent binds — a rule being *built* has no antecedent yet.
+So the corpus never names the new rule's insides; it would have to reach them
+by **binding** — *reference is binding*, arriving where it would have been
+load-bearing. Composing a rule, or learning one from examples, would have been
+a function, and a request answered by a function is a **tool** (Chapter 22) —
+had either shipped, it would have had to ship as one, for the same reason
+`kb.answerer`/`kb.computator` exist at all.
 
-Two riders. What the two examples **agree** about is kept — otherwise the result
-isn't the *least* general generalisation. And the tool **declines** when they
-share no structure at all, rather than returning something vacuous.
+## The one input that still works: a prediction that failed
 
-## Why the composer has to be a tool
-
-A corpus cannot write a new rule's insides. Three separate refusals say so, each
-clean rather than silent:
-
-- a `fact` may not contain a variable at all, so a corpus cannot write a rule's
-  patterns;
-- a statement's variables are scoped to it, so parts written on separate lines
-  could not share a `$x` even if it could;
-- a rule's consequent may carry only variables its antecedent binds — and a rule
-  being *built* has no antecedent yet.
-
-So the corpus never names the new rule's insides. It reaches them by
-**binding** — *reference is binding*, arriving where it is load-bearing.
-
-Composing a rule is a function, and a request answered by a function is a
-**tool** (Chapter 22). Learning from examples shares the same seam, for the same
-reason.
-
-## The other input: a prediction that failed
-
-Composition needs a derivation and anti-unification needs two examples. Both
-start from something that went **right**. The third input is the one an agent
-produces by itself, for nothing, every time its model of the world is wrong.
-
-The apparatus is already there. A `causes` rule deposits what it predicts —
-`expects(p, +)` — and four bundled rules turn a contradicted prediction into
-`deviates(p)` (Chapter 25). `dungeon` runs it **392 times and finds nothing**,
-because a game's rules are never wrong, which is why the fixture for this is a
-world where the model *is* wrong:
+Composition needed a derivation and anti-unification needed two examples. Both
+start from something that went **right**. The third input was one an agent
+produces by itself, for nothing, every time its model of the world is wrong —
+and unlike the other two, the *apparatus for noticing it* is buildable today,
+in ordinary rules, as Chapter 25 shows:
 
 ```
 fact +heating(k1)     fact +contains(k1, water)
 fact +heating(k2)     fact +contains(k2, sand)
-rule <boils> = causes( { +heating($k) }, { +boiling($k) } )
-say world: -boiling(k2)
+
+rule <boils> = implies(
+    { +heating($k), no boiling($k) },
+    { +boiling($k), +expects(boiling($k), plus) } )
+
+rule <trust> = implies( { +says($ch, $p), no $p }, { +$p } )
+
+rule <deviation> = implies(
+    { +expects($p, plus), +not($p), no deviates($p) },
+    { +deviates($p) } )
+
+say world: +not(boiling(k2))
 ```
 
 ```
-why deviates(boiling(k2))?
-  +deviates(boiling(k2)), licensed by applied(<deviation-+-contradicted>)
-    because +expects(boiling(k2), +), licensed by applied(<boils>)
-    because -boiling(k2), licensed by applied(<trust>)
-    because +says(world, boiling(k2), -), licensed by applied(<intake>)
-    because +arrived(world, boiling(k2), -), via world
+kettles.ugm: 8 ticks, ended quiescent
+
+what it believes, newest first:
+  deviates(boiling(k2))
+  not(boiling(k2))
+  expects(boiling(k1), plus)
+  boiling(k1)
+  expects(boiling(k2), plus)
+  boiling(k2)
+  says(world, not(boiling(k2)))
+  arrived(world, not(boiling(k2)))
+  contains(k2, sand)
+  heating(k2)
+  contains(k1, water)
+  heating(k1)
 ```
 
-Everything a learner needs is on that trail, and none of it was instrumented to
-put it there:
+A real corpus's rules are rarely wrong in exactly this way, which is why
+`dungeon` — this project's larger fixture, where the game's own rules are
+never wrong — finds nothing to be surprised about; a kettle whose gauge
+disagrees with the causal story is the fixture built to have something to
+find.
+
+What a learner would need is on that belief set, and none of it needed special
+instrumentation to be there:
 
 ```
 which prediction failed      deviates(p)
-which rule made it           the expects entry's licence, applied(<R>)
 about what                   the members of p
 and what did NOT fail        the same relation, holding, about something else
 ```
 
-> **A trail kept for explaining is a training set nobody had to collect.**
+`which rule made the prediction`, though, is **not** recoverable from this —
+that is exactly the support-trail question the scratchpad collapse traded
+away (see this chapter's opening note). `expects(boiling(k2), plus)` is on the
+record; which rule wrote it is not, unless the corpus itself deposits that too
+(`+licensed_by(expects(boiling(k2), plus), <boils>)`, say — an ordinary fact,
+nobody's business but the corpus's to write).
 
-### A discriminator, not a repair
+> **A belief set kept for reasoning is not automatically a training set.** It
+> tells you *what* is believed. Anything that would have needed *why* has to
+> be written down by the rule that concludes it, on purpose, as data.
 
-Abstract every fact about the failing subject by replacing the subject with a
-hole, do the same for the subjects the rule got **right**, and subtract:
+### What a discriminator would have looked for
+
+The idea, restated rather than run: abstract every fact about the failing
+subject by replacing the subject with a hole, do the same for a subject the
+rule got right, and subtract.
 
 ```
 k2 (failed)      heating(_), contains(_, sand)
@@ -199,276 +204,150 @@ k1 (succeeded)   heating(_), contains(_, water)
 difference       contains(_, sand)
 ```
 
-The negative half is the half worth checking. `heating(_)` is true of the failure
-and of the success, so it discriminates nothing — and it is the premise `<boils>`
-already has. **A learner that proposes the rule's own premise is proposing
-noise.**
+`heating(_)` is true of both, so it discriminates nothing — and it's the
+premise `<boils>` already has; a learner proposing the rule's own premise
+would be proposing noise. And with nothing to contrast against, it would have
+had to decline, for the same reason anti-unification would: a difference
+against the empty set is not a difference.
 
-And with nothing to contrast against it declines, which is not politeness:
-
-> **A difference against the empty set is not a difference.**
-
-Given one kettle and no success, *every* fact about the failure reads as an
-explanation of it — so the learner would be most confident exactly where it knew
-least. Two kettles that both hold sand, only one of which failed, are refused for
-the same reason from the other side.
-
-What it emits is one line:
+What it would have emitted was one ground fact —
 
 ```
 fact +likely(prevents(contains(_, sand), <boils>))
 ```
 
-Ground, because a fact may not contain a variable — so the candidate names the
-distinguishing **argument** rather than a pattern. And wrapped, which is the
-section below.
+— ground, because a fact may not contain a variable, so the candidate names
+the distinguishing **argument** rather than a pattern. This much (writing
+`+likely(...)` as an ordinary consequent, wrapped rather than fighting what
+the agent was told) any corpus can still do by hand today; what's missing is
+the machinery that would have proposed it automatically.
 
-### The ontology is what turns a value into a kind
+### The ontology, and why it mattered
 
-One lesson from one failure is not learning, because it does not survive a
-second example. Two kettles fail, one of sand and one of gravel, and the raw
-contrast gives two answers with nothing in common:
+One lesson from one failure does not generalise, because it does not survive a
+second example. Two kettles fail — one of sand, one of gravel — and the raw
+contrast gives two answers with nothing in common. With the corpus's own world
+model consulted (`is_a(sand, solid)`, `is_a(gravel, solid)`), the design's
+argument was that every feature should be offered abstracted as well as raw,
+so the two failures share exactly `contains(_, :solid)`:
 
-```
-raw     boiling(k2)  ['contains(_, sand)']
-raw     boiling(k3)  ['contains(_, gravel)']
-raw     COMMON  ->   []
-```
+> **The ontology is not decoration. It is the difference between a lesson
+> about a thing and a lesson about a kind** — and therefore between memorising
+> and generalising.
 
-An agent learning this way memorises a value, then another value, for ever. With
-the corpus's own world model consulted — `is_a(sand, solid)`, `is_a(gravel,
-solid)` — every feature is offered abstracted as well as raw, and the two
-failures share exactly one thing:
+That argument doesn't depend on the missing implementation to be sound; it's a
+claim about what *any* such learner would need, restated here because the
+chapter that made it no longer has code behind it to point to.
 
-```
-lifted  boiling(k2)  ['contains(_, :solid)', 'contains(_, sand)']
-lifted  boiling(k3)  ['contains(_, :solid)', 'contains(_, gravel)']
-lifted  COMMON  ->   ['contains(_, :solid)']
-```
+## What a learned rule would conclude
 
-> **The ontology is not decoration. It is the difference between a lesson about a
-> thing and a lesson about a kind** — and therefore between memorising and
-> generalising.
+This part needed nothing new, and still needs nothing new if it's ever
+rebuilt: a learned rule concludes **wrapped**, `likely(p)` rather than `p`.
 
-The claim is testable in one lookup, on a case that was never part of the
-evidence. `k5` holds pebbles and was never heated, so it is neither a success nor
-a failure and contributed nothing. The lesson **covers it anyway**, and does not
-cover `k6`, which holds juice.
+> **A rule that concludes wrapped cannot fight what the agent was told.**
 
-And the kill-probe is what says who is doing the work. Delete a single `is_a`
-fact — gravel stops being known as a solid — and the common lesson collapses to
-nothing with everything else unchanged. **The generalising is done by what the
-corpus knows, not by the learner being clever**; a learner that generalised
-without the ontology would be inventing the kind.
-
-Two limits, stated rather than discovered. The lift is **one level and one
-argument** at a time — a corpus rule making `is_a` transitive widens it with no
-change here, which is the right place for that decision. And nothing here
-**promotes** anything: whether `contains(_, :solid)` should become a premise of
-`<boils>` is an authoring act, and adoption is a door somebody walks through on
-purpose.
-
-## What a learned rule may conclude
-
-This turned out to need nothing new.
-
-A learned rule concludes **wrapped**: `likely(p)` rather than `p`.
-
-> **A learned rule that concludes wrapped cannot fight what the agent was told.**
-
-Which means acquisition's normal conflict — a rule the agent invented
-contradicting a rule it was given — needs **nothing to arbitrate it at all**.
-`likely(p)` and `−p` are not rivals; they're different claims, and a corpus that
-wants to act on the first has to cross it deliberately (Chapter 16).
-
-## The agent harmonizes itself
-
-Once rules can be authored, rules about rules become useful — and the first
-fixture that made all of this meet broke in **two** places at once, neither
-visible from inside any of the four pieces built separately.
-
-> **Two conventions that have never met are two conventions that have not been
-> tested.**
-
-That's not a maxim. It's the measured behaviour of this design's own
-construction, and it's why the acceptance gates run against a moving target
-rather than a fixture.
-
-What broke:
-
-- **A claim the agent concluded about one of its own rules was never read.** A
-  rule said something and the machinery ignored it — the recurring defect, seen
-  from the far side.
-- **The adopted rule was a twin of the described one.** The eighth instance.
-
-And one thing worked that shouldn't have been obvious: **a standing policy about
-a rule that did not exist when the policy was written**. `<trust-what-i-was-told>`
-concludes `dormant($r)` about whatever the agent adopts, and it was written long
-before there was anything to adopt. That's what `reference is binding` and
-*claims about rules are read from the graph* buy together.
+`likely(p)` and `not(p)` are not rivals; they're different claims, and a
+corpus that wants to act on the first has to cross that line deliberately
+(Chapter 16). Any corpus can write `+likely(...)` today — nothing about this
+convention was ever engine machinery, which is exactly why it's the one piece
+of this chapter's apparatus a corpus author can still follow.
 
 ## Retiring is not defeating
 
-One last distinction, and it's the humane one:
+One distinction worth keeping regardless of what learns the lesson:
 
 > **Losing an argument is not being wrong.**
 
 A rule that is right about a thousand cases and loses to a more specific one in
 five is not a bad rule. Retiring it because it lost throws away every case it
-was right about.
+was right about. So nothing should retire a rule on the agent's behalf. What a
+rule keeps losing to is a corpus's decision to notice and act on: ask its
+author, add the premise that tells the two apart, or mark it `dormant` —
+which is a claim, and `due(<R>)` (Chapter 27) takes it back.
 
-So nothing retires a rule on the agent's behalf. What a rule keeps losing to is
-readable from the trail, and what to do about it is a corpus's decision: ask its
-author, add the premise that tells the two apart, or mark it `dormant` — which
-is a claim, and `due(<R>)` takes it back.
+## Experience: where the table's numbers come from, today
 
-And before adding any new relation for this sort of thing, there's a check worth
-running first:
-
-> **Before adding a relation, check whether the one you want is a count over the
-> trail.**
-
-Usually it is.
-
-## Experience: where the table's numbers come from
-
-Chapter 28 left one thing open. The postconditions are *what a learning process
-calibrates* — so what is the learning process?
-
-Three answers have been built, and they are genuinely different.
+Chapter 28 left one thing open. The postconditions are *what a learning
+process calibrates* — so what, currently, is the learning process?
 
 ### 1. Being taught — the residue of ordinary use
 
-> A human is the first, manual user of the knowledge base.
-
-Not a labelling task run beside the system. The ordinary first use of a corpus,
-by a person who steps it and picks the next rule. **They are doing exactly what
-the table will later do**, so what they leave behind *is* the table.
-
-Two signals come out of that use, and only one of them is calibration:
-
-| | |
-|---|---|
-| **the wrong order** | a lesson — *what mattered here was this* |
-| **none of these fits** | a **missing rule**, which no calibration can supply |
-
-The second is the more valuable one early, and **only manual use surfaces it**.
-No amount of tuning finds a rule nobody wrote.
-
-And a demonstration cannot produce a flat opinion about a rule. The reflex
-experiment settled it: damping every rule that was *tried and missed* cost **125
-conclusions**, because
-
-> **tried and missed is not evidence a rule is unimportant — it is evidence it
-> did not apply in that state.**
-
-So a lesson has to be **conditional**. And it has to name something that
-outlives the episode, which is what settled the *form* a lesson takes: it
-attends a **thing**, under a condition, hung off the rule that just ran —
+Not a labelling task run beside the system: the ordinary first use of a
+corpus, by a person who steps it and picks the next rule, doing exactly what
+the table will later do — so what they leave behind *is* the table. `attend`
+is what a lesson spends, and it's a lesson conditional on the rule that just
+ran, not a flat opinion about a rule in general:
 
 ```
 learned after <move> { +covered($d) } => attend($d, 3)
 ```
 
-— rather than nudging a rule's score. A lesson written against a rule id goes
-stale the moment a rule is adopted, composed or renamed, and a corpus of
-experience that has gone stale stops *loading* rather than going quietly wrong.
-Chapter 28 has the retirement in full.
+Run for real:
+
+```
+learned.ugm: 2 ticks, ended quiescent
+
+what it believes, newest first:
+  covered(orc1)
+  wounded(orc1)
+  enemy(orc1)
+```
+
+— the `learned` keyword marks the trigger's spend as something a calibration
+process, not the corpus's ordinary logic, put there; `frozen` marks the
+reverse, what calibration may not touch. Both are read by
+`ugm/core/text.py` and both are current. A lesson names a **thing**
+(`attend($d)`), never a rule — a lesson against a rule id goes stale the
+instant a rule is adopted, composed or renamed, which is one more reason those
+mechanisms staying unbuilt hasn't cost this convention anything: it never
+depended on them.
 
 ### 2. Reviewing — offline, and it is a corpus
 
-An episode ends; the trail is walked; what was learned is written as **surface
-text the next episode loads**. Nothing about the loop changes.
-
-Which makes the only question worth asking about it obvious: **run the same
-world twice and see whether the second run is better** — with a gate that allows
-the answer to be *no*.
-
-The finding that made the file exist:
-
-> **Suppression is not a decision.**
-
-An episode that smashed a jug blames the smasher and drops it from what it
-recommends — and then **smashes the jug again**, because omitting a rule leaves
-it exactly where it was, first in authored order. *Do not recommend this* cannot
-say *do that instead*, and only the second changes a run.
-
-!!! note "Deep dive: an ensemble's agreement is invisible"
-    Preferences are scores that sum (Chapter 27), so several learned rows behave
-    as an ensemble. But two **identical** rows are one proposition — restating is
-    not revising — so `3` and `3` scores **3**, while two **distinct** rows sum,
-    so `3` and `4` scores **7** and outweighs a single `5`.
-
-    > **An ensemble's agreement is invisible, and only its disagreement adds.**
-
-    That was filed as a known limitation in one place and as an unexplained
-    failure in another, for a while, before anyone noticed they were the same
-    fact.
+The idea: an episode ends, the trail is walked, what was learned is written as
+surface text the next episode loads. This one is harder to certify today
+specifically because "the trail is walked" is the support-trail question again
+— what's walkable now is the belief set, not a derivation. A corpus can still
+write `learned after` lessons by hand from reading a transcript; whether that
+process can be automated the way it originally was is exactly the gap this
+chapter's opening note names.
 
 ### 3. Practising — goals the agent sets itself
 
-Reviewing has a cost it cannot pay off: *exploration still pays for the
-knowledge* — the bad start had to take the costly route once to find out what it
-cost. It paid in a broken vase.
-
-The proposal is **one rule and no machinery**:
-
-```
-rule <practise> = implies( { +achieves($a, $y) }, { +suppose(goal($y), certain) } )
-```
-
-A corpus already says what its acts bring about. Read that fact the other way
-round and it names something the agent **knows how to want**. So the goals come
-out of the corpus's own vocabulary, and nobody wrote a curriculum.
-
-What makes it safe was already built, which is why this is five rules of fixture
-rather than a subsystem: the supposition boundary keys on `doing` (Chapter 14).
-Inside a frame entered by supposing, deciding to act deposits `taken(x)` instead
-of `emitted(x)`, and the reasoning is carried past the act by its assumed effect.
-
-So a rehearsal runs to the end — routes taken, jugs broken, goals lost — with
-**nothing leaving the agent**. And it is kill-probed: propose the goal bare
-instead of supposing it, and the vase really shatters.
+The idea: read a corpus's own `achieves` facts backwards and let the agent
+propose its own practice goals inside a **supposition**, so a bad route costs
+nothing rehearsed. This one depends on the piece that's most completely gone:
+there is no `suppose`, no `doing`/`taken` distinction, and no boundary that
+keeps a rehearsed act from landing as a real one. `ugm/core/attention.py`'s
+`run()` still accepts a caller's own frame and floor — the raw capability to
+nest one run inside another without popping past the caller exists — but
+nothing in the surface exposes it as a corpus-authored supposition. Filed
+where the rest of this chapter's gaps are filed:
+[`../horizon/34-not-built.md`](../horizon/34-not-built.md).
 
 ## Where this stands, honestly
 
-The instruments are green on their own terms. The comparison is not, and it
-would be dishonest to leave that out of a chapter about learning.
-
-Teaching a table from one demonstration, gated against the **uncalibrated** table
-on the same corpus:
-
-| corpus | teacher took the table's top choice | what calibration cost |
-|---|---|---|
-| `quest-p1.ugm` | **21 of 21** | 9 conclusions lost by three of four lesson kinds |
-| `dungeon` | **16 of 149** | occasion-keyed lessons lose **173**; both kinds together, **213** |
-
-Read those two rows together, because separately each is misleading.
-
-On `quest-p1` the teacher agreed with the table's own ordering **every single
-time** — so there was nothing to teach, and everything a lesson changed was a
-change for the worse. *A corpus with nothing to teach cannot measure a teacher*,
-which is the same shape as Chapter 18's census finding.
-
-On `dungeon` there was plenty to teach — the teacher and the table disagreed on
-133 of 149 moves — and the lessons cost conclusions anyway.
-
-So the honest statement is: **calibration currently buys fewer moves and costs
-answers**, and the mechanism for spending attention is built while the process
-that should be calibrating it is not yet working. Chapter 34 lists it where it
-belongs.
+The instrument that used to gate this chapter — teach a table from one
+demonstration, compare it against the uncalibrated table on the same corpus —
+was itself part of what the restructuring removed, so its numbers are history
+rather than something this rewrite re-ran. What the earlier version of this
+chapter found, kept here because it's the right note to end on rather than
+because it's freshly measured: **calibration is easy to build and hard to
+show actually helps**, and a corpus with nothing to teach cannot measure a
+teacher, which is the same shape as Chapter 18's census finding. The
+`chooser` argument `ugm.core.attention.run` still takes — a human, or any
+other policy, may pick from the window instead of the table's own top choice
+— is real and current; nothing currently plugs a calibration process into it
+in this repository.
 
 !!! note "Deep dive: a gate that crashes reports the same thing as a gate that passes"
-    That comparison had not been run for some time. The gate read two keys the
-    measurement had stopped producing, so it raised on the first corpus of two —
-    **every run**, loudly enough that nobody read the rest.
-
-    Which means `dungeon`, the only corpus of the pair with anything to teach,
-    was never measured at all.
-
-    Chapter 32 has this project's list of instruments that lied. This is a new
-    entry in it, and a new variety: not a check that could not fail, but a check
-    that could not *finish*.
+    The earlier version of this chapter reported a gate that raised on its
+    first corpus and never measured the second — silent in the worst way, a
+    check that could not *finish* rather than one that could not fail. Kept
+    here as the general lesson, independent of the specific gate: a
+    comparison you have not re-run recently is a claim you are making on
+    faith, and this chapter tries hard not to make any more of those than it
+    has to.
 
 ---
 

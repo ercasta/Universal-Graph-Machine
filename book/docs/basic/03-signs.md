@@ -1,162 +1,145 @@
 # Three signs, and silence
 
-An entry's second member says *how* the proposition is claimed.
-There are three signs, plus a fourth possibility that is not a sign at all —
-having no entry.
+A rule member is written with one of three marks. Two are **signs** — `+` and
+`−` — and the third, `no`, is a question about silence rather than a claim at
+all. Where each is allowed depends on which side of a rule it's on, and that
+restriction is not incidental — it's the whole chapter.
 
-| sign | in a real moment | in a rule's pattern |
+| mark | in an antecedent | in a consequent |
 |---|---|---|
-| `+` | holds here | must hold |
-| `−` | **does not hold here** | must not hold |
-| `?` | held before; does not now; and I cannot say what does | — |
-| *no entry* | **unchanged — inherit from before** | don't care |
+| `+` | must be believed | assert it — mint the anchor |
+| `−` | **refused** | erase it — delete the anchor |
+| `no` | must not be believed by anyone | **refused** |
 
-The last row is the one that will cost you an afternoon if you skip it, so let's
-do it first.
+The two blank cells are the load-bearing part, so let's earn them rather than
+just state them.
 
-## Silence means *unchanged*, not *unknown*
+## Absence is not denial
 
-A moment stores only what changed (Chapter 4). So when nothing in this moment
-speaks about a proposition, what stands is the last thing anything said about
-it — the machine does not need to look anywhere else, because a claim is only
-superseded by a later claim about the same proposition.
-
-Which means that in a real moment, **silence is a positive claim**: *this is as
-it was*.
-
-That is open-world reasoning done honestly, and it has a consequence that trips
-up everyone arriving from a database or from Prolog:
-
-> **`−` means denied. It never means absent.**
-
-Here is the trap, run for real. The rule says *heal the wounded, unless
-poisoned*:
+`no p` and `+not(p)` sound like two ways of saying the same thing, and they
+are not. Here is the trap, run for real. The rule says *heal the wounded,
+unless poisoned*:
 
 ```
-rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
+rule <regen> = implies( { +wounded($x), no poisoned($x), no heals($x) },
+                        { +heals($x) } )
 
 fact +wounded(a)
 fact +poisoned(a)
 fact +wounded(b)
 ```
 
-`b` is wounded and nobody has ever mentioned poison in connection with `b`. Does
-`b` heal?
+`b` is wounded and nobody has ever mentioned poison in connection with `b`.
+Does `b` heal?
 
 ```
-why heals(b)?
-  nothing concluded it -- see what is BLOCKED above
+$ python -m ugm poison.ugm --ask "heals(a)" --ask "heals(b)"
+poison.ugm: 2 ticks, ended quiescent
+
+heals(a): not believed
+
+heals(b): believed
 ```
 
-**No.** The `−poisoned($x)` member is looking for an entry that says *this does
-not hold*. It does not match *no entry*. There is nothing anywhere claiming that
-`b` isn't poisoned, so the rule simply never applies — silently, with nothing
-printed and nothing to distinguish it from a rule that had no work to do.
+`b` heals. `a` doesn't, because something believes `poisoned(a)`. And that's
+the whole of what `no poisoned($x)` is asking: *does anything, anywhere,
+currently claim this* — not *is it false*, not *has it ever been true*. If
+nothing has ever mentioned `poisoned(c)`, `no poisoned(c)` matches exactly the
+way it matches for `b`.
 
-Write the denial and it works:
+> **`no` asks whether anything anchors a claim. It never asks what's true.**
 
-```
-fact -poisoned(b)
-```
-
-```
-why heals(b)?
-  +heals(b), via kb, licensed by applied(<regen>)
-    because +wounded(b), via kb, licensed by loaded(wounded(b))
-    because -poisoned(b), via kb, licensed by loaded(poisoned(b))
-```
-
-> **Write your negatives.** A state description that lists only what *is* true
-> will not drive rules that ask what is *not*.
-
-You don't have to write them all by hand. Deriving them is an ordinary rule:
+You don't have to write your negatives by hand for every case. Deriving a
+default is an ordinary rule:
 
 ```
-rule <clean> = implies( { +wounded($x), -bitten($x) }, { -poisoned($x) } )
+rule <clean> = implies( { +wounded($x), no bitten($x) }, { -poisoned($x) } )
 ```
 
-...which of course needs `-bitten` to come from somewhere in turn. At some point
-a corpus has to say what its defaults are, and here it says so in the corpus,
-where you can read it and argue with it, rather than in the engine's semantics,
-where you cannot.
+...which of course needs `no bitten` to come from somewhere in turn. At some
+point a corpus has to say what its defaults are, and here it says so in the
+corpus, where you can read it and argue with it, rather than in the engine's
+semantics, where you cannot.
 
-!!! note "Deep dive: why not just make absence mean false?"
-    Because then the machine could never distinguish *nothing I know settles
-    this* from *this is untrue*, and every "I don't know" would be reported as a
-    denial. That's the failure mode Chapter 0 opened with.
+## There is no `-` premise, and the machine says why
 
-    The cost is real and it is paid here: your rules get longer, and a missing
-    denial fails silently. What you buy is that when the machine says `−`,
-    something actually claimed it, and you can ask who.
-
-## Why `?` has to exist
-
-`?` is the odd one, and there's a specific problem it solves.
-
-*Pouring raises the level, by an unknown amount.*
-
-You cannot write that by writing nothing, because writing nothing means the
-chain returns the **old** level. And you cannot write a new level, because you
-don't know it. Without a third sign, the one thing you were trying to say is
-precisely the thing that cannot be said.
-
-`?` **invalidates without replacing**. It stops the walk and reports ignorance.
+Try to write the poison rule the way it reads in most languages — *unless
+denied* rather than *unless claimed* — and the loader refuses it outright:
 
 ```
-rule <hit> = causes( { +strike($a, $t), +hp($t, $n) },
-                     { ? hp($t, $n), +falls(hp($t)) } )
+rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
 ```
 
 ```
-hp(goblin, 10)      -> ?        (it was + before the hit)
-falls(hp(goblin))   -> +
+ParseError: line 1: `-` is a consequent mode -- it erases. A premise cannot
+erase, and there is no denying sign left to read it as. Say which you meant:
+`no ...` (nothing anchors it) or `+not(...)` (its denial is believed).
 ```
 
-Take that `?` away and `hp(goblin, 10)` still reads `10` after the hit, because
-silence means unchanged. With it, the read honestly reports that it doesn't
-know — and `+falls(hp(goblin))` records the direction, which downstream rules
-can still reason with.
+This isn't the parser being fussy. `-` used to be able to sit in an antecedent
+because there used to be a stored **sign** on every claim, and a `-` premise
+asked to match the ones whose sign said *denied*. That stored sign is gone
+(Chapter 2): belief is presence of an anchor, full stop, and there is nothing
+left for `-` to mean on the reading side. Guessing which of the two real
+questions you meant — *is it absent* or *is its denial believed* — would turn
+a change in the engine into a silent change in what your corpus says. Refusing
+loudly is the honest alternative, and it names both readings so you can pick.
 
-Chapter 22 shows the same move for a transfer that takes more than one step:
-during the transfer both purses read `?`, so an observer **cannot form a total
-at all**, rather than forming a wrong one. The tempting alternative — a
-`+transferring(...)` flag observers are supposed to check — is worse, because it
-is a separate read that can be skipped. The sign cannot be skipped: it's a
-member of the entry, so nothing can obtain the fact without it.
+Symmetrically: `no` never appears in a consequent (*absence is asked, never
+asserted*), never in a `fact` (*a fact states; `no` asks*), and `-` never
+appears on a `say` arrival (*a channel reports what it heard, not what to do
+about it*). Each of those is a real load error with its own message, not a
+silent no-op — the same discipline `@` and `at $m` get elsewhere in the
+surface.
 
 ## Sign and *not* are not rivals
 
-There is also a proposition `not(p)`. Isn't that the same thing as the `−` sign?
+There is also a proposition `not(p)`. Isn't that just `-p` under another name?
 
 No, and both exist, for one reason each:
 
 | | what it is | what it's for |
 |---|---|---|
-| the `−` **sign** | a member of the entry | the ordinary case — matched, and never forgettable, because match cannot return an entry without it |
-| `not(p)` | a **proposition** | the nested case, where only a term can sit inside another term |
+| the `−` **mode** | an action, spent in a consequent | the ordinary case: stop believing something |
+| `not(p)` | an ordinary **proposition** | saying a denial *is itself believed*, and reasoning about that |
 
-The second one earns its place in Chapter 16. Conclude `−b` inside a *likely*
-supposition and what you have learned is *likely, not-b*. With only a sign, what
-comes back out is `−likely(b)` — *it is not likely that b* — which is a different
-claim, and a stronger one.
+`-poisoned(a)` takes back the belief that `a` is poisoned. It says nothing
+about whether anyone thinks the opposite. `+not(poisoned(a))` is a completely
+different act: it asserts a *new* proposition, one that happens to be about
+`poisoned(a)`'s denial, and that proposition can be matched, nested, and
+believed alongside `poisoned(a)` itself without the substrate objecting
+(Chapter 2's closing note). Concluding `-b` from inside a rule about a
+*likely* supposition would be nonsense — there is no entry to erase inside a
+hypothesis someone else is reasoning about — but concluding `+not(b)` there
+works exactly as any other proposition does: what you get out is *likely,
+not-b*, a claim, not an act on the machine's bookkeeping.
 
-> **The member is what the machinery computes with. The term is what survives
-> nesting.**
+> **The mode is what the machinery does. The proposition is what a rule can
+> hold and reason with.**
 
-The translation runs one way only: `+not(p)` becomes `−p`, and not the reverse.
-Minting `+not(p)` for every denial would double every negative fact and would
-build `not(not(p))` on meeting its own output.
+The translation runs one way only, by convention rather than by force: a
+corpus that wants "a positive claim implies its negation is retracted" writes
+that itself, as an ordinary rule — `{+cured($x)} => {-poisoned($x)}` — rather
+than the engine doing it silently. Minting `+not(p)` automatically for every
+erasure would double every negative fact for no reason; nothing requires it,
+and nothing does it for you.
 
-> **A rule that translates both ways meets its own output.** That's a general
-> hazard here, and it shows up again in Chapter 16 with a supposition rule that
-> supposes its own conclusions. Self-applying rules need a corpus to stop them.
+## What used to need a third sign, and why it doesn't any more
 
-`?` stays a sign alone. It is a statement about *reading* — stop the walk,
-report ignorance — and wrapping it as a term would make it look like a claim
-about the world.
+An earlier version of this surface had a `?` sign: *held before, does not now,
+and I can't say what does*. It existed because, under the old chain, silence
+meant *unchanged* — so an interim state that genuinely wasn't known yet had no
+honest way to be written. Take away silence-as-unchanged and the problem
+disappears with it: **there is no more "unchanged" for a third mark to
+override.** A proposition is believed or it isn't, checked fresh against the
+one current state every time, so a value in flux is written the same way any
+other fact is — erase what's stale, and let an ordinary proposition
+(`+unsettled(transfer($a, $b))`) say that a downstream reader shouldn't treat
+the gap as an answer. Chapter 4 is the rest of that story: what "unchanged"
+used to mean, and why there's nothing left for it to mean now.
 
 ---
 
-**Next:** we keep saying *at this moment* and *walk backwards*. Time to say what
-a moment actually is.
+**Next:** we keep saying *believed now*. What happened to keeping track of
+*when*?
 [Moments →](04-moments.md)

@@ -1,10 +1,10 @@
 # Stopping
 
 ```
-mortal.ugm: 3 ticks, ended quiescent
+mortal.ugm: 2 ticks, ended quiescent
 ```
 
-**Quiescent** means: applying anything further would change nothing.
+**Quiescent** means: nothing left matches.
 
 That's *exhaustion*, and it is not the same as being finished. This chapter is
 about the difference, which turns out to be one of the more consequential
@@ -70,45 +70,41 @@ And the same fact from the other direction:
 Which is why Chapter 27 comes after this one, and why the order **stopping →
 recall → learning** is the order the pieces had to be built in.
 
-## Quiescence is itself made of rules
+## Quiescence used to be made of rules, and no longer is
 
-The check *would this application change anything?* is six rules.
+Earlier in this project, quiescence asked a semantic question: *would applying
+this candidate change anything?* Answering it was six rules, and getting there
+was the last thing standing between that design and a fully rule-level kernel,
+because it looked like it needed something the language couldn't say — a claim
+about a **set**, *no conclusion of this application would change anything*.
+Measured on the gate that held the compiled verdict to those six rules: **145
+candidates compared, 0 disagreeing.** And caching the verdict re-tested the same
+answer 99.8% of the time, worth a factor of two on a quadratic that stayed a
+quadratic — a result kept here as a reminder that *removes the cost per
+candidate* and *removes the candidate* are different claims, easy to conflate
+in the moment a number improves.
 
-And it was the last thing standing between this design and a fully rule-level
-kernel, because it looked like it needed something the language couldn't say: a
-claim about a **set** — *no conclusion of this application would change
-anything*.
+The table loop (Chapter 28) does not ask that question at all. There is no
+per-candidate filter any more: a rule that matches and writes nothing new is
+offered again, on the next tick, at the same score, because *this rule has
+nothing further to give* became the corpus's judgement rather than the
+engine's — the same move that turned `boost`/`damp`/`reset` into `attend`
+(Chapter 28) turned *would this change anything* into a question a rule
+answers about itself, with a guard: `no mortal($x)` on `<mortal>` above is what
+stops it, not a compiled verdict watching from outside.
 
-It turned out not to. The universal ranges over **structure**, where a `−`
-member can only mean *not derived* — and that's the universal wanted, for free.
-A claim about a set of *entries* would have been the hard case, because there a
-`−` member can only say *an entry denies this*.
+That is cheaper — nothing is compared against a cache, because nothing is
+cached — and it moves a real cost onto the author: an unguarded rule that keeps
+matching does not merely re-derive nothing, it **occupies every tick**, because
+declaration order breaks every tie the same way. Chapter 28's penguin table
+shows exactly this: `<flies>` without `no flies($x)` never gives `<flightless>`
+a turn, for four hundred ticks, and the run never reaches quiescence at all.
+*An occasion is consumed. A fact is not* (`docs/authoring.md` §0) is no longer
+a style note — it's what keeps the loop moving.
 
-Measured on the gate that holds the compiled verdict to those six rules: **145
-candidates compared, 0 disagreeing.**
+## Quiescence is still a place the machinery can decline silently
 
-!!! note "Deep dive: caching a verdict is not the exponent"
-    Quiescence re-tested the same verdict **99.8%** of the time, and caching it
-    bought a factor of two — and left the quadratic completely unchanged.
-
-    > **Caching a verdict removes the cost per candidate, not the candidate.**
-
-    1,000 applications across 1,002 ticks is still 1,000 × 1,002. The walk being
-    re-done was the *smallest* of the three costs, not the largest, and the
-    measurement said so only after the optimisation had been written.
-
-    A related finding from the same week, and it's the more useful one: the
-    benchmark that had defined "the wall is scale" was the **worst case** — 99.6%
-    of candidates genuinely applied on that fixture, against **10.6%** across the
-    real suite.
-
-    > **A benchmark that cannot fail is worse than none, because it reads as
-    > evidence.**
-
-## Quiescence is a place the machinery can decline silently
-
-Chapter 13 listed the silences. This is the one worth repeating here, because
-it's the reason quiescence needed its own gate.
+Chapter 13 listed the silences. This is the one worth repeating here.
 
 The design said the machinery has exactly two places it can be asked why it
 returned part of a structure: **match**, and **write**. Both are observable —
@@ -119,10 +115,12 @@ That was one short.
 > **Quiescence is a third place the machinery can decline, and it declines
 > silently.**
 
-*This application would change nothing* is indistinguishable from *there was
-nothing to apply*. A whole capability — rules reasoning about rules — was
-dropped there for a long time, with no error, no trace, and nothing to
-distinguish it from correct behaviour.
+*Nothing matches* is a state a run reports (`ended quiescent`), but *this rule
+keeps matching and keeps writing nothing* looks, from outside, exactly like
+useful work — the loop has no way to say which one happened, because it no
+longer asks. That's the price of dropping the six-rule check: a capability
+(the machinery telling a rule apart from a rule that has gone stale) traded for
+a cheaper loop and a guard the corpus now has to remember to write.
 
 ## Doubt, and settling it
 

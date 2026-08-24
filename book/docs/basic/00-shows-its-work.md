@@ -6,7 +6,7 @@ take it apart.
 Here is a complete program. It is two lines.
 
 ```
-rule <mortality> = implies( { +person($p) }, { +mortal($p) } )
+rule <mortality> = implies( { +person($p), no mortal($p) }, { +mortal($p) } )
 
 fact +person(paul)
 ```
@@ -14,89 +14,104 @@ fact +person(paul)
 Run it, and ask about Paul:
 
 ```
-$ python3 -m ugm mortal.ugm --why "mortal(paul)"
-mortal.ugm: 3 ticks, ended quiescent
+$ python -m ugm mortal.ugm --ask "mortal(paul)" --ask "mortal(sara)"
+mortal.ugm: 2 ticks, ended quiescent
 
-why mortal(paul)?
-  +mortal(paul), via kb, licensed by applied(<mortality>)
-    because +person(paul), via kb, licensed by loaded(person(paul))
+what it believes, newest first:
+  mortal(paul)
+  person(paul)
+
+mortal(paul): believed
+
+mortal(sara): not believed
 ```
 
-Nobody wrote down that Paul is mortal. The machine worked it out, and then
-answered a second question — *how did you get there?* — without being asked to
-keep a log.
+Nobody wrote down that Paul is mortal. You asserted one fact, and the machine
+worked the rest out on its own — and then told you honestly that it has never
+heard of Sara at all.
 
-## Read the answer slowly
+## Read the belief list slowly
 
-That four-line reply has more in it than it looks.
+That short reply has more in it than it looks.
+
+- **`mortal(paul)`** is in the list, and you never wrote it. Somewhere between
+  loading the file and printing the answer, the rule fired and this became
+  part of what the machine believes.
+- **`person(paul)`** is in the list too — the one thing you actually asserted.
+  Both lines are just *believed*. Nothing marks one as "given" and the other
+  as "derived"; the machine keeps no such distinction once a belief lands.
+  Chapter 2 is about why that's the *right* amount of bookkeeping, not a
+  missing feature.
+- **`mortal(sara)`** is not in the list, and asking about it says `not
+  believed` — not *false*. Nobody has ever told this machine anything about
+  Sara. Chapter 3 is about the difference between *nobody claims this* and
+  *something denies this*, and why collapsing them is a mistake systems make
+  all the time.
+
+## Why the rule needed that extra clause
+
+Look again at the antecedent: `+person($p), no mortal($p)`, not just
+`+person($p)`.
+
+Try it without the second clause and the run never finishes:
 
 ```
-+mortal(paul), via kb, licensed by applied(<mortality>)
+rule <mortality> = implies( { +person($p) }, { +mortal($p) } )
 ```
 
-- **`+`** — the sign. This is *claimed to hold*. There are three signs and they
-  are not decoration; Chapter 3 is about what the other two are for.
-- **`mortal(paul)`** — the proposition. On its own it claims nothing; it is
-  just the *idea* that Paul is mortal. Chapter 2 is about why that separation
-  is forced rather than fussy.
-- **`via kb`** — where it came from. Here, the knowledge base you typed. It
-  could have been a person, a sensor, or a message.
-- **`licensed by applied(<mortality>)`** — what authorised it. A rule was
-  applied. That rule is a node with a name, and you can ask other questions
-  about it.
-
-And the `because` line is not a paraphrase. It is the actual claim the rule
-consumed, with its own sign, source and licence — `loaded(...)` this time,
-because nothing derived it; you asserted it.
-
-## Now ask about somebody it has never heard of
-
 ```
-why mortal(sara)?
-  nothing concluded it -- see what is BLOCKED above
+mortal.ugm: 400 ticks, ended applied
+  stopped at the tick limit (400); it had not finished
 ```
 
-Not *false*. **Nothing concluded it** — and the machine is careful to say that
-this is a report about itself, not about Sara.
+Paul stays a person forever, so the rule matches forever — and this machine
+does not quietly notice that applying it again would change nothing. **An
+application that writes nothing is still offered again next tick**, because
+deciding a rule has nothing further to give is the corpus's judgement, not the
+engine's. A rule stops itself, by asking for the absence of what it's about to
+conclude. `no mortal($p)` is that stop.
 
-That distinction is the reason most of this book exists. Systems that collapse
-*I have no reason to believe it* into *it is untrue* are systems that will
-eventually tell you something false with complete confidence. Here the two are
-different shapes in memory, and Chapter 3 shows you both.
+You'll see this shape everywhere from here on: a rule that concludes something
+permanent usually needs to ask, first, that the conclusion isn't already
+there.
 
-## Three ticks
+## Two ticks
 
-The run said `3 ticks, ended quiescent`. A tick is one move: the machine chose
-one rule, applied it, and wrote down what followed. It stopped when applying
-anything further would change nothing — which is what *quiescent* means, and
-which is itself a fact it deposits about itself rather than a state hidden in an
-interpreter. Chapter 26 is about stopping.
+The run said `2 ticks, ended quiescent`. A tick is one move: the machine
+scored every rule, took the one whose antecedent matched, applied it, and
+wrote down what followed. It stopped when nothing left to try would change
+anything — which is what *quiescent* means, and which is itself a fact
+deposited about the run rather than a state hidden in an interpreter.
 
 There is no compile step, no phase order, no "inference engine" with a fixed
 pipeline inside it. There is one loop, and everything that happens on it —
-believing what a channel told you, entering a hypothesis, expanding a goal,
-deciding you're done — happens because some rule was selected and applied.
+believing what a channel told you, deriving a fact, deciding you're done —
+happens because some rule was selected and applied.
 
 ## What this book is going to do
 
 Roughly, it will strip away layers.
 
-Part 1 shows you the memory: what a claim looks like, what a moment is, and how
-*is this true?* is answered by walking rather than by looking up.
+Part 1 shows you the memory: what a claim looks like, and how *is this true?*
+gets answered.
 
 Parts 2 to 5 show you what you can teach it: rules, goals, uncertainty, time,
 other people.
 
 Parts 6 to 8 turn the machine around to look at itself: its own commitments as
-ordinary facts, the five things that genuinely could not be taught, and how
+ordinary facts, the things that genuinely could not be taught, and how
 something made of rules manages to read its first rule at all.
 
-!!! note "Deep dive: what you just ran"
-    `python -m ugm <file>` loads a corpus, runs the loop to quiescence, prints
-    what became of anything you asked for, and answers `--why` questions. That
-    is the whole command-line surface. Everything it prints was already in the
-    graph before it printed it — the reporting reads the same structures your
-    rules read, which is why nothing in this book has an "explanation mode".
+!!! note "Deep dive: what happened to *why*"
+    An earlier version of this engine answered a second question after every
+    run — `--why mortal(paul)` — and walked back a proof: which rule, which
+    premises, all the way to what you'd typed. That machinery is gone. It
+    depended on every claim carrying a licence and a place in a history, and
+    both went when the history did (Chapters 4 and 5 tell that story in full).
+    What's left is honest about the trade: `python -m ugm` prints the whole of
+    what's believed, and nothing is hidden behind a summary — but there is no
+    programmatic explanation trail either, in this repo, right now. It's listed
+    as a real gap, not a secret, in Chapter 34.
 
 ---
 

@@ -123,7 +123,13 @@ smaller than it looks from outside.
 ## Callbacks are directed recall
 
 An **occasion** is a fact the machinery deposits when something notable
-happens: `quiet`, `blocked`, `bounded`, `unsupported`, `refused`.
+happens. The vocabulary is smaller than it once was — `quiet`, `blocked`,
+`unsupported` and `refused` were signals the old option-set loop could afford,
+because it had already matched everything and could say precisely what it
+lacked; the table loop never materialises that set, so it can't. What survives
+into the table loop is `bounded(ticks)` (the run hit its limit still applying)
+and `close(<a>, <b>)` (Chapter 28's doubt) — both genuinely deposited, both
+things a corpus can key a callback on today.
 
 A corpus keys on one, and that is the first thing a corpus can say to this
 step: *when this happens, think of me* — the `due` mark that recall's budget

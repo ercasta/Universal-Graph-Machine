@@ -144,20 +144,25 @@ asks for `+wet(streets)`, never matches. **The wrapper labels one step and stops
 the chain there.** Reasoning further inside the hypothesis is the `<carry>` shape
 above, written out: one wrapped rule per step you want to take.
 
-And because a conclusion is now not always what the rule that licensed it said:
+And because a conclusion is now not always what the rule that licensed it said,
+that has to be on the record somewhere a rule can read it — not in a trail (this
+CLI has none: no `--why`, no derivation to walk), but as an ordinary fact the
+trigger itself deposits:
 
 ```
-why likely(boiling(kettle))?
-  +likely(boiling(kettle)), licensed by applied(<boil>)
-    rewritten by <wrap> from boiling(kettle)
-    because +heat(anna, kettle)
-    because +water(kettle)
+$ python3 -m ugm kettle.ugm --ask "boiling(kettle)" \
+                            --ask "likely(boiling(kettle))" \
+                            --ask "rewrote(<wrap>, boiling(kettle), likely(boiling(kettle)))"
+boiling(kettle): not believed
+likely(boiling(kettle)): believed
+rewrote(<wrap>, boiling(kettle), likely(boiling(kettle))): believed
 ```
 
 > **A conclusion that is not what the rule said it concluded cannot be reported
-> as the rule's.** The licence still names the application, because that is what
-> produced the entry; what changed is what it produced, and the record says
-> both.
+> as the rule's alone.** `rewrote(<trigger>, old, new)` names the trigger, what
+> it changed, and what it changed it to — the one thing belief on its own
+> (`believed(p)`, present or absent, nothing else) cannot say, and the reason
+> this fact exists rather than staying implicit in what got written.
 
 ## The lessons that outlived the mechanism
 

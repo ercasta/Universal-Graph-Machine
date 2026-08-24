@@ -1,267 +1,250 @@
 # Appendix — concepts, in plain language
 
-Alphabetical. Each entry says what the thing is, and points at the chapter where
-it earns its keep.
+Alphabetical. Each entry says what the thing is, and points at the chapter
+where it earns its keep. Some entries are marked *retired* — the mechanism
+they name has been removed from the engine. They're kept rather than deleted,
+because a reader who hits the old term in an old blog post, an old corpus, or
+their own memory of an earlier version of this book should still find out
+what happened to it.
 
 ---
 
-**anchored** — containing actual individuals, and connected to the real history.
-The opposite of *generic*. A rule's two halves are generic; everything else is
-anchored. The distinction is structural, so it's checkable rather than
-maintained by etiquette. [Chapter 4](../basic/04-moments.md)
-
-**antecedent** — the *if* half of a rule. A generic moment: a list of signed
-entry patterns, plus any *skeleton* members relating their loci. Its order is
-load-bearing, because the trail records what an application consumed by member
-position. [Chapter 6](../rules/06-a-rule-is-a-fact.md)
-
-**anti-unification** — given two things that happened, the pattern they already
-agree about. The dual of unification, and what *learning from examples* is made
-of. The whole difficulty is using **one** dictionary across premise and
-conclusion. [Chapter 29](../watching/29-learning.md)
-
-**attention** — what an applied rule **spends**. A rule's postconditions are
-queries paired with something to spend, and applying the rule runs them. There
-are five: `attend($x, n)` and `unattend`, which are claims about a **node**;
-`stop`, which ends the run; and `push`/`pop`, which suspend a line of work for
-another. None of them moves a score. (Three that did — `boost`, `damp`,
-`reset` — are retired, because they named a *rule*, and a rule id goes stale.)
-[Chapter 28](../watching/28-the-table.md)
-
-**arbitration** — choosing which of the applicable rules to apply. *Totality* —
-that something always answers — is a floor primitive. What it consults is a
-score, authored order, and whatever the corpus has claimed about its own rules.
-A loser is **deferred, not rejected**. [Chapter 17](../unsure/17-disagreement.md)
-
-**blocked** — a claim the searcher makes about **itself**: I expanded this goal,
-nothing fit, and I have stopped. Not *there is no way* — *I found no way*. No
-positive rule can conclude it, because it's an aggregate over a finished
-search. [Chapter 13](../wanting/13-blocked.md)
-
-**causes** — one of two connectives. Its consequent is *asserted* and lands in a
-**later** moment, so it persists: water you have stopped heating stays boiled.
-[Chapter 7](../rules/07-connectives.md)
-
-**channel** — how something got here: a person, a sensor, a socket. What's
-recorded is that *the channel said so*; whether to believe it is a rule's
-business. Distinct from **authority**, which is whose word it is.
-[Chapter 21](../world/21-channels.md)
-
-**computator** — a pure function given values and returning a value. Never sees
-the graph, so it runs *during the match*, which keeps a whole change in one
-application. Where arithmetic goes. [Chapter 22](../world/22-tools.md)
-
-**connective** — `implies` or `causes`. There are exactly two, and the
-membership test is that a connective must license a different *(forward,
-backward)* reading pair. Adding one adds **rows, not branches**.
-[Chapter 7](../rules/07-connectives.md)
-
-**consequent** — the *then* half of a rule. A delta relative to the antecedent,
-without being a second kind of object. May name a locus its antecedent bound.
-[Chapter 6](../rules/06-a-rule-is-a-fact.md)
-
-**corpus** — a text file of rules, facts and arrivals. What you teach the
-machine. [Chapter 8](../rules/08-writing-a-corpus.md)
-
-**delta** — the entries a moment holds. What changed. A moment stores only its
-delta, which is why reading is a walk. [Chapter 4](../basic/04-moments.md)
-
-**delta (between two spans)** — what stands between where you are and where you
-want to be, computed by the `<difference>` tool and materialised one `missing` /
-`extra` entry per difference. A tool because a rule matches one entry and cannot
-speak about a set. [Chapter 12](../wanting/12-plans.md)
-
-**dormant** — a claim that a rule is out of the running: not considered at all
-until something claims `due`. The only thing that removes a rule, and it is per
-rule, which is why an exception belongs in a premise instead.
-[Chapter 17](../unsure/17-disagreement.md)
-
-**deposit moment** — *when a claim was made*. Not a member of the entry — it's
-simply which moment's delta the entry sits in. The second of the read's two
-indices. [Chapter 2](../basic/02-propositions-and-entries.md)
-
-**entry** — a claim. Exactly two members: a **proposition** and a **sign**. Two
-claims about the same proposition are two different entries, because an entry
-is an *act of claiming*. (It had a third, the **locus**, and Chapter 2 says
-what removing it bought.)
-[Chapter 2](../basic/02-propositions-and-entries.md)
-
-**frame** — a process node: what reasoning is running, where it's standing, and
-where an answer is owed. Readable, writable and **selectable**, which is what a
-stack frame is not. [Chapter 25](../watching/25-own-state.md)
-
-**generic** — containing variables. A pattern. The one item on the floor that
-provably cannot be taught, because you cannot define matching-with-variables
-using rules that themselves require matching-with-variables.
-[Chapter 30](../floor/30-the-floor.md)
-
-**implies** — one of two connectives. Its consequent is *derived* and lands in
-the **same** moment: retract the antecedent and the conclusion goes with it.
-[Chapter 7](../rules/07-connectives.md)
-
-**licence** — what authorised something. On a moment, why it differs from its
-predecessor. On an entry, which rule application, load or arrival produced it.
-Reading the licences is reading the machine's reasoning.
-[Chapter 9](../rules/09-because.md)
-
-**locus** — *removed.* It said what a claim was **about**, as against when it
-was deposited, and it was the first of the read's two indices. With it gone the
-read is one rule — later supersedes earlier — and saying something about
-another time is a corpus's job, written in the proposition.
-[Chapter 5](../basic/05-the-read.md)
-
-**moment** — a state of affairs. A signed delta and a predecessor. A state in
-time and a rule's antecedent are both moments, so the thing a rule is made of
-is the thing history is made of. (It carried a **licence** too; that is
-recorded on the entry now.)
-[Chapter 4](../basic/04-moments.md)
-
-**norm** — a prohibition, written as a **trigger** that concludes `drop`.
-Consulted on what a rule concluded, never proposed and never arbitrated, because
-what comes to mind is opaque and *the opaque component may not be load-bearing
-for safety*. [Chapter 18](../unsure/18-norms.md)
-
-**occasion** — a fact the machinery deposits when something notable happens:
-`quiet`, `blocked`, `refused`, `bounded`, `unsupported`, `pushed`, `popped`.
-A corpus keys on one to say *when this happens, think of me*.
-[Chapter 27](../watching/27-recall.md)
-
-**proposition** — a relation instance. The *idea* of something. Claims nothing
-on its own — it has no locus and no sign, so it structurally cannot be mistaken
-for a claim. [Chapter 2](../basic/02-propositions-and-entries.md)
-
-**quiescent** — applying anything further would change nothing. **Exhaustion**,
-not satisfaction. The loop may end; it may not end quietly on something it was
-asked for. [Chapter 26](../watching/26-stopping.md)
-
-**recall** — which rules come to mind. A function rather than a search, learned
-from outcomes, **incomplete by design** — so it returns a set *and a state*, and
-a dry shortlist must widen. [Chapter 27](../watching/27-recall.md)
-
-**register** — the one privileged pointer: the node the machinery is currently
-working in. Floor, because finding where to write requires a read, and a read
-needs somewhere to stand. [Chapter 30](../floor/30-the-floor.md)
-
-**reification** — a rule deposited as ordinary facts — `rule`, `conn`, `ant`,
-`con` — so other rules can read it. Both the sign and the position are members,
-or a rule read back out of the graph is a different rule.
-[Chapter 10](../rules/10-rules-are-subjects.md)
-
-**relation instance** — a node with a relation and ordered members. What would
-elsewhere be a labelled edge. Everything here is one.
-[Chapter 1](../basic/01-the-substrate.md)
-
-**sign** — `+`, `−` or `?`, a member of the entry. `−` means **denied**, never
-absent. `?` means *held before, does not now, and I cannot say what does*. No
-entry at all means **inherit**. [Chapter 3](../basic/03-signs.md)
-
-**skeleton** — the antecedent members that relate moments and entries to
-each other rather than claim anything: `anc`, `sanc`, `pred`, `in_delta`,
-`entry_of`, `rests_on`. No sign and no licence, because nobody asserted them,
-and each must be **anchored** by an argument already bound.
-[Chapter 6](../rules/06-a-rule-is-a-fact.md)
-
-**stretch** — two moments, a start and an end, in a relation a **corpus**
-names. A claim about a stretch carries it in the proposition. Contents are not
-stored, because the predecessor relation is single-valued, so the walk between
-the endpoints is unique. (It used to be an engine node, `span`, and a kind of
-**locus**; both went together.)
-[Chapter 19](../world/19-spans.md)
-
-**table** — a score per rule, ordered, ties broken by declaration order. The loop
-takes the **first** rule in the window whose antecedent matches, then spends its
-attention. Scores only fall down the table, so the window is a **prefix**: below
-it, nothing is matched at all. A dry window widens.
-[Chapter 28](../watching/28-the-table.md)
-
-**table (of agents)** — several machines, each with its own scope, chain and
-corpus, wired channel-to-channel. Nothing is shared; what crosses is an
-**utterance**. Two minds are two scopes, not two frames.
-
-**trigger** — an ordinary rule marked `intercepts(<T>, after)`, consulted on
-what another rule is about to conclude. It matches `producing(<R>, p)` — a fact
-that exists only while that question is asked and is never deposited — and what
-it concludes is an instruction: `instead(p, q)` replaces, `drop(p)` refuses,
-anything else is added. Norms, hypothesis marking and wrapping are all this one
-mechanism. [Chapter 18](../unsure/18-norms.md)
-[Chapter 24](../world/24-several-agents.md)
-
-**stamp** — the floor-level record on every node the engine mints: what produced
-it, under which substitution, with the register in which state. On the floor
-because voluntary provenance is forgeable.
-[Chapter 30](../floor/30-the-floor.md)
-
-**stratum 0** — rules whose antecedent members are *all* structural. Applied
-without a read, and therefore concluding structure rather than claims. One
-predicate, read off the antecedent, decides both halves — which is what closes
-the bootstrap circle. [Chapter 31](../floor/31-bootstrap.md)
-
-**supposing** — *the mechanism is removed.* It entered a hypothesis by forking
-the chain into a frame, unwrapping the assumption on the way in and re-wrapping
-conclusions on the way out; containment was free, because the caller's walk
-could not reach down the branch. Nothing forks now, so a corpus holds a
-hypothesis in the **proposition** instead — `given(h1, p)` — and the wrapper is
-the containment.
-[Chapter 16](../unsure/16-supposing.md)
-
-**absence** — `no p($x)`, a fourth way an antecedent member relates to the
-state: it holds when nothing **asserts** `p($x)`. Distinct from `-p($x)`
-(*something denies it*) on purpose, because the rule that materialises a denial
-must ask about absence first. It checks, never binds, and can never be
-concluded.
+**absence** — `no p($x)`, a mode a member can be in alongside assert. It
+holds when nothing at all asserts `p($x)`. Distinct from a denial on
+purpose: `+not(p($x))` is a separate, ordinary proposition, and asserting it
+does not by itself make `no p($x)` fail — a rule that wants to treat the two
+the same has to check for both. Absence checks, never binds, and can never
+be concluded. [Chapter 3](../basic/03-signs.md)
 
 **alias** — corpus-defined shorthand for a structure: `alias sale($s, $b) = {
 ... }`. Expanded by the loader, so nothing downstream sees one. A nested
 occurrence is **not** expanded, because nested is a denotation.
 
-**entity** — a labelless node: nothing but an id. Created by a rule, with the
-`+marker` mint in a consequent, and everything it answers to — including its
-name — is an ordinary claim about it.
+**anchored** — a proposition currently believed, as against merely mentioned
+by some rule's stored pattern. `believed(p)` is the anchor; the opposite of
+*generic*, which is about containing variables rather than about being
+believed. [Chapter 2](../basic/02-propositions-and-entries.md)
 
-**denotation** — an expression with no id of its own, like
-`attack(goblin, you)`. Not a thing in the world but a **criterion for matching
-one**, which is what makes it a query. A relation declared
-`relationship(<rel>)` may only relate things that *have* ids, so a denotation
-in one of its argument places is refused at the write.
+**antecedent** — the *if* half of a rule: a list of members, each asserting,
+denying by absence, or computing. [Chapter 6](../rules/06-a-rule-is-a-fact.md)
 
-**tool** — a request answered by a function rather than by a search. Its answer
-lands a tick later, and it **proposes; it never concludes**.
+**anti-unification** — given two things that happened, the pattern they
+already agree about. The dual of unification, and what *learning from
+examples* is made of. [Chapter 29](../watching/29-learning.md)
+
+**arbitration** — choosing which of the applicable rules to apply. A score
+per rule, ties broken by declaration order; a loser is **deferred, not
+rejected** — a run to quiescence applies it eventually unless something
+forgoes or forbids it outright. [Chapter 17](../unsure/17-disagreement.md)
+
+**at $m** — *retired.* A member used to be able to name which moment it sat
+in. Refused at load now, with a message telling you why: there is no second
+time left for a member to bind, because there is no moment for it to name. A
+corpus that wants to talk about *when* writes it as an ordinary relation of
+its own. [Chapter 5](../basic/05-the-read.md)
+
+**@ grades** — *retired.* Uncertainty used to be a number annotating an
+entry (`@0.7 likely(p)`). Refused at load now: uncertainty is an ordinary
+proposition instead — `+likely(p)` — that a rule can read like anything else.
+[Chapter 15](../unsure/15-how-strongly.md)
+
+**belief** — presence. `believed(p)` holds or it doesn't; that is the whole
+of what believing something means here. No confidence number, and — since an
+earlier version of this engine — no record of how a belief was reached
+attached to it. [Chapter 2](../basic/02-propositions-and-entries.md),
+[Chapter 34](../horizon/34-not-built.md)
+
+**boost / damp / reset** — *retired.* Postconditions that used to move a
+*rule's* score. Retired because a rule id goes stale the moment the rule is
+edited, composed or renamed — so a corpus of experience written against rule
+names would stop *loading* rather than going quietly wrong. What replaced
+them targets a **node**: see `attend`. [Chapter 28](../watching/28-the-table.md)
+
+**causes** — *retired.* The second connective. Its consequent used to land
+in a **later** moment, so it persisted once you stopped asking about the
+cause — water you'd stopped heating stayed boiled. With no moments left to
+land in, it did nothing `implies` didn't already do, so it was removed rather
+than kept as a label. Refused at load with a message explaining why.
+[Chapter 7](../rules/07-connectives.md)
+
+**channel** — how something got here: a person, a sensor, a socket. What's
+recorded is that *the channel said so*; whether to believe it is a rule's
+business. [Chapter 21](../world/21-channels.md)
+
+**computator** — a pure function given values and returning a value. Never
+sees the graph, so it runs *during the match*, which keeps a whole change —
+a purse transfer, say — in one application rather than caught half-done.
 [Chapter 22](../world/22-tools.md)
 
-**utterance** — what crosses between two agents: **rendered text**, re-read in
-the hearer's own name scope. A proposition survives the trip; a moment, an entry,
-a rule and anything generic are refused at the hearer's parser.
+**connective** — `implies`. There is exactly **one**: a second earns its
+place only by licensing a different *(forward, backward)* reading pair, and
+`causes` didn't — all it did was pick where the conclusion landed, and there
+is nowhere left for it to land but here. [Chapter 7](../rules/07-connectives.md)
+
+**consequent** — the *then* half of a rule: what a rule's postconditions
+aside, applying it asserts or erases. [Chapter 6](../rules/06-a-rule-is-a-fact.md)
+
+**corpus** — a text file of rules, facts and arrivals. What you teach the
+machine. [Chapter 8](../rules/08-writing-a-corpus.md)
+
+**delta** — the gap between where you are and where you want to be: computed
+by a tool (the `<difference>` pattern), one `missing` or `extra` claim per
+difference. A tool, because a rule matches one entry at a time and can't
+speak about a set. [Chapter 12](../wanting/12-plans.md)
+
+**dormant / due** — `dormant` is a claim that a rule is out of the running:
+not considered at all until something claims `due` for it. The only thing
+that removes a rule, and it is **per rule** — it does not carve out cases,
+which is why an exception belongs in a premise instead (see *unless* in
+`docs/authoring.md`). [Chapter 17](../unsure/17-disagreement.md)
+
+**entity** — a labelless node: nothing but an id. Created by a rule, and
+everything it answers to — including its name — is an ordinary claim about
+it.
+
+**entry / moment / locus / licence / chain** — *retired, as a family.* An
+earlier version of this engine kept history as a chain of moments, each a
+signed delta of entries, each entry carrying a licence recording what
+produced it and a locus saying what it was about as against when it was
+deposited. All of it — the chain, the walk that read it, the derivation
+trail it carried — is gone. State is a single graph; belief is presence.
+What this bought and what it cost is Chapter 34's subject, honestly, rather
+than a single line here.
+
+**frame** — a process node: what reasoning is running, where it's standing,
+and where an answer is owed. Selectable, which is what a stack frame is not:
+`push` opens one, suspending the current line of work; `pop` returns to the
+one below, and everything the frame concluded stands.
+[Chapter 25](../watching/25-own-state.md)
+
+**generic** — containing variables. A pattern, as against something
+*anchored*. [Chapter 30](../floor/30-the-floor.md)
+
+**implies** — the one connective. `rule <name> = implies( { antecedent },
+{ consequent } )` — braces and commas, or the terser line form (one member
+per line, ending the antecedent with `->`, no braces or commas — the same
+statement either way). [Chapter 7](../rules/07-connectives.md)
+
+**lane** — a guaranteed turn every round, independent of whatever the
+default (`main`) lane's arbitration selects that tick. `fact +lane(<R>,
+watchdog)` puts `<R>` in its own lane — how a watchdog or referee rule stays
+alive against a rule that always wins ordinary arbitration. See
+`ugm/rules/circuit_breaker.ugm` for a complete worked pattern.
+[Chapter 28](../watching/28-the-table.md)
+
+**merge / unmerge / destroy / label / unlabel / forget** — postconditions
+that act on the graph rather than on attention. `merge($a, $b)` and
+`unmerge($a, $b)` decide two nodes are (or aren't) the same individual;
+`destroy($x)` removes one; `label`/`unlabel` attach or remove a name;
+`forget $x` erases a request and its answer together. See *postcondition*.
+
+**no** — the absence keyword. See *absence*.
+
+**norm** — a prohibition, written as a **trigger** that concludes `drop`.
+Consulted on what a rule concluded, never proposed and never arbitrated.
+[Chapter 18](../unsure/18-norms.md)
+
+**occasion** — a fact the machinery deposits when something notable
+happens, that a corpus can key a rule on: `bounded(ticks)` when a run hits
+its tick limit, `pushed`/`popped` when a frame opens or closes.
+[Chapter 27](../watching/27-recall.md)
+
+**postcondition** — what a rule's `=> ...` tail, or a standalone `after <R>
+{ query } => ...` trigger, spends once its query holds: `attend($x)` /
+`attend($x, n)` (put a node at the front of what's considered next, weighted;
+optionally negative), `unattend`, `stop` (ends the run), `push(...)` / `pop(...)`
+(suspend a line of work for another), `merge(...)` / `unmerge(...)`,
+`destroy(...)`, `label(...)` / `unlabel(...)`, `forget ...`.
+[Chapter 28](../watching/28-the-table.md)
+
+**proposition** — a relation instance. The *idea* of something. Claims
+nothing on its own — believing it is a separate act, recorded as an anchor.
+[Chapter 2](../basic/02-propositions-and-entries.md)
+
+**? (unsure sign)** — *retired.* Used to mark a claim held before but not
+now, with no replacement known — a third state next to assert and erase.
+Gone: absence is ignorance, and there's nothing left for a third mark to
+say. The parser also refuses `?name` outright now, as the old spelling of a
+variable — write `$name`.
+
+**quiescent** — applying anything further would change nothing.
+**Exhaustion**, not satisfaction. [Chapter 26](../watching/26-stopping.md)
+
+**recall** — which rules come to mind. A function rather than a search,
+**incomplete by design** — so it returns a set *and* a state, and a dry
+shortlist must widen. [Chapter 27](../watching/27-recall.md)
+
+**reification** — a rule deposited as ordinary facts — `rule`, `ant`, `con`
+— so other rules can read it. [Chapter 10](../rules/10-rules-are-subjects.md)
+
+**relation instance** — a node with a relation and ordered members. What
+would elsewhere be a labelled edge. Everything here is one.
+[Chapter 1](../basic/01-the-substrate.md)
+
+**sign** — `+` (assert) or `−` (erase). `no` is a third *mode* a member can
+be in, in sign position, but it isn't a sign on an entry the way `+`/`−`
+are — there's no entry left for it to be a member of. `−` only appears in a
+**consequent**: there's no `−` in an antecedent any more, because there's no
+denying claim left to match against. Say `no p` for absence, or `+not(p)`
+for an explicit denial, instead. [Chapter 3](../basic/03-signs.md)
+
+**stratum 0** — *retired.* Used to name a rule whose antecedent was entirely
+structural — reading the chain's own skeleton (`anc`, `pred`, `in_delta`)
+rather than an ordinary claim — applied without triggering the bootstrap
+circle that reading anything else required. The skeleton went with the
+chain, so nothing plays this role any more. [Chapter 31](../floor/31-bootstrap.md)
+
+**supposing** — *the mechanism is removed.* It used to enter a hypothesis by
+forking the chain into a frame, unwrapping the assumption on the way in and
+re-wrapping conclusions on the way out. Nothing forks now, so a corpus holds
+a hypothesis in the **proposition** instead — `given(h1, p)` — and the
+wrapper is the containment. [Chapter 16](../unsure/16-supposing.md)
+
+**table** — a score per rule, ordered, ties broken by declaration order. The
+loop takes the highest-scoring rule in a window whose antecedent matches,
+then spends its postconditions. [Chapter 28](../watching/28-the-table.md)
+
+**table (of agents)** — several machines, each with its own scope and
+corpus, wired channel to channel. Nothing is shared; what crosses is an
+**utterance**. Two minds are two scopes, not two frames.
 [Chapter 24](../world/24-several-agents.md)
 
-**twin trap** — minting a fresh node for something the graph already describes,
-so that everything said about the described thing goes to a node nothing uses,
-and everything the machinery says about the live one names a node nobody can
-reach. Found seven separate times here.
-[Chapter 29](../watching/29-learning.md)
+**tool** — a request answered by a Python function rather than by search.
+`kb.answerer` proposes an answer a **tick later** and never concludes
+directly; `kb.computator` is pure and runs **during the match**, for
+arithmetic and anything else with no side effect worth waiting a tick for.
+[Chapter 22](../world/22-tools.md)
 
-**marker** — the third part of an action, after the rule and its bindings: free
-structure carried alongside a declared act, **read** by rules and never
-**followed** by machinery. What makes the agent's context sayable, and therefore
-what a learned policy would key on. [Chapter 14](../wanting/14-acting.md)
+**trigger** — an ordinary rule marked `fact +intercepts(<T>, after)`,
+consulted on what another rule is about to conclude before it lands. It
+matches `producing(<R>, p)` — a fact that exists only while the question is
+asked — and concludes an instruction: `instead(p, q)` replaces, `drop(p)`
+refuses, anything else is added beside it. Norms and approval-gating are
+both this one mechanism. `when`-triggers (ranking-time, no host rule) are
+*retired* — hang a lesson off the rule that runs, with `after <R> { ... } =>
+attend($x, n)`, instead. [Chapter 18](../unsure/18-norms.md)
+
+**twin trap** — minting a fresh node for something the graph already
+describes, so that everything said about the described thing goes to a node
+nothing uses, and everything the machinery says about the live one names a
+node nobody can reach. [Chapter 29](../watching/29-learning.md)
+
+**utterance** — what crosses between two agents: **rendered text**, re-read
+in the hearer's own name scope. A proposition survives the trip; anything
+generic is refused at the hearer's parser. [Chapter 24](../world/24-several-agents.md)
 
 **walker** — a **corpus pattern**, not engine machinery: a position in the
 structure held as the ordinary fact `at(<w>, <node>)`, spawning rather than
-moving, ending when that one fact is denied. Still writable; the probe that
-measured it was deleted, so the numbers once quoted for it are history.
+moving, ending when that one fact is denied.
 [Chapter 24](../world/24-several-agents.md)
-
-**discriminator** — what a failed prediction teaches: the feature true of the
-case the rule got wrong and false of the cases it got right. Abstracted through
-the corpus's own `is_a` facts, it becomes a claim about a **kind** rather than
-about a thing. [Chapter 29](../watching/29-learning.md)
 
 ---
 
 ## Four criteria, used everywhere
 
 Every representation decision in this design is scored against these, in a
-table, **before** the decision is taken — and the cost is written down even when
-the choice is obvious.
+table, **before** the decision is taken — and the cost is written down even
+when the choice is obvious.
 
 | criterion | the question |
 |---|---|
@@ -273,8 +256,8 @@ the choice is obvious.
 And a fifth thing, which is a method rather than a criterion, because it's a
 property of two arcs of work **meeting**:
 
-> **Two conventions that have never met are two conventions that have not been
-> tested.**
+> **Two conventions that have never met are two conventions that have not
+> been tested.**
 
 ---
 
@@ -282,13 +265,10 @@ property of two arcs of work **meeting**:
 
 Collected from throughout the book, because they transfer.
 
-> **Something the machinery knows and no rule can ask about is a defect, and the
-> repair is always to deposit the record.**
+> **Something the machinery knows and no rule can ask about is a defect, and
+> the repair is always to deposit the record.**
 
 > **Index what was asserted. Never index what was derived.**
-
-> **An optimisation of a semantics is licensed by a gate. A cache of a claim is
-> debt.**
 
 > **Nothing came to mind is not nothing is left to do.**
 
@@ -297,8 +277,13 @@ Collected from throughout the book, because they transfer.
 > **An agreement gate that agrees is worth nothing until it could have
 > disagreed.**
 
-> **Data rots in a way a branch does not.**
-
 > **Closed is a rate, not a kind.**
 
 > **A claim with no measurement behind it is an opinion.**
+
+> **Write your negatives.** An open-world engine believes only what's on
+> record; a state block that lists only what's true won't drive a rule that
+> asks what isn't.
+
+> **Arbitration is scheduling, not decision.** A rule that loses a tick is
+> deferred, not rejected.

@@ -1,151 +1,132 @@
 # The read
 
-Because a moment stores only what changed, a moment does not contain its state.
+There is one graph, and it does not contain a summary of itself.
 
-> **The state is what the chain answers.**
+> **The state is what an anchor's presence answers.**
 
-So *does `on(a, b)` hold?* means: of everything ever claimed about that
-proposition, what stands now?
+So *does `on(a, b)` hold?* means exactly one thing: is `believed(on(a, b))` in
+the graph right now.
 
-This chapter is the single most important program in the machine. Everything in
-Part 1 exists so that this can answer well, and everything after Part 1 is
-written against its answers.
+This chapter is the single most important program in the machine — the one
+every rule runs, every tick, on every member of every antecedent. Everything
+in Part 1 up to here exists so this can be cheap and unambiguous, and
+everything after Part 1 is written against its answer.
 
 ## The whole of it
 
-> **Later supersedes earlier.**
+> **Presence is the answer. There is no second question.**
 
-Claims about a proposition are kept in the order they were deposited. The read
-takes the last one. If there is none, nothing has been said — which is
-*inherit*, not *false* (Chapter 3).
+```
+holds(p) = anchor(p) is not None
+```
 
-That is the entire rule, and in the code it is one index lookup. It is worth
-dwelling on how much it is *not* doing:
+One dictionary lookup, because the anchor is interned: a proposition has at
+most one anchor, ever, so there is exactly one place to look and at most one
+thing to find. It's worth dwelling on how much this is *not* doing:
 
-- It does not walk backwards through moments.
-- It does not compare depths, or test ancestry.
-- It does not ask *at which moment* — there is no second time to ask about.
+- It does not walk anything.
+- It does not compare two claims to see which is newer.
+- It does not ask *at which moment* — there is no moment to ask about
+  (Chapter 4).
+- It does not check a stored sign — there isn't one; asserting mints the
+  anchor, erasing deletes it, and reading just asks whether it's there.
 
-A claim is superseded only by a later claim **about the same proposition**.
-Nothing else can displace it, so nothing else has to be consulted.
+A claim about a proposition is never *superseded*, because there is never a
+second one to supersede it with. Assert `p` while it's already believed, and
+you get the same anchor back, unchanged. Erase it, and it's gone. There is no
+in-between state where two claims about `p` coexist for the read to choose
+between.
 
-!!! note "This used to be a walk, and the walk was the design's biggest cost"
+!!! note "This used to be a walk, and it was the design's biggest cost"
     An entry used to carry a **locus** — what it was *about* — beside its
-    deposit moment, so the read had to use both keys in a fixed order:
-    *latest locus, then latest deposit*. An entry was a candidate only if its
-    locus was at-or-before the moment being asked about, and *at-or-before* had
-    to be **ancestry** rather than a depth comparison, because supposing forked
-    the chain.
+    deposit time, so the read had to use both keys in a fixed order: latest
+    locus, then latest deposit, with *at-or-before* decided by ancestry rather
+    than a depth comparison, because supposing forked the chain. Measured
+    before anything was optimised, resolving reads that way was **86% of
+    runtime**, and sixteen of every seventeen walks were the same walk
+    repeated.
 
-    Two keys and two ancestry walks bought a real capability: *what did I think
-    at M7* was the same walk from a different starting point, so revising a
-    view of the past was ordinary. It also made reading **86% of runtime**.
+    Three rounds of work, each measured before the next, brought that walk
+    down: asking it once per tick rather than once per rule, indexing the
+    resolved state by sign and relation, indexing the resolution by
+    proposition — together, **67×**. A later pass, maintaining the state and
+    everything derived from it in one place instead of rebuilding it, took a
+    1,600-fact fixture from 4.79s to 0.48s, and made 12,800 facts run in less
+    time than 1,600 used to take.
 
-    Both the locus and the fork are gone. What remains answers one question —
-    *what do I think now* — and answers it in a lookup. Saying something about
-    a past moment is a corpus's job now, written into the proposition where a
-    rule can argue with it (Chapters 19 and 23), and the machinery keeps every
-    entry in deposit order so the raw history is still there to walk when a
-    rule wants it.
+    None of that machinery exists any more, and none of it needed to survive:
+    the locus went (Chapter 4), and with it the two-key walk those three
+    rounds were built to speed up. What's left isn't a fourth optimisation of
+    the same walk — it's a walk with nothing left to walk. The read didn't get
+    faster again. It got structurally simple, which is a different kind of
+    win, and the numbers above are history, not a benchmark of what runs
+    today.
 
-## Nothing is thrown away
+## A read that never changes is still asked
 
-The claim that lost is still in the chain. Superseding is **appending**, not
-overwriting, so:
+Reading costs nothing, but *asking* happens on a schedule you don't control —
+every tick, for every rule whose shortlist might contain it. That has a
+consequence Chapter 0 already ran into and is worth stating precisely here:
 
-- `why` can name the entry that won *and* the ones it beat;
-- a rule can walk the raw chain and find what was true earlier (Chapter 23);
-- and *the world moved* stays distinguishable from *I was wrong*, which is what
-  the two levels of Chapter 2 were bought for.
+> **The engine does not decide, on your behalf, that a match is no longer
+> worth acting on.**
 
-> **The superseded claim was never lost. It was never in the *state***, which
-> is a different thing.
+A rule whose antecedent is still satisfied is still offered a chance to apply,
+whether or not applying it would write anything new:
 
-## One order throughout
+```
+rule <flip> = implies( { +on(light) }, { -on(light), +off(light) } )
 
-The read settles *which* entry wins. It does not, by itself, settle the order
-things are enumerated in elsewhere — and that order is what "the most recent
-one" means when several entries fit a description.
+fact +on(light)
+```
 
-Measured, the walk once disagreed with itself: ancestry was newest-first and a
-moment's delta was oldest-first, so two candidates deposited by one connective
-came out in the opposite order to two deposited by the other. Which connective a
-rule used has nothing to do with what a description refers to. One reversal made
-the walk one order throughout.
+```
+$ python -m ugm flip.ugm --ask "on(light)" --ask "off(light)"
+flip.ugm: 2 ticks, ended quiescent
 
-> **A deterministic computation whose result depends on an undeclared
-> enumeration order has a tie-break nobody authored.**
+on(light): not believed
 
-That line comes up again for rankings (Chapter 27) and for random draws. It's
-one of this project's standing lessons.
+off(light): believed
+```
 
-## What it cost, and what was done about it
+This one quiesces cleanly, in two ticks, because the *consequent itself*
+removes the thing the antecedent needed — erasing `on(light)` is what stops
+the rule from matching again. That's the general pattern: a rule stops itself
+by spending what it matched, or by asking for the absence of what it's about
+to conclude (`no mortal($p)` from Chapter 0). Nothing in the loop counts how
+many times a rule has fired, and nothing notices that reapplying it would be
+pointless — that judgement belongs to the corpus, every time.
 
-While the read was a walk it was the largest recurring cost in the design. On
-one goal fixture, before anything was done, resolving reads was **86% of
-runtime**, and sixteen of every seventeen walks were the same walk repeated.
-Everything below was measured then, and every one of the optimisations still
-stands — the read got cheaper again when the locus went, but the state is still
-kept and still indexed, because *the state* and *one proposition's answer* are
-different questions.
-
-Three changes, each measured before the next, and none of them touching what the
-read *means*:
-
-- ask the walk once per tick rather than once per rule,
-- index the resolved state by (sign, relation),
-- index the resolution by proposition.
-
-Together: **67×**.
-
-Later, a second round. Keeping the resolved state and then rebuilding everything
-derived from it keeps the cost you were paying; maintaining all three where the
-state lives — the state, its index, and the keys read off it — took the loop
-from quadratic to **linear**. Measured: 1,600 facts from 4.79s to **0.48s**, and
-12,800 facts in less time than 1,600 used to take. Doubling doubles.
-
-!!! note "Deep dive: why that's an optimisation and not a debt"
-    Chapter 32 draws the line explicitly, and this is the cleanest example of
-    the good side of it.
-
-    The kept state is an *optimisation of a semantics*. The slow definition —
-    the actual walk — still exists, and a gate holds the fast path to it on
-    **every look, in every fixture**: 7,288 looks, 0 disagreements on the run
-    that established it. If they ever disagree, that's a bug, findable and
-    reported.
-
-    A cache of a *claim* has no slow definition to be held to, because the claim
-    is the definition. When it goes wrong, the failure is silence. That's why
-    the precedence table Chapter 17 describes was deleted and the state index
-    was not.
-
-One column of that gate is the one no test suite can supply, and it's worth
-stating because it generalises:
-
-> **Nothing that asserts what the agent concluded can see what it was thinking
-> about while it concluded it.** A wrong key set makes a *worse choice*, never a
-> *wrong conclusion*, and every fixture asserts an outcome the loop reaches
-> anyway.
+!!! note "Deep dive: a relationship can be more than one thing"
+    `holds` asks about one node — right when the node names the *subject*, an
+    entity other facts get to be about. Absence isn't that question. `no
+    p($x)` asks whether *anything at all* claims `p(x)`, and there's a second
+    way to build a proposition, `instance`, that mints a fresh node rather
+    than reusing the interned one — for a relationship that is itself an
+    entity two people can independently claim. `no` has to check every one of
+    those, or a second unbelieved claim sitting beside the first would let
+    `no p(x)` answer *nothing says this* while something plainly does.
 
 ## The scoring
 
-| | overwrite in place | keep every claim, read the last | **and also keep a locus** |
+| | overwrite in place | keep the chain, walk it (gone) | **one anchor, one lookup** |
 |---|---|---|---|
-| not leaking | a revision and the claim it revises are indistinguishable | each claim survives; the last one governs | each key answers the question it is for |
-| not lossy | history is gone | nothing is overwritten | nothing is overwritten |
-| readable | a lookup | **a lookup** | a walk with two comparisons and two ancestry tests |
-| composable | two writers contend | appending is the only write | two authors revising one locus collide |
+| not leaking | a revision and the claim it revises are indistinguishable | each claim survived; the last one, found by a walk, governed | there is only ever one claim to find |
+| not lossy | history is gone | nothing was overwritten | history is gone — a stated trade (Chapter 4), not an accident |
+| readable | a lookup | a walk with two orderings and two ancestry tests | **a lookup**, and there's nothing behind it to have gotten wrong |
+| composable | two writers contend | appending was the only write | asserting is idempotent; two writers land the same anchor |
 
-The third column is what this design ran for a long time, and the middle column
-is what it runs now. The trade is stated rather than hidden: a question was
-given up — *what did I think back then*, answered directly — and the read
-became a lookup.
+The middle column cost this project real measured time to build and more to
+speed up. The last column didn't need speeding up, because there was nothing
+left to be slow. That's the shape of the whole first cut this book has walked
+through: not "optimise the mechanism" but "ask whether the mechanism was
+buying its keep," and here the honest answer was no.
 
 ---
 
-That's Part 1. You now know what memory looks like: nodes with ordered members;
-propositions that claim nothing; entries that claim them, with a sign;
-moments that hold what changed; and one rule that answers.
+That's Part 1. You now know what memory looks like: nodes with ordered
+members; propositions that claim nothing; an anchor that claims them by being
+present; and one lookup that answers *is this true* with nothing to walk.
 
 Everything from here is **taught**, not built in.
 

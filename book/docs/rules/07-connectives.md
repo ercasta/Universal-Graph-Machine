@@ -1,171 +1,135 @@
-# Two connectives, and why exactly two
+# The one connective, and the one that didn't survive
 
 ```
-rule <boil>    = causes(  { +heat($a, $w), +water($w) }, { +boiling($w) } )
-rule <weather> = implies( { +cloudy($d, morning) },  { +likely(rain($d, afternoon)) } )
+rule <weather> = implies( { +cloudy($d, morning), no likely(rain($d, afternoon)) },
+                          { +likely(rain($d, afternoon)) } )
 ```
 
-There are two, and the interesting question isn't *why does the engine know
-about them* — it must not, and Chapter 32 explains why — but **why exactly two**.
-
-## The membership test
-
-> **A connective earns its place only if it licenses a different (forward,
-> backward) reading pair.**
-
-If two candidates read the same way in both directions, they're one connective,
-and whatever distinguished them belongs in a member instead. Apply the test to
-the obvious candidates and they fall:
-
-- **`prevents(A, B)`** is `causes(A, {−B})`. Consequents are signed, so
-  prevention is already sayable.
-- **`enables(A, B)`** is `causes(A, {+possible(B)})`. Read backwards, the two
-  are told apart by what the consequent *says*: a bare `B` means doing `A`
-  achieves it; a wrapped one means `A` is a precondition and something else must
-  still happen.
-
-Interval relations — *before*, *during*, *overlaps* — aren't connectives either.
-They're ordinary facts about moments, which are already nodes. Adding
-them to a closed set would buy nothing and would start multiplicative growth:
-`likely_causes`, `possibly_prevents`, and so on forever, each fusing strength
-with defeasibility and recording neither.
-
-## Why the remaining two don't collapse
-
-The distinction is **not** *logical versus worldly*. It's mechanical, and you
-can test it on any rule you write:
-
-> **Retract the antecedent. Does the consequent go with it?**
->
-> **Yes → `implies`.** The entry is *derived*. It lands in the **same** moment.
->
-> **No → `causes`.** The entry is *asserted*. It persists, and lands in a
-> **later** moment.
-
-Water you have stopped heating stays boiled. That's inertia, and it's why a
-zero-delay cause is still not an implication — the two cannot be merged by
-setting a delay to zero.
-
-## The rule that shows why both are needed
-
-*A cloudy morning means rain is likely in the afternoon.*
-
-Passes the persistence test as `implies` — learn it wasn't cloudy after all and
-the rain claim goes with it. But the English reads just as easily as causal, and
-clouds don't cause the afternoon's rain; a weather front causes both.
-
-Write it as `causes`, and the backward reader (Part 3) produces **a plan to make
-it rain by making it cloudy**.
-
-The two-connective split is precisely what makes that plan unwritable.
-
-## The thing nobody expected the connective to decide
-
-`implies` deposits into the same moment. `causes` advances the chain to a successor.
-
-Which means the connective silently decides whether your loop terminates.
+There is one connective. It used to be two, and this chapter used to be about
+the test that kept both. Run the second one now and here is what happens:
 
 ```
-rule <tick> = implies( { +quiet($m) }, { +turn($m) } )
+rule <boil> = causes( { +heat($a, $w), +water($w) }, { +boiling($w) } )
 ```
 
 ```
-3 ticks, ended quiescent
+$ python -m ugm boil.ugm
+ugm.core.text.ParseError: line 1: 'causes' is not a connective. There is one
+-- `implies` -- and a second earns its place only by licensing a different
+(forward, backward) reading pair. `causes` did not: all it did was land its
+conclusion in a later moment, and there are no moments.
+```
+
+That message is the whole obituary. `causes` meant *this lands one moment
+later than its antecedent*. Once the chain of moments went (this book's Part
+1), there was nowhere later left to land — so `causes` had nothing left to
+mean, and the loader says so instead of accepting a word that no longer names
+anything.
+
+## What the second connective bought, and why it's gone rather than merged
+
+The old test for keeping a connective was: *does it license a different
+(forward, backward) reading pair?* `implies` and `causes` passed it, because
+retracting the antecedent behaved differently:
+
+> Retract the antecedent. Does the consequent go with it? Yes → `implies`,
+> derived, same moment. No → `causes`, asserted, persists into a later moment.
+
+That test needed two moments to compare — the one a claim was deposited at,
+and the one being asked about. With one graph and no history, there is
+exactly one moment: now. There is nothing left for the two readings to
+disagree about, so there is nothing left for a second connective to decide.
+Watch it happen:
+
+```
+rule <derive>  = implies( { +cloudy($d), no likely_rain($d) }, { +likely_rain($d) } )
+rule <retract> = implies( { +wasnt_cloudy($d), no unwind($d) },
+                          { -cloudy($d), +unwind($d) } )
+fact +cloudy(today)
+fact +wasnt_cloudy(today)
 ```
 
 ```
-rule <tick> = causes( { +quiet($m) }, { +turn($m) } )
+cloudy(today): not believed
+likely_rain(today): believed
+```
+
+`cloudy(today)` was erased. `likely_rain(today)` — which a rule *derived from*
+it — stayed. Under the old two-connective design this was `causes`'s
+signature, not `implies`'s: a derived claim was supposed to go when its
+premise did. It doesn't, not any more, for either connective, because nothing
+in the engine tracks *what a belief was derived from* well enough to take it
+back automatically. A rule has to erase a conclusion on purpose, the same way
+it erases anything else. **Persistence is not a connective's decision now. It
+is the only behaviour there is**, and Chapter 9 in Part 4 is about what that
+costs.
+
+## The termination question the old chapter asked, and the different one that replaced it
+
+The old chapter's warning was: *`causes` can loop, because it keeps minting a
+fresh moment to re-ask in.* That hazard is gone with `causes`. A different one
+took its place, and it is more dangerous because it isn't about a keyword —
+it can happen to the plainest classification rule you write.
+
+```
+rule <blades> = implies( { +blade($x) }, { +weapon($x) } )
+fact +blade(dagger)
 ```
 
 ```
-400 ticks, ended applied
+$ python -m ugm blades.ugm
+blades.ugm: 400 ticks, ended applied
   stopped at the tick limit (400); it had not finished
 ```
 
-Same rule, one word different. `quiet` is an occasion the machinery deposits
-when nothing else applied. `causes` advances the chain, which mints a *fresh* quiet,
-which warrants the next firing, forever.
+Four hundred ticks to conclude one fact. `weapon(dagger)` is written on tick
+one and never changes again — but the antecedent, `blade(dagger)`, never
+stops being true either, so `<blades>` matches again on tick two, and every
+tick after that, forever. Nothing notices the second application achieved
+nothing:
 
-The criterion is:
+> **There is no per-candidate filter.** An application that was tried and
+> changed nothing is offered again, because deciding that a rule has nothing
+> further to give is the corpus's judgement, not the engine's.
 
-> **An occasion warrants a re-ask only if re-asking cannot produce one.**
-
-It is stated, it has been violated in three separate places in this project's
-own code, and it is **not enforced**. Neither reading of the connective is about
-looping, so nothing on the page warns you. If a rule keys on an occasion the
-machinery deposits — `quiet`, `left`, `stopped` — reach for `implies` first.
-
-!!! note "Deep dive: an occasion is consumed; a fact is not"
-    The same hazard from the other side, and it's the single most expensive
-    thing for a new corpus author to learn.
-
-    If a rule models something *happening*, something in its antecedent must
-    stop being true **because** it happened. Nothing does that for you.
-
-    A damage rule without a retraction beats a goblin to death in one swing
-    (5−2=3, 3−2=1, 1−2=0, all in one tick). A turn rule keyed on
-    `+turn(hero, 1)` — a perfectly good fact, true for as long as it *is* the
-    hero's turn — re-fires as fast as the mechanics resolve. What's missing
-    isn't a denial; it's **a right that acting spends**:
-
-    ```
-    rule <swing> = causes( { +turn($x, $r), +may($x, $r) },
-                           { -may($x, $r), +attack($x, $r) } )
-    ```
-
-    Nothing catches this. Every pass genuinely concludes something new, so
-    quiescence can't help, and no check about the *outcome* can either: one such
-    fight was decided correctly and then went on for ever, reaching round 417
-    across 8,072 entries with every outcome check green.
-
-    The exception: **never consume what you were told.** Denying a fact that
-    arrived on a channel just restores it next tick, because the arrival is an
-    unarguable record that nothing retracts. At a boundary you want a gate that
-    legitimately closes — state the denial up front and let the world's own
-    change supersede it.
-
-## Neither connective needs engine support
-
-This is what the design's central test demands, and it's worth showing rather
-than asserting.
-
-The two connectives differ in exactly one respect: **which moment the
-consequent's entries are deposited in.** Same moment for `implies`, a successor
-for `causes`.
-
-The write operation is told *where* to deposit. It is not told which connective
-was involved and has no way to ask. So the connective is consumed by whatever
-applies rules — and the design's claim is that this should be **ordinary,
-shipped data**, two rules of one shape:
+That line is in the loop's own source, not a metaphor. The fix is the same
+one Chapter 6 already used without remarking on it — guard the rule with its
+own negated conclusion:
 
 ```
-<F-implies> = causes(
-    given  +rule($r), +conn($r, implies), +matched($app, $r, $m)
-    then   +deposit_into($app, $m) )
-
-<F-causes> = causes(
-    given  +rule($r), +conn($r, causes), +matched($app, $r, $m), $m' = succ($m)
-    then   +deposit_into($app, $m') )
+rule <blades> = implies( { +blade($x), no weapon($x) }, { +weapon($x) } )
+fact +blade(dagger)
 ```
 
-A third connective would be a third rule of the same shape.
+```
+$ python -m ugm blades.ugm
+blades.ugm: 2 ticks, ended quiescent
+```
 
-> **Adding a connective adds rows, not branches.**
+Two ticks: one to fire, one to confirm nothing else matches. `no weapon($x)`
+stops being true the moment `<blades>` fires, so the second attempt finds
+nothing to match.
 
-!!! warning "Where the shipped engine actually stands on this"
-    Those two rules are **not in the bundle**. Applying a rule tests the
-    connective in Python — one branch, deciding whether to advance the chain —
-    so for this construct the design's own test is currently an *aspiration*
-    rather than a description.
+!!! warning "This is not optional for occasional rules any more"
+    Every rule shipped in `ugm/rules/delay.ugm` — including one as inert as
+    *a storm makes a flight extraordinary* — carries a `no <its own
+    conclusion>` guard. Under the old design that pattern (Chapter 8's
+    "an occasion is consumed, a fact is not") was for rules modelling
+    something *happening*. Now it is for every rule whose antecedent can
+    still be true after it has already fired once, which in practice means
+    nearly every rule. **Write the guard by default; leave it off only when
+    you can say why the antecedent can never hold twice.**
 
-    It is worth being exact about how much that costs, because the rest of the
-    claim does hold: `conn(<R>, causes)` is a real deposited fact that rules can
-    read and reason about (Chapter 10), and everything *else* the loop
-    consults — stopping, what to attend to, which rules are out — really is data. What is
-    still a branch is the one line that turns a connective into a destination.
+## Neither hazard needed engine support to explain
 
-That test is what this whole design is built to pass, and Chapter 32 shows what
-happens when you run it against the implementation and count.
+Both stories above come from the same fact, read twice. The engine does not
+ask *has this rule already done what it can do* before matching it, and it
+does not ask *what got this belief here* before erasing something upstream of
+it. Deciding either would mean keeping a record the design deliberately
+stopped keeping (Chapter 9, Part 4, is what that removal cost). What's left is
+smaller than the two-connective design and, on this evidence, easier to get
+wrong — a plain `implies` rule loops by default unless the corpus says
+otherwise.
 
 ---
 

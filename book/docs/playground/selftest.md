@@ -1,8 +1,8 @@
 # Make it check itself — live
 
 Everything this book claims about the engine is checked by a suite that ships
-*inside* the engine. Press the button and it runs here, on your device, in front
-of you.
+*inside* the engine. Press the button and it runs here, on your device, in
+front of you.
 
 Each line is one check. A check fails if any of its named observations is
 exactly `False`, and the tally at the bottom counts them.
@@ -19,76 +19,63 @@ exactly `False`, and the tally at the bottom counts them.
 </div>
 
 !!! note "It takes a moment"
-    Five hundred-odd checks, each building a small world and reasoning over it,
-    inside a Python runtime that is itself running in your browser. Give it a few
+    179 checks, each building a small world and reasoning over it, inside a
+    Python runtime that is itself running in your browser. Give it a few
     seconds.
 
 ## What you're looking at
 
-The checks are grouped by the section of the design document they belong to, so
-scrolling the output is roughly scrolling this book. A few worth hunting for:
+The checks are grouped by the section of the design document they belong to,
+so scrolling the output is roughly scrolling this book. A few worth hunting
+for:
 
-- **`§6`** — the bootstrap. That the read is made of rules, and that a rule whose
-  antecedent is entirely structural concludes structure.
-- **`§8`** — the worked rules from the design, including the one whose
-  `implies`/`causes` choice is what makes *a plan to cause rain by causing
-  clouds* unwritable.
-- **`§9`** — the signs, including the one that catches a `−` member matching *no
-  entry* instead of a denial.
-- **`§12`** — a hedged conclusion crossing into a supposition and coming back out
-  wrapped. Weakest link as structure rather than as arithmetic.
-- **`§13`** — a rule whose consequent is a bare variable believing what a channel
-  said, **and** that the channel in the rule is the channel it was delivered on.
-- **`R5`** — that the trail reaches the utterance. Not "some external source" —
-  the actual arrival.
+- **`§14`** — matching and arbitration: how a rule's antecedent is tested
+  against current belief, and how the table picks which applicable rule goes
+  next.
+- **`§16`** — applying a rule: what asserting and erasing actually do to the
+  graph, and what *quiescent* means now that belief is presence rather than a
+  history.
+- **`§17`** — the web: the same reserved-vocabulary check behind Chapter 33,
+  run here as part of the suite rather than as a standalone report.
+- **`§19`** — triggers: a rule seeing what another rule is about to conclude,
+  and adding beside it, replacing it, or dropping it — the whole of how norms
+  and approval-gating are built.
+- **`§20`** — attention: the queue, frames (the attention stack), and lanes
+  (a second pass per round that isn't the default one) — engine state rather
+  than a belief.
+- **`§21`** — tools: a request answered by a function, landing a tick later,
+  never concluding on its own.
+- **`§22`** — the surface: what the grammar refuses outright, and the message
+  it gives you when it does.
 
-## Why some of the names shout
+## Reading a failing check
 
-You'll see observation keys in capitals: `AND_INVENTS_NO_DERIVATION`,
-`ASKING_CHANGED_NOTHING`, `BUT_IT_IS_NEVER_PROPOSED`.
-
-Those are the **load-bearing** ones — the assertions that would still pass if
-the feature were broken in the *obvious* way, so they were written to fail
-instead.
-
-Several exist because an earlier version of the same check passed without
-testing anything. Chapter 32 has the list of instruments that lied here, and the
-rule that came out of it:
+Each check prints its own named observations rather than a bare pass/fail, on
+purpose: a check that only says *FAIL* tells you something is wrong and
+nothing about what. This suite was written to fail loudly rather than to
+look thorough while testing nothing — Chapter 32 has the list of instruments
+that once lied here, and the rule that came out of it:
 
 > **An agreement gate that agrees is worth nothing until it could have
 > disagreed.**
 
-A test suite that reads like a list of features tells you what someone intended.
-One that reads like a list of near-misses tells you what actually went wrong.
+A test suite that reads like a list of features tells you what someone
+intended. One that reads like a list of near-misses tells you what actually
+went wrong.
 
-## The other instruments
+## The other instrument
 
-The suite is one of several runners, and the others are gates rather than tests
-— each holds a fast path to a slow definition, on every look, in every fixture:
+The suite is the main one. There's also:
 
 | | what it holds |
 |---|---|
-| `python -m ugm.gates.agreement` | the kept resolution against the raw walk |
-| `python -m ugm.gates.state` | the maintained state and its indices against the walk |
-| `python -m ugm.gates.quiescence` | the compiled verdict against the six rules that define it |
-| `python -m ugm.gates.bundle` | deletes each shipped rule and re-runs the suite |
-| `python -m ugm.gates.vocabulary` | unwebbed names, with a planted typo as a control |
-| `python -m ugm.probes.atlas` | the web: islands, bridges, dead rules, and pairs that could disagree |
+| `python -m ugm.gates.vocabulary` | every reserved name classified exactly once, against corpora that ship and actually run — Chapter 33 |
 
-And a set of **comparisons** rather than gates — each runs two runs over the
-same corpora and reports where they differ:
-
-| | what it compares |
-|---|---|
-| `python -m ugm.core.attention` | the loop itself: the penguin, and what `stop` is worth |
-| `python -m ugm.learning.teaching` | a table calibrated from one demonstration against an uncalibrated one |
-| `python -m ugm.learning.learning` | the same world run twice, with the second run allowed to be no better |
-| `python -m ugm.learning.practice` | rehearsing a goal inside a supposition against enacting it for real |
-| `python -m ugm.probes.table` | several agents talking, in-process against one OS process each |
-| `python -m ugm.probes.experts` | several experts over one graph, consulting each other |
-
-They aren't run here because several of them take longer than a browser tab
-deserves. From a checkout, they're one command each.
+Earlier versions of this project kept a wider bench of gates and comparison
+runners — a static rule-reachability atlas, a learning-calibration harness, a
+several-agents probe — and most of that tooling was cut along with the
+machinery it measured. `docs/feature-requests.md` and Chapter 34 have the
+honest accounting of what's still open.
 
 ---
 

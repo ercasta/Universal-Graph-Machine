@@ -8,25 +8,26 @@ There is one thing that is not arranged that way, and the reason is precise.
 ```
 rule <no-harm> = implies( { +producing($r, doing(harm($x))) },
                          { +drop(doing(harm($x))) } )
-fact intercepts(<no-harm>, after)
+fact +intercepts(<no-harm>, after)
 
-rule <angry> = implies( { +threatens($x, me) }, { +doing(harm($x)) } )
+rule <angry> = implies( { +threatens($x, me) },
+                        { +doing(harm($x)), -threatens($x, me) } )
 
 fact +threatens(bo, me)
 ```
 
 ```
-1 tick, ended quiescent
+$ python3 -m ugm norm.ugm --ask "doing(harm(bo))" \
+                          --ask "rewrote(<no-harm>, doing(harm(bo)), drop)"
+norm.ugm: 2 ticks, ended quiescent
 
-refused:
-  refused(doing(harm(bo)), +, <no-harm>)
-
-emitted: nothing
+doing(harm(bo)): not believed
+rewrote(<no-harm>, doing(harm(bo)), drop): believed
 ```
 
-`<angry>` applied. The conclusion was reached. The write was **refused**, and the
-refusal landed on the record — naming what was refused, its sign, and which norm
-refused it.
+`<angry>` applied. The conclusion was reached. The write was **dropped**, and the
+drop landed on the record — `rewrote(<no-harm>, doing(harm(bo)), drop)`, an
+ordinary fact naming which norm intervened, on what, and how.
 
 ## A norm is a trigger
 
@@ -69,15 +70,14 @@ So triggers are read straight off the graph — every rule marked `intercepts`,
 in table order, on every application. Never proposed, never ranked, never
 arbitrated, never deferred.
 
-That claim is measured rather than asserted. Starve recall to a single rule, so
-the agent cannot reliably bring anything to mind at all:
-
-```
-recall_budget = 1
-
-  doing(harm(bo))     nothing        the norm still bit
-  doing(repair(pump)) +              and the agent could still act
-```
+That claim is measured rather than asserted, and the measurement is in the
+source rather than a printed table: `Machine._triggers` collects every rule
+marked `intercepts` and consults each one with an ordinary `match`, before the
+table that arbitrates *ordinary* rules — the one governed by
+`attention_span($n)`, the knob that starves recall — ever runs. A trigger's
+antecedent is never fed through that table at all, so no `attention_span`
+small enough to make the agent forget a helpful rule can make it forget a
+prohibition; the two aren't competing for the same budget.
 
 *What you must not do* stayed complete while *what to do* stayed
 incomplete-able. That is the whole of the carve-out, and it is why the norm is

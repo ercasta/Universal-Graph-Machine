@@ -1,134 +1,104 @@
 # Moments
 
-A **moment** is the machine's only construct for a state of affairs.
+There used to be a **moment**: the machine's construct for a state of affairs,
+a signed delta plus a predecessor, chained into a history. A state in time was
+a moment. A hypothetical was a moment. A rule's antecedent was a moment. There
+was no separate "frame", "world", "context" or "scope" object anywhere in the
+design — everything went through one construct.
 
-A state in time is a moment. A hypothetical is a moment. A supposition is a
-moment. A rule's antecedent is a moment. There is no separate "frame", "world",
-"context" or "scope" object anywhere in the design.
+There is no moment any more. This chapter is about what happened to it, and
+what's here instead.
 
-A moment has three parts and nothing else:
+## What replaced it
+
+> **One graph is the whole state.**
+
+Nodes with ordered members, and one more relation on top: `believed`. A
+proposition is believed when its anchor is present and not believed when it
+isn't (Chapter 2). That's the entirety of what the machine knows *now* — and
+"now" is doing a lot of work in that sentence, because there is exactly one of
+it.
 
 ```
-<M> = a signed delta     +  a predecessor
-      (entries, §8)         (an edge to a moment)
+believed(mortal(paul))     present = believed
 ```
 
-- The **delta** is what changed — a list of entries.
-- The **predecessor** says what it changed *from*.
+No predecessor. No delta this state was reached *from*. Nothing that says
+what changed to get here, because nothing keeps a *here* to have gotten to —
+there is one state, and asserting or erasing edits it in place.
 
-Two parts, and the same construct does two jobs:
+## Why the chain went
 
-| the moment is | its predecessor is |
-|---|---|
-| a state in **time** | the previous state |
-| a rule's antecedent | none, or another generic moment |
+It didn't go all at once. Two cuts, and it's worth knowing both, because the
+first one was measured and the second was a different kind of argument.
 
-That is not thrift for its own sake: a rule is a fact relating two generic
-moments (Chapter 6), so the thing a rule is *made of* is the thing history is
-made of, and nothing is written twice.
+**The first cut removed the locus.** An entry used to carry not just a sign
+but a second time — *what moment this claim was about*, as distinct from *when
+it was deposited*. That bought a real capability: revising a view of the past
+was ordinary, the same act as any other claim. It also meant every read had to
+ask two questions in a fixed order — latest locus, then latest deposit, with
+*at-or-before* decided by ancestry rather than by depth, because supposing
+forked the chain. Measured on a real fixture, before anything was done,
+resolving reads this way was **86% of runtime**. The locus went, and Chapter 5
+is that whole story.
 
-!!! note "There used to be a third part, and two more jobs"
-    A moment also carried a **licence** — what authorised the difference — and
-    the four-row version of the table above included an *imagined* state and an
-    *assumption*, because supposing forked the chain.
+**The second cut removed the rest of the chain** — the delta, the
+predecessor, the sign stored on a claim, `anc`/`pred`/`in_delta`, the licence
+recorded on every entry. This one wasn't a performance fix; it was a scope cut.
+A moment-and-chain design buys a *history* — session save and resume, a
+`--why` that walks a proof back to what it rested on, "what did I believe at
+time T". All three depended on the same structure, and none of them shipped
+in a form worth the weight of keeping it: `--why` and session replay are gone
+from this repo's own command line (Chapter 0), and the honest statement of
+where that leaves things is the machine's own:
 
-    Both are gone. The licence was assigned and then read nowhere, so it went;
-    what authorised a claim is recorded on the **entry** instead, which is
-    where `why` reads it from. Supposing went with the locus and the fork —
-    nothing branches the chain now, and a `causes` application is the only
-    thing that advances it.
+> *There is one graph, one current state, and what it holds is all there is to
+> print. A scratchpad the agent could reload is a memory system, and it will
+> be built as one rather than fallen into.*
 
-## Anchored and generic
+## What that means for time
 
-The distinction that carries weight isn't between *kinds* of moment. It's this:
+Nothing here understands time, and nothing pretends to. `causes` — the
+connective that used to mean *lands in a later moment* — is refused at load,
+because there is no later moment for it to mean anything about. There is one
+connective now, `implies` (Chapter 6), and it relates a state of belief to
+another, not a moment to a later one.
 
-- an **anchored** moment — actual individuals, and a predecessor in the real
-  history;
-- a **generic** moment — variables, and no anchored predecessor.
+If a corpus wants ordering, duration, "before" and "after", it builds that
+itself, out of ordinary facts and ordinary rules — the same way it builds
+anything else the engine doesn't have opinions about:
 
-A rule's two halves are generic. Everything else is anchored.
+```
+before(<sunrise>, <noon>)
+during(<battle>, <siege>)
+```
 
-A generic moment may have a *generic* predecessor, and that's what lets a
-pattern say *and then* — a pattern is a chain, not a point. What a generic
-moment may **not** do is point into the actual history, because a pattern naming
-a particular past would be about that one occasion and could never be reused.
+**Time is an open class.** Tying it to the engine was tried, and the argument
+against keeping it tied is the same argument Chapter 8 makes about verbs in
+general: a fact a corpus can write and a rule can read beats a primitive baked
+into the loop, everywhere except the two or three places (Chapter 30) where
+the floor genuinely has no honest alternative. Time isn't one of those places.
 
-Because the distinction is structural, it's checkable rather than maintained by
-etiquette. It is the one place in Part 1 where that's true, and it's true
-because *generic* is one of the five floor items showing through (Chapter 30).
+## What it costs, scored the way this design scores everything
 
-The machine's central operation is then one line:
-
-> **To match a moment is to unify a generic chain against an anchored one.**
-
-## Ancestry is derived, not stored
-
-A moment has one predecessor, so *what came before what* is a walk rather than
-a stored ordering — and a rule can ask it, with `anc` and `sanc` (Chapter 23).
-There is no depth field to keep consistent and no ordering to drift.
-
-!!! note "Deep dive: scope is not control"
-    Ancestry answers *what came before here*. It says nothing about *which
-    reasoning invoked which, and where an answer is owed* — that's a separate
-    structure, the attention stack of Chapter 25, and the absence of one does
-    not imply the absence of the other.
-
-## A moment is already a belief state
-
-Here's the part that surprises people.
-
-A moment's delta is the entries deposited in it — everything the agent came to
-think at that point, and nothing else. So the chain needs no second structure:
-
-> **There is no belief-set object.** The chain already is one.
-
-What would elsewhere be "the current belief set" is what the chain says now:
-for each proposition, the last entry about it. And belief revision is an
-ordinary deposit — a later claim, which supersedes the earlier one without
-touching it.
-
-Introducing a second membership structure for beliefs would create a second
-ordering alongside succession, and two orderings that agree by convention drift
-apart without anything noticing.
-
-## Time and derivation share a core
-
-Two orderings could easily have become unrelated things: succession in time, and
-succession in a derivation. Here they are **one relation**, with the licence
-recorded on each entry rather than on the moment. Succession is the shared
-core; time adds a clock stamp above it (Chapter 23), derivation adds a
-licensing rule above it.
-
-One invariant has to survive that sharing:
-
-> **Deriving takes no time.**
-
-A derivation step is succession without duration. If the shared core carried a
-clock, the two would have been collapsed rather than related, and every
-hypothetical would falsely advance the world.
-
-## What it costs
-
-Let's score it honestly, the way this design scores everything, against the four
-criteria it uses:
-
-| | a mutable world state | a set of currently-believed facts | **moment = delta + predecessor** |
+| | a mutable world state | **moment = delta + predecessor** (gone) | **one graph, one `believed`** |
 |---|---|---|---|
-| not leaking | overwriting loses what it replaced, so *it changed* and *I was wrong* become one operation | says what is believed and nothing about when or why | every difference is deposited, licensed and ordered |
-| not lossy | history is gone | the previous set is gone unless separately kept | nothing is overwritten |
-| readable | a lookup | a lookup | a lookup — *later supersedes earlier* |
-| composable | two writers contend for one cell | union of sets is not merge of beliefs | appending is the only write |
+| not leaking | overwriting loses what it replaced | every difference was deposited, licensed and ordered | asserting mints, erasing deletes; nothing in between is kept |
+| not lossy | history is gone | nothing was overwritten | history is gone, on purpose |
+| readable | a lookup | a lookup, once the locus went | a lookup — the same one, with nothing else to ask |
+| composable | two writers contend for one cell | appending was the only write | asserting is idempotent; two writers land the same anchor |
 
-The readable row used to say **a read is a walk — the largest single cost in
-the design**, and it was true: the read was measured at 86% of runtime. It is
-now one index lookup, because the second time coordinate that made it a walk
-was removed (Chapter 5). What the construct still buys is immutable history and
-a licence on every claim.
+The middle column is real history, not a strawman — it's what this project
+ran for a long time, and it's genuinely more capable in the one row that
+matters most: *not lossy*. Giving that up is a stated trade, not an oversight,
+and Chapter 34 is where the gap it leaves (no `why`, no session memory) is
+written down plainly as a gap rather than argued away.
 
-Chapter 5 is that read, and the story of how it stopped being a walk.
+What's left is the smallest thing that could still be called "belief":
+presence, checked against one graph, with nothing behind it to walk.
 
 ---
 
-**Next:** if a moment only stores what changed, what does *is this true?*
-actually do?
+**Next:** what *is this true?* actually computes, now that there's no history
+left to walk.
 [The read →](05-the-read.md)

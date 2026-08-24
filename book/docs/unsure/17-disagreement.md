@@ -16,18 +16,25 @@ The machine has one way to take a rule out of the running: say it is dormant.
 So reach for it — poison is in the room, put regeneration to sleep.
 
 ```
-rule <quarantine> = implies( { +outbreak }, { +dormant(<regen>) } )
-fact standing(<quarantine>)
+fact +dormant(<regen>)
 ```
 
 Run it:
 
 ```
-heals(a):  −
-heals(b):  nothing concluded it
+$ python3 -m ugm quarantine.ugm --ask "heals(a)" --ask "heals(b)"
+heals(a): not believed
+heals(b): not believed
 ```
 
-`a` is correct. **`b` gets nothing at all.**
+Both come back `not believed`, and that is flatter than it should be: there is
+no derivation trail any more (no `--why`, nothing a rule can read that says
+*this came from a denial* versus *this came from nothing at all*), so the two
+reasons collapse into one printed line. The reasons are still different —
+`<poison>` still runs for `a` and has something to say; `<regen>` never runs
+for `b` at all, because a dormant rule doesn't run for anyone — but nothing
+short of reading the rules themselves shows you which is which any more.
+**`b` gets nothing at all,** and it's collateral, not correct.
 
 `dormant` is **per rule**. A rule that is out is out for everybody, so `b` — whom
 nobody poisoned — stops healing too. And it stays that way, because nothing here
@@ -38,24 +45,30 @@ ever claims `due(<regen>)`.
 Put the case where the case lives — in the antecedent:
 
 ```
-rule <regen> = implies( { +wounded($x), -poisoned($x) }, { +heals($x) } )
+rule <regen> = implies( { +wounded($x), no poisoned($x) }, { +heals($x) } )
 ```
 
 ```
-why heals(b)?
-  +heals(b), licensed by applied(<regen>)
-    because +wounded(b)
-    because -poisoned(b)
+$ python3 -m ugm regen.ugm --ask "heals(a)" --ask "heals(b)"
+heals(a): not believed
+heals(b): believed
 ```
+
+Nothing had to be written about `b` at all. `no poisoned($x)` asks whether
+anything anywhere claims poison, positively or negatively — and for `b`
+nothing does, so the premise holds on its own.
 
 | how it's written | `heals(a)` | `heals(b)` | |
 |---|---|---|---|
-| `dormant(<regen>)` | `−` | **nothing** | b is collateral damage |
-| the exception as a **premise** | `−` | `+` | correct |
+| `dormant(<regen>)` | not believed | not believed | b is collateral damage |
+| the exception as a **premise** | not believed | **believed** | correct |
 
-That's `unless`, written where the rule's variables live (Chapter 10) — and
-remember from Chapter 3 that you must then say `-poisoned(b)` outright, or
-derive it. Absence is not denial.
+That's `unless`, written where the rule's variables live (Chapter 10) — and it
+costs nothing for `b`, which is the point. `no poisoned($x)` is a check, not a
+binder: it asks *does anything say this*, and for `a` the answer is `+poisoned(a)`
+sitting in the graph, so the check fails and `<regen>` doesn't apply. Absence
+is not denial, and here that's what makes the premise cheap: nobody had to
+assert `b`'s innocence for it to hold.
 
 ## The machine used to have more than this, and it was worse
 
@@ -73,6 +86,15 @@ here — these two applications consumed `poisoned(a)` and `wounded(a)`, which
 have nothing in common — so both rules applied and the ordinary read decided it:
 `<poison>` wrote second, later supersedes earlier, and `b` healed by accident
 rather than by anything anyone wrote.
+
+Today neither name means anything to the engine at all — check the machine's
+own vocabulary and there is no `overrides`, no `supersedes`, nowhere. Writing
+`fact overrides(<poison>, <regen>)` into the corpus above changes nothing:
+the run is byte-for-byte identical with the fact and without it, because
+nothing ever reads it. That is a stronger fact than "retired" — it isn't a
+mechanism that got worse and was removed, it's an ordinary, uninterpreted
+proposition now, exactly as inert as any other name a corpus never wires a
+rule to read.
 
 > **Precedence ordered rules. It never carved out cases, and the exception is
 > always a case.**
@@ -102,7 +124,20 @@ of its own rules by deciding which one is out. And `due(<R>)` puts it back, so
 it is a claim like any other rather than a configuration:
 
 ```
-rule <referee> = implies( { +p($x) }, { +dormant(<hot>) } )
+rule <hot>      = implies( { +sensor },   { +alarm } )
+rule <referee>  = implies( { +override }, { +dormant(<hot>), -override } )
+fact standing(<referee>)
+
+fact +override
+fact +sensor
+```
+
+```
+$ python3 -m ugm referee.ugm --ask "dormant(<hot>)" --ask "alarm"
+referee.ugm: 2 ticks, ended quiescent
+
+dormant(<hot>): believed
+alarm: not believed
 ```
 
 Two moves, and the run reaches quiescence. What makes that safe is the same
@@ -168,13 +203,13 @@ dated and attributable, and a rule can read it — so there is nothing left for
 the machinery to write down on its behalf.
 
 The pattern itself is stable enough to use as a search: **anything the loop
-computes per tick and does not write down is a candidate.** Which rule was
-applied became `exercised`. What an entry rested on became `rests_on`. The
-effort counters became `widened` / `reached` / `bounded`. The strength of a
-claim became a wrapping term (Chapter 15). And the newest one: when a trigger
-changes what a rule concluded, that is `rewrote(<T>, old, new)`, because a
-conclusion that is not what the rule said it concluded cannot be reported as
-the rule's.
+computes per tick and does not write down is a candidate.** A run still
+working when the tick limit bites deposits `bounded(ticks)`, so a corpus can
+notice its own runaway rather than a human watching the console for it. The
+strength of a claim became a wrapping term (Chapter 15). And the newest one:
+when a trigger changes what a rule concluded, that is `rewrote(<T>, old, new)`
+(Chapter 16), because a conclusion that is not what the rule said it concluded
+cannot be reported as the rule's alone.
 
 ---
 

@@ -6,99 +6,143 @@ One of the seven requirements this design was built around says:
 
 Expectations, commitments and in-progress procedures must be facts on the graph,
 not variables in an interpreter. Otherwise the agent cannot notice that an
-expectation failed, cannot be asked why it abandoned a plan, and cannot have a
-strategy overridden by a statement in its knowledge base.
+expectation failed, cannot have a claim about its own conduct denied by another
+rule, and cannot have a strategy overridden by a statement in its knowledge
+base.
 
-This chapter is what that buys, and it starts with the sharpest example.
+This chapter is what that buys, and it starts with the sharpest example — with
+one honest correction up front: the graph tells any rule *what* is currently
+believed, and that includes an agent's own predictions and commitments. It does
+not, today, tell anyone *why* a belief arrived — the support trail that used to
+answer that question was removed along with the chain it was built on (more on
+this below, and in [`../horizon/34-not-built.md`](../horizon/34-not-built.md)).
+The argument in this chapter is about the first claim, not the second.
 
 ## Surprise is a match
 
 > **Surprise is a match.** It is an *expected* entry and an *observed* entry
 > that disagree.
 
-That's the entire mechanism. And it only works if the expectation is actually
-*there*, as an entry, in the graph. If expectations lived in interpreter
-variables, an expectation would go unmatched not because the rule was weak but
-because there was nothing to match against.
+That's the mechanism, and it only works if the expectation is actually
+*there*, as an ordinary claim, in the graph. If expectations lived in
+interpreter variables, an expectation would go unmatched not because the rule
+was weak but because there was nothing to match against.
 
-Three obligations follow.
+Two obligations follow.
 
-**1. Applying a rule deposits what it predicts.** Applying `causes(A, B)`
-writes `+expects(<B>, plus)` — a claim *about* a proposition and a sign.
-Without the deposit there is nothing to be surprised against.
+**1. A rule that predicts has to deposit the prediction, itself.** This chapter
+was first written against an older design where the connective `causes` did
+this automatically: applying `causes(A, B)` minted a claim about what B would
+look like before B itself was concluded, and a bundled set of rules watched for
+it being contradicted. `causes` is gone — there's one connective now, and no
+engine machinery reads a rule's predictions for it. What is unchanged is the
+principle: a rule that wants to be surprised has to say what it expects, as an
+ordinary consequent member, the same as anything else it concludes.
+
+```
+rule <boils> = implies(
+    { +heating($k), no boiling($k) },
+    { +boiling($k), +expects(boiling($k), plus) } )
+```
 
 Note the shape. A sign appears here **as an argument**, not inside the
 proposition: `expects(p, plus)` mentions a sign where `+p` uses one, which is
 what makes the prediction an ordinary readable claim rather than a new kind of
-thing. (The design first proposed a *predicted moment* instead — a whole
-successor carrying B's entries and a due-time. What shipped is smaller, and it
-gave up the due-time with it: the agent notices that a prediction was
-contradicted, never that one is *late*.)
+thing.
 
-**2. The continuation is a moment.** What the agent is doing, where it is in it,
-and what it's waiting for are signed entries — not a stack frame.
-
-*Stack frame* here means the interpreter's: opaque, owned by the runtime, and
-unreachable by a rule. This design's frames are the opposite in every respect —
-process nodes, readable, writable, and **selectable** — which is why they can be
-preempted and an interpreter's cannot.
+**2. The continuation is a fact, not a stack frame.** What the agent is doing
+and what it's waiting for should be readable, not opaque interpreter state.
+This holds up only partly today. Suspending a line of work for another
+(`push`/`pop`, Chapter 28) *is* on the record — every push and pop deposits a
+claim (`pushed(x)`, `popped(x)`) a rule can read — but the frame itself, the
+queue of what the agent is currently attending to, is engine state kept
+outside the graph (`Machine._frames`), not a node a rule can select among.
+*Stack frame* here still means the interpreter's: opaque, owned by the runtime.
+This design's frames are less opaque than that — the act of opening and
+closing one is on the record — but they are not the fully reified "process
+nodes" an earlier draft of this argument claimed. What **is** fully on the
+record and fully selectable is which rule runs next, which is the next point.
 
 **3. Surprise is an ordinary rule, and it wins its turn like any other.**
 
 ```
-rule <S> = causes( { +deviates($p) },
-                   { +goal(explain_failure($p)) } )
+rule <deviation> = implies(
+    { +expects($p, plus), +not($p), no deviates($p) },
+    { +deviates($p) } )
+
+rule <explain> = implies(
+    { +deviates($p), no goal(explain_failure($p)) },
+    { +goal(explain_failure($p)) } )
 ```
 
-`deviates($p)` is arity **one** and it is what the four bundled rules below
-conclude; there is no `due`/`after` to consult, for the reason just given.
+`deviates($p)` is arity **one**, and it is what a corpus's own deviation rule
+concludes; there is no `due`/`after` the engine consults on its behalf, for the
+reason just given — nothing bundled watches predictions any more.
 
 > **There is no interrupt mechanism.**
 
-Preemption is `<S>` being selected over the rule that would have continued what
-the agent was doing — which is possible only because *continue what you were
-doing* was itself a selectable rule. That is exactly what a stack frame is not.
+Preemption is `<explain>` being selected over the rule that would have
+continued what the agent was doing — which is possible only because *continue
+what you were doing* is itself an ordinary, selectable rule. That is exactly
+what a stack frame is not.
 
 ## What this used to need, and what actually fixed it
 
-Built early, the loop didn't merely respond slowly. It never responded at all,
-and the failure wasn't the one you'd predict.
+Built early, against the old engine, this loop didn't merely respond slowly.
+It never responded at all, and the failure wasn't the one you'd predict.
 
-An agent heats water and expects it to boil. The gauge reports it is not
-boiling. Now **two rules apply forever**: the causal rule re-concludes `+boiling`
-because its antecedent still holds, and the trust rule re-concludes `−boiling`
-because the gauge still said so. They alternate.
+An agent heats water and expects it to boil. A gauge reports it is not
+boiling. In the old design, **two rules applied forever**: the causal rule
+re-concluded `+boiling` on every successor moment because its antecedent still
+held, and the trust rule re-concluded the denial because the gauge still said
+so. They alternated, and the surprise rule was **never selected**, because
+arbitration preferred the rule authored first and the oscillation starved it.
 
-The surprise rule is **never selected**, because arbitration prefers the rule
-authored first, and the oscillation starves it.
-
-The fix at the time was one authored fact — a precedence saying the surprise
-rule beat the causal one. It worked, and it was the wrong diagnosis. Run the
-same corpus today, with nothing outranking anything:
+That failure mode cannot even be *built* under the current engine, for a
+different reason than the one that originally fixed it: there are no more
+moments for a causal rule to re-fire into, so a guarded rule like `<boils>`
+above concludes once and stops (`no boiling($k)` is now false). Reconstructing
+the whole chain as an ordinary corpus — `<boils>`, a trust rule reading an
+arrival, `<deviation>`, `<explain>` — and running it for real:
 
 ```
-after the gauge speaks:  6 moves, ended quiescent
-
-  intake → trustF → deviation-+-contradicted → why → ask-recall → give-up
+fact +heating(k1)
+fact +heating(k2)
+say world: +not(boiling(k2))
 ```
 
-`<why>` gets its turn, and the pair does not oscillate. What stopped the
-oscillation was **refraction**: an application is spent on the premises it
-matched, so *this instantiation has run* is a different claim from *this rule
-scored low*, and a rule that has already concluded from these exact premises does
-not do it again.
+```
+surprise.ugm: 9 ticks, ended quiescent
 
-That is the general shape, and it survives the mechanism that used to carry it:
+what it believes, newest first:
+  goal(explain_failure(boiling(k2)))
+  deviates(boiling(k2))
+  not(boiling(k2))
+  expects(boiling(k1), plus)
+  boiling(k1)
+  expects(boiling(k2), plus)
+  boiling(k2)
+  says(world, not(boiling(k2)))
+  arrived(world, not(boiling(k2)))
+  heating(k2)
+  heating(k1)
+```
 
-> **A contradicted expectation does not stop being re-derived.** Nothing retracts
-> the rule that produced it. Either something outranks it, or the loop stops
-> re-deriving what it has already derived from the same premises — and it is the
-> second.
+`<explain>` gets its turn — `intake`, `boils` twice, a trust rule, `<deviation>`,
+`<explain>`, in that order — and the run quiesces at 9 ticks. No oscillation to
+break, because nothing re-derives a conclusion it already holds. That's the
+general shape, and it survives the specific mechanism that used to carry it:
 
-!!! note "Deep dive: two riders that outlived the mechanism"
-    While precedence existed, two things about it were learned the hard way, and
-    both are worth keeping as facts about *any* scheme for making one rule beat
-    another:
+> **A guarded rule does not re-derive what it has already derived.** Nothing
+> retracts the rule that produced a belief. Either something outranks a rival
+> that would contradict it, or — as here — each side of the disagreement
+> simply concludes once and stands, on the record, for something else to
+> reconcile.
+
+!!! note "Deep dive: two riders that outlived precedence"
+    While precedence existed, two things about it were learned the hard way,
+    and both are worth keeping as facts about *any* scheme for making one rule
+    beat another, should a corpus build one out of ordinary claims:
 
     - Being outranked has to mean **not applying at all**, never merely applying
       second — or the loser re-asserts on the following tick and quietly undoes
@@ -109,43 +153,44 @@ That is the general shape, and it survives the mechanism that used to carry it:
       disappears the moment its conclusion is present and the loser is left
       unopposed.
 
-    Precedence is gone (Chapter 17) and both lessons are why: neither could be
-    bought with a score, and once the exception moved into the premise there was
-    nothing left for the relation to do.
+    Precedence itself is gone (Chapter 17), replaced by `standing` and ordinary
+    guards, and both lessons are why: neither could be bought with a score, and
+    once the exception moved into the premise there was nothing left for a
+    ranking relation to do.
 
 A strategy stopped by a statement in the knowledge base rather than by an
-interpreter. That's the whole point.
+interpreter. That's still the whole point, even though the specific machinery
+that used to carry it for free is a corpus's job now.
 
 !!! note "Deep dive: starvation is not only the surprise rule's problem"
-    A rule that would *settle* a conflict can be starved by the conflict it would
-    settle: `hot`, `cold`, `hot`, `cold`, and the referee never gets a turn.
+    A rule that would *settle* a conflict can be starved by the conflict it
+    would settle: two rules disagreeing forever, and the referee never gets a
+    turn. Same shape from a third side, and it takes the same answer —
+    `standing`, the claim that a rule must always be considered (Chapter 28).
 
-    Same shape from a third side, and it takes the same answer — `standing`, the
-    claim that a rule must always be considered.
+## Not one comparison, and not four rules either
 
-## Four rules, not one comparison
+The old design that first made this argument built the deviation check as
+**four** rules — two expected signs against two ways an observation could
+contradict one, including a third sign, `?`, that meant *held before, does not
+now, unknown*.
 
-Noticing a deviation could be one comparison: expected sign against observed
-sign. It isn't. It's four rules — two expected signs against the two ways an
-observation can contradict one: the opposite sign, and `?`.
+`?` is gone. There is no third sign — a member is `+`, `-`, or `no`
+(Chapter 3) — and unknown is expressed by simply not yet asserting anything,
+never by a value that means *unsettled*. So the check that used to need four
+rows needs two today: an `expects(p, plus)` contradicted by `+not(p)`, and an
+`expects(p, minus)` contradicted by `+p`. Smaller than before, and the
+argument that mattered survives the shrink intact:
 
-As a single comparison, the machinery was quietly asserting that *invalidated,
-and I cannot say what replaced it* disappoints an expectation exactly as much as
-the opposite outcome does.
+> **A `for` loop over these cases is a branch wearing a row's clothes.**
 
-That's a real claim. It may be wrong. And as a branch there was nowhere to argue
-with it.
-
-> **A `for` loop over four tuples is a branch wearing a row's clothes.**
-
-Written out as four rules, the claim became arguable — and three of the four
-turned out to be unexercised, which a branch would have hidden forever.
-
-Which is the other half of the same lesson:
+Written out as separate rules rather than folded into one comparison
+function, each case is something a corpus can keep, drop, or override on its
+own — which a branch, by construction, cannot offer.
 
 > **Data rots in a way a branch does not.** A dead branch is dead code. A rule
-> that never applies costs nothing, breaks nothing, and looks exactly like a rule
-> that works.
+> that never applies costs nothing, breaks nothing, and looks exactly like a
+> rule that works.
 
 That's why this project's gate for its shipped rules **deletes each one and
 re-runs the suite**, and reports any rule whose removal breaks nothing.

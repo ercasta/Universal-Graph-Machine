@@ -40,9 +40,9 @@ they're just more relation instances. Nothing was added.
 ## Everything is this shape
 
 This is why the rest of the book can keep saying "and that's an ordinary fact
-about it". Rules, claims, moments, stretches of time, plans, prohibitions, the
-machine's own goals — all of them are nodes, so all of them can be spoken about
-without introducing a new kind of thing.
+about it". Rules, claims, plans, prohibitions, the machine's own goals — all of
+them are nodes, so all of them can be spoken about without introducing a new
+kind of thing.
 
 ```
 person(paul)                       a proposition about a person

@@ -1,9 +1,8 @@
 # What cannot be a convention
 
-Nearly everything in this book is **taught**. Moments, entries, signs,
-rules, modalities, channels, frames, goals, plans — all of it is a
-representation of reality the agent uses, not machinery the engine is built out
-of.
+Nearly everything in this book is **taught**. Beliefs, rules, modalities,
+channels, shapes, goals, plans — all of it is a representation of reality the
+agent uses, not machinery the engine is built out of.
 
 An agent that has them reasons better than one that treats every proposition as
 a bare fact. It can say what it used to believe, what it's merely supposing, and
@@ -27,9 +26,10 @@ point of stating it:
 
 > **The interpreter's step should have no phases.**
 
-Match, commit, write — and intake, supposition, acting, deviation and goal
-expansion become rules that those apply. An interpreter with one phase per
-convention has, in effect, compiled the whole taught layer into itself.
+Match, commit, write — and everything else a corpus wants (goal expansion,
+approval gating, retries, escalation) becomes rules that those apply. An
+interpreter with one phase per convention has, in effect, compiled the whole
+taught layer into itself.
 
 The count of phases is therefore a direct measure of how much has escaped onto
 the floor. It's a number an implementation can print. Chapter 32 prints it.
@@ -39,17 +39,20 @@ the floor. It's a number an implementation can print. Chapter 32 prints it.
 ```
 structure + ordering        by economy
 variables + substitution    irreducible
-a register                  irreducible
-a stamp on every mint       by guarantee
-one total step              irreducible
+one total step               irreducible
 ```
 
-Five items. And the test of whether the line is drawn correctly:
+Three items. And the test of whether the line is drawn correctly:
 
 > **Nothing on it mentions reality.**
 
 Not one of those says anything about time, belief, evidence, causation or the
 world. They're about how structure is built, matched and committed.
+
+That's down from five. Two items that used to stand here — a register that
+recorded where a write landed, and a stamp that recorded what produced every
+mint — left the floor entirely, and the reason each left is worth stating
+before the three that remain.
 
 ### 1. Structure and ordering
 
@@ -77,59 +80,55 @@ to write conventions in.
     A relation instance whose *relation slot* holds a variable — `$p($x)` — is an
     ordinary generic node, and the substrate could always build one.
 
-    It never matched, because three separate things declined it and **none of
-    them on an argument**: the surface wouldn't parse it, the unifier compared
-    the relation slot by identity, and substitution wouldn't rebuild one.
+    `ugm/core/rules.py`'s `candidates` still carries the case: a member whose
+    relation is a variable takes the whole believed set as its pool, the same
+    one a bare variable member gets. Nobody had asked which of three separate
+    refusals — the surface wouldn't parse it, the unifier compared the relation
+    slot by identity, substitution wouldn't rebuild one — was the *reason* it
+    used to be unmatchable, so it read as a property of the floor. It isn't.
+    Genericity is floor; *which slots may be generic* is a choice.
 
-    Nobody had asked which of the three was the reason, so it read as a property
-    of the floor. It isn't. Genericity is floor; *which slots may be generic* is
-    a choice. Allowing it took about an hour, and it's what makes Chapter 8's
-    class-as-data pattern possible.
+### Two items that left
 
-### 3. A register
+**A register.** Writes used to land at a locus — a moment the machinery was
+currently standing in — and something had to point at which one. That pointer
+was floor, on the argument that finding it would itself need a read, and a read
+needs somewhere to stand.
 
-Writes land somewhere, and something must point at where. One pointer: the node
-the machinery is currently working in.
+The locus is gone (`+on($x,$y) at $m` is refused at load, in full, by the
+parser). A write today is `Gate.write`, and it does one thing: mint the anchor
+`believed(p)`. Nothing about *where* survives to ask about — `gate.py`'s own
+docstring says plainly what's left: *"one function in, one function out."* The
+pointer had a job only as long as writes needed a place to land, and once they
+stopped needing one there was no question left for a register to answer.
 
-The register is floor. **That it points at a moment is convention** — nothing in
-the engine knows what kind of node it holds.
+The attention stack (`Machine._frames`, `push`/`pop`) sits nearby and is easy to
+mistake for the register's replacement. It isn't one: a frame is Python state
+scoping what the agent is thinking about, never consulted by a write and never
+itself a graph node a rule could read or move — only `attentioned($x)`, a
+filter, sees into it at all.
 
-And **one** register, not a stack. A process that isn't running still has a
-place it was standing, and resuming restores that place — but those saved
-positions are *not* registers. They're ordinary members of ordinary frame nodes:
-readable, writable, attributable. Resuming is a write to the register, sourced
-from a frame; suspending is the same write in the other direction, and both
-leave a trail.
+**A stamp on every mint.** Every node used to record what produced it: which
+rule, under which substitution, in which state. That was the derivation
+record, and `gate.py` says where it went in one line: *"The licence and the
+source were the derivation record, and the derivation record went with the
+chain."* `Graph._mint` today records a relation, its members, whether it's
+generic — and nothing else. Ask what produced a node and there is no answer
+stored anywhere to ask for; `Machine` has no `why`.
 
-If saved positions were registers, the design would have an unbounded set of
-privileged slots and the agent could not be asked where a suspended process was
-standing, or move it.
+This is a real cost, not a tidy simplification, and the book doesn't pretend
+otherwise — see the "Deliberate, and a real cost" list in
+[what is not built](../horizon/34-not-built.md).
 
-What must be privileged is only **which one is current**, because that's the
-question no read can answer: finding the answer in the graph would require a
-read, and a read needs somewhere to stand.
-
-### 4. A stamp on every mint
-
-Every node the engine creates records what produced it: which rule, under which
-substitution, with the register in which state.
-
-This introduces no name and says nothing about channels, authority or evidence.
-It's on the floor because the alternative is **voluntary** provenance, and
-voluntary provenance is forgeable — and both the modality argument (Chapter 15)
-and the acquisition argument (Chapter 29) make the trail load-bearing for
-*correctness* rather than for explanation.
-
-> **Nothing is prohibited; everything is stamped.**
-
-### 5. One total step
+### 3. One total step
 
 Something must always answer. Selection cannot be allowed to search forever or
 to return nothing, because the interpreter has no outside to fall back to.
 
 **Totality** is floor. **What it consults is convention** — a score, the order
 the rules were authored in, and whatever claims the corpus has made about its
-own rules (Chapter 17).
+own rules. `rules.arbitrate` is the code: total over whatever matched, tie-
+broken by authored order, and it has no case in which it declines to answer.
 
 The floor requires only that the final tiebreak **does not itself reason**. It
 does not require that the answer be kept anywhere, or that there be much of it.
@@ -137,26 +136,28 @@ An earlier draft said *a lookup over an authored precedence table*; the table
 went first, and then the precedence relations it cached went too, and totality
 was never what was at stake in either.
 
-## Three grounds, not one
+## Two grounds, not one
 
-The five items don't reach the floor for the same reason, and flattening them
+The three items don't reach the floor for the same reason, and flattening them
 into one list flatters the floor by making all of it look inevitable.
 
 | item | ground | the argument |
 |---|---|---|
 | **variables + substitution** | **irreducible** | defining matching requires matching |
 | **one total step** | **irreducible** | selecting the selector requires selection |
-| **the register** | **irreducible** | finding where to write requires a read, and a read requires somewhere to stand |
-| **the stamp** | **by guarantee** | fully reducible — a rule could write its own provenance. But reducible provenance is forgeable provenance. |
 | **ordering** | **by economy** | fully reducible, and its reduction turns linear matching into subgraph isomorphism |
 
-The three irreducible items share a shape: each is **the thing that would be
-needed in order to do the thing itself**. And all of them take the same escape —
+Both irreducible items share a shape: each is **the thing that would be
+needed in order to do the thing itself**. And both take the same escape —
 **a function, not a search**.
 
-The two others are choices, and should be defended as choices. The stamp could
-be given up, at the price of soundness. Ordering could be given up, at the price
-of complexity. Nothing else on this list could be given up at any price.
+Ordering is a choice, and should be defended as one: it could be given up, at
+the price of complexity. The two items that used to sit beside it on a third
+ground — **by guarantee**, fully reducible but kept for what giving them up
+would have cost — are the register and the stamp, and both were in fact given
+up. The register cost nothing measurable once the locus went with it; the
+stamp cost the derivation trail, which is why it's listed as a real cost above
+rather than folded quietly into "simplified."
 
 ## Descent should be measured, not argued
 
@@ -176,12 +177,14 @@ So:
 > **A convention descends to the floor only by measured use:** high frequency,
 > on the path of an irreducible primitive, and bleached of domain content.
 
-All three are checkable, and the checking has twice overturned the expectation
-it was run to confirm. A census retired the **grade** — 4 of 3,740 rules
-authored a non-certain one. A second census retired the **precedence table** —
-deleting it cost 6.42s against 6.38s — and a third went through every precedence
-claim in the repository, found that four of seven were doing nothing and the
-rest were premises in disguise, and retired the relations themselves.
+All three are checkable, and the checking has repeatedly overturned the
+expectation it was run to confirm. A census retired the **grade** — 4 of 3,740
+rules authored a non-certain one. A second census retired the **precedence
+table** — deleting it cost 6.42s against 6.38s — and a third went through every
+precedence claim in the repository, found that four of seven were doing
+nothing and the rest were premises in disguise, and retired the relations
+themselves. The same discipline, applied again later, is what took the
+register and the stamp off this very list.
 
 None was cut for being wrong. All were cut for being *unused where it counted*,
 which is a measurement and not an argument.
@@ -197,13 +200,21 @@ must route through machinery that knows its name.
 
 One last clarification, because it's the objection people raise.
 
-Moments, entries and signs *feel* like floor because they sit on the hot path of
-every read, so an implementation puts them in native code.
+Structure and matching *feel* like floor because they sit on the hot path of
+every step, so an implementation puts them in native code.
 
-That's an optimisation, not a status, and the difference is checkable:
+That's an optimisation, not a status, and the difference is checkable where a
+compiled path still has a slow definition to be held to:
 
 > **For every taught convention, the rule-level definition must exist, and the
 > compiled path must agree with it on answers *and on behaviour*.**
+
+`Graph.has_var` is the surviving case in point: the cached answer at every node
+is checked against `_has_var_slow`, the walked definition, every time the
+substrate's own suite runs it — an index is a re-implementation of what it
+indexes, and it has to be held to it. Chapter 32 has the rest of what still
+checks itself this way, and it is a shorter list than it used to be, for the
+same reason the floor above it is a shorter list.
 
 The second clause isn't decoration. A convention compiled into the host language
 **is not interruptible**, and Chapter 25 spends its length arguing that being

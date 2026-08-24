@@ -73,6 +73,23 @@ Measured three ways, and they agreed:
 > clothes.**
 
 So the grade is gone, and the entry is back to two members and never a third.
+The parser does not merely fail to support the old notation — it refuses it by
+name:
+
+```
+fact +rain(monday) @likely
+```
+
+```
+ParseError: `@` is gone with the grades. Uncertainty is a proposition now --
+write `+likely(p)` in the consequent and let a rule cross it, rather than
+annotating how strongly `p` is held.
+```
+
+That message is not a fallback for unrecognised syntax. It is the one place in
+the loader that names the retired mechanism and points at what replaced it —
+because a notation that used to mean something and now silently parses as
+nothing is worse than one that is refused.
 
 And the larger half: **the closed set went with it.** Five ordinal names the
 engine knew became whatever modalities a corpus cares to write, with whatever

@@ -1,27 +1,43 @@
 # Because…
 
 Here is a corpus about what an airline owes a passenger. It's a good example
-because the domain is deliberately far from toys — entitlements, exceptions and
-duties rather than blocks on a table.
+because the domain is deliberately far from toys — entitlements, exceptions
+and duties rather than blocks on a table. This is `ugm/rules/delay.ugm`,
+shipped and run by `python -m ugm.gates.vocabulary` as one of its own checks.
 
 ```
-rule <cancel>  = implies( { +cancelled($f) },     { +disrupted($f) } )
-rule <late>    = implies( { +delayed($f, long) }, { +disrupted($f) } )
+rule <cancel>
+  +cancelled($f)
+  no disrupted($f)
+->
+  +disrupted($f)
+rule <late>
+  +delayed($f, long)
+  no disrupted($f)
+->
+  +disrupted($f)
 
-# the duty of care is owed whatever the cause
-rule <care> = implies( { +disrupted($f), +booked($p, $f) },
-                       { +owed($p, meals), +owed($p, lodging) } )
+rule <care>
+  +disrupted($f)
+  +booked($p, $f)
+  no owed($p, meals)
+->
+  +owed($p, meals)
+  +owed($p, lodging)
 
-# ...but compensation is not, if the cause was outside the carrier's control
-rule <compensate> = implies(
-    { +disrupted($f), +booked($p, $f), -extraordinary($f) },
-    { +owed($p, money) } )
+rule <weather>
+  +cause($f, storm)
+  no extraordinary($f)
+->
+  +extraordinary($f)
 
-rule <weather> = implies( { +cause($f, storm) }, { +extraordinary($f) } )
-rule <crewing> = implies( { +cause($f, crew) },  { -extraordinary($f) } )
-
-rule <far>  = implies( { +owed($p, money), +flying($p, $f), +distance($f, long) },
-                       { +amount($p, 600) } )
+rule <compensate>
+  +disrupted($f)
+  +booked($p, $f)
+  no extraordinary($f)
+  no owed($p, money)
+->
+  +owed($p, money)
 ```
 
 Ana's flight was cancelled because of a crew shortage. Raj's was delayed by a
@@ -37,106 +53,120 @@ fact +delayed(kt881, long)  fact +cause(kt881, storm)  fact +booked(raj, kt881)
 ## Ask it
 
 ```
-why amount(ana,600)?
-  +amount(ana, 600), via kb, licensed by applied(<far>)
-    because +owed(ana, money), via kb, licensed by applied(<compensate>)
-    because +flying(ana, bl204), via kb, licensed by loaded(flying(ana, bl204))
-    because +distance(bl204, long), via kb, licensed by loaded(distance(bl204, long))
-    because +disrupted(bl204), via kb, licensed by applied(<cancel>)
-    because +booked(ana, bl204), via kb, licensed by loaded(booked(ana, bl204))
-    because -extraordinary(bl204), via kb, licensed by applied(<crewing>)
-    because +cause(bl204, crew), via kb, licensed by loaded(cause(bl204, crew))
-    because +cancelled(bl204), via kb, licensed by loaded(cancelled(bl204))
+$ python -m ugm delay.ugm --ask "owed(ana,money)" --ask "amount(ana,600)" \
+                          --ask "owed(raj,money)" --ask "owed(raj,meals)"
+delay.ugm: 14 ticks, ended quiescent
+
+what it believes, newest first:
+  rerouted(ana, zr9)
+  amount(ana, 600)
+  owed(ana, money)
+  extraordinary(kt881)
+  owed(ana, lodging)
+  owed(ana, meals)
+  owed(raj, lodging)
+  owed(raj, meals)
+  disrupted(kt881)
+  disrupted(bl204)
+  ...
+
+owed(ana,money): believed
+amount(ana,600): believed
+owed(raj,money): not believed
+owed(raj,meals): believed
 ```
 
-Eight lines, and every one of them is a claim that is still sitting in memory
-with its own sign, source and licence. Nothing was reconstructed.
+Ana gets money — a crew shortage is the carrier's own doing. Raj gets meals
+and lodging but not money — a storm is nobody's fault, and `<compensate>`'s
+`no extraordinary($f)` guard withholds it. Meals yes, money no, and that much
+the engine will tell you flatly: `believed` or `not believed`.
 
-And Raj:
+## What it will not tell you, and why that is a real cut and not an oversight
+
+The obvious next question is *why* — walk `owed(raj, money)` back to the fact
+that blocked it. The honest answer, checked against the source rather than
+assumed, is that **there is no such walk any more**. `python -m ugm --help`
+says so on purpose:
 
 ```
-why owed(raj,money)?
-  nothing concluded it -- see what is BLOCKED above
-
-why owed(raj,meals)?
-  +owed(raj, meals), via kb, licensed by applied(<care>)
-    because +disrupted(kt881), via kb, licensed by applied(<late>)
-    because +booked(raj, kt881), via kb, licensed by loaded(booked(raj, kt881))
-    because +delayed(kt881, long), via kb, licensed by loaded(delayed(kt881, long))
+What is gone from this file is the same thing that is gone from the engine.
+`--save` and `--resume` wrote and replayed a SESSION -- everything the agent
+had been told, in order -- and `--why` walked a belief's support back to what
+it rested on. Both were readings of a history, and there is no history: one
+graph, one current state, and what it holds is all there is to print.
 ```
 
-Meals yes, money no — and the machine can tell you why each way.
+This isn't a missing CLI flag with a working method underneath it. `Machine`
+has no `why`, no `licensed`, no `applied(<R>)` fact recording *that this
+particular firing happened*. `ugm/core/gate.py` — the one door a belief goes
+through — says what it used to carry and states plainly that it's gone:
 
-## Why the explanation is free
+> What the gate used to be is worth saying, because most of it is gone. It
+> stamped every deposit with a licence, a source and a landing place... The
+> licence and the source were the derivation record, and the derivation
+> record went with the chain.
 
-This is the part worth understanding, because it's the difference between an
-auditable system and a system with an audit feature.
+And `ugm/core/rules.py`, on the field an `Application` used to have:
 
-Nothing here logs. There is no explanation subsystem, no trace buffer, no
-"reasoning mode". What happened is:
+> There was a third field, `consumed` — the entries the match ate, kept as
+> half the derivation trail. The trail went with the chain, and nothing in
+> the loop read `consumed` for any other purpose.
 
-1. Every entry the machine deposits records what **licensed** it — which rule
-   application, or which load, or which channel arrival.
-2. Every application records which entries it **consumed**, in member order.
+So the old two-part mechanism this chapter used to describe — every entry
+recording what licensed it, every application recording what it consumed —
+is not thinner today. It is not there. Belief collapsed to one fact per
+proposition, `believed(p)`, present or absent, and a retraction *deletes* that
+fact rather than superseding it with a later one. There is nothing left for a
+support trail to be made of.
 
-Those two records exist because the machinery needs them for other things
-entirely. The strength of a conclusion drawn under a supposition depends on
-them. Deciding what a move consumed depends on them. Learning a new
-rule from examples depends on them.
+## What is actually left
 
-> **The trail a piece of reasoning leaves behind is not a debugging aid.**
+Two things, and neither is a trail:
 
-So `why` is a walk over structure that was already there. Finding the answer and
-finding the explanation were the same act.
+**Presence and absence**, which is what `--ask` already showed. You can find
+out *what* is believed. You cannot ask the engine *what made it so*.
 
-## Read the licences
+**A rule's own shape, read back as data** (Chapter 6). Authoring a rule
+deposits `rule(<R>)`, `ant(<R>, pattern, mode, i)`, `con(<R>, pattern, mode,
+i)` — so you can ask *which rules conclude `owed($p, money)`* or *which rules
+carry a guard*. That is a real, current, queryable fact about the **corpus**.
+It is not an account of any one belief's derivation, and confusing the two is
+exactly the mistake this cut is designed to make impossible to make by
+accident: there is nothing that *looks like* an explanation left lying around
+half-working.
 
-The licences are more informative than they look:
+```
+rule <pays> = implies( { +con($r, owed($p, money), assert, $i) },
+                       { +about_money($r) } )
+```
 
-| licence | means |
-|---|---|
-| `loaded(p)` | you asserted it in the corpus |
-| `applied(<R>)` | rule `<R>` was applied |
-| `supposing(p)` | it holds because you're inside a supposition of `p` |
-| `concluded(frame(...))` | it came *out* of a supposition, wrapped |
+```
+about_money(<compensate>): believed
+about_money(<care>): not believed
+```
 
-That fourth one matters: a hypothesis formed by reading a rule backwards is
-distinguishable, permanently, from a conclusion drawn forwards. Reading a rule
-backwards is reading its converse — *four wheels ⇒ car*, run backwards,
-licenses *a cart is a car* — which is legitimate as a hypothesis and
-catastrophic if a planner treats it as entailment.
+That's a query over the *rulebook*, answerable because reification writes it
+down at load time regardless of whether the rule ever fires. It cannot tell
+you whether `<compensate>` actually fired for Raj, only that it is the kind of
+rule that concludes money.
 
-The representation has to record which kind of step a given inference was, and
-the licence is where it does.
+## The honest scoring
 
-## The one thing the trail can't answer
+| | old trail (licence + consumed) | today |
+|---|---|---|
+| what is believed | a query | a query |
+| what made it so | a walk over recorded structure | **not answerable** |
+| what a rule *would* conclude, in general | a walk over reified members | a query |
+| cost of keeping it | a derivation record on every write | none — nothing is kept |
 
-There's an honest limit, and it is structural rather than an oversight:
-
-> **You cannot ask *why did you read it that way* through the same mechanism you
-> ask *why do you believe that*.**
-
-The read that resolves the state (Chapter 5) is itself made of rules — but of a
-special stratum that produces *structure*, not claims. If it deposited its
-intermediate results as claims, it would be reading claims to do so, and the
-whole thing would never start. Chapter 31 is that argument.
-
-So the read's own working state is undated, unattributed and unexplained. Every
-conclusion carries its support; the *resolution* that fed the conclusion does
-not.
-
-There's a second one, from a different direction. *Why did you consider that
-rule?* has no answer either, because what comes to mind is a function rather
-than a search (Chapter 27). In practice, then, the guarantee reads: *every
-conclusion carries its support, among what surfaced.*
-
-And that has a safety consequence which is stated as a principle rather than
-discovered later:
-
-> **The opaque component may not be load-bearing for safety.**
-
-Which is exactly why prohibitions (Chapter 18) are checked at the write and
-never compete for attention.
+The row that changed is real, and it is a loss, stated as one rather than
+talked around. If your corpus needs to explain a specific decision to a
+person, that has to be written *into the corpus* now — a rule that concludes
+`reason($p, crew_shortage)` alongside `owed($p, money)` is an ordinary fact,
+sitting in `believed()` with everything else, and it survives exactly as long
+as you keep it there rather than as long as some trail happens to still hold
+it. `horizon/34-not-built.md` is where this book tracks gaps like this one
+that have no current replacement.
 
 ---
 

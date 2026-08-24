@@ -5,73 +5,101 @@ agent. What happens?
 
 ```
 say user:  +raining(here)
-say gauge: -boiling(kettle)
+say gauge: not(boiling(kettle))
 ```
 
-What is written down is **that the channel said so**. Not that it's raining.
+What is written down is **that the channel said so**. Not that it's
+raining.
 
 ```
-+arrived(user, raining(here), +)   via user, licensed by utterance(user, raining(here))
-+says(user, raining(here), +)      licensed by applied(<intake>)
++arrived(user, raining(here))
++says(user, raining(here))      concluded by the bundled <intake> rule
 ```
 
 Whether you believe it is a **rule's** business:
 
 ```
-rule <trust_user>  = implies( { +says(user, $p, plus) },  { +likely($p) } )
-rule <gauge-yes>   = implies( { +says(gauge, $p, plus) }, { +$p } )
-rule <gauge-no>    = implies( { +says(gauge, $p, minus) },{ -$p } )
+rule <trust_user> = implies( { +says(user, $p), no likely($p) },
+                             { +likely($p) } )
+rule <gauge_yes>  = implies( { +says(gauge, $p), no $p },
+                             { +$p } )
+rule <gauge_no>   = implies( { +says(gauge, not($p)), no not($p) },
+                             { +not($p) } )
 ```
 
 ```
-why likely(raining(here))?
-  +likely(raining(here)), licensed by applied(<trust_user>)
-    because +says(user, raining(here), +), licensed by applied(<intake>)
-    because +arrived(user, raining(here), +), via user, licensed by utterance(...)
+$ python -m ugm channels.ugm --ask "likely(raining(here))"
+channels.ugm: 3 ticks, ended quiescent
 
-why boiling(kettle)?
-  -boiling(kettle), licensed by applied(<gauge-no>)
-    because +says(gauge, boiling(kettle), -), licensed by applied(<intake>)
+what it believes, newest first:
+  likely(raining(here))
+  says(user, raining(here))
+  arrived(user, raining(here))
+
+likely(raining(here)): believed
+```
+
+```
+$ python -m ugm channels.ugm --ask "not(boiling(kettle))"
+not(boiling(kettle)): believed
 ```
 
 The user is trusted only as far as *likely*. The gauge is taken at its word,
-including its denials. Both are one-line claims a corpus makes and can revise.
+including its denials — written as `not(boiling(kettle))`, an ordinary
+proposition, never a third sign on the arrival. Both are one-line claims a
+corpus makes and can revise.
 
 ## Trust is a rule, never a hard-wired intake
 
-This is the design decision, and it's worth being explicit about what it buys.
+This is the design decision, and it's worth being explicit about what it
+buys.
 
-If believing a channel were built into the machinery, then *how far do I trust
-this speaker* would be the one question the agent could not reason about — and
-you could not have two channels trusted differently without a configuration
-option.
+If believing a channel were built into the machinery, then *how far do I
+trust this speaker* would be the one question the agent could not reason
+about — and you could not have two channels trusted differently without a
+configuration option.
 
 As a rule, it is:
 
 - **askable** — *which of my beliefs came in this way?* is a query;
 - **arguable** — a rule can override it, retire it, or hedge it;
-- **attributable** — the trail reaches the utterance, always.
+- **attributable** — `says(channel, p)` names the channel every time.
 
-That last one is checkable and checked: the trail from a belief goes all the way
-back to `utterance(user, ...)`, not merely to "some external source".
+The bare-variable consequent `{ +$p }` is what makes *whatever the channel
+said, believe it* one rule rather than one rule per proposition. It's also,
+read backwards, completely vacuous (Chapter 11) — which is why the backward
+reader declines it.
 
-The bare-variable consequent `{ +$p }` is what makes *whatever the channel said,
-believe it* one rule rather than one rule per proposition. It's also, read
-backwards, completely vacuous (Chapter 11) — which is why the backward reader
-declines it.
+## Every rule here needs its own brake
+
+Notice the `no likely($p)` and `no $p` guards above. They were not needed
+under the old chain, where a repeated conclusion cost nothing — the read
+simply found the same answer. They are load-bearing now.
+
+Belief here is a scratchpad, not a history: asserting something already
+anchored is a no-op, but the **match** that produced it happens again on the
+very next tick, because nothing tells the loop that this application already
+ran and changed nothing:
+
+> **An application that changes nothing is offered again.** A trust rule
+> with no guard doesn't corrupt anything — `likely(raining(here))` stays
+> exactly as believed either way — but it never lets the run go quiescent.
+> Left ungated, `<trust_user>` above burns through four hundred ticks doing
+> nothing after the third one, and the CLI reports it never finished.
 
 ## Confidence lives on the source
 
-Chapter 15 separated four things that look like uncertainty, and this is where
-the second one lands.
+Chapter 15 separated four things that look like uncertainty, and this is
+where the second one lands.
 
-*How sure am I of this rule*, *how sure am I of this sensor*, and *how far do I
-trust this speaker* are **one question asked of three sources**. Every entry
-names the source it arrived through, so one mechanism covers all three.
-Rule-confidence is simply the case where the source is the knowledge base.
+*How sure am I of this rule*, *how sure am I of this sensor*, and *how far
+do I trust this speaker* are **one question asked of three sources**. Every
+`says(channel, p)` names the source it arrived through, so one mechanism
+covers all three. Rule-confidence is simply the case where the source is the
+knowledge base.
 
-A confidence field on rules would have covered the first and needed reinventing
-twice.
+A confidence field on rules would have covered the first and needed
+reinventing twice.
 
 ## Channel is not authority
 
@@ -81,96 +109,101 @@ Two separate things, easily conflated:
 - **Authority** — whose word it is, and what that's worth.
 
 The boss's instruction relayed by an assistant arrives on the assistant's
-channel and carries the boss's authority. One entry, two different facts about
-it, and settling conflicting claims reads the second.
+channel and carries the boss's authority. Nothing stops a corpus writing
+both — `says(assistant, instructed(boss, ...))` — and settling conflicting
+claims by reading the second fact rather than the first.
 
-## What a channel reports is signed — and that's a compromise
+## What a channel reports has no sign of its own
 
-An arrival needs a sign, and a proposition doesn't have one; only an entry does.
-So *the gauge says it is not boiling* has nowhere to put the negation.
-
-Writing `−says(gauge, p)` says the gauge **stayed silent**, which is a different
-fact and not the one observed.
-
-The shape in use is `says(channel, proposition, sign)`, with the entry always
-positive: the channel did speak. That puts a sign inside a proposition, and
-this design generally warns against exactly that.
-
-It's a real compromise, and it costs you something visible. Because the sign is
-an argument rather than a member, a rule can bind it with a variable and then
-**ignore it**:
+An older design gave an arrival a third field, the sign: a channel reported
+`+p`, `-p`, or `?p`, which made it the one party outside the agent that
+could say what to believe rather than merely what it had heard. That field
+is gone with the entry that used to carry it — an arrival is a bare
+proposition, and denial is written the way it's written everywhere else,
+as an ordinary term:
 
 ```
-rule <careless> = implies( { +says(gauge, $p, $s) }, { +$p } )
+say gauge: not(boiling(kettle))
 ```
 
-That believes `boiling(kettle)` when the gauge said it was *not* boiling. It
-loads fine. Nothing complains. Write a rule per sign.
+Trying to report a denial with `-` is refused outright at the door, not
+silently mangled:
 
-Two better answers exist and neither is built. An arrival *should* be a
-**moment** — a report is a signed delta, and trust would then be a rule relating
-two moments rather than a rule per sign. Chapter 34 records it.
+```
+say gauge: -boiling(kettle)
+```
+```
+ParseError: a channel reports what it heard, not what to do about it.
+To report a denial, say `not(...)`.
+```
+
+That's a cleaner shape than the old three-field arrival — a channel can no
+longer smuggle *what to do about it* past the boundary, because there is no
+slot left for it to smuggle it in.
 
 ## An arrival is not something the agent does
 
 Crossing the boundary is irreducible — a channel is anchored and a rule is
-generic. Crossing it **on the agent's schedule** is a claim, and a false one.
+generic. Crossing it **on the agent's schedule** is a claim, and a false
+one.
 
-> **An arrival is an external event, and an external event is not something the
-> agent does.**
+> **An arrival is an external event, and an external event is not something
+> the agent does.**
 
-So delivery is the boundary calling in, at the moment the world speaks, rather
-than a first line of the loop. What remains in the step is a *counter* — how
-much arrived since the last one — because *nothing applied* and *nothing arrived
-and nothing applied* have to be different silences (Chapter 26).
-
-The behavioural difference is visible without running anything: a report is on
-the graph the moment the world speaks, and *what it means* still waits for a
-rule to be selected. Those were the same instant while intake was a phase, and
-they are two different things.
+So delivery happens the moment the world speaks — `Channels.deliver` writes
+straight through the gate — rather than waiting for the next tick to ask.
+What arrives is on the graph immediately; *what it means* still waits for
+`<intake>` to be selected, which is an ordinary rule like any other.
 
 !!! note "Deep dive: never consume what you were told"
-    Chapter 7's advice — if a rule models something *happening*, something in its
-    antecedent must stop being true because it happened — has exactly one
-    exception, and it's here.
+    Chapter 7's advice — if a rule models something *happening*, something
+    in its antecedent must stop being true because it happened — has
+    exactly one exception, and it's here.
 
-    A corpus applied that rule to an arrival and hung. Twice. The trace is the
-    whole argument:
+    A corpus applied that rule to an arrival and oscillated forever. The
+    trace is the whole argument:
 
     ```
-    150  + says(p1, want(p1, key1), +)
-    149  - says(p1, want(p1, key1), +)
-    149  + wants(p1, key1)
+    0  applied  intake  says(p1, want(p1, key1))
+    1  applied  bad     wants(p1, key1), -says(p1, want(p1, key1))
+    2  applied  intake  says(p1, want(p1, key1))
+    3  applied  bad     -says(p1, want(p1, key1))
+    4  applied  intake  says(p1, want(p1, key1))
+    5  applied  bad     -says(p1, want(p1, key1))
     ```
 
-    `arrived` is the unarguable record of a boundary event that nothing
-    retracts. So denying `says` restores it on the next tick, along with
-    everything derived from it, for ever.
+    `arrived(...)` is never erased by anything the corpus wrote, and
+    `<intake>`'s only guard is `no says(...)`. Deny `says` and that guard is
+    satisfied again on the very next tick, `<intake>` restores it from the
+    arrival that's still sitting there, and the cycle repeats until the
+    tick limit intervenes.
 
     > **Consume what you concluded. Never consume what you were told.**
 
-    What works at a boundary is not consumption but a **gate that legitimately
-    closes**: state the denial up front, and let the world's own change
-    supersede it.
+    What works at a boundary is not consumption but a **gate that
+    legitimately closes**: guard on your own conclusion (`no
+    wants(p1, key1)`), not on the channel's report, and let the world's
+    own next word supersede whatever it said before.
 
 ## Reported speech
 
 One more thing falls out with no new construct. Two claims, one authority:
 
 ```
-<e1> = entry( says(anna, <p>),               + )     that Anna spoke
-<e2> = entry( possible(rain(afternoon)),     + )     licensed_by(<e2>, <e1>)
+fact +says(anna, possible(rain(afternoon)))
+rule <hedge> = implies( { +says(anna, possible($x)), no possible($x) },
+                        { +possible($x) } )
 ```
 
-`<e2>` is believed *on Anna's word* — that is the licence — and everything else
-it says rides in the **proposition**: that it is about the afternoon, and that
-it is hedged. Neither needed a new construct, and both are things a rule can
-read and decline to act on.
+What is believed rides entirely in the **proposition** — that it's about the
+afternoon, that it's hedged — and that it came from Anna rides in the
+`says` fact naming her. Neither needed a new construct, and both are things
+a rule can read and decline to act on.
 
-(An entry once carried a third member, a **locus**, so `<e2>` could be
-*deposited now and about the afternoon* structurally. That went — Chapter 5 —
-and *about the afternoon* became part of what is claimed rather than part of
-where the claim sits.)
+An entry once carried a third member, a **locus**, so a claim could be
+*deposited now and about the afternoon* structurally. Loci are gone
+(Chapter 19), and *about the afternoon* was always part of what is
+claimed — never part of where a claim sits.
 
 ---
 

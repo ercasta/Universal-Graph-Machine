@@ -92,15 +92,21 @@ This is the line that has to be held, and this project has reason to be careful
 about it: it deleted an instruction set once already.
 
 A postcondition is a **query** — an ordinary antecedent, parsed by the ordinary
-surface — and something to spend. There are exactly five, and every one of them
-is a *deposit or a signal*, never a score:
+surface — and something to spend. Every one of them is a *deposit or a
+signal*, never a score:
 
 ```
-attend($x, n)   think about what this move just bound, and how much
-unattend        stop thinking about whatever it was
-stop            end the run
-push(...)       suspend this line of work and open a frame
-pop             return, carrying one node back
+attend($x, n)      think about what this move just bound, and how much
+unattend           stop thinking about whatever it was
+stop               end the run
+push($a, ...)      suspend this line of work and open a frame
+pop($x)            return, carrying one node back
+merge($a, $b)      $b counts as $a from here on
+unmerge($a, $b)    undo a merge, if it's the record's own top
+destroy($x)        take a node out of the graph entirely
+label($x, name)    give $x a label
+unlabel($x, name)  take a label back
+forget $x          erase a tool's answer and the request it named
 ```
 
 ```
@@ -109,7 +115,10 @@ after <spot> => attend($x, 3)
 ```
 
 Rows, not branches. Adding a new kind of attention-spending is a new
-postcondition, not a new engine case. And note what `attend` names: a **node**
+postcondition, not a new engine case — the identity ops (`merge`, `unmerge`,
+`destroy`, `label`, `unlabel`) and `forget` arrived exactly this way, after
+`attend`/`unattend`/`stop`/`push`/`pop` had already shipped, and none of them
+needed a new case in the loop above. And note what `attend` names: a **node**
 the move itself bound — a thing in the world — never a rule.
 
 ## There used to be three more, and they moved a score
@@ -239,14 +248,19 @@ without a settling rule loses one tick rather than the loop.
 ## The penguin, measured
 
 Same corpus, same declaration order — *birds fly* written before *penguins are
-flightless* — and the question is what actually makes the exception win:
+flightless* — and the question is what actually makes the exception win. Each
+rule has to guard its own conclusion (`no flies($x)`, `no grounded($x)`) or it
+re-matches the same binding forever without ever quiescing — Chapter 26's
+finding that the loop keeps no per-candidate filter of its own, so a rule that
+never says *I've already given what I have* never yields the table to anything
+else:
 
 | | pingu flies | grounded | tweety flies |
 |---|---|---|---|
 | declaration order alone | **True** | True | True |
 | `standing(<flightless>)` | **True** | True | True |
 | `dormant(<flies>)` | **False** | True | False |
-| ...and the KB states `-penguin(tweety)` | False | True | **True** |
+| `<flies>` reads `no penguin($x)`, nothing said about tweety | False | True | **True** |
 
 The first two rows are Chapter 26's point arriving in a table: **a loop that
 runs to quiescence applies both rules whatever the order** — ordering is not
@@ -254,8 +268,10 @@ defeasibility, and neither is height. Only the third row stops Pingu flying, and
 look at what it costs: taking `<flies>` out of the running grounds Tweety too,
 because removal is per rule and an ordinary bird is not an exception to
 anything. The fourth row is the one that works, and it is not a lever at all —
-it is a fact. Say `-penguin(tweety)` and let `<flies>` read it: the general rule
-keeps working for ordinary birds and declines for this one.
+it is the rule itself, reading the KB: `no penguin($x)` inside `<flies>`'s own
+antecedent (Chapter 26's authoring advice, §2, applied). Nothing has to be said
+about Tweety at all — *no claim either way* already lets the general rule apply
+— and asserting `+penguin(pingu)` is what turns the guard off for Pingu alone.
 
 Tweety is the control here, and the whole reason the table is worth printing.
 Without an ordinary bird in the fixture, rows three and four look identical and

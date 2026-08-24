@@ -2,143 +2,180 @@
 
 Some claims aren't about a moment at all.
 
-*They are taking turns* isn't true of any instant. Its subject is a **stretch**.
-So is *it rained throughout*, and so is any constraint on the order in which
-things happen.
+*They are taking turns* isn't true of any instant. Its subject is a
+**stretch**. So is *it rained throughout*, and so is any constraint on the
+order in which things happen.
 
-This chapter is about how that gets said — and it is the one chapter in the
-book where the answer changed after the fact. The design built a mechanism for
-it, ran it, and then **removed it**, and the removal is more instructive than
-the mechanism was.
+This is the one chapter in the book where the answer changed **twice**. The
+design built a mechanism for stretches, ran it, and removed it. Then it
+removed the very substrate the replacement depended on, and had to answer the
+question a third time. All three answers are worth knowing, because the
+reason each one fell is the whole lesson.
 
-## What was built: a stretch as a *place*
+## Attempt one: a stretch as a place
 
 An entry used to carry a **locus** — where the claim sits. Normally a moment.
-The idea was to let it be a stretch instead:
+The idea was to let it be a stretch instead: mint a span node with a start and
+an end, and locate an entry there instead of at a single moment.
+
+It worked, and it is long gone. Dating every claim to a place cost more than
+it bought — a second index to maintain, a second question at every read (*at
+this moment, or that one?*), and an ancestry test on every resolution.
+
+## Attempt two: a stretch as a walk
+
+What replaced the locus was an append-only **chain** of moments, each holding
+the entries deposited in it, ordered by an ancestry relation a rule could
+walk: `anc`, `pred`, `in_delta`, `entry_of`. A stretch stopped being a place
+an entry could sit and became two moments named in an ordinary proposition,
+read by walking the history between them.
+
+That worked too, and it is *also* gone. The chain itself was removed —
+`ugm/core/rules.py` says so in as many words:
+
+> "There is also one MATCHER. The second one read the chain's skeleton —
+> `pred`, `in_delta`, `anc` — as structure rather than as claims... The
+> skeleton went with the chain."
+
+Belief is no longer a history of deposits with a winner at the end. It is a
+single **scratchpad**: a proposition is believed or it isn't, right now.
+Asserting is minting an anchor; retracting is deleting it. There is no
+record of what used to be true, because nothing here keeps one:
+
+> "There is no history: what the agent believes now is what is in the graph
+> now, and a retraction is a deletion rather than a later claim that wins."
+> — `ugm/core/scratchpad.py`
+
+So `anc`, `pred`, `in_delta`, `entry_of` are not deprecated spelling for
+something else. They are not reserved words at all any more. A rule that
+writes them gets an ordinary, unpopulated relation nobody derives anything
+from.
+
+## What says a stretch now: two ordinary arguments, and nothing else
+
+With no chain to walk and no locus to bind, a stretch collapses to the
+plainest thing left: **two node names, carried as arguments of an ordinary
+proposition, asserted by the corpus like anything else.** Nothing mints them,
+nothing orders them, nothing derives their contents. What you assert about
+the stretch is what you know about it — no more.
+
+Adapted from the passenger-rights domain in `ugm/rules/delay.ugm`: a
+disruption stretches from the scheduled departure to whenever the flight
+actually left, and a rule about the whole stretch reads the two endpoints
+without ever being told what happened between them.
 
 ```
-<s> = span(<M7>, <M12>)                       start and end
-<e> = entry(<s>, taking_turns(anna, bo), +)   an entry located at the stretch
+rule <span>
+  +disrupted($f)
+  +scheduled($f, $s)
+  +departed($f, $a)
+  no stretch($f, $s, $a)
+->
+  +stretch($f, $s, $a)
+
+rule <care>
+  +stretch($f, $s, $a)
+  +booked($p, $f)
+  no owed($p, meals)
+->
+  +owed($p, meals)
+
+fact +disrupted(bl204)
+fact +scheduled(bl204, 09:40)
+fact +departed(bl204, 13:15)
+fact +booked(ana, bl204)
 ```
 
-Spans were **loci**, and nothing else about the entry changed. It worked. It is
-gone anyway, and the reason is the whole lesson: the *locus* itself is gone.
-Dating every claim to a place turned out to cost more than it bought — a second
-index to maintain, a second question at every read (*at this moment, or at that
-one?*), and an ancestry test on every resolution. What replaced it is one
-sentence: **later supersedes earlier**, and nothing is dated to anything.
-
-So a stretch stopped being a place a claim could sit.
-
-## What says it now: an ordinary relation
-
-The claim is deposited like every other claim, and the corpus carries the
-stretch itself — two moments, in a relation it names:
-
 ```
-rule <round> = implies(
-  { asking($q), anc($q, $m), in_delta($m, $e),
-    entry_of($e, turn(hero, $r), plus) },
-  { round_span($r, $m, $q) } )
+$ python -m ugm span.ugm --ask "owed(ana, meals)"
+span.ugm: 2 ticks, ended quiescent
 
-rule <heard> = implies(
-  { round_span($r, $a, $b), anc($b, $m), anc($m, $a),
-    in_delta($m, $e), entry_of($e, arrived($c, $what, $sign), plus) },
-  { heard($r, $c) } )
+what it believes, newest first:
+  owed(ana, meals)
+  stretch(bl204, 09:40, 13:15)
+  ...
 
-rule <silent> = implies( { round_span($r, $a, $b), -heard($r, player) },
-                         { silent($r, player) } )
+owed(ana, meals): believed
 ```
 
-`round_span($r, $a, $b)` is not engine vocabulary — it is a relation this
-corpus invented, holding two moments. Everything else is the chain read as
-ordinary structure:
+`stretch(bl204, 09:40, 13:15)` is not engine vocabulary. It is a relation
+this corpus invented, the same way `owed` and `booked` are. `<care>` reads it
+the way it reads any other proposition — no walk, no ancestry check, because
+there is nothing left to walk.
 
-- **`anc($a, $b)`** — `$b` is an ancestor of `$a`; `sanc` is the strict version.
-- **`in_delta($m, $e)`** — entry `$e` was deposited in moment `$m`.
-- **`entry_of($e, p, plus)`** — what `$e` actually claims.
+That `no stretch($f, $s, $a)` guard on `<span>` is not decoration. Under the
+old chain, re-asserting a fact that already held cost nothing worth guarding
+against — the read simply found the same answer again. Under the scratchpad,
+an application that writes nothing new is still an *application*, and it is
+offered again on the next tick, and the one after that, for as long as its
+antecedent still matches:
 
-Read together, those three are *walk the history between two moments and look
-at what was deposited there* — which is what a span-located entry was for, done
-by a rule instead of by the read.
-
-And note what `<silent>` gets for free: **a stretch has duration whether or not
-anything happened in it.** The old mechanism minted a span only when the chain
-moved, so silence was unrepresentable — there was no span for nothing to have
-happened in. A stretch a corpus carries has no such gap.
+> **An application that changes nothing is offered again.** Guard your own
+> recursion, or the loop never reaches quiescence — it hits the tick limit
+> instead, having done nothing since the second tick.
 
 ## What stays true about representing a stretch
 
-The representation questions the span work settled did not go away with it, and
-the answers are the same for a corpus's own stretch relation.
+The representation questions attempt one settled did not go away, and the
+answers are sharper now, because there is no derivation left to lean on.
 
-**Endpoints, never contents.** The moments a stretch *contains* are not listed
-anywhere, and need not be: **the predecessor relation is single-valued**, so the
-walk back from the end is unique, and if the start lies on it the contents are
-fully determined by the chain.
+**Endpoints, never contents — but now for a stronger reason.** Attempt two
+could at least *derive* a stretch's contents by walking the chain between two
+moments. There is no such walk now. What you know about a stretch is
+*exactly* what you asserted and nothing else — not "derivable but not
+listed," but genuinely absent until said.
 
 | | endpoints only | enumerate the moments | a description of the stretch |
 |---|---|---|---|
-| not leaking | contents derived from the chain, so they can't disagree with it | two answers to *what is in this stretch* | fine |
+| not leaking | asserted, not derived — nothing to disagree with | invents a number of intervening events | fine |
 | not lossy | fine | records the extent, not why those | fine |
-| readable | fixed 2-ary | an extent claim wearing positional clothes; arity varies with duration | — |
-| composable | interval relations compare two pairs of endpoints | comparing stretches means comparing lists | comparing descriptions isn't expressible |
+| readable | fixed 2-ary | arity varies with duration | — |
+| composable | compare two pairs of endpoints | comparing stretches means comparing lists | comparing descriptions isn't expressible |
 
-**Participants stay out.** `anna` and `bo` are members of the *proposition*,
-never of the stretch. That is what lets one stretch host several unrelated
-recognitions — *they took turns* and *it rained throughout* — over the same two
-moments.
+**Participants stay out.** `anna` and `bo` are members of the *proposition* —
+`taking_turns($a, $b, $s)` — never of the stretch itself. One stretch can
+still host several unrelated claims: *they took turns* and *it rained
+throughout*, over the same two named endpoints.
 
-**Disjunction stays out.** *On Monday and on Wednesday* is two stretches plus a
-fact relating them, never one stretch with a hole in it. A stretch with holes
-would smuggle disjunction into a shape nothing can consume.
+**Ordering stays out too, unless you assert it.** Attempt two got `anc` for
+free. This design doesn't. If a corpus needs *the scheduled time comes before
+the actual one*, that is a fact it writes (`before(09:40, 13:15)`) or a
+computator it calls — never something the engine checks on its behalf.
 
 ## What was lost, stated plainly
 
-The old mechanism could answer one question that nothing answers now:
+Attempt two could still answer one question honestly:
 
 > *They took turns over M7..M12* — is that so at M14?
 
-Inheritance **within a kind of locus** was the rule: a moment asking about a
-stretch-located claim got a yes once the stretch was over; a stretch asking
-about a moment-located claim got nothing, because *it rained at M9* is not *it
-rained throughout*. That asymmetry was carefully argued and is simply not
-expressible now — with no locus, there is no *at M14* to ask from. What the
-chain gives instead is that a revision **adds**: what the agent used to think is
-still findable, in deposit order.
+because the chain kept every entry in deposit order and a later moment could
+walk back to check. That question has no answer now, and not because
+stretches specifically got weaker — because **nothing has a history**.
+`believed(p)` is a fact about right now. Ask what was believed five ticks ago
+and there is no record anywhere to consult; the anchor for what used to be
+true was deleted the moment it stopped being true, which is what a retraction
+*is* under the scratchpad.
 
-The honest summary is that a capability was traded for a much simpler read, and
-the trade is visible rather than hidden. That is the same shape as Chapter 15's
-trade in the other direction: **the free answer becomes the arguable one.**
+That is a much larger trade than the one attempt two made, and it is worth
+saying so rather than pretending the two removals cost the same thing:
 
-## Where the wall actually was
+> **The first cut traded "can I ask about the past from any point" for "later
+> supersedes earlier." The second traded the past itself for a dict lookup.**
 
-This is worth keeping because it is a good story about estimating, and it is
-still true of the code it was about.
+What replaces it is not a weaker query — it's a different discipline. If a
+corpus needs to remember something after the world moves on, it writes the
+memory down as an ordinary fact, on purpose, before whatever would have made
+it unrecoverable happens. Nothing does that for you any more.
 
-The design listed three costs for spans: normalising direction, the quadratic
-population, and an ancestry check. Those were an afternoon between them.
+## The one thing that did not change
 
-What actually stood between the page and a running example was **three lines
-that read a locus and ignored it**, none of which appeared anywhere in the spans
-design, because each was correct exactly while every locus was a moment:
-
-| where | what it did |
-|---|---|
-| the **write** | a consequent's locus was parsed, checked and reified — and the gate stamped the frame's topic anyway |
-| **quiescence** | asked whether the conclusion already held at the frame's *topic*, so a second recognition of one proposition was *nothing to do*, however different the stretch |
-| the **resolved state's key** | one entry per proposition — which is an assumption about **loci**, not about propositions |
-
-The first two are the same defect twice, and fixing only the write bought
-nothing: the loop never reached the write, because the verdict was computed
-about a different locus than the one the conclusion would land at.
-
-That third one is worth stating as a rule, and it is exactly why the locus was
-eventually removed rather than extended. One entry per proposition is right
-exactly while every two loci are **comparable** — on a chain of moments one is
-always at or before the other, so the later governs. Two stretches are not
-comparable. Making them loci meant keying the state by the proposition *and*
-the thing it was about, and that key is the cost that never came back down.
+Both removals were driven by the same measurement, restated a second time
+now that the second removal has happened too: the *feature* was never the
+expensive part. Loci cost almost nothing to add and almost nothing to
+remove. What cost real time, twice, was the machinery built on the
+assumption the feature would always be there — a write that reified a locus
+nobody asked for any more, a quiescence check keyed on a place rather than a
+proposition, a resolved-state key that assumed exactly one entry per claim.
 
 > **A feature's cost is rarely in the feature. It is in the assumptions the
 > rest of the system made while the feature did not exist.**

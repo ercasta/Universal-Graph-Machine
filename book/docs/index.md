@@ -19,10 +19,10 @@ shortage, so the airline owes her money* — you can follow this machine thinkin
 Three things, and by Part 7 you'll see they are the same thing wearing
 different hats.
 
-**It never guesses about its own reasoning.** When it tells you *yes*, it can
-hand you the chain of steps that got there. Not a summary written afterwards —
-the actual steps, still sitting in memory, each one naming the rule that made it
-and the claims that rule stood on.
+**It never guesses about its own reasoning.** When it tells you *yes*, that's
+because the claim is sitting in its beliefs, not because it produced a
+plausible-sounding answer. When it can't find something, it says exactly
+that — *nothing here settles it* — instead of quietly assuming *no*.
 
 **Almost none of it is the machine.** Belief, time, evidence, uncertainty,
 plans, prohibitions — none of that is built into the engine. All of it is
@@ -58,8 +58,9 @@ dives; you can use the machine perfectly well having read the first five.
 
     ---
 
-    A rule is a fact relating two moments. Two connectives, and a precise test
-    for why there are exactly two. Then: write one, run it, and ask it why.
+    A rule is a fact relating two sides — what must hold, and what follows.
+    One connective, and a precise test for why a second one didn't earn its
+    place. Then: write one, run it, and ask what it believes.
 
     [:octicons-arrow-right-24: Part 2](rules/06-a-rule-is-a-fact.md)
 
@@ -133,55 +134,88 @@ first read and come back when you're curious.
 
 ## A taste
 
-Here's the machine being asked something it has to work out. Ana's flight was
-cancelled because of a crew shortage; the rules say what an airline owes a
-passenger when a flight is disrupted. Nobody ever wrote down that Ana is owed
-money.
+Here's the machine being asked something it has to work out. This is the real
+`ugm/rules/delay.ugm` corpus, run for real, output copied verbatim. Ana's
+flight was cancelled because of a crew shortage; Raj's was delayed by a storm.
+The rules say what an airline owes a passenger when a flight is disrupted.
+Nobody ever wrote down that Ana is owed money.
 
 ```
-rule <cancel>     = implies( { +cancelled($f) }, { +disrupted($f) } )
-rule <crewing>    = implies( { +cause($f, crew) }, { -extraordinary($f) } )
-rule <compensate> = implies(
-    { +disrupted($f), +booked($p, $f), -extraordinary($f) },
-    { +owed($p, money) } )
+rule <cancel>
+  +cancelled($f)
+  no disrupted($f)
+->
+  +disrupted($f)
+
+rule <care>
+  +disrupted($f)
+  +booked($p, $f)
+  no owed($p, meals)
+->
+  +owed($p, meals)
+
+rule <weather>
+  +cause($f, storm)
+  no extraordinary($f)
+->
+  +extraordinary($f)
+
+rule <compensate>
+  +disrupted($f)
+  +booked($p, $f)
+  no extraordinary($f)
+  no owed($p, money)
+->
+  +owed($p, money)
 
 fact +cancelled(bl204)
 fact +cause(bl204, crew)
 fact +booked(ana, bl204)
+
+fact +delayed(kt881, long)
+fact +cause(kt881, storm)
+fact +booked(raj, kt881)
 ```
 
-Ask it why:
+Run it and ask:
 
 ```
-why owed(ana,money)?
-  +owed(ana, money), via kb, licensed by applied(<compensate>)
-    because +disrupted(bl204), via kb, licensed by applied(<cancel>)
-    because +booked(ana, bl204), via kb, licensed by loaded(booked(ana, bl204))
-    because -extraordinary(bl204), via kb, licensed by applied(<crewing>)
-    because +cause(bl204, crew), via kb, licensed by loaded(cause(bl204, crew))
-    because +cancelled(bl204), via kb, licensed by loaded(cancelled(bl204))
+$ python -m ugm taste.ugm --ask "owed(ana, money)" --ask "owed(raj, money)" --ask "owed(raj, meals)"
+taste.ugm: 10 ticks, ended quiescent
+
+what it believes, newest first:
+  owed(ana, money)
+  extraordinary(kt881)
+  owed(ana, meals)
+  owed(raj, meals)
+  disrupted(kt881)
+  disrupted(bl204)
+  booked(raj, kt881)
+  cause(kt881, storm)
+  delayed(kt881, long)
+  booked(ana, bl204)
+  cause(bl204, crew)
+  cancelled(bl204)
+
+owed(ana, money): believed
+owed(raj, money): not believed
+owed(raj, meals): believed
 ```
 
-Three things are worth noticing before you read another word.
+Two things are worth noticing before you read another word.
 
-It didn't just say *yes*. It named **which rules it used, what it applied them
-to, and where each supporting claim came from** — `applied(<cancel>)` for a
-derived one, `loaded(...)` for one you typed in. And it didn't find that
-explanation by looking back over its notes: making the conclusion and making the
-explanation were *the same act*. Chapter 9 is where that clicks.
+Nobody wrote `owed(ana, money)` anywhere in the corpus. It's not a fact — it's
+four rules away from one, and the machine got there on its own. And it isn't
+guessing: `<compensate>` demanded `no extraordinary($f)`, which is a real
+question the machine asked and got a real answer to — a storm makes a flight
+`extraordinary`, a crew shortage doesn't, and nothing else on Ana's flight
+claims otherwise.
 
-The third thing is the `-extraordinary(bl204)` line. That's a **denial**, and
-the rule demanded one. Not "we couldn't find that the cause was extraordinary" —
-an actual claim, derived by an actual rule, that it wasn't. Ask about Raj, whose
-flight was delayed by a storm:
-
-```
-why owed(raj,money)?
-  nothing concluded it -- see what is BLOCKED above
-```
-
-Not *no*. Nothing concluded it — and the machine will tell you what it was
-missing. Chapter 3 is about why those are different answers, and Chapter 13 is
-about why confusing them is how a reasoner starts lying.
+The second thing is Raj. Ana and Raj are both disrupted, both get meals — that
+much is unconditional (`<care>` doesn't check the cause). Only Raj is refused
+compensation, because his flight *is* `extraordinary`: a storm. Not a missing
+fact, not a shrug — a rule fired, on purpose, and blocked him. Chapter 3 is
+about why *nothing concluded it* and *something concluded the opposite* are
+different situations, and why confusing them is how a reasoner starts lying.
 
 Ready? [**Meet a machine that shows its work →**](basic/00-shows-its-work.md)

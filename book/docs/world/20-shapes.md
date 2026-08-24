@@ -2,9 +2,9 @@
 
 Some things are known by their **shape** rather than by their extent.
 
-*Anna and Bo are taking turns* can be said having watched a sequence, and it can
-be said having watched nothing — *imagine they are taking turns* — and it is the
-same claim either way.
+*Anna and Bo are taking turns* can be said having watched a sequence, and it
+can be said having watched nothing — *imagine they are taking turns* — and
+it is the same claim either way.
 
 The second reading is the demanding one. There's no sequence to point at, and
 materialising one would state a number of turns nobody claimed.
@@ -15,8 +15,8 @@ They look alike and they are not one construct:
 
 | | *taking turns* | *some files* |
 |---|---|---|
-| indefinite in | **extent along the chain** | **multiplicity within a moment** |
-| composes by | succession — ordered, elements are moments | membership — unordered, elements are individuals |
+| indefinite in | **extent along a stretch** | **multiplicity within one moment** |
+| composes by | succession — ordered, elements are events | membership — unordered, elements are individuals |
 | leaks if materialised | invents a number of turns | invents a number of files |
 
 They share one principle, which Chapter 19's stretches already applied and
@@ -26,86 +26,128 @@ which this generalises:
 
 ## A shape is a definition, not a term
 
-Given Chapter 6's antecedent, a shape needs no new construct. It's a **recursive
-definition over stretches**, written as ordinary rules in ordinary
-vocabulary. (Chapter 19 tells how a stretch is carried now — two moments in a
-relation the corpus names, rather than a place a claim could sit. These rules
-were first written and measured against the older mechanism, where a stretch
-was a locus; what changed is where the stretch is written down, not the shape
-of the recursion.)
+Given Chapter 6's antecedent, a shape needs no new construct. It's a
+**recursive definition over stretches**, written as ordinary rules in
+ordinary vocabulary. Chapter 19 told the current story of what a stretch is:
+two node names, carried as arguments of a proposition the corpus asserts —
+nothing minted, nothing derived, no chain underneath any more.
 
-*Taking turns* needs at least two turns, so that's the base case; the step case
-consumes one turn and defers the rest:
+*Taking turns* needs at least two turns, so that's the base case; the step
+case consumes one turn and defers the rest:
 
 ```
-<TT-base>   two consecutive acts by different actors, over the stretch between them
-<TT-step>   one act, followed by a stretch over which the others took turns
+<TT-base>   two consecutive turns by different actors — a stretch of one step
+<TT-step>   one turn, followed by a stretch over which the others took turns
 ```
 
-Written out and run over a five-moment alternation, those recognise *taking
-turns* over **every stretch it holds over** — ten of them, from M0..M2 out to
-M0..M5, with the argument order correct in each.
+## Succession is now the corpus's to assert
 
-## Why a shape is three rules, not two
-
-Here's the part that's genuinely interesting, and it was predicted by the design
-before it was built.
-
-An alternation **repeats its actors by definition**. So `acts(anna)` at M1 is
-superseded by `acts(anna)` at M3 — and a matcher sees the **resolved** state,
-one entry per proposition. The earlier turn is not in the state.
-
-The step case needs precisely that earlier turn.
-
-So the two recognisers have to match over the **raw chain** rather than the
-resolved state. And that turns out to be allowed, for a reason that connects
-straight back to Chapter 31:
-
-> **A rule whose antecedent is entirely structural concludes structure rather
-> than a claim.**
-
-The recognisers mention only `anc`, `in_delta`, `entry_of` — no
-entries. So what they conclude is *structure*: a `turns($s, $a, $b)` that is
-undated, unattributed, and deniable by nothing. Exactly what a walk's
-intermediate result has to be, or the bootstrap circle returns.
-
-Then **one ordinary rule says it**:
+The old chain gave a rule `anc`/`pred` for free: two moments and an ordering
+between them, derivable by walking history. That walk is gone along with the
+history it walked (Chapter 19). So the recursion has to be handed its own
+succession as ordinary facts — nobody is going to infer *turn 2 comes right
+after turn 1* on the corpus's behalf any more:
 
 ```
-rule <say> = implies( { turns($s, $a, $b), +watching(x) },
-                      { +taking_turns($a, $b, $s) } )
+rule <TT-base>
+  +turn($n, $a)
+  +next($n, $m)
+  +turn($m, $b)
+  +different($a, $b)
+  no turns($n, $m, $a, $b)
+->
+  +turns($n, $m, $a, $b)
+
+rule <TT-step>
+  +turn($n, $a)
+  +next($n, $m)
+  +turns($m, $k, $b, $c)
+  +different($a, $b)
+  no turns($n, $k, $a, $b)
+->
+  +turns($n, $k, $a, $b)
+
+fact +turn(1, anna)  fact +turn(2, bo)    fact +turn(3, anna)
+fact +turn(4, bo)    fact +turn(5, anna)
+fact +next(1, 2)  fact +next(2, 3)  fact +next(3, 4)  fact +next(4, 5)
+fact +different(anna, bo)  fact +different(bo, anna)
 ```
 
-The stretch `$s` rides in the **proposition**, because a claim has nowhere else
-to put it — which is exactly Chapter 19's change arriving here.
+```
+$ python -m ugm turns.ugm
+turns.ugm: 12 ticks, ended quiescent
 
-Two rules to see it, one to say it. The chain-reading rules are allowed to read
-the raw chain precisely **because they cannot assert anything about what they
-find**.
+what it believes, newest first:
+  turns(1, 5, anna, bo)
+  turns(2, 5, bo, anna)
+  turns(3, 5, anna, bo)
+  turns(1, 4, anna, bo)
+  turns(2, 4, bo, anna)
+  turns(1, 3, anna, bo)
+  turns(1, 2, anna, bo)
+  turns(2, 3, bo, anna)
+  turns(3, 4, anna, bo)
+  turns(4, 5, bo, anna)
+  ...
+```
+
+Ten stretches, every one of them from a five-turn alternation, with the
+argument order correct in each — the recursion working exactly the way it
+did under the chain, over facts the corpus now states outright instead of
+inheriting from history.
+
+## Why the raw-chain trick is gone, and what took its place
+
+The old chapter spent its middle third on a genuinely subtle point: a
+matcher that only sees the *resolved* state can't recognise `<TT-step>`,
+because the earlier turn it needs has been superseded by later ones with
+the same actor — so the recognisers had to read the raw, unresolved chain
+instead, and got away with it only because their conclusions were
+"structural," never a claim.
+
+None of that applies any more, and not because it was patched — because the
+problem it solved doesn't exist. `turn(1, anna)` and `turn(3, anna)` are
+**different propositions** — different arguments, different nodes — so
+neither supersedes the other under the scratchpad. Both are simply believed,
+simultaneously, for as long as nobody erases either. There is no resolved
+state distinct from a raw one to read around. One matcher, one state, and
+the whole "structure versus claim" distinction that made the old three-rule
+shape necessary is gone with the thing that forced it.
+
+What is still necessary, and is new rather than inherited: the `no
+turns($n, $m, $a, $b)` guard on both rules. Without it each rule keeps
+matching the same already-true conclusion, and the run never reaches
+quiescence — it burns through the tick limit finding nothing new. That's
+Chapter 19's discovery again, arriving here:
+
+> **An application that changes nothing is offered again.** A shape's own
+> recursion has to stop itself; nothing else will.
 
 !!! note "Deep dive: the interning trap has four faces"
-    Recursion over stretches hangs without interning — the same stretch gets a fresh
-    node every time and nothing ever reaches a fixed point.
+    A stretch built as `stretch($f, $s, $a)` or a turns-relation built as
+    `turns($n, $m, $a, $b)` is **interned**: the same relation over the same
+    arguments is the same node, every time. That is what makes the `no`
+    guard work at all — asking *is this already concluded* is asking about
+    one fixed node, not re-deriving a fresh one that never matches its
+    earlier self.
 
-    But interning is also this project's single most expensive recurring bug,
-    and it fails in four distinct ways, which is why it's worth naming them:
+    Interning is also this project's single most expensive recurring bug,
+    failing in four distinct ways worth naming:
 
     - **never fires** — the node already existed, so nothing looked new;
     - **always fires** — a fresh node every time, so no fixed point;
     - **records nothing** — the conclusion was interned before novelty was
-      counted, so the facts were right, the fixpoint never came, and the answer
-      was *wrong rather than crashed*;
+      counted, so the facts were right and the fixpoint never came;
     - **not pure** — asking the question changed some other answer.
 
-    A stretch node survives the test because **nothing reads its existence**:
-    it is in no structural relation, so no rule enumerates stretches and no walk
-    visits them. Asking twice gives the same answer, and asking changes no other
-    answer.
+    A `turns(...)` node survives all four because nothing enumerates
+    `turns` nodes to notice they exist — the only way in is a match, and a
+    match against an anchored proposition is exactly what belief already is.
 
 ## Bounds are facts about the shape
 
-*At least three*, *no more than seven*, *exactly two* — these are ordinary facts
-about the shape node, not extra members and not a new construct.
+*At least three*, *no more than seven*, *exactly two* — these are ordinary
+facts about the shape node, not extra members and not a new construct.
 
 Two different bounds must not share a slot, and the distinction matters:
 
@@ -120,38 +162,47 @@ Chapter 13's rule again:
 ## Plurality is a group
 
 *Some files* takes the other move, and it's the same principle applied to
-multiplicity rather than extent: **mint one node for the group**, and its size is
-a fact about that node.
+multiplicity rather than extent: **mint one node for the group**, and its
+size is a fact about that node.
 
 ```
-+files(<g>)          there is a group
-+size(<g>, 3)        ...and it has three members, if you happen to know
+fact +files(g1)          there is a group
+fact +size(g1, 3)        ...and it has three members, if you happen to know
 ```
 
-Membership is not stored, for the same reason a stretch's contents aren't. What you
-know about the group is said about the group.
+Membership is not stored, for the same reason a stretch's contents aren't.
+What you know about the group is said about the group.
 
-The same move works for a **scalar you don't know**:
-
-```
-rule <pour> = causes( { +level($g, $v), +poured($g) },
-                      { ? level($g, $v), +greater(after($g), $v), +rises(level($g)) } )
-```
-
-Don't name the value; name the **quantity**, and say what's known of it. And it
-is genuinely reasoned with, not merely recorded — a downstream rule reads it:
+The same move works for a **scalar you don't know**. There is no longer a
+grade to say *unknown* with (`?` is gone as any kind of sign — a proposition
+is asserted or it isn't, nothing in between). So don't name the value; name
+the **relationship**, and say what's known of it:
 
 ```
-rule <spill> = implies( { +greater(after($g), $v), +brim($g, $v) }, { +overflows($g) } )
+rule <pour> = implies( { +poured($g), no rises($g) },
+                       { +rises($g) } )
+rule <spill> = implies( { +rises($g), +brim($g, low), no overflows($g) },
+                        { +overflows($g) } )
+
+fact +poured(g1)
+fact +brim(g1, low)
 ```
 
-The real limit, stated honestly: once the level reads `?`, a second change has
-nothing to compare against, so the quantity has to be **chained** —
-`after1`, `after2`, `above(after2, after1)` — each step its own node. That works,
-and it's *ordinal* tracking: the agent can come to know the level is above the
-brim and can never again know that it's 5.
+```
+$ python -m ugm pour.ugm --ask "overflows(g1)"
+pour.ugm: 2 ticks, ended quiescent
+overflows(g1): believed
+```
 
-Where the number is actually known, use arithmetic instead. Chapter 22.
+`rises($g)` never names a level; it names a direction, reasoned with exactly
+like any other belief. The real limit, stated honestly: once you stop naming
+values, a second change has nothing to compare against, so a genuinely
+tracked quantity has to be **chained** — `level1`, `level2`,
+`above(level2, level1)`, each step its own node. That works, and it's
+*ordinal* tracking: the agent can come to know the level is above the brim
+and can never again know that it was, say, 5.
+
+Where the number is actually known, use a computator instead. Chapter 22.
 
 ---
 

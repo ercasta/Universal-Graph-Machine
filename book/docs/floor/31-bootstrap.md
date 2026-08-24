@@ -1,183 +1,209 @@
 # The bootstrap
 
-If rules are facts, and facts are entries read by walking a chain, and the walk
-is made of rules — then reading a rule requires applying rules, and nothing ever
-starts.
+If rules are facts, and applying a rule means checking whether its antecedent
+holds, and checking whether something holds is itself something the agent has
+to *do* — then reading a rule requires doing work, and if that work is also
+made of rules, nothing ever starts.
 
-This chapter states that circle precisely, which turns out to make it much
-narrower than it first appears, and then closes it.
+This chapter states that circle precisely, and then tells the two-part story of
+how the design actually avoided it: first by drawing a careful line through the
+rules (a line this book used to call **stratum 0**), and then, later, by
+removing the reason the line was needed at all.
 
-## Only one of four steps is circular
+## Only one of four steps could have been circular
 
-Applying a rule takes four steps, and the temptation is to say all of them need
-a read:
+Applying a rule takes four steps:
 
 | step | what it needs | circular? |
 |---|---|---|
 | 1. propose candidate rules | **recall** — a function from situation to node ids | no |
 | 2. read the rule's structure | members and positions | no |
-| 3. check that its antecedent's entries hold | **the chain walk** | **yes** |
-| 4. commit | the register, the stamp, the total step | no |
+| 3. check that its antecedent's members hold | **belief lookup** | no, today |
+| 4. commit | the gate, the total step | no |
 
-Step 2 is where earlier drafts went wrong. Reading a rule's *structure* is not
-reading the chain: an antecedent is a node with members, and getting at them
-needs ordering and nothing else.
+Step 2 is where it's easy to go wrong. Reading a rule's *structure* is not
+reading its meaning: an antecedent is a node with members, and getting at them
+needs ordering and nothing else — floor, per Chapter 30.
 
-What needs the walk is deciding whether the antecedent's entries **hold**, which
-is step 3 alone.
+Step 3 is the one this chapter is about, and the honest answer today is *no,
+not circular* — but that answer took a redesign to earn, and the history is
+worth having.
 
-## Stratum 0
+## What used to make step 3 circular
 
-Look at what a chain-walking rule actually asks for:
+An earlier version of this engine kept belief as an append-only chain: entries
+deposited at moments, and *does this hold* meant walking the chain — which
+moment came before which, what was deposited where. `ugm/core/rules.py` still
+carries the epitaph, in its own module docstring:
+
+> There is also one MATCHER. The second one read the chain's skeleton — `pred`,
+> `in_delta`, `anc` — as structure rather than as claims, and the whole
+> stratification apparatus existed to keep the two from chasing each other.
+
+*The whole stratification apparatus.* That's stratum 0: a class of rules whose
+antecedent was **entirely structural** — membership, position, node identity,
+predecessor, nothing that asked *does X hold* — so they could be applied by
+matching alone, without walking anything. A rule like:
 
 ```
-given  $m' = predecessor($m)
-       $e ∈ delta($m)
-       $e = entry($p, $s)
-then   candidate($e, $p)
+rule <order> = implies( { +in_delta($m, $e), +entry_of($e, p, assert) },
+                        { +candidate($e, p) } )
 ```
 
-Every member is **structural** — membership, position, node identity,
-predecessor. Not one of them is *does X hold at Y*.
+had every antecedent member answerable by structure, so step 3 for it never
+recursed into step 3 again. That was the fixed point:
 
-So step 3 for these rules is answered by matching alone, and they bottom out.
-That's the fixed point, and it gives a criterion decided by **inspecting an
-antecedent** rather than by a designer assigning layers:
-
-> **Stratum 0** — every antecedent member is structural. Applied without a read.
+> **Stratum 0** — every antecedent member is structural. Applied without a
+> read.
 >
-> **Stratum 1 and above** — some antecedent member is an entry. Applied by the
-> read that stratum 0 implements.
+> **Stratum 1 and above** — some antecedent member asks whether something
+> holds. Applied by the read that stratum 0 implements.
 
-The check is a scan. An implementation can run it over its own shipped rules and
-report which ones claim stratum 0 and aren't entitled to it.
+The check was a scan, decided by **inspecting an antecedent** rather than by a
+designer assigning layers — and it worked. It is also, today, **not how this
+engine reads a rule at all.**
 
-## Two stratifications, and only one of them boots
+## The skeleton went with the chain
 
-There's a second, obvious way to stratify: **metarules about how to think,
-independent of the business domain**.
+`pred`, `anc`, `sanc`, `in_delta`, `entry_of`, `delta_next`, `rests_on` are not
+reserved names any more. Nothing in `Machine.reserved` claims them, and nothing
+in `match` gives them special treatment. Loading a rule that names them proves
+it:
 
-That cut is real and useful — it's what makes the shipped rulebase *shippable*,
-since one knowledge base of thinking-rules can serve every corpus.
+```python
+kb = load(m, """
+    rule <r> = implies( { +anc($s, $a) }, { +older($s, $a) } )
+    fact +anc(m2, m1)
+""")
+m.run(limit=5)
+```
 
-It is **not** the cut that breaks the circle. Trust rules, surprise rules and
-goal expansion are all domain-independent thinking-rules, and every one of them
-talks about entries and beliefs — so all of them are stratum 1 or above.
+```
+older(m2,m1)? True
+anc reserved? False
+```
 
-> Domain-independence makes the rulebase shippable. Structural antecedents make
-> it **bootable**.
+`anc` matched because it was **asserted as an ordinary fact**, the same as
+`older` or `poisoned` or any other word a corpus invents — not because the
+engine recognises it as a chain-walking primitive. There is no second matcher
+for it, because there is no first one either: the append-only chain that
+`pred`/`anc`/`in_delta` used to describe is gone, replaced by the scratchpad —
+belief is `believed(p)` or it isn't, a single anchor lookup.
 
-Keeping those apart matters, because the first is much easier to satisfy and
-looks like it should be enough.
+And `at $m`, the locus a member used to bind, is refused outright:
+
+```
+ParseError: line 1: `at $m` is gone with the locus. An entry has no second
+time to bind, so a member cannot say where it sits -- read the chain
+instead: `in_delta($m, $e), entry_of($e, p, +)` is the same claim, and
+`anc`/`sanc` order the moments.
+```
+
+That error message is itself a fossil — it still recommends the chain it is
+describing the retirement of. Don't follow its advice; there is nothing left
+for `in_delta` or `entry_of` to hook into. Write ordinary relations of your
+own if you need to talk about order, the way the passenger-rights corpus
+writes `before`/`after` over its own vocabulary.
+
+## Why step 3 stopped being circular, instead of being solved
+
+`Scratchpad.holds` — the operation step 3 actually calls today — is one dict
+lookup. It is not a rule, was never compiled from rules, and has no rule-level
+definition standing behind it the way `Graph.has_var` has `_has_var_slow`
+(Chapter 30). It is floor by the same argument that makes matching floor:
+*checking whether a proposition is anchored* is exactly the kind of question a
+read needs answered before it can do anything else, so it was never a
+candidate for being *implemented as* a read.
+
+Stratum 0 solved a circularity that existed because the chain walk was
+*partly* built out of rules. Once belief stopped being a walk at all, there was
+nothing left of step 3 for rules to reach into, circularly or otherwise. The
+regress didn't get resolved. It stopped having a place to occur.
 
 ## Three regresses, one escape
 
-The bootstrap isn't a special problem. It's the third instance of a shape the
-design already meets twice:
+The bootstrap was never a special problem. It's one instance of a shape this
+design meets three times:
 
-| regress | escape | what the escape is |
+| regress | what stops it | what stops it is |
 |---|---|---|
-| reading needs reading | stratum 0 | a set of rules that need no read |
-| selecting needs selecting | the total tiebreak | a lookup that does not reason |
+| reading needs reading | belief is a floor lookup, never a rule | a function |
+| selecting needs selecting | the total tiebreak | a function |
 | proposing needs proposing | recall | a function |
 
-All three bottom out in **a function, not a search** — which is also the shape
-of the three irreducible floor items. That recurrence is the strongest evidence
-available that the floor is drawn in the right place.
+All three bottom out in **a function, not a search** — the same shape as the
+two irreducible floor items in Chapter 30. That recurrence is the strongest
+evidence available that the floor is drawn in the right place.
 
-Recall is the one worth dwelling on, because it's the only component that can be
-consulted **before any rule has been applied at all**. A function has no
-antecedent to read. Whether it's an index, a table with defaults, or a trained
-network is an implementation choice among function approximators — which is the
-specification of an approximator, written before anyone said the word.
+Recall is worth demonstrating, because it's the only component consulted
+**before any rule has applied at all**:
 
-## It runs under the same interpreter
+```python
+kb = load(m, "rule <boil> = implies( { +heat($w) }, { +boiling($w) } )")
+about = kb.term("boiling(x)")
+m.gate.write(m.g.rel(m.RECALL, about), generic=True)
+m.run(limit=5)
+```
 
-It would defeat the purpose if stratum 0 needed a second interpreter. It
-doesn't:
+```
+recalled <boil>? True
+```
 
-- **recall** for stratum 0 is *all of them, every time* — the set is small and
-  fixed, so the policy is a different table, not a different mechanism;
-- **match** is floor;
-- **arbitrate** is the same total tiebreak, over a table nobody has scored.
-
-One more row, not one more branch.
+`_answer_recall` (`ugm/core/machine.py`) answers this by an index kept by
+conclusion — `by_conclusion`, keyed at the moment each rule is authored — a
+lookup, not a search over the rule set. It has no antecedent to fail to read,
+which is what makes it eligible to run first.
 
 !!! note "Deep dive: there were two matchers, and one had to go"
-    This is worth telling, because the version with two matchers *worked* for a
-    long time.
+    Worth telling as history, because the version with two matchers *worked*
+    for a long time, under the old chain design.
 
     A skeleton member like `sanc($mq, $mp)` was said to be unmatchable, on the
-    grounds that it has no sign, no locus and no licence — nobody asserted it, so
-    it has no entry.
+    grounds that it has no sign, no locus and no licence — nobody asserted it,
+    so it has no entry. That didn't follow: `pred(M3, M2)` was an ordinary
+    relation instance, simply not in the *resolved state* the ordinary matcher
+    was given — while stratum 0 matched the very same nodes with a second
+    matcher, forbidden by the very *one interpreter* rule this book keeps
+    coming back to.
 
-    That doesn't follow. `pred(M3, M2)` is an ordinary relation instance. It
-    simply wasn't in the *resolved state*, which was what the matcher was given
-    — while stratum 0 matched the very same nodes **with a second matcher**.
+    Merging the two matchers deleted an entire module — a second engine with
+    its own rule type, item type and solver, over the same nodes. Two things
+    fell out of that merge that weren't obvious at the time:
 
-    Which is the branch that *one interpreter* forbids, hiding in plain sight.
+    - **Negation needs no notation.** A structural member has no entry, so a
+      sign on one can only mean *not derived*.
+    - **The layers must be derived, not assigned.** The strongly connected
+      components of the dependency graph decide stratum, not a designer.
 
-    Merging them deleted an entire module — a second engine with its own rule
-    type, item type and solver, matching the very same nodes. And two things
-    fell out that weren't obvious:
+    Merging the matchers was the *first* step away from the two-tier design.
+    Retiring the chain the skeleton described — and stratum 0 along with it —
+    was the second, and it's the one this chapter has been about.
 
-    - **Negation needs no notation.** A structural member has no entry, so a sign
-      on one can only mean *not derived*.
-    - **The layers must be derived, not assigned.** Structure has no sign, so a
-      fact concluded against a half-built negation cannot be taken back the way a
-      superseded entry can. The layers are the strongly connected components of
-      the dependency graph — which makes recursion ordinary and negation *inside*
-      a recursion a refusal.
+## What stratum 0 cost, and what replaced it
 
-## The price, stated
+Stratum 0's own constraint, while it existed, was strict: **it had to produce
+structure, not entries.** If the walk had deposited its intermediate results as
+claims, it would have been reading claims to do so, and the circle would have
+returned. So its working state was undated, unattributed and unexplained by
+design — the price for using an ordinary rule to do the walking.
 
-**Stratum 0 must produce structure, not entries.** If the walk deposited its
-intermediate results as claims, it would be reading claims to do so, and the
-circle would return.
+That price is why `Machine` has no `why`. The read a rule performs today —
+`match`, `candidates`, `Scratchpad.holds` — is Python, permanently, and there
+is no rule-level definition of it standing beside the fast path the way there
+is for `has_var`. Promoting it into an ordinary rule would reinstate exactly
+the regress stratum 0 was built to dodge, so nothing does. That isn't an
+oversight to fix later; [what is not built](../horizon/34-not-built.md) lists
+it as deliberate, at a real and named cost: you cannot ask *why did you read
+it that way* through the same mechanism you ask *why do you believe that*.
 
-So the read's own working state is undated, unattributed and unexplained.
-
-And this price **charges itself**, which is the elegant part. *Produce structure*
-is a constraint on the consequent; *every antecedent member is structural* is a
-test on the antecedent. They're the same line: a rule whose antecedent is
-entirely structural is applied without a read, and therefore concludes without
-one.
-
-So the engine needs no rule subtype, no marker on the surface, and no second
-interpreter. **One predicate, read off the antecedent, decides both halves.**
-
-The consequence is worth writing down rather than discovering:
-
-> **You cannot ask *why did you read it that way* through the same mechanism you
-> ask *why do you believe that*.**
-
-Promoting the read into stratum 1 to fix this reinstates the circle, so the gap
-is structural rather than an oversight.
-
-And it gets charged somewhere unexpected. An entry's **support** — what it was
-derived from — is structural by exactly this test: it's *how the entry was
-made*, not a claim about the world. Which made it readable by stratum 0 and not
-by ordinary rules — and Chapter 29 ran into that wall from the learning side,
-where the agent's own trail is the best source of examples it has and the one
-source its own rules couldn't see.
-
-The resolution was the same test rather than a promotion: **an ordinary rule
-reads the skeleton and concludes into it.** `rests_on` is a member like any
-other, and nothing becomes an entry.
-
-## What this buys
-
-Stratum 0 rules are ordinary data. Creating one is a write, and a write needs
-only the register and the stamp, both floor. Therefore:
-
-> **The read is replaceable at run time.**
-
-That's the whole claim this design opens with — that an agent with a better
-internal representation of reality reasons better, and that the representation
-is something you can hand it — turned from an aspiration into a mechanism.
-
-The shipped rulebase is not merely shipped rather than compiled in. It is
-editable by the agent that runs it.
+What *is* still true of stratum 0's original promise is the part that never
+depended on the chain: rules themselves are ordinary data. `Machine.reify`
+believes `rule(<R>)` and every member of every side the moment a rule is
+authored, which is a write like any other — floor, needing only the gate and
+the total step. An agent can author a rule at run time and
+have it enter recall and the table on the next tick. What it cannot do any
+longer is author a *replacement for the read itself* — that capability left
+with the layer that made it meaningful to ask for.
 
 ---
 

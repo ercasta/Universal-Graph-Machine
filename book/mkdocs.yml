@@ -73,8 +73,8 @@ nav:
       - "4 · Moments": basic/04-moments.md
       - "5 · The read": basic/05-the-read.md
   - "Part 2 — Rules":
-      - "6 · A rule is a fact about two moments": rules/06-a-rule-is-a-fact.md
-      - "7 · Two connectives, and why exactly two": rules/07-connectives.md
+      - "6 · A rule is a fact about two sides": rules/06-a-rule-is-a-fact.md
+      - "7 · The one connective, and the one that didn't survive": rules/07-connectives.md
       - "8 · Writing a corpus": rules/08-writing-a-corpus.md
       - "9 · Because…": rules/09-because.md
       - "10 · Asking about rules": rules/10-rules-are-subjects.md

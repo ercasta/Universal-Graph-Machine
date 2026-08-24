@@ -130,7 +130,7 @@ Not pytest. One runner that prints every check's named observations and counts a
 failure:
 
 ```bash
-python -m ugm.selftest              # 183 checks, 0 failing
+python -m ugm.selftest              # 179 checks, 0 failing
 ./tools_sweep.sh                    # every module with a main(), found on disk (not a fixed list)
 python -m ugm.gates.vocabulary      # every reserved name classified exactly once
 python -m ugm.probes.tools          # the approval pattern, run both approved and denied
@@ -139,14 +139,13 @@ python -m ugm.probes.tools          # the approval pattern, run both approved an
 ## Documentation
 
 - **[The book](https://ercasta.github.io/Universal-Graph-Machine/)** — the tutorial, from scratch.
-- **[`docs/guide.md`](docs/guide.md)** and **[`docs/rules-design.md`](docs/rules-design.md)** — the
-  author's guide and the full design argument. Both predate a later cut (support trails, `--why`,
-  `--save`/`--resume`) and describe some things `ugm/__main__.py` no longer does; read them for the
-  *shape* of the reasoning and the surface syntax, not as a spec of every flag.
+- **[`docs/guide.md`](docs/guide.md)** — the surface syntax, the loop, lanes and triggers, in one page.
 - **[`docs/authoring.md`](docs/authoring.md)** — what actually bites when you sit down and write a
   corpus.
 - **[`docs/tools-approval.md`](docs/tools-approval.md)** — the approval-as-a-corpus pattern the REPL
   demo is built on.
+- **[`docs/feature-requests.md`](docs/feature-requests.md)** — ideas raised along the way that never
+  got built; not a roadmap.
 
 ## House rules
 
