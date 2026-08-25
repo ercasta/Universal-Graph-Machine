@@ -36,16 +36,20 @@ from .scratchpad import Scratchpad
 class Step(NamedTuple):
     """What one tick did, and -- when it did nothing -- which silence it was.
 
+    `applied` is now a TUPLE, not a single `Application` (docs/design/
+    intensity-gates.md): several rules -- several applications of one rule,
+    even -- can fire in the same tick, because nothing picks a winner any
+    more. Empty is what the table era's `None` was: this tick fired nothing.
+
     *Nothing applied* and *nothing came to mind* are different events (§15),
     and only the second should escalate.
     """
 
     arrivals: int
-    proposed: int
-    matched: int
-    applied: Optional[Application]
+    matched: int  # applications FOUND this tick, before the fold/commit
+    applied: Tuple[Application, ...]  # applications that actually FIRED
     wrote: Tuple[NodeId, ...]
-    state: str  # applied | quiescent
+    state: str  # applied | quiescent | stopped
 
 
 class Answerer(NamedTuple):
@@ -209,6 +213,15 @@ class Machine:
         # never matched, never bound to.
         self.ATTENTIONED = self.g.atom("attentioned")
         self.LABEL = self.g.atom("label")
+        # -- intensity (docs/design/intensity-gates.md) --------------------
+        # `intensity($x) as $n` -- a NODE-COMPUTATOR (see `rules.match`):
+        # `$x` must already be bound, and this reads its CURRENT number
+        # rather than filtering or matching it. The one read half of "read
+        # the current intensity, write a new one" needs; the write half is
+        # an ordinary consequent member's `intensity $n` clause
+        # (`text.py`'s `member`), applied by `attention.run`'s per-tick
+        # commit rather than by anything registered here.
+        self.INTENSITY = self.g.atom("intensity")
 
         # -- the tool seams ------------------------------------------------
         self.ANSWERS = self.g.atom("answers")
@@ -269,6 +282,7 @@ class Machine:
             "pushed": self.PUSHED, "popped": self.POPPED,
             "declined": self.DECLINED, "unattended": self.UNATTENDED,
             "attentioned": self.ATTENTIONED, "label": self.LABEL,
+            "intensity": self.INTENSITY,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "computes": self.COMPUTES, "action": self.AFFORDED,
             "loaded": self.LOADED, "scoped": self.SCOPED,
@@ -310,7 +324,7 @@ class Machine:
             self.LOADED, self.SCOPED,
             self.INTERCEPTS, self.PRODUCING, self.REWROTE,
             self.DELTA, self.MISSING, self.MATCHED, self.EXTRA,
-            self.ERASED,
+            self.ERASED, self.INTENSITY,
         }
         #  What is not worth THINKING ABOUT, which is a different question
         # from what is not part of the world. `_bookkeeping` answers the
@@ -374,6 +388,20 @@ class Machine:
             lambda x: x in self._attended())
         self.rules.predicates[self.LABEL] = (
             lambda x, text: self.g.show(text) in self.g.labels_of(x))
+        # `intensity($x) as $n` -- read `$x`'s CURRENT number. `$x` is a
+        # PROPOSITION, not necessarily its own anchor -- the caller matched
+        # it with an ordinary or `keep` member, which binds the proposition
+        # (`Member.binds`), so this resolves through `occasion_intensity`
+        # the same way `-p(a)` resolves an unbound ground pattern to
+        # whichever occasion of that shape is believed. `0` -- not `None`,
+        # not a refusal to answer -- for a node that is not currently
+        # believed at all: asking how on an off thing is a legitimate
+        # question with a legitimate answer, not a match failure, which is
+        # why this is a node-computator (always answers, given a ground
+        # node) rather than a predicate (answers about belonging, and this
+        # is not that question).
+        self.rules.node_computes[self.INTENSITY] = (
+            lambda x: self._numeral(max(0, int(self.pad.occasion_intensity(x)))))
 
         self.rules.claims = self._claims
         self.rules.DORMANT = self.DORMANT
@@ -1187,13 +1215,39 @@ class Machine:
             self._marker_cache[rule.node] = got
         return got
 
-    def _apply(self, app: Application) -> Tuple[NodeId, ...]:
-        """Write what the rule concluded into the scratchpad.
+    def _pending(self, app: Application):
+        """Everything one FIRING wants to write, computed but not yet done.
 
-        `+p` anchors p; `-p` takes the anchor away. That is the whole of it,
-        and it is why one connective is enough: there is no later moment for a
-        conclusion to land in, so there is nothing for a second connective to
-        mean.
+        Where `_apply` used to write straight into the scratchpad, this
+        stops one step short (docs/design/intensity-gates.md's firing loop
+        needs to): several rules fire in one tick now, order must not
+        change the result, and "combine by max" is a question about every
+        write TOGETHER, which nothing can answer while writes are landing
+        one application at a time. So this returns the ingredients --
+
+            app       the application, its bindings enriched with any
+                      `+kind` marks this firing mints (a fresh entity per
+                      distinct mark, same as `_apply` always did)
+            pending   `(node, sign)` pairs, ASSERT or ERASE, after triggers
+                      have had their say (`_intercept`, unchanged)
+            values    of those, the ones that named their OWN intensity --
+                      `+p(x) intensity $n` -- node -> the grounded number.
+                      A node not in here that ends up in `pending` at
+                      ASSERT gets the ordinary default (`scratchpad.ON`)
+                      at the point something actually commits it.
+            discharge every node this firing's own antecedent CONSUMED: a
+                      `+` (not `keep`, not `no`) member that matched
+                      something. Committing these at `0` is what makes
+                      firing spend by default; a caller that wants a member
+                      exempted writes `keep` at the surface, which is
+                      already why `discharge` only holds `ASSERT`-matched
+                      nodes and not `KEEP`-matched ones (`rules.match`
+                      treats the two identically for MATCHING; this is the
+                      one place they part company).
+
+        and leaves turning them into a single set of writes, and applying
+        those, to the caller -- which is `attention.run`, over every
+        application that fired this tick at once.
         """
         # A rule may introduce a thing that did not exist. One node per
         # distinct marker per APPLICATION, so `+a(+p)` and `+b(+p)` in one
@@ -1208,6 +1262,7 @@ class Machine:
         # What the rule concluded, before anything is written -- which is the
         # one moment a trigger can speak about it.
         pending: List[Tuple[NodeId, str]] = []
+        values: Dict[NodeId, NodeId] = {}
         for m in app.rule.consequent:
             if _left_open(self.g, m.pattern, app.bindings):
                 continue
@@ -1223,23 +1278,50 @@ class Machine:
                     continue
                 pending.append((got, ERASE))
                 continue
-            pending.append((substitute(self.g, m.pattern, app.bindings), m.sign))
+            node = substitute(self.g, m.pattern, app.bindings)
+            pending.append((node, m.sign))
+            if m.write is not None:
+                # The general intensity write (docs/design/intensity-gates.md):
+                # `+p(x) intensity $n` grounds `$n` the same way `pattern`
+                # itself just was, and the RESULT -- an atom whose name is a
+                # number, `_numeral`'s own shape -- is read by the committer
+                # below rather than resolved here, because a value bound to
+                # an unfinished intercept rewrite (`instead(...)`) should
+                # follow the node it now names rather than the one it was
+                # written against.
+                values[node] = substitute(self.g, m.write, app.bindings)
         pending = self._intercept(app, pending)
-        generic = app.rule.mentions
+        discharge: List[NodeId] = [
+            app.matched[i] for i, m in enumerate(app.rule.antecedent)
+            if m.sign == ASSERT and app.matched[i] is not None
+        ]
+        return app, pending, values, discharge
+
+    def _commit(self, writes: Dict[NodeId, float],
+               generic: "set") -> Tuple[NodeId, ...]:
+        """Turn one tick's collected `node -> intensity` map into the actual
+        graph writes -- the other half of what `_apply` used to do in one
+        breath, now done once for every application that fired together.
+
+        `writes` already IS the max: the caller folds every application's
+        contribution in with Python's own `max`, so by the time this runs
+        there is exactly one number per node and no order left to depend
+        on. A node whose number comes out at zero or below is erased --
+        which is what a plain, unrecharged consumption looks like, and what
+        an explicit `intensity 0` write means too (docs/design/
+        intensity-gates.md: "`-p`... is retired... subsumed by the general
+        intensity write") -- and a node above zero is written (mint or
+        recharge) at that number.
+        """
         wrote: List[NodeId] = []
-        for grounded, sign in pending:
-            if sign == ERASE:
-                if self.gate.erase(grounded):
-                    wrote.append(grounded)
+        for node, value in writes.items():
+            if value <= 0:
+                if self.gate.erase(node):
+                    wrote.append(node)
                 continue
-            #  There is NO *already believed, so write nothing* here any
-            # more. It was the one place the engine still said that a thing
-            # said twice was said once, and that is the claim interning made
-            # in the substrate: a second derivation is a second occasion, with
-            # a token of its own for attention to spend. What stops a rule
-            # re-deriving for ever is that it consumed what it matched on.
-            self.gate.write(grounded, generic=generic or self.g.has_var(grounded))
-            wrote.append(grounded)
+            self.gate.write(node, generic=(node in generic or self.g.has_var(node)),
+                            intensity=value)
+            wrote.append(node)
         return tuple(wrote)
 
     # -- triggers ----------------------------------------------------------
@@ -1285,7 +1367,8 @@ class Machine:
             asked = self._producing(app, pending)
             try:
                 found = match(self.g, self.pad, t, computes=self.rules.computes,
-                              predicates=self.rules.predicates)
+                              predicates=self.rules.predicates,
+                              node_computes=self.rules.node_computes)
             finally:
                 for node in asked:
                     self.gate.erase(node)

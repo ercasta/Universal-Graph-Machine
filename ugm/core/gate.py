@@ -18,7 +18,7 @@ See docs/design/gate.md.
 from typing import Callable, List
 
 from .graph import Graph, NodeId
-from .scratchpad import Scratchpad
+from .scratchpad import ON, Scratchpad
 
 
 class Gate:
@@ -40,8 +40,9 @@ class Gate:
         # stops.
         self.on_erase: List[Callable[[NodeId], None]] = []
 
-    def write(self, proposition: NodeId, generic: bool = False) -> NodeId:
-        """Believe `proposition`, and return its anchor.
+    def write(self, proposition: NodeId, generic: bool = False,
+              intensity: float = ON) -> NodeId:
+        """Believe `proposition` AT `intensity`, and return its anchor.
 
         `generic` is the one escape, and it is needed the moment rules become
         data. `ant(<R>, heat($a, $w))` is a **ground** claim about a rule, which
@@ -51,13 +52,23 @@ class Gate:
         apart. What tells them apart is *who is writing*: the machinery
         reifying a rule knows it is naming one, and a rule's consequent does
         not.
+
+        `intensity` (docs/design/intensity-gates.md) is the general write the
+        design retires `-p` in favour of: every ordinary `+p(x)` still calls
+        this at the default (`ON`, "fully on"), and a rule that wants to say
+        HOW on -- the runaway guard reading its own count and writing it back
+        up by one -- calls it with a number instead. There is no separate
+        "set to zero" here: zero is what `erase` already means (below), and a
+        caller computing a write of zero is expected to call that instead,
+        the same way `-p(x)` reads as erasure rather than as this method
+        handed a zero.
         """
         if not generic and self.g.has_var(proposition):
             raise ValueError(
                 f"cannot believe a generic proposition: {self.g.show(proposition)}"
             )
         self.writes += 1
-        anchor = self.pad.note(proposition)
+        anchor = self.pad.note(proposition, intensity)
         for hook in self.on_write:
             hook(proposition)
         return anchor

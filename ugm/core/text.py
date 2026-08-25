@@ -13,8 +13,9 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 from .graph import NodeId
 from .machine import Machine
 from .machine import ATTENTION_BRUSH
-from .rules import (ABSENT, ASSERT, ERASE, IMPLIES, STOP, UNATTEND, Attend, Destroy,
-                    Forget, Label, Member, Merge, Pop, Push, Unlabel, Unmerge)
+from .rules import (ABSENT, ASSERT, ERASE, IMPLIES, KEEP, STOP, UNATTEND, Attend,
+                    Destroy, Forget, Label, Member, Merge, Pop, Push, Unlabel,
+                    Unmerge)
 
 # The two modes the surface writes. `?` is gone: absence is ignorance, so
 # there is nothing left for a third mark to say. `-` is a CONSEQUENT mode --
@@ -198,12 +199,13 @@ class RuleMember(NamedTuple):
     sign: str
     term: Term
     binds: Optional[Term] = None
-    # `[+3, attention_multiplier:1.2]` -- what this LINE contributes to the
-    # rule's score, and how much attention on what it bound lifts that
-    # contribution. Not a filter: every line still has to match. This decides
-    # which of the applicable rules wins.
-    weight: int = 1
-    att_mult: float = 1.0
+    # `+p(x) intensity $n` (docs/design/intensity-gates.md) -- a CONSEQUENT-
+    # only extra naming the write's own strength, in place of the ordinary
+    # default (`scratchpad.ON`). `None` is *no opinion*, which is every
+    # ordinary member -- antecedent or consequent -- and the loader refuses
+    # it outside a consequent (`_refuse_write_premise`, mirroring how `-` is
+    # refused in an antecedent) rather than silently ignoring it there.
+    write: Optional[Term] = None
 
 
 class PostClause(NamedTuple):
@@ -697,6 +699,20 @@ class Parser:
             # atom, and only `no <term>` reads as the mode.
             self.next()
             sign = ABSENT
+        elif (t.kind == "name" and t.text == "keep"
+                and self.i + 1 < len(self.toks)
+                and self.toks[self.i + 1].kind in ("name", "var", "rulename")):
+            # `keep p($x)` (docs/design/intensity-gates.md) -- an ANTECEDENT
+            # mode, matched exactly the way a plain `+p($x)` is, but exempt
+            # from what firing now costs every `+` member by default: this
+            # one is a non-consuming read, a Petri net's test arc, spelled
+            # as a fifth mode rather than a flag on `+` for `no`'s own
+            # reason -- a mode is a first-class thing a rule's own reading
+            # names, not an option quietly changing what `+` means. Same
+            # lookahead as `no`, for the same reason: `keep(...)` is a term,
+            # a bare `keep` is the atom, only `keep <term>` is the mode.
+            self.next()
+            sign = KEEP
         # `$z = p($x, $y)` -- `new_substrate.md`'s own spelling of `as`,
         # prefix rather than suffix. The same binding (`RuleMember.binds`),
         # built the same way; only where it sits in the line differs. The
@@ -753,59 +769,34 @@ class Parser:
                     f"it once"
                 )
             binds = prefix_binds
-        weight, att_mult = self._line_score(t.line)
-        return RuleMember(sign, term, binds, weight, att_mult)
-
-    def _line_score(self, line: int) -> "Tuple[int, float]":
-        """`[+3, attention_multiplier:1.2]` -- optional, on any member.
-
-        The bracketed constant is known at load, so a rule's authored
-        contribution costs nothing per application; only the multiplier reads
-        anything that changes. Which line the multiplier hangs on is the whole
-        point: *attention on the event matters, attention on the participants
-        does not* is a claim a rule-level priority cannot make.
-        """
-        if not self.at("["):
-            return 1, 1.0
-        self.next()
-        sign = 1
-        if self.at("-"):
-            self.next(); sign = -1
-        elif self.at("+"):
+        # `intensity $n` (docs/design/intensity-gates.md) -- the general
+        # write: this member's own strength, in place of the ordinary
+        # default. `$n` is usually a variable an earlier member computed
+        # (`intensity(count(a)) as $n, plus($n, 1) as $n2`), so this reads a
+        # full TERM, not only a numeral -- unlike the retired bracket score
+        # below, which was always a load-time constant.
+        write = None
+        if self.at("intensity"):
             self.next()
-        n = self.next()
-        if not n.text.isdigit():
+            write = self.term()
+        if self.at("["):
+            # The retired per-line score -- `[+3, attention_multiplier:1.2]`
+            # -- refused rather than silently parsed and dropped, the same
+            # standing `@`'s grade and `at`'s locus already have above: a
+            # rule that means one thing and is read as another is worse
+            # than a rule that fails to load. There is no rule-picking left
+            # for a score to decide between; `intensity $n` (above) is the
+            # replacement for the one thing a bracket said that still has
+            # a job -- a write's own strength -- and it is a consequent
+            # clause, not a bracket on any line.
             raise ParseError(
-                f"line {line}: a line's contribution is a numeral")
-        weight = sign * int(n.text)
-        att_mult = 1.0
-        while self.at(","):
-            self.next()
-            key = self.next()
-            if key.text != "attention_multiplier":
-                raise ParseError(
-                    f"line {line}: {key.text!r} is not something a line can "
-                    f"carry -- `attention_multiplier` is the only one")
-            if not self.at(":"):
-                raise ParseError(f"line {line}: expected `:` after {key.text}")
-            self.next()
-            whole = self.next()
-            if not whole.text.isdigit():
-                raise ParseError(
-                    f"line {line}: an attention multiplier is a numeral")
-            text = whole.text
-            if self.at("."):
-                self.next()
-                frac = self.next()
-                if not frac.text.isdigit():
-                    raise ParseError(
-                        f"line {line}: an attention multiplier is a numeral")
-                text = f"{text}.{frac.text}"
-            att_mult = float(text)
-        if not self.at("]"):
-            raise ParseError(f"line {line}: expected `]`")
-        self.next()
-        return weight, att_mult
+                f"line {t.line}: `[...]` scored a line's contribution to "
+                f"which of several matching rules won -- and nothing picks "
+                f"among matching rules any more (every one whose gates are "
+                f"on fires). Naming a write's own strength is `intensity "
+                f"$n` in a CONSEQUENT member now, not a bracket on any line."
+            )
+        return RuleMember(sign, term, binds, write)
 
     @staticmethod
     def _show_term(term: "Term") -> str:
@@ -1464,10 +1455,13 @@ class Loader:
                 f"it: `-p(...)`. To say its denial is so, `+not(p(...))` (§9)."
             )
         self._refuse_erase_premise(s.line, s.antecedent)
+        self._refuse_keep_consequent(s.line, s.consequent)
+        self._refuse_write_premise(s.line, s.antecedent)
         scope: Dict[str, NodeId] = {}
         shared = self._build_antecedent(s.line, s.name, s.antecedent, scope, ())
         con = [Member(m.sign, self.build(m.term, scope),
-                      self.build(m.binds, scope) if m.binds else None)
+                      self.build(m.binds, scope) if m.binds else None,
+                      self.build(m.write, scope) if m.write is not None else None)
                for m in s.consequent]
 
         if s.alts is None:
@@ -1487,6 +1481,7 @@ class Loader:
         for i, branch in enumerate(s.alts):
             branch = self._expand(branch, "ant", s.line)
             self._refuse_erase_premise(s.line, branch)
+            self._refuse_write_premise(s.line, branch)
             branch_built = self._build_antecedent(
                 s.line, s.name, branch, scope, shared)
             full = shared + branch_built
@@ -1543,6 +1538,41 @@ class Loader:
                     f"anchors it) or `+not(...)` (its denial is believed)."
                 )
 
+    def _refuse_keep_consequent(self, line: int, members) -> None:
+        # `keep` (docs/design/intensity-gates.md) is a READ mode -- a
+        # non-consuming antecedent check. A consequent does not consume
+        # anything to begin with, so `keep` there is not a stronger
+        # promise, it is a word with nothing to modify -- refused rather
+        # than silently accepted and ignored, `-`'s own reason above.
+        for m in members:
+            if m.sign == KEEP:
+                raise ParseError(
+                    f"line {line}: `keep` opts an ANTECEDENT member out of "
+                    f"being spent when the rule fires -- a consequent "
+                    f"member is not spent by anything, so there is nothing "
+                    f"here for `keep` to except."
+                )
+
+    def _refuse_write_premise(self, line: int, members) -> None:
+        # `intensity $n` (docs/design/intensity-gates.md) names a WRITE's
+        # own strength -- a consequent concept, the RHS half of "read the
+        # current intensity, write a new one". An antecedent reads with
+        # `intensity($x) as $n` instead (an ordinary member whose relation
+        # happens to be the built-in node-computator, ch.29's other half),
+        # which parses as an ordinary term rather than through this clause
+        # at all -- so a `write` surviving onto an antecedent member here
+        # can only be `+p(x) intensity $n` written where a premise was
+        # expected, and that is refused rather than silently doing nothing.
+        for m in members:
+            if m.write is not None:
+                raise ParseError(
+                    f"line {line}: `intensity $n` names what a CONSEQUENT "
+                    f"write sets -- a premise is read, never written, so "
+                    f"there is nothing here for it to set. To read a "
+                    f"node's current intensity, match `intensity($x) as "
+                    f"$n` instead."
+                )
+
     def _build_antecedent(self, line: int, name: str, written, scope,
                           earlier: Sequence[Member]) -> List[Member]:
         """`written` (as parsed) -> `Member`s (as built), checking `no`'s own
@@ -1552,8 +1582,7 @@ class Loader:
         built: List[Member] = []
         for m in written:
             member = Member(m.sign, self.build(m.term, scope),
-                            self.build(m.binds, scope) if m.binds else None,
-                            getattr(m, "weight", 1), getattr(m, "att_mult", 1.0))
+                            self.build(m.binds, scope) if m.binds else None)
             if member.sign == ABSENT and self.m.g.has_var(member.pattern):
                 # An absence is a CHECK, not a binder: `no p($x)` with $x free
                 # is *for no $x* -- the negative existential §9 says a member
@@ -1591,6 +1620,22 @@ class Loader:
                 f"line {line}: rule {name!r} concludes about a variable its "
                 f"antecedent never binds -- the gate would refuse to deposit "
                 f"it (§13)."
+            )
+        # The write's own value -- `+p(x) intensity $n` -- is a second term
+        # hanging off the member, checked the same way: `$n` almost always
+        # comes from an antecedent computation (`plus($n, 1) as $n2`), and a
+        # `$n2` nothing bound would substitute to a bare variable no
+        # numeral-reading commit step could make sense of, silently, far
+        # from where the typo was made.
+        unwritten = [
+            m for m in con
+            if m.write is not None and self.m.g.has_var(m.write)
+            and not self._covered(m.write, ant)
+        ]
+        if unwritten:
+            raise ParseError(
+                f"line {line}: rule {name!r} writes an `intensity` its "
+                f"antecedent never binds a value for"
             )
 
     def _finish_rule(self, name: str, ant, con, written_con) -> "Rule":

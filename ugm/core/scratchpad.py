@@ -27,21 +27,38 @@ Three consequences, and they are the whole of why the chain went:
 A proposition has at most one anchor -- `note` looks before it mints, which is
 where that invariant lives now that the graph interns nothing. Asserting
 something already believed is not a second act; there is nowhere for a second
-act to go.
+act to go -- though it MAY move the number below.
 
 `p(a)` said twice is two propositions and so two anchors, which is the point:
 two occasions. What cannot happen is two anchors on ONE proposition.
 
+Intensity (docs/design/intensity-gates.md). Belief used to be a bare
+presence/absence flag; every anchor now carries a NUMBER as well, and "on" --
+what an antecedent member and `no` both ask about -- is "above zero". Nothing
+about the anchor/occasion picture above changes: intensity rides beside it,
+one float per anchor, and it is what makes `keep` (read without spending) and
+"combine by max" (docs/design/intensity-gates.md's "First-cut defaults")
+possible at the layer above this one (`Machine`/`attention.run`). The zero
+end needs no separate state at all -- an anchor AT zero and no anchor read
+the same to every rule, so "set to zero" is erasure, unchanged from today,
+and nothing here has to represent "anchored but off".
+
 See docs/design/scratchpad.md.
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from .graph import Graph, NodeId
 
+#: What a plain `+p(x)` writes when nothing says otherwise -- "fully on",
+#: and the number every occasion had, implicitly, before intensity existed.
+#: Kept here rather than in `Gate` because it is the one number this file's
+#: own callers (`note`, defaulted) need without an import.
+ON = 1.0
+
 
 class Scratchpad:
-    """What is believed, which is what is anchored."""
+    """What is believed, which is what is anchored -- now at a strength."""
 
     def __init__(self, g: Graph) -> None:
         self.g = g
@@ -52,6 +69,14 @@ class Scratchpad:
         self.BELIEVED = g.atom("believed")
         self.writes = 0
         self.erasures = 0
+        # anchor -> its intensity. Keyed on the ANCHOR (the `believed(p)`
+        # instance), not on `p` itself, because occasions survive: `p(a)`
+        # believed twice is two anchors, and each carries its own number
+        # (docs/design/intensity-gates.md, "Occasions survive"). An anchor
+        # not in this dict was minted before intensity existed anywhere but
+        # this file's own tests, or is a stale key after an erase this dict
+        # forgot to drop -- `erase` below is what keeps that from happening.
+        self._intensity: Dict[NodeId, float] = {}
         # Which relations a node is currently spoken of under, counted.
         #
         # *What is believed about `goblin1` right now* -- and it has to be the
@@ -67,22 +92,30 @@ class Scratchpad:
 
     # -- writing ----------------------------------------------------------
 
-    def note(self, proposition: NodeId) -> NodeId:
-        """Believe `proposition`. Returns its anchor.
+    def note(self, proposition: NodeId, intensity: float = ON) -> NodeId:
+        """Believe `proposition`, AT `intensity`. Returns its anchor.
 
         Callers should not reach this directly: `Gate.write` is the one place a
         belief enters, because that is where the hooks are.
+
+        Minting is unchanged: an already-anchored proposition gets the
+        existing anchor back rather than a second one, because `rel` mints
+        now and a second anchor on one belief is not a thing `erase` could
+        ever take back one-for-one. What IS new is that the existing anchor's
+        NUMBER moves to `intensity` regardless -- a second `write` on one
+        occasion is a recharge, and a caller that meant merely to check
+        whether something is believed was never calling `note` to do it
+        (`holds`/`anchor` below do not write).
         """
         got = self.anchor(proposition)
         if got is not None:
-            # Already believed. There is nowhere for a second act to go -- and
-            # the EXISTING anchor is returned rather than one built to say so,
-            # because `rel` mints now. Minting here would put a second anchor
-            # on one belief, and `erase` deletes one anchor.
+            self._intensity[got] = intensity
             return got
         self.writes += 1
         self._mention(proposition, +1)
-        return self.g.rel(self.BELIEVED, proposition)
+        anchor = self.g.rel(self.BELIEVED, proposition)
+        self._intensity[anchor] = intensity
+        return anchor
 
     def erase(self, proposition: NodeId) -> bool:
         """Stop believing `proposition`. True if there was anything to stop.
@@ -99,7 +132,31 @@ class Scratchpad:
         self.erasures += 1
         self._mention(proposition, -1)
         self.g.delete(anchor)
+        # Dropped rather than left to rot: `anchor` cannot be minted again --
+        # `g.rel` never reuses a deleted node's id -- so a stale entry here
+        # would sit forever, and `_intensity` growing without bound the way
+        # an unbounded cache does is the one failure mode a dict this small
+        # can still have.
+        self._intensity.pop(anchor, None)
         return True
+
+    def intensity(self, anchor: NodeId) -> float:
+        """This ANCHOR's number. `ON` for one this dict never heard of --
+        which is only ever a caller's own bug (an anchor this scratchpad
+        did not mint) rather than a live case, since every path that mints
+        one records a number in the same breath `note` does."""
+        return self._intensity.get(anchor, ON)
+
+    def occasion_intensity(self, proposition: NodeId) -> float:
+        """`intensity`, but resolved through `occasion` first -- the number
+        of whatever occasion of this SHAPE is believed, for a caller (a rule
+        reading `intensity($x) as $n`) that has a proposition rather than an
+        anchor in hand. `0.0` when nothing of the shape is believed at all,
+        which is the honest reading of *how on is this* for a thing that is
+        not on."""
+        occ = self.occasion(proposition)
+        anchor = self.anchor(occ)
+        return self.intensity(anchor) if anchor is not None else 0.0
 
     def _mention(self, proposition: NodeId, d: int) -> None:
         """Move the `relations_of` counts for one proposition's arguments.

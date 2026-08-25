@@ -24,7 +24,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 from .graph import Graph, NodeId
 from .scratchpad import Scratchpad
 
-# The three modes a member may be in. Two of them are what the old signs
+# The four modes a member may be in. Three of them are what the old signs
 # became: a `+` member asks whether something is anchored, and a `+` consequent
 # anchors it. `-` survives only in a CONSEQUENT, where it erases the anchor --
 # which is the un-claim an append-only chain could never express, and the whole
@@ -34,6 +34,14 @@ from .scratchpad import Scratchpad
 ASSERT = "+"
 ERASE = "-"
 ABSENT = "no"
+# The fourth is new (docs/design/intensity-gates.md): an ANTECEDENT-only mode,
+# matched exactly like `ASSERT` -- same pool, same "is it on" question -- but
+# exempted from what `ASSERT` now costs. Firing discharges every `+` member it
+# matched by default; `keep` is the per-line opt-out, a non-consuming read the
+# same as a Petri net's test arc. There is no `keep` in a consequent: writing
+# is not a place `keep` has anything to say about, and the loader refuses it
+# there the same way it refuses `no` there.
+KEEP = "keep"
 
 #: The connective, as the surface spells it. One, so this is what the parser
 #: checks a rule's head against rather than a closed set of two.
@@ -244,12 +252,17 @@ class Member(NamedTuple):
     sign: str
     pattern: NodeId
     binds: Optional[NodeId] = None
-    # `[+3, attention_multiplier:1.2]`, carried from the surface. The weight
-    # is a constant known at load; the multiplier is the only part that reads
-    # anything varying per application. Neither affects WHETHER the member
-    # matches -- all lines must -- only which applicable rule wins.
-    weight: int = 1
-    att_mult: float = 1.0
+    # A CONSEQUENT-only extra (docs/design/intensity-gates.md): `+p(x)
+    # intensity $n` names the write's own strength instead of taking the
+    # default (`scratchpad.ON`, "fully on"). `write` is the still-generic
+    # TERM -- substituted with the application's bindings the same way
+    # `pattern` is, at apply time, since `$n` is usually a variable the
+    # antecedent computed (`plus($n, 1) as $n2`) rather than a load-time
+    # constant. `None` is *no opinion*, which is every ordinary `+p(x)` and
+    # every antecedent member: intensity is a RHS concept, and nothing here
+    # stops an antecedent member from carrying one because nothing reads it
+    # if it did.
+    write: Optional[NodeId] = None
 
 
 class Rule:
@@ -333,6 +346,7 @@ class RuleSet:
             ASSERT: g.atom("assert"),
             ERASE: g.atom("erase"),
             ABSENT: g.atom("absent"),
+            KEEP: g.atom("keep"),
         }
         self.rules: List[Rule] = []
         # Experience, kept apart from world knowledge: what to reach for after
@@ -351,6 +365,12 @@ class RuleSet:
         # rather than a value (`new_substrate.md`'s `attentioned($x)` and a
         # label test). Also set by the Machine.
         self.predicates: Dict[NodeId, Callable] = {}
+        # A third cousin: BINDS, like a computator, but over the node itself
+        # rather than its shown text -- `intensity($x) as $n`
+        # (docs/design/intensity-gates.md) is the one this shipped for. Also
+        # set by the Machine, which is the one thing that knows what a
+        # node's intensity currently is.
+        self.node_computes: Dict[NodeId, Callable] = {}
         self.by_node: Dict[NodeId, "Rule"] = {}
         # Authoring a rule is an event, the way a write is. The machine
         # subscribes so that a rule becomes DATA the moment it exists rather
@@ -735,6 +755,7 @@ def match(
     computes: Optional[Dict[NodeId, Callable]] = None,
     fresh: Optional[Sequence[NodeId]] = None,
     predicates: Optional[Dict[NodeId, Callable]] = None,
+    node_computes: Optional[Dict[NodeId, Callable]] = None,
 ) -> List[Application]:
     """Unify a rule's generic antecedent against what is anchored.
 
@@ -754,6 +775,7 @@ def match(
     """
     computes = computes or {}
     predicates = predicates or {}
+    node_computes = node_computes or {}
     results: List[Application] = []
     seen: set = set()
     width = len(rule.antecedent)
@@ -816,6 +838,42 @@ def match(
                 # mints a fresh node, so the result would be a TWIN of the value
                 # the corpus writes -- the rule fires, the fact lands, and asking
                 # about it answers nothing.
+                b = bindings
+                if want.binds is not None:
+                    b = unify(g, want.binds, got, bindings)
+                if b is not None:
+                    step(j + 1, b, matched)
+                return
+            nfn = node_computes.get(rel)
+            if nfn is not None:
+                # A computator's twin, over the NODE rather than its shown
+                # text -- `intensity($x)` (docs/design/intensity-gates.md)
+                # is the one this shipped for. `computes` calls `fn(*shown)`,
+                # which is right for arithmetic (`plus("2", "3")`) and wrong
+                # here: `intensity` is a question about WHICH occasion `$x`
+                # is, not about what its name spells, and two differently-
+                # named nodes that happen to print the same text must not
+                # answer it the same way. The arguments must be ground by
+                # now, exactly as a computator's must.
+                args = [walk(g, a, bindings) for a in g.members(want.pattern)]
+                if any(g.is_var(a) for a in args):
+                    return
+                try:
+                    got = nfn(*args)
+                except Exception:
+                    got = None
+                if want.sign == ABSENT:
+                    if got is not None:
+                        return
+                    b = bindings
+                    if want.binds is not None:
+                        grounded = substitute(g, want.pattern, bindings)
+                        b = unify(g, want.binds, grounded, bindings)
+                    if b is not None:
+                        step(j + 1, b, matched)
+                    return
+                if got is None:
+                    return
                 b = bindings
                 if want.binds is not None:
                     b = unify(g, want.binds, got, bindings)
@@ -916,6 +974,11 @@ def match(
             # predicate has nothing to enumerate FROM, only a reference to
             # check once its argument is already bound.
             if g.relation_of(rule.antecedent[pivot].pattern) in predicates:
+                continue
+            #  Never pivot on a node-computator, the same reason exactly:
+            # `intensity($x)` has nothing to enumerate FROM until `$x` is
+            # already bound by an earlier member.
+            if g.relation_of(rule.antecedent[pivot].pattern) in node_computes:
                 continue
             run(pivot)
     return results
