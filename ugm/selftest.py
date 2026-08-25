@@ -1552,28 +1552,35 @@ def lanes() -> None:
 
 def circuit_breaker() -> None:
     """`ugm/rules/circuit_breaker.ugm`, against a rule built to never stop
-    matching (`<flaky>`: two bindings of `+p($x)`, no guard consuming
-    either). Composes triggers, `dormant`/`due`, a lane and a cooldown --
-    see the corpus's own header for why each is load-bearing.
+    matching (`<flaky>`: two bindings of `+p($x)`, RECHARGED by its own
+    consequent rather than never spending it in the first place -- see
+    below). Composes triggers, `dormant`/`due`, and a cooldown counter; see
+    the corpus's own header for why each is load-bearing and why lanes,
+    the fourth piece the old version needed, are not any more.
 
     The suspension is temporary BY DESIGN: `<flaky>` never gets fixed, so the
     only honest test is that it keeps cycling -- tripped, cooled down,
     revived, tripped again -- rather than either exhausting the tick budget on
     one runaway rule or going permanently silent after the first trip.
 
-    The `brush(p($x))` is what MAKES it a runaway. A move consumes what it
-    matched on, so `+p(a)` and `+p(b)` holding from the start buys two
-    firings and then silence -- and a watchdog watching a rule that stops on
-    its own is watching nothing. Putting the premise back is how a corpus
-    says *this is not the last thing that should happen to it*, and here it
-    is what a rule that cannot stop itself looks like."""
-    print("\n--  a circuit breaker: a lane keeps the trip rule from being "
-          "starved by what it watches, and the suspension is temporary")
+    Firing discharges by default now (docs/design/intensity-gates.md), so
+    `brush(p($x))` -- the table era's way of putting a spent premise back --
+    is retired along with the mechanism it was for: `<flaky>`'s own
+    consequent recharges `p($x)`, the SAME node its antecedent just
+    matched (a bound variable, not a fresh ground literal -- see
+    `core/attention.py`'s own worked example for why that distinction is
+    load-bearing), so the discharge and the recharge fold to the same
+    number this tick and `p($x)` never actually goes off. That is what a
+    rule that cannot stop itself looks like now."""
+    print("\n--  a circuit breaker: every rule fires whenever its own gates "
+          "are on, so the trip/cooldown/revive rules need no guaranteed "
+          "turn independent of the rule they watch -- and the suspension "
+          "is still temporary")
     path = _corpora.path("circuit_breaker.ugm")
     src = """
         fact +p(a)
         fact +p(b)
-        rule <flaky> = implies( { +p($x) }, { +q(a) } ) => brush(p($x))
+        rule <flaky> = implies( { +p($x) }, { +q(a), +p($x) } )
 
         fact +watched(<flaky>, flaky_tag)
         fact +tries(flaky_tag, 0)
@@ -1587,26 +1594,19 @@ def circuit_breaker() -> None:
     ldr.computator("at_least", lambda a, b: "yes" if int(a) >= int(b) else None)
     kb = load(m, src, scope="cb")
     load_file(m, path, scope="cb")
-    # PINNED, and the breaker's premise now depends on it. A rule that
-    # churns unproductively on things nobody is attending to no longer gets
-    # the chance: attention stops it before any budget is burnt, which is a
-    # cheaper answer than a watchdog and is why the old form of this check
-    # became unreachable. What the breaker is still FOR is the rule that
-    # churns on what the agent really is attending to, and a min is how a
-    # corpus says that is the situation.
-    # The PROPOSITION, not the bare atom: `<flaky>`'s own line matches
-    # `p(a)`/`p(b)` and `_attended_first` scores what a line matched, never
-    # its parts (§20) -- pinning `a` lifts a RULE whose antecedent mentions
-    # it (`_pull`'s join) but does not itself keep `p(a)` in the pool.
     for name in ("a", "b"):
         m._attend(kb.term(f"p({name})"), weight=3, floor=1)
-    steps = m.run(limit=22)
-    names = [s.applied.rule.name for s in steps if s.applied is not None]
+    #  531 ticks -- the same budget `book/docs/watching/28-the-table.md`
+    # measured the table-era breaker against (31 clean cycles there). Both
+    # bindings of `<flaky>` fire every tick they can now rather than one
+    # being picked, so the trip rate is not expected to match -- what has
+    # to match is the CLAIM: never stuck, every trip followed by a revival.
+    steps = m.run(limit=531)
+    names = [a.rule.name for s in steps for a in s.applied]
     trips = names.count("trip")
     revives = names.count("revive")
     check("--", "it trips more than once -- the rule keeps being "
-                "reconsidered, not silenced after the first trip, while what "
-                "it churns on stays attended",
+                "reconsidered, not silenced after the first trip",
           trips >= 2)
     check("--", "and every trip is followed by a revival -- the suspension "
                 "actually lifts, it does not just accumulate",
@@ -1621,6 +1621,8 @@ def circuit_breaker() -> None:
                 "followed by the watched rule actually running again, not "
                 "an immediate re-trip",
           after == ["flaky"])
+    print(f"     ({trips} trip/cooldown/revive cycles over "
+          f"{len(steps)} ticks)")
 
 
 # -- the surface ------------------------------------------------------------

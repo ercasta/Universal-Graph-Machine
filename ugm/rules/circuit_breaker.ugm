@@ -2,19 +2,42 @@
 # without editing the rule being watched -- and the suspension is
 # TEMPORARY, not a permanent kill. A rule dormant forever is starved of its
 # own future legitimate work; the point is to stop it from starving
-# EVERYTHING ELSE, not to silence it for good. Four pieces, none of them
-# new engine machinery:
+# EVERYTHING ELSE, not to silence it for good.
 #
-#   `dormant`/`due`   already the disable switch (`core/attention.py:_dormant`)
-#   triggers          already see every SELECTION of a rule, even a
-#                     no-op reselection -- `_intercept` runs before the
-#                     "already believed, skip" check in `_apply`
-#   lanes             already a guaranteed turn per round, independent of
-#                     who wins `main`'s selection that tick
-#   a plain counter   the SAME computator-driven mutable-cell idiom as the
-#                     purse transfer in `docs/guide.md`'s arithmetic chapter
+# Rewritten for docs/design/intensity-gates.md. Lanes are the one piece of
+# the old four that is GONE, and the reason is structural rather than a
+# local fix: starvation was a fact about ONE rule winning ONE selection per
+# tick, and there is no selection any more -- every rule whose gates are on
+# fires, every tick, whatever else also fires. `<trip>`/`<cooldown-tick>`/
+# `<revive>` do not need a guaranteed turn independent of the watched rule
+# because nothing is competing with them for a turn to begin with. What
+# stays, and why:
 #
-# Why all four are load-bearing, found by testing rather than reasoning:
+#   `dormant`/`due`   still the disable switch (`core/attention.py:_dormant`)
+#                     -- unrelated to lanes, and the design doc's own task
+#                     list does not retire it. A rule claimed dormant is
+#                     skipped before matching is even attempted, this tick
+#                     and every tick until something claims it `due`.
+#   triggers          still see every SELECTION of a rule, even a no-op
+#                     reselection -- `_intercept` runs inside `Machine.
+#                     _pending`, before anything is committed.
+#   a plain counter   the same computator-driven mutable-cell idiom as the
+#                     purse transfer in `docs/guide.md`'s arithmetic
+#                     chapter, and it is UNCHANGED: `tries`/`cooldown` are
+#                     rewritten by erasing the old numeral-tagged fact and
+#                     writing a new one, never by an intensity write on one
+#                     node, so consumption's "same node, same tick, take
+#                     the max" has nothing to do with how this counts.
+#   `keep`            new, and the reason a fourth of this file's lines
+#                     changed: firing discharges what it matches by
+#                     default now (docs/design/intensity-gates.md), and a
+#                     registration fact (`watched`, `threshold`,
+#                     `cooldown_len`) or a counter read alongside its OWN
+#                     explicit rewrite (`tries`, `cooldown`, `dormant_tag`)
+#                     both need to survive being read -- see each rule
+#                     below for which and why.
+#
+# Why these are load-bearing, found by testing rather than reasoning:
 #
 #   A RULE REFERENCE IS TAINTED. `<watched-rule>`'s own graph node has
 #   `has_var = True` -- a rule's reification structurally contains its own
@@ -28,21 +51,12 @@
 #   `$r` is only ever written where the engine's own machinery requires the
 #   real node: `+dormant($r)`, `+due($r)` and `-due($r)`.
 #
-#   A RULE THAT ALWAYS WINS STARVES ITS OWN WATCHDOG. Built as ordinary
-#   competing rules, none of `<trip>`/`<cooldown-tick>`/`<revive>` would
-#   ever fire against a rule that always matches: the runaway rule keeps
-#   winning `main`'s one-selection-per-tick arbitration forever, and an
-#   equally-ranked competitor never gets a turn -- including the rules that
-#   would turn it off and later back on. A LANE fixes this: every rule
-#   below runs in its own lane, which gets a turn every ROUND regardless of
-#   what `main` selects that tick.
-#
 #   THE COOLDOWN CANNOT BE MEASURED BY THE WATCHED RULE'S OWN ACTIVITY,
 #   because once dormant it produces nothing to count -- `<watchdog>` only
 #   ever sees `producing(...)`, and a dormant rule is never selected, so it
-#   never produces one. `<cooldown-tick>` counts ROUNDS instead, using its
-#   own guaranteed lane turn as the clock, independent of whether the main
-#   lane is doing anything at all.
+#   never produces one. `<cooldown-tick>` counts TICKS instead, firing
+#   every tick `dormant_tag($tag)` holds regardless of whether the watched
+#   rule is doing anything at all.
 #
 #   REVIVING ONLY UNDOES ONE SUSPENSION. `due(<R>)` never expires on its
 #   own (§19: "`due` can be concluded by anything at all", but nothing
@@ -50,9 +64,7 @@
 #   would find `due(<R>)` still standing from the FIRST revival and stay
 #   active regardless of the second `dormant`. `<trip>` clears `-due($r)`
 #   on every trip, which is what makes repeated cycles -- not just one --
-#   actually suspend the rule each time. Measured over an always-matching
-#   rule: 31 clean trip/cooldown/revive cycles in 531 ticks, never once
-#   stuck.
+#   actually suspend the rule each time.
 #
 # To watch a rule: `fact +watched(<the-rule>, a-tag)`, `fact +tries(a-tag, 0)`,
 # `fact +threshold(a-tag, N)`, `fact +cooldown_len(a-tag, ROUNDS)`.
@@ -61,25 +73,40 @@
 
 fact +intercepts(<watchdog>, after)
 rule <watchdog> = implies(
-    { +producing($r, $c), +watched($r, $tag), +tries($tag, $n), plus($n, 1) as $n2 },
+    { +producing($r, $c), keep watched($r, $tag), +tries($tag, $n), plus($n, 1) as $n2 },
     { -tries($tag, $n), +tries($tag, $n2) } )
 
+# `keep` on `watched`, `threshold` and `cooldown_len`: three registration
+# facts a corpus writes ONCE (`fact +watched(<r>, tag)`, and so on) and
+# this rule reads every time it considers tripping -- plain `+` would
+# spend the registration itself on the FIRST trip, and there would be
+# nothing left to read on the second. `tries` is also `keep` here: this
+# rule only READS the count to compare it against the threshold; deciding
+# a new one is `<watchdog>`'s job, above, and a plain `+tries($tag, $n)`
+# here would race that rewrite -- two rules spending the SAME occasion in
+# one tick over something that is supposed to persist.
 rule <trip> = implies(
-    { +watched($r, $tag), +tries($tag, $n), +threshold($tag, $max),
-      at_least($n, $max) as $over, +cooldown_len($tag, $len), no dormant_tag($tag) },
+    { keep watched($r, $tag), keep tries($tag, $n), keep threshold($tag, $max),
+      at_least($n, $max) as $over, keep cooldown_len($tag, $len), no dormant_tag($tag) },
     { +dormant($r), +dormant_tag($tag), +cooldown($tag, $len), -due($r) } )
-fact +lane(<trip>, watchdog)
 
+# `keep dormant_tag($tag)`: read every tick cooldown is counting down, so a
+# plain `+` would spend the "we are cooling down" flag on the very first
+# tick and the countdown would never see a second one. `cooldown($tag, $c)`
+# itself needs no `keep` -- this rule's own `-cooldown($tag, $c)` erases
+# the exact occasion it just matched, so default consumption and the
+# explicit erase agree on the same target rather than racing it.
 rule <cooldown-tick> = implies(
-    { +dormant_tag($tag), +cooldown($tag, $c), at_least($c, 1) as $more, minus($c, 1) as $c2 },
+    { keep dormant_tag($tag), +cooldown($tag, $c), at_least($c, 1) as $more, minus($c, 1) as $c2 },
     { -cooldown($tag, $c), +cooldown($tag, $c2) } )
-fact +lane(<cooldown-tick>, watchdog)
 
 # Once cooldown reaches 0: reactivate, AND reset the count -- so the rule
 # gets a full, fresh budget rather than tripping again on its first move.
+# `watched` is `keep` for the same reason `<trip>` needs it: a registration
+# fact read on every cycle, not spent by the first one. `dormant_tag`,
+# `cooldown(_, 0)` and `tries($tag, $n)` all need no `keep` -- each is
+# explicitly erased in the consequent below, at the exact node this rule
+# matched, so consumption's implicit spend and the explicit one agree.
 rule <revive> = implies(
-    { +watched($r, $tag), +dormant_tag($tag), +cooldown($tag, 0), +tries($tag, $n) },
+    { keep watched($r, $tag), +dormant_tag($tag), +cooldown($tag, 0), +tries($tag, $n) },
     { +due($r), -dormant_tag($tag), -tries($tag, $n), +tries($tag, 0), -cooldown($tag, 0) } )
-fact +lane(<revive>, watchdog)
-
-fact +lane_order(watchdog, 1)

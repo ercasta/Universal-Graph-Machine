@@ -1425,7 +1425,27 @@ class Machine:
         shape = self.g.shape_of
         for a in found:
             for m in trigger.consequent:
-                said = substitute(self.g, m.pattern, a.bindings)
+                # The EXISTING node of this shape, looked up rather than
+                # minted, wherever one already exists -- `already_there`,
+                # `-p(a)`'s own resolver. A trigger's conclusion is a
+                # description built fresh from the trigger's own pattern
+                # and this application's bindings, and two DIFFERENT
+                # applications of one trigger describing the SAME thing
+                # (docs/design/intensity-gates.md: several applications can
+                # intercept the same tick now, one per firing that
+                # triggered this trigger) must resolve to the SAME node,
+                # or `added`'s own dedup below -- keyed on node identity --
+                # cannot see that they agree, and each redundant derivation
+                # mints its own twin. `circuit_breaker.ugm`'s `<watchdog>`
+                # is exactly this: re-derived once per firing it observes,
+                # and every twin it ever minted for `tries(...)` is a node
+                # its OWN antecedent matches again next tick, compounding
+                # without bound if this were not resolved here.
+                got = already_there(self.g, m.pattern, a.bindings)
+                if got is GENERIC:
+                    continue  # a description is not an instruction
+                said = got if got is not None else substitute(
+                    self.g, m.pattern, a.bindings)
                 if self.g.has_var(said):
                     continue  # a description is not an instruction
                 rel = self.g.relation_of(said)
