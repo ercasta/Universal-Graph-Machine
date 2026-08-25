@@ -1693,12 +1693,18 @@ class Loader:
             self.m.gate.erase(prop)
         else:
             self.m.gate.write(prop, generic=generic)
-            # What was just loaded is what the machine is ABOUT. Attention is
-            # required now rather than advisory, so a corpus that arrived
-            # unattended would sit there for ever: there would be no first
-            # thing to think about and nothing could start. Same brush a
-            # move's own writes get, and it fades the same way.
-            self.m._attend_written((prop,))
+            # A loaded `fact` is BACKGROUND -- read when a rule about it is
+            # already in play, never a reason on its own to bring one to
+            # mind. Attending is *taking care of something*, and nothing has
+            # asked the agent to take care of a fact merely for existing.
+            # That is what a CHANNEL is for: `<one thing arrived, this is
+            # new business>` vs `<the world as it stands, unremarked>`. A
+            # corpus with nothing arriving and no `attend(...)` of its own
+            # does nothing, on purpose -- see `_attended_first`'s own
+            # docstring, "there is no exception for an empty pool". This
+            # used to attend every loaded fact so a corpus never started
+            # cold; the corpus says what it wants attended now, the same way
+            # it says everything else.
 
     # `_maybe_precedence` was here: it read `overrides(A, B)` off a statement as
     # the loader parsed it and seeded §14's precedence table. It is gone, and

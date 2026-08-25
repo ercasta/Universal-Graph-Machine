@@ -53,6 +53,15 @@ def run_episode(corpus: str, episode: Episode,
         # A mutation that will not parse is a failed candidate, not a crash:
         # the search is allowed to propose nonsense as long as it is told.
         return False, 0.0, f"parse: {e}"
+    # A loaded fact is background now, not something to take care of (§20),
+    # so an episode's own "starting condition" needs a spark or nothing in
+    # it is ever in play -- including the `<focus>` rule whose entire job is
+    # to unattend this and set the PRECISE thing the episode is testing.
+    # Brushed rather than pinned: `<focus>`'s own `unattend` is what
+    # actually decides what stays in mind, and this only has to survive
+    # long enough for that rule to get its one setup-lane turn.
+    for p in m.pad.believed():
+        m._attend(p, weight=1)
     m.run(limit=episode.limit)
     believed = {m.g.show(p) for p in m.pad.believed()}
     ok = SUCCEEDED in believed

@@ -80,6 +80,11 @@ def fight(seed: Optional[int] = 7, limit: int = 4000):
     # NOW the corpus, with the tools it names already resolvable.
     kb = load_file(m, CORPUS, scope="dungeon")
 
+    # `turn(hero)` is background until something is asked to take care of it
+    # (§20) -- the fight's own kickoff, kept here rather than in the corpus
+    # so `dungeon.ugm` stays the fresh port the module docstring describes.
+    m._attend(kb.term("turn(hero)"))
+
     steps = m.run(limit=limit)
     return m, kb, asked, steps
 

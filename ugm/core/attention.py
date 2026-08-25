@@ -500,6 +500,18 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
         table.now = tick
         table.ticked += 1
 
+        # Once per TICK, not per lane: `_fade_attention` docstrings its own
+        # reason -- a claim written this tick must still be there when the
+        # NEXT tick's lanes ask about it, so fading here (before any lane
+        # runs) rather than after leaves what just landed untouched until the
+        # tick after. Dead code until now: the mechanism (`ATTENTION_DECAY`,
+        # `Attend.decay`/`.floor`/`.ceiling`) was built and every selftest
+        # check for it called `_fade_attention` directly, but `run` itself
+        # never did -- so nothing actually decayed in a corpus that never
+        # called it by hand, and a claim sat at full strength forever, however
+        # long ago it was made. Restored so a corpus stops replaying the same
+        # stale claim tick after tick once something more recent exists.
+        m._fade_attention()
 
         # Lanes (§ lanes): one pass through the table per lane, in order,
         # against the ONE shared frame -- a judge rule sees what a regular
@@ -571,6 +583,29 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                         if top is None:
                             top = table.score[r.node]
                         break
+                    # The rest of `found` -- this SAME rule, matched against
+                    # OTHER ground things this tick did not pick -- is not
+                    # offered again automatically the way a re-tried rule
+                    # is: the walk that finds it is keyed on what is
+                    # ATTENDED, and picking one binding this tick spends
+                    # nothing that belonged to a sibling binding. Under decay
+                    # a sibling held at brush strength (an arrival, a loaded
+                    # fact a corpus DID attend) has exactly one tick to be
+                    # picked, and the loop only picks one rule per lane per
+                    # tick -- so the second `say` in a corpus, or the second
+                    # ground instance a rule matches at once, silently never
+                    # gets a turn. A REVISIT (`_push_attention` with no
+                    # start), not a brush at a fixed weight -- an arrival
+                    # this session gives real durability to (§20's
+                    # `ATTENTION_START`) is unfinished work at ITS OWN
+                    # strength, and stomping it to a brush's 1 here would
+                    # undo that the moment two arrivals landed together
+                    # (measured: the second of two `say`s lost the race to
+                    # be opened as a task, its own weight-5 downgraded to 1
+                    # by this exact line, one tick before its turn came).
+                    for a in found[1:]:
+                        for node in _matched_nodes(m, a):
+                            m._push_attention(node)
                     if len(window) >= WINDOW:
                         break
             if not window:
@@ -596,15 +631,46 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 # `close` was the one occasion that was written and never
                 # reacted to.
                 fresh = False
+                closed: List[NodeId] = []
                 for rival in window[1:]:
                     if not m._claims(m.CLOSE, chosen.rule.node, rival.rule.node):
-                        m._note_that(m.CLOSE, chosen.rule.node, rival.rule.node)
+                        closed.append(m._note_that(m.CLOSE, chosen.rule.node,
+                                                    rival.rule.node))
                         fresh = True
                 if fresh:
                     # Depositing IS the move. A settling rule -- the default
                     # one, or a corpus's own -- is in the table and gets the
                     # next turn. Ends the ROUND, not just this lane: the doubt
                     # is what this tick did.
+                    #
+                    # ...and it is NEW BUSINESS, the same standing `_answer`
+                    # already gives `answered(...)`: a claim nothing attends
+                    # is a claim `_attended_first` throws every application of
+                    # `<settle-doubt>` away on, however high the table ranks
+                    # it -- rank decides ORDER, the filter decides SURVIVAL,
+                    # and `close` was on `_bookkeeping` with no path in here
+                    # that ever attended it. Only visible once decay is live:
+                    # while nothing ever fell out of the pool, whatever `<one>`
+                    # or `<two>` had already put there kept overlapping by
+                    # accident, and the settling rule's own reachability was
+                    # never actually exercised.
+                    m._attend_written(tuple(closed))
+                    # DEFERRED, not decided -- and a doubt round applies
+                    # nothing: no `_consume`, no `_apply`, for any rival in
+                    # `window`. Under decay a premise held at brush strength
+                    # (a loaded fact, an incidental touch) is worth exactly
+                    # one tick, and a doubt round that does not renew it
+                    # spends that tick on nothing -- the very candidates the
+                    # doubt is ABOUT fall out of attention before the
+                    # settling tick can re-find any of them. A REVISIT, not
+                    # a brush at a fixed weight -- for the same reason the
+                    # shortlist's own sibling-brush just below is one: a
+                    # rival held stronger than a brush (an arrival, §20)
+                    # must not be stomped down to one just for losing this
+                    # round's arbitration.
+                    for a in window:
+                        for node in _matched_nodes(m, a):
+                            m._push_attention(node)
                     doubts += 1
                     steps.append(Step(arrivals, len(window), tried, None, (),
                                       "applied"))

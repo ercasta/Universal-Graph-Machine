@@ -12,7 +12,7 @@ the engine.**
 UGM is a self-contained Python library with no dependencies.
 
 ```bash
-python -m ugm.selftest                              # 183 checks, 0 failing
+python -m ugm.selftest                              # 203 checks, 0 failing
 python -m ugm ugm/rules/delay.ugm --ask "owed(ana,money)"
 ```
 
@@ -95,11 +95,12 @@ fact +booked(ana, bl204)
 
 ```
 $ python -m ugm ugm/rules/delay.ugm --ask "owed(ana,money)"
-ugm/rules/delay.ugm: 14 ticks, ended quiescent
+ugm/rules/delay.ugm: 25 ticks, ended quiescent
 
 what it believes, newest first:
+  rerouted(ana, zr9)
+  amount(ana, 600)
   owed(ana, money)
-  disrupted(bl204)
   ...
 
 owed(ana,money): believed
@@ -117,7 +118,9 @@ ugm/
                               approval pattern, REPL autocorrect
   rules/                     shipped corpora (`worked.ugm`, `delay.ugm`, the dungeon fixtures,
                               `tools_approval.ugm`, `circuit_breaker.ugm` -- a generic, temporary
-                              rule-suspension pattern any corpus can watch a rule with)
+                              rule-suspension pattern any corpus can watch a rule with -- and
+                              `todo.ugm`, a standing task stack any corpus can load alongside its
+                              own)
   corpora.py                 one accessor for a shipped corpus's path, used throughout
   repl.py, repl_fs.py, fs_repl.py    superseded by HarneSkills (still here, still tested; not
                               the door a new user should walk through -- see Try It, above)

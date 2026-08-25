@@ -87,6 +87,10 @@ def fight(seed: Optional[int] = 7, limit: int = 4000):
     pre.computator("stronger", stronger)
 
     kb = load_file(m, CORPUS, scope="dungeon")
+    # `turn(hero)` is background until something is asked to take care of
+    # it (§20) -- the fight's own kickoff, kept here rather than in the
+    # corpus (see `ugm/probes/dungeon.py`'s own comment).
+    m._attend(kb.term("turn(hero)"))
     steps = m.run(limit=limit)
     return m, kb, asked, steps
 

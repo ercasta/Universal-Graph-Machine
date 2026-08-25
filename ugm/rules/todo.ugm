@@ -1,0 +1,189 @@
+# The todo stack: a standing "what am I supposed to be doing" anchor,
+# tasks pushed onto it and popped off it, and the two lanes that keep a
+# task alive until something closes it.
+#
+# This is POLICY -- how to conduct oneself, what a task is, when it counts
+# as done -- and none of that belongs in the engine's own bundle (see
+# `ugm/rules/bundle.ugm`'s own header, and `the_bundle()` in
+# `selftest.py`, both of which the "load this into the bundle" question
+# ran straight into). It ships as an ordinary corpus instead: `load_file`
+# it alongside your own, the same way `tools_approval.ugm` is loaded
+# alongside a corpus that wants approval-gating -- and with the SAME
+# `scope=`, or `task(...)` in each file mints a twin nobody's rules can
+# see (`docs/tools-approval.md`).
+#
+# -- the anchor --------------------------------------------------------
+#
+# `internal_todo` is always attentioned: pinned (`floor=1`) the moment this
+# file loads, in ANY machine, regardless of whether the host corpus ever
+# says anything -- `say todo: +boot` is this file's own arrival, not the
+# host's, so the pin does not depend on the host corpus's own kickoff.
+# Attending is *taking care of something* (§20), and there is always
+# exactly one thing this agent is taking care of even when nothing else
+# is happening: whatever is on top of its own stack.
+say todo: +boot
+
+fact +top(internal_todo, internal_todo)
+
+rule <pin-todo>
+  +says(todo, boot)
+  no pinned(internal_todo)
+->
+  +pinned(internal_todo)
+=> attend(internal_todo, 5, 1, 1)
+fact +lane(<pin-todo>, todo)
+
+# The bootstrap channel is this file's OWN plumbing, never a host corpus's
+# business -- `<open-task>` excludes it structurally rather than by racing
+# `<pin-todo>` for the first turn (tried and lost: `<open-task>` reacts to
+# `arrived(...)` directly, one hop before `<pin-todo>` even has `says(...)`
+# to read, so a same-tick pre-emption is always too late).
+fact +internal(todo)
+
+# -- opening a task ------------------------------------------------------
+#
+# System-wide: something arrives on a channel, and answering it becomes an
+# open task. Generic over the channel and over what was said -- `+tk` mints
+# one task per arrival, guarded by `opened(...)` so a repeated tick asking
+# the same question twice does not open it twice. Brushes the arrival back
+# -- consuming it here is not the last thing that should happen to it, the
+# same reason `<care>` brushes in `delay.ugm`: `<intake>` (the bundle's own
+# crossing) wants the SAME occasion, in another lane, later in this same
+# round, and consuming is global (§20) -- without the brush, whichever of
+# the two runs first is the only one that ever sees it.
+#
+# Its OWN lane, not `todo` below -- measured, not supposed: `todo` already
+# holds five other rules, `SHORTLIST` (`core/attention.py`) only walks five
+# candidates before it stops widening, and a sixth ranked last on a busy
+# tick is never tried at all that tick -- so two arrivals landing together
+# had the second lose its turn forever, the identical shape as `<care>`
+# needing its own hop in `delay.ugm`, one lane up.
+rule <open-task>
+  $arr = arrived($channel, $said)
+  no opened($channel, $said)
+  no internal($channel)
+->
+  +opened($channel, $said)
+  +task(+tk)
+  +about(+tk, $said)
+  +via(+tk, $channel)
+=> brush($arr)
+fact +lane(<open-task>, open)
+
+# `<intake>` (the bundle's own crossing) writes `says(...)` as an ordinary
+# move's ordinary conclusion, so it fades at a brush's one tick like
+# anything else a rule happens to write -- and this file is BUSY, with a
+# `todo`/`brush` lane of its own contending for the same rounds, so a host
+# corpus's own `<trust>`-style rule can lose that one tick before its turn
+# comes around (measured: `delay.ugm` needed the identical fix once its
+# own facts stopped being loaded pre-attended). Re-attends the REAL
+# believed node -- a match, never a rebuild -- at the arrival's own
+# strength, so a host corpus does not have to know this file is busy to
+# write a `<trust>` rule that works.
+after <intake> { $sp = says($channel, $said) } => attend($sp, 5, 1, 1)
+
+# Any rule anywhere may open a task the same way -- `+task($t)` is the
+# whole contract, not something only `<open-task>` may write. This is what
+# notices a NEW one (from `<open-task>` or from a corpus's own rule) and
+# gives it a durable place in mind: `+tk` above is a mint marker and
+# cannot be attended from the rule that minted it (a postcondition sees
+# only the antecedent's own bindings), so pinning happens one tick later,
+# off the ordinary belief `task($t)` becomes.
+rule <notice-new-task>
+  +task($t)
+  no noticed($t)
+->
+  +noticed($t)
+=> attend($t, 5, 1, 1)
+fact +lane(<notice-new-task>, todo)
+
+# -- the stack ------------------------------------------------------------
+#
+# One pointer, `top(internal_todo, $t)`, always exactly one live occasion:
+# pushing erases the old value and asserts the new in the same move.
+# `internal_todo` is its own base case -- the sentinel `fact` above -- so
+# pushing the very first task and popping the very last are the same code
+# as every push and pop between them, no separate empty/non-empty branch.
+rule <push-task>
+  +task($t)
+  no under($t, internal_todo)
+  +top(internal_todo, $prev)
+->
+  -top(internal_todo, $prev)
+  +top(internal_todo, $t)
+  +beneath($t, $prev)
+  +under($t, internal_todo)
+fact +lane(<push-task>, todo)
+
+# A task marked `completed($t)` does not have to be the CURRENT top to be
+# closed -- closing whatever is buried is ordinary business (see `judge`
+# below) -- but the STACK only has to answer for what is on top. If the
+# top is completed, this pops to what is beneath it, and does so again on
+# the next tick if THAT is already completed too: a task closed while
+# buried is skipped the moment it is reached, not compacted eagerly.
+rule <skip-completed-top>
+  +top(internal_todo, $t)
+  +completed($t)
+  +beneath($t, $prev)
+->
+  -top(internal_todo, $t)
+  +top(internal_todo, $prev)
+fact +lane(<skip-completed-top>, todo)
+
+# Unpin a closed task so it fades (§20) rather than sitting in mind
+# forever at the same floor an open task gets.
+rule <retire-completed-task>
+  +completed($t)
+  +task($t)
+  no retired($t)
+->
+  +retired($t)
+=> attend($t, 1, 1, 0)
+fact +lane(<retire-completed-task>, todo)
+
+# -- brushing: the general rule, in its own lane -------------------------
+#
+# Always brushes the top OPEN task -- re-attends its own two matched
+# lines (`$topline`, `$taskline`) every round, which is what lets THIS
+# SAME application keep surviving `_attended_first`'s overlap filter tick
+# after tick rather than being consumed once and never seen again. That
+# is the whole of "keeping the task open ensures that, even with some
+# rule repetition, the task gets closed": a corpus's own rules answering
+# `about($t, $said)` keep getting a reason to consider $t, for as long as
+# it takes them to conclude `completed($t)`, however many times they
+# match and fail to close it in between.
+rule <brush-top-task>
+  $topline = top(internal_todo, $t)
+  $taskline = task($t)
+  no completed($t)
+->
+  -brushed($t)
+  +brushed($t)
+=> brush($topline), brush($taskline), attend($t, 3, 1, 1)
+fact +lane(<brush-top-task>, brush)
+
+# -- judging: reserved, not authored here ---------------------------------
+#
+# A rule that concludes `completed($t)` -- that a task's business is
+# actually finished -- stays in the `judge` lane, guarded a turn every
+# round for the SAME reason `<trip>`/`<cooldown-tick>`/`<revive>` need
+# `watchdog` in `circuit_breaker.ugm`: closing has to compete with
+# whatever the corpus's `main` lane is doing, and a lane that only runs
+# when nothing else wins never runs at all. This file writes no `judge`
+# rules of its own -- what counts as "done" is the host corpus's
+# business, the same reason `bundle.ugm` has no policy either -- but
+# reserves the lane and its place in the round:
+#
+#   rule <task-answered>
+#     +about($t, $said)
+#     +says($channel, $said)
+#     +believe($said)
+#     no completed($t)
+#   ->
+#     +completed($t)
+#   fact +lane(<task-answered>, judge)
+#
+fact +lane_order(open, 1)
+fact +lane_order(todo, 2)
+fact +lane_order(brush, 3)
+fact +lane_order(judge, 4)

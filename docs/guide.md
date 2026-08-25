@@ -47,6 +47,25 @@ rule <hold> = implies( { +producing(<request>, deploy($s)) },
 This is the whole of how approval-gating and starvation-breaking are built — ordinary rules, no
 engine hook per feature. See [`tools-approval.md`](tools-approval.md).
 
+## Attention
+
+A rule only matches things the agent is attending to, and attention decays — a claim fades on its own
+clock rather than sitting at full strength forever. What that means for a corpus:
+
+- **A loaded `fact` gets no attention.** Attending is *taking care of something*; a `say` arrival is
+  new business and gets a real token, a loaded fact is background nobody has been asked to take care
+  of. A corpus that starts from `fact`s alone needs its own kickoff — an `attend(...)` postcondition,
+  or deliver the starting condition as an arrival instead.
+- **What a rule writes fades in one tick by default.** Long enough for the next rule in a chain to
+  catch it, not long enough to survive losing a tie. A rule several OTHER things need to read again
+  later — `delay.ugm`'s `disrupted($f)`, read by three separate rules — says so explicitly:
+  `after <R> { $x = p(...) } => attend($x, 5, 1, 1)` re-attends the REAL believed node (a match, never
+  a rebuild — `brush(p($x))` on the same rule's own tail rebuilds by substitution and mints a twin
+  unless `$x` was bound to the whole line in the antecedent).
+- **`ugm/rules/todo.ugm`** is the standing pattern for "keep something in mind until it's
+  answered" — a task stack, a lane that keeps the top task attended, a `judge` lane a host corpus
+  closes tasks from. See [`todo-stack.md`](todo-stack.md).
+
 ## The surface
 
 ```

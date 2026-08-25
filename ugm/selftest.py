@@ -412,6 +412,10 @@ def arbitration_is_total() -> None:
         rule <one> = implies( { +p($x), no q($x) }, { +q($x) } ) => brush(p($x))
         rule <two> = implies( { +p($x), no r($x) }, { +r($x) } )
     """)
+    # A loaded fact is background, not something to take care of (§20) -- a
+    # rule has to be given a reason to consider `p(a)`, the same as a real
+    # corpus would with a `say` or its own `attend(...)`.
+    m._attend(kb.term("p(a)"))
     steps = [s for s in m.run(limit=8) if s.applied]
     check("§14", "with two rules matching, arbitration answers",
           bool(steps))
@@ -456,6 +460,7 @@ def applying() -> None:
         rule <off>  = implies( { +heat($a, $w), +cold($w) },
                                { +boiling($w), -heat($a, $w) } )
     """)
+    m._attend(kb.term("heat(stove, kettle)"))
     steps = m.run(limit=20)
     names = [s.applied.rule.name for s in steps if s.applied]
     check("§16", "a `+` consequent anchors what the rule concluded",
@@ -476,12 +481,13 @@ def applying() -> None:
     # and nothing remembers that it has happened before. A corpus that wants to
     # stop has to say so.
     osc = Machine()
-    load(osc, """
+    osc_kb = load(osc, """
         fact +heat(stove, kettle)
         fact +cold(kettle)
         rule <boil> = implies( { +heat($a, $w) }, { +boiling($w) } )
         rule <off>  = implies( { +boiling($w), +cold($w) }, { -boiling($w) } )
     """)
+    osc._attend(osc_kb.term("heat(stove, kettle)"))
     check("§16", "a corpus whose rules answer each other stops, and the loop "
                  "says WHY: `unattended`, not `quiescent`. The pair really "
                  "does undo each other and nothing remembers it -- but each "
@@ -493,10 +499,11 @@ def applying() -> None:
     # applies again, and the engine does not stop it -- deciding a rule has
     # nothing further to give is the corpus's judgement.
     m2 = Machine()
-    load(m2, """
+    kb2 = load(m2, """
         fact +p(a)
         rule <one> = implies( { +p($x) }, { +q($x) } )
     """)
+    m2._attend(kb2.term("p(a)"))
     steps2 = m2.run(limit=20)
     check("§6", "a rule whose conclusion is already anchored is still OFFERED "
                 "again -- there is no inert set, and deciding a rule has "
@@ -509,10 +516,11 @@ def applying() -> None:
     # wrote. An ordinary premise, readable and overridable, where the inert set
     # was a verdict no rule could reach.
     m2b = Machine()
-    load(m2b, """
+    kb2b = load(m2b, """
         fact +p(a)
         rule <one> = implies( { +p($x), no q($x) }, { +q($x) } )
     """)
+    m2b._attend(kb2b.term("p(a)"))
     steps2b = m2b.run(limit=20)
     check("§6", "...and a corpus that guards its own rule settles, because the "
                 "premise it needs is gone once it has written it",
@@ -521,10 +529,11 @@ def applying() -> None:
     #  The other guard, and the one the dungeon used for its whole turn
     # order: SPEND what you matched. An occasion is consumed, a fact is not.
     m2c = Machine()
-    load(m2c, """
+    kb2c = load(m2c, """
         fact +may(hero)
         rule <act> = implies( { +may(hero) }, { -may(hero), +acted(hero) } )
     """)
+    m2c._attend(kb2c.term("may(hero)"))
     steps2c = m2c.run(limit=20)
     check("§6", "spending the premise stops the rule too, and it is the same "
                 "mechanism a right-to-act already used",
@@ -567,6 +576,8 @@ def mint_markers() -> None:
         rule <meet> = implies( { +seen($p), no met($p) },
                                { +met($p), +person(+k), +named(+k, $p) } )
     """)
+    m._attend(kb.term("seen(alice)"))
+    m._attend(kb.term("seen(bob)"))
     m.run(limit=20)
     people = [p for p in m.pad.believed()
               if m.g.relation_of(p) is kb.atoms["person"]]
@@ -597,6 +608,7 @@ def computators() -> None:
     # table, which is why a computator hands back a value rather than a node:
     # a node built with `g.atom` would be a TWIN of the one the corpus writes.
     kb.computator("minus", lambda a, b: int(a) - int(b))
+    m._attend(kb.term("purse(ana, 7)"))
     m.run(limit=20)
     check("§12", "arithmetic is a condition on the binding that claims nothing",
           m.holds(kb.term("after(ana, 4)")))
@@ -626,6 +638,7 @@ def computators() -> None:
                            { +reported(missed) })
     """)
     kb3.computator("beats", lambda a, b: kb3.atom("yes") if int(a) > int(b) else None)
+    m3._attend(kb3.term("hit(2)"))
     m3.run(limit=5)
     check("§12", "...and `no beats(2, 9)` -- 2 does NOT beat 9 -- matches, "
                  "the computator's own decline (`None`) being the right "
@@ -758,6 +771,7 @@ def triggers() -> None:
     """
     m = Machine()
     kb = load(m, src % "+noticed($c)")
+    m._attend(kb.term("p(a)"))
     m.run(limit=10)
     check("§19", "a trigger sees what a rule is ABOUT to conclude, and may add "
                  "beside it",
@@ -768,12 +782,14 @@ def triggers() -> None:
 
     m2 = Machine()
     kb2 = load(m2, src % "+drop($c)")
+    m2._attend(kb2.term("p(a)"))
     m2.run(limit=10)
     check("§19", "`drop` stops a conclusion landing at all",
           not m2.holds(kb2.term("q(a)")))
 
     m3 = Machine()
     kb3 = load(m3, src % "+instead($c, r(a))")
+    m3._attend(kb3.term("p(a)"))
     m3.run(limit=10)
     check("§19", "`instead` puts something else where it would have gone, and "
                  "says who changed it",
@@ -1060,6 +1076,7 @@ def rhs_tail() -> None:
     kb = load(m, "fact +happy(paul)\n"
                  "rule <r1> = implies({+happy($x)}, {+noticed($x)}) "
                  "=> attend($x, 3)")
+    m._attend(kb.term("happy(paul)"))
     m.run(limit=3)
     check("§20", "the tail's `attend($x, 3)` names the rule's OWN $x, at the "
                  "learned weight, with no separate `after <r1> => ...` "
@@ -1069,6 +1086,7 @@ def rhs_tail() -> None:
     m2 = Machine()
     kb2 = load(m2, "fact +happy(paul)\n"
                    "rule <r1> = implies({+happy($x)}, {+noticed($x)})")
+    m2._attend(kb2.term("happy(paul)"))
     m2.run(limit=3)
     check("§20", "...and a rule with no tail attends nothing beyond what the "
                  "loop attends on its own -- control",
@@ -1078,6 +1096,7 @@ def rhs_tail() -> None:
     kb1b = load(m1b, "fact +bad(x)\n"
                      "rule <r1> = implies({+bad($z)}, {+seen($z)}) "
                      "=> attend($z, -5)")
+    m1b._attend(kb1b.term("bad(x)"))
     m1b.run(limit=3)
     check("§20", "a NEGATIVE weight parses too -- *a reason not to think "
                  "about that*, read by magnitude on the standing side and "
@@ -1089,6 +1108,8 @@ def rhs_tail() -> None:
     m3 = Machine()
     kb3 = load(m3, "fact +happy(paul)\nfact +happy(mary)\n"
                    "rule <r1> = implies({+happy($x)}, {+noticed($x)}) => stop")
+    m3._attend(kb3.term("happy(paul)"))
+    m3._attend(kb3.term("happy(mary)"))
     steps = m3.run(limit=10)
     noticed = sum(1 for n in ("paul", "mary")
                   if m3.holds(m3.g.rel(kb3.atom("noticed"), kb3.atom(n))))
@@ -1111,6 +1132,7 @@ def rhs_graph_ops() -> None:
     kb = load(m, "fact +sameas(loves, adores)\n"
                  "rule <r1> = implies({+sameas($a, $b)}, {+seen($a)}) "
                  "=> merge($a, $b)")
+    m._attend(kb.term("sameas(loves, adores)"))
     m.run(limit=5)
     check("§20", "merge($a, $b) in the tail merges the rule's OWN bindings",
           m.g.identity_of(kb.atom("adores")) == kb.atom("loves"))
@@ -1122,6 +1144,8 @@ def rhs_graph_ops() -> None:
                    "rule <r1> = implies({+sameas($x, $y), "
                    "no processed($x, $y)}, {+processed($x, $y)}) "
                    "=> merge($x, $y)")
+    m2._attend(kb2.term("sameas(a, b)"))
+    m2._attend(kb2.term("sameas(a, c)"))
     m2.run(limit=10)
     a2, b2, c2 = kb2.atom("a"), kb2.atom("b"), kb2.atom("c")
     check("§20", "...and a guarded rule applies it across every pair, not "
@@ -1132,6 +1156,7 @@ def rhs_graph_ops() -> None:
     kb3 = load(m3, "fact +wants_label(kettle, the-kettle)\n"
                    "rule <r1> = implies({+wants_label($x, $t)}, {+seen($x)}) "
                    "=> label($x, $t)")
+    m3._attend(kb3.term("wants_label(kettle, the-kettle)"))
     m3.run(limit=5)
     check("§20", "label($x, $t) reaches `Graph.label` from a rule",
           "the-kettle" in m3.g.labels_of(kb3.atom("kettle")))
@@ -1147,6 +1172,7 @@ def rhs_graph_ops() -> None:
                    "rule <r2> = implies({+labelled($x, $t), "
                    "no unlabelled($x, $t)}, {+unlabelled($x, $t)}) "
                    "=> unlabel($x, $t)")
+    m4._attend(kb4.term("wants_label(kettle, the-kettle)"))
     m4.run(limit=1)
     check("§20", "...between the two, the label really is there",
           "the-kettle" in m4.g.labels_of(kb4.atom("kettle")))
@@ -1164,6 +1190,7 @@ def rhs_graph_ops() -> None:
     kb5 = load(m5, "fact +junk(trash)\n"
                    "rule <r1> = implies({+junk($x)}, {+seen($x)}) "
                    "=> destroy($x)")
+    m5._attend(kb5.term("junk(trash)"))
     m5.run(limit=5)
     trash = kb5.atom("trash")
     #  `trash` is a bare ATOM: `relation_of` on one is None by construction,
@@ -1181,6 +1208,8 @@ def rhs_graph_ops() -> None:
                    "rule <r1> = implies({+sameas($x, $y), "
                    "no processed($x, $y)}, {+processed($x, $y)}) "
                    "=> merge($x, $y)")
+    m6._attend(kb6.term("sameas(a, b)"))
+    m6._attend(kb6.term("sameas(a, c)"))
     m6.run(limit=10)
     a6, b6, c6 = kb6.atom("a"), kb6.atom("b"), kb6.atom("c")
     #  The OLDER of the two merges, read off the record rather than named:
@@ -1207,6 +1236,7 @@ def rhs_graph_ops() -> None:
                    "rule <wound> = implies("
                    "{$hit = answered(<dice>, roll(d20, hit($a, $d)), $n)},"
                    "{+seen($a)}) => forget $hit", scope="s7")
+    m7._attend(kb7.term("need(roll(d20, hit(hero, orc)))"))
     m7.run(limit=10)
     check("§20", "forget $hit erases the answer AND, structurally, the "
                  "request it names -- an occasion consumed as one "
@@ -1219,6 +1249,7 @@ def rhs_graph_ops() -> None:
     kb8 = load(m8, "fact +junk(x)\n"
                    "rule <bad> = implies({$j = junk($x)}, {+seen($x)}) "
                    "=> forget $j")
+    m8._attend(kb8.term("junk(x)"))
     threw = False
     try:
         m8.run(limit=5)
@@ -1246,6 +1277,7 @@ def prefix_binding() -> None:
     )
     m = Machine()
     kb = load(m, corpus)
+    m._attend(kb.term("want(color(ball, red))"))
     m.run(limit=5)
     check("§8", "a judger generic over the RELATION -- one rule, not one "
                 "per relation -- reports the wanted value missing and the "
@@ -1255,6 +1287,7 @@ def prefix_binding() -> None:
 
     m2 = Machine()
     kb2 = load(m2, corpus.replace("+color(ball, blue)", "+color(ball, red)"))
+    m2._attend(kb2.term("want(color(ball, red))"))
     m2.run(limit=5)
     check("§8", "...and stays silent once the want is satisfied -- control",
           not m2.holds(kb2.term("missing(color(ball, red))")))
@@ -1292,6 +1325,7 @@ def alt_branches() -> None:
     m = Machine()
     kb = load(m, corpus + "\nfact +intends(hero, attack(goblin1), 1)\n"
                           "fact +present(goblin1)")
+    m._attend(kb.term("turn(hero)"))
     m.run(limit=5)
     check("§8", "branch 1 -- the declared target is present, attacked "
                 "directly",
@@ -1300,6 +1334,7 @@ def alt_branches() -> None:
     m2 = Machine()
     kb2 = load(m2, corpus + "\nfact +intends(hero, attack(goblin1), 1)\n"
                            "fact +monster(goblin2)\nfact +present(goblin2)")
+    m2._attend(kb2.term("turn(hero)"))
     m2.run(limit=5)
     check("§8", "branch 2 -- the declared target is down (no `present`), "
                 "switches to another monster present -- the SAME rule name, "
@@ -1343,8 +1378,10 @@ def line_form() -> None:
     lined = ("fact +heat(anna, kettle)\nfact +water(kettle)\n"
              "rule <boil>\n  +heat($a, $w)\n  +water($w)\n  no boiling($w)\n"
              "->\n  +boiling($w)\n  -liquid($w)\n")
-    m1 = Machine(); kb1 = load(m1, braced); m1.run(limit=5)
-    m2 = Machine(); kb2 = load(m2, lined); m2.run(limit=5)
+    m1 = Machine(); kb1 = load(m1, braced)
+    m1._attend(kb1.term("heat(anna, kettle)")); m1.run(limit=5)
+    m2 = Machine(); kb2 = load(m2, lined)
+    m2._attend(kb2.term("heat(anna, kettle)")); m2.run(limit=5)
     check("§8", "the line form reaches the same belief as the brace form it "
                 "reshapes -- one grammar, two surfaces",
           m2.holds(kb2.term("boiling(kettle)"))
@@ -1358,6 +1395,7 @@ def line_form() -> None:
                    "->\n  +disrupted($f)\n"
                    "rule <late>\n  +delayed($f, long)\n  no disrupted($f)\n"
                    "->\n  +disrupted($f)\n")
+    m3._attend(kb3.term("cancelled(bl204)"))
     m3.run(limit=5)
     names3 = [r.name for r in m3.rules.rules]
     check("§8", "two line-form rules back to back, no blank line between -- "
@@ -1378,6 +1416,7 @@ def line_form() -> None:
                    "alt\n  $intent = intends(hero, attack($d), $r)\n"
                    "  no present($d)\n  +monster($t)\n  +present($t)\n"
                    "->\n  -may(hero)\n  -$intent\n  +attack(hero, $t)\n")
+    m4._attend(kb4.term("turn(hero)"))
     m4.run(limit=5)
     names4 = [r.name for r in m4.rules.rules]
     check("§8", "`alt` in line form compiles to one Rule per branch, same "
@@ -1395,6 +1434,7 @@ def line_form() -> None:
                    "  $hit = answered(<dice>, roll(d20, hit($a, $d)), $n)\n"
                    "->\n  +seen($a)\n"
                    "=> forget $hit\n", scope="s5")
+    m5._attend(kb5.term("need(roll(d20, hit(hero, orc)))"))
     m5.run(limit=10)
     check("§8", "`=> forget $hit` in line form erases the answer and its "
                 "request together, exactly as the brace form's tail does",
@@ -1503,6 +1543,7 @@ def lanes() -> None:
         fact +lane(<feel>, judge)
         fact +lane_order(judge, 1)
     """)
+    m._attend(kb.term("p(a)"))
     steps = m.run(limit=4)
     check("§20", "the main lane's rule and the judge lane's rule both apply "
                 "in the same ROUND -- same tick number, one shared frame",
@@ -1518,6 +1559,7 @@ def lanes() -> None:
     kb2 = load(m2, "fact +p(a)\n"
                    "rule <one> = implies({+p($x), no q($x)}, {+q($x)})\n"
                    "rule <two> = implies({+q($x), no r($x)}, {+r($x)})")
+    m2._attend(kb2.term("p(a)"))
     m2.run(limit=5)
     check("§20", "a corpus that never claims lane(...) runs one lane, exactly "
                 "as before lanes existed",
@@ -1533,6 +1575,7 @@ def lanes() -> None:
         fact +lane_order(sooner, 0)
         fact +lane_order(later, 1)
     """)
+    m3._attend(kb3.term("p(a)"))
     m3.run(limit=4)
     check("§20", "lane order is a CLAIM, and it decides which lane goes "
                 "first when both would otherwise be tied",
@@ -1583,8 +1626,12 @@ def circuit_breaker() -> None:
     # became unreachable. What the breaker is still FOR is the rule that
     # churns on what the agent really is attending to, and a min is how a
     # corpus says that is the situation.
+    # The PROPOSITION, not the bare atom: `<flaky>`'s own line matches
+    # `p(a)`/`p(b)` and `_attended_first` scores what a line matched, never
+    # its parts (§20) -- pinning `a` lifts a RULE whose antecedent mentions
+    # it (`_pull`'s join) but does not itself keep `p(a)` in the pool.
     for name in ("a", "b"):
-        m._attend(kb.atom(name), weight=3, floor=1)
+        m._attend(kb.term(f"p({name})"), weight=3, floor=1)
     steps = m.run(limit=22)
     names = [s.applied.rule.name for s in steps if s.applied is not None]
     trips = names.count("trip")
@@ -1714,6 +1761,14 @@ def worked_corpora() -> None:
     print("\n--  the shipped corpora run")
     m = Machine()
     kb = load_file(m, _corpora.path("worked.ugm"))
+    # `worked.ugm` is printed verbatim from the design document (its own
+    # header says so), so the kickoff lives here rather than in the corpus:
+    # `<boil>`/`<weather>` read background `fact`s nothing has arrived to
+    # ask about (§20), and giving them one here -- the same way
+    # `circuit_breaker()` below already does -- keeps the file itself an
+    # exact transcript.
+    m._attend(kb.term("heat(anna, kettle)"))
+    m._attend(kb.term("cloudy(monday, morning)"))
     steps = m.run(limit=100)
     check("--", "the design document's worked rules reach quiescence",
           steps[-1].state == "quiescent")
@@ -1744,6 +1799,67 @@ def worked_corpora() -> None:
                 "could falsify the absence is written above the rule that asks "
                 "it", [r.name for r in m2.rules.rules].index("weather")
           < [r.name for r in m2.rules.rules].index("compensate"))
+
+
+def todo_stack() -> None:
+    """`ugm/rules/todo.ugm`: a standing anchor a corpus loads alongside its
+    own (SAME `scope=`, or `task(...)` in each file mints a twin -- the
+    same discipline `tool_approval()` above needs). Two arrivals landing
+    together, arranged as a stack, both closed by a `judge`-lane rule the
+    host corpus supplies -- todo.ugm writes no closing rule of its own."""
+    print("\n--  the todo stack: a standing anchor, tasks pushed and popped, "
+          "closed by the host corpus's own judge")
+    path = _corpora.path("todo.ugm")
+
+    m = Machine()
+    load(m, "", scope="host")
+    kb = load_file(m, path, scope="host")
+    kb2 = load(m, """
+        say user: +raining(here)
+        say user: +snowing(there)
+
+        rule <trust>
+          +says($ch, $p)
+          no believed($p)
+        ->
+          +believed($p)
+
+        # The judge: todo.ugm ships no rule that concludes `completed(...)`
+        # -- that is the host corpus's own business (its header says so).
+        rule <task-answered>
+          +about($t, $said)
+          +believed($said)
+          no completed($t)
+        ->
+          +completed($t)
+        fact +lane(<task-answered>, judge)
+    """, scope="host")
+    steps = m.run(limit=100)
+
+    check("--", "loading the file alone pins `internal_todo` -- always "
+                "attentioned, whether or not the host corpus ever says "
+                "anything",
+          kb.term("internal_todo") in [n for n, _w in m._attention]
+          or m._lane_state()[2].get(kb.term("internal_todo")) is not None)
+    tasks = [p for p in m.pad.believed() if m.g.relation_of(p) is kb.atom("task")]
+    check("--", "two arrivals landing together are both opened as tasks, not "
+                "just the one that wins the first tick -- the same starvation "
+                "`delay.ugm` needed its own hop against",
+          len(tasks) == 2)
+    completed = [p for p in m.pad.believed()
+                if m.g.relation_of(p) is kb.atom("completed")]
+    check("--", "the host corpus's own judge-lane rule closes both, brushed "
+                "into staying reachable long enough for it to",
+          len(completed) == 2
+          and m.holds(kb2.term("believed(raining(here))"))
+          and m.holds(kb2.term("believed(snowing(there))")))
+    top = [p for p in m.g.instances_of(kb.atom("top")) if m.pad.holds(p)]
+    check("--", "both popped -- the stack is back at its own sentinel, "
+                "empty rather than merely quiet",
+          len(top) == 1 and m.g.member(top[0], 1) == kb.term("internal_todo"))
+    check("--", "a closed task is unpinned and fades, rather than sitting "
+                "in mind at the same floor an open one gets",
+          all(m._lane_state()[2].get(t) is None for t in tasks))
 
 
 def determinism() -> None:
@@ -1793,6 +1909,7 @@ def main() -> int:
     surface()
     the_web()
     worked_corpora()
+    todo_stack()
     determinism()
     print(f"\n{COUNT} checks, {len(FAILED)} failing")
     for group, name in FAILED:

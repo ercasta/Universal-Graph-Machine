@@ -16,7 +16,17 @@
 
 action deploy($service)
 
-fact +want(deploy(web))
+# A want is new business, not background -- it arrives, the same as
+# anything else the agent is asked to take care of (§20), rather than
+# sitting as a loaded `fact` nothing has been asked to attend to.
+say ops: +want(deploy(web))
+
+rule <trust>
+  +says($ch, $p)
+  no trusted($ch, $p)
+->
+  +trusted($ch, $p)
+  +$p
 
 rule <request> = implies( { +want(deploy($s)) },
                           { +deploy($s), -want(deploy($s)) } )

@@ -129,6 +129,18 @@ actually knows yet.
   to quiescence applies it eventually unless something forgoes or forbids it.
 - **`standing(<r>)` is what stops a rule being starved.** Two rules oscillating never let a third
   referee take a turn unless the referee is marked `standing`.
+- **A loaded `fact` starts with no attention, and nothing matches without some** (§20). A corpus whose
+  starting condition is `fact`s alone needs its own kickoff — `attend(...)` on a bootstrap rule, or
+  delivering it as a `say` instead. `ugm/rules/circuit_breaker.ugm`'s own selftest fixture and
+  `ugm/rules/todo.ugm` show both.
+- **`brush($x)` (and any RHS `attend($x, ...)`) rebuilds `$x` by substitution if it names a compound
+  built from the rule's OWN bound arguments** — `brush(p($x))` where the antecedent only bound `$x`,
+  not the whole line, mints a twin nobody believes rather than re-attending what actually matched.
+  Bind the whole line first (`$p = p($x)`) and brush `$p`, or use `after <R> { $p = p($x) } =>
+  attend($p, ...)`, which reaches the real node because its query is a MATCH, not a rebuild.
+- **A comment on its own line inside a line-form rule body reads as the blank line that ends one** —
+  the tokenizer strips comments to nothing, so two comment lines between two members look like a
+  paragraph break. Put the comment above the rule, or use the brace form.
 
 ## 6. Testing a corpus before it disappoints you
 

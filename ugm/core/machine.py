@@ -323,7 +323,15 @@ class Machine:
         # it is never enabled unless it carries a token. Sharing one list made
         # `_answer`'s own `_attend_written` call a no-op, with a comment above
         # it saying exactly what must not happen.
-        self._incidental = self._bookkeeping - {self.ANSWERED}
+        #
+        # A DOUBT is the same shape one layer up: `close(...)` is still not
+        # world state (`_contents` must keep excluding it), but it is what a
+        # settling rule waits on, and a settling rule unattended is a
+        # settling rule `_attended_first` throws away regardless of its table
+        # score. Invisible while attention never decayed -- whatever was
+        # already in the pool kept overlapping by accident -- and load-
+        # bearing the moment it does (`attention.run`'s doubt branch).
+        self._incidental = self._bookkeeping - {self.ANSWERED, self.CLOSE}
 
         self.answerers: List[Answerer] = []
         self.selections = 0
@@ -1111,18 +1119,24 @@ class Machine:
         # `_attend` -- because a standing weight never fades, and every
         # sentence ever typed keeping a permanent multiplier is not a memory
         # of anything.
-        # ...and it is attended exactly as anything else is. An arrival used
-        # to get a strength of its own, on the argument that an utterance is
-        # an occasion rather than a standing interest -- but choosing how
-        # much what the world said is worth, relative to what a corpus loaded
-        # or a move wrote, is the engine deciding for the corpus. Same brush,
-        # restored to its own start if it has one.
+        # ...and it is attended at the STARTING strength, not a brush's.
+        # This used to match what a move's own incidental write gets, on the
+        # ground that ranking arrival above write is the engine deciding for
+        # the corpus -- but a loaded `fact` no longer gets a token AT ALL
+        # (§20: background is not something to take care of), and a channel
+        # is where "take care of this" now comes from BY DEFAULT. A brush's
+        # one tick is enough runway for a rule that was already in play to
+        # notice something changed; it is not enough for the crossing itself
+        # to survive being one of several arrivals delivered in the same
+        # batch (`m2.holds` needing the SECOND `say` in a corpus to still be
+        # reachable a few ticks later). Still queue-only, still fades, still
+        # no permanent multiplier -- `start` is a lifetime, not a `floor`.
         # The ARRIVAL, not only what arrived. `<intake>` reads
         # `arrived($channel, $said)`, and a token on the sentence is not a
         # token on the fact that it turned up -- with the gate asking about a
         # line's own node, attending the parts and not the whole left the
         # crossing rule unenabled and the run silent.
-        self._attend_written((node,))
+        self._attend_written((node,), start=ATTENTION_START)
 
 
     # -- the loop ----------------------------------------------------------
