@@ -9,7 +9,7 @@ a runnable check. This one isn't, yet.
 
 | today | intensity-gates |
 |---|---|
-| `believed(p)` / `erase` — presence, kept as an occasion stack | every node carries an intensity (a number); "on" = intensity above a threshold |
+| `believed(p)` / `erase` — presence, kept as an occasion stack | every node, uniformly, carries an intensity (a number); "on" = above a threshold; `erase`'s job is now setting it to `0` |
 | `attention(x)` — a separate lift/pick layer over the table | gone — an antecedent member reads a node's intensity directly |
 | lanes | gone — nothing needs a guaranteed turn once firing is per-rule rather than per-table: a rule fires whenever its own gates are on, so it can't be starved by another rule's schedule |
 | score / `standing` / declaration-order tie-break | gone — a rule doesn't "win" a tick against rivals; every rule whose gates are on fires |
@@ -49,6 +49,13 @@ a runnable check. This one isn't, yet.
 - The rule-bias idea (same note): wire a `gate(n)` node into an existing
   rule's antecedent; a separate rule's RHS is the only thing that sets it.
   Style is learned by adding these, never by naming the rule being steered.
+- **`-p`, today's erase sign, is retired as its own primitive.** It's
+  subsumed by the general intensity write: setting a node's intensity to `0`
+  is what un-claiming it now means, and it does exactly what `erase` does
+  today — the node survives as structure, nameable and matchable, just off.
+  `destroy($x)` stays a separate, existing postcondition (ch. 28's list) for
+  the harder operation `-p` was never asked to do: taking the node out of
+  the graph entirely, not just switching it off.
 
 ## First-cut defaults — flagged, not settled
 
@@ -87,10 +94,20 @@ a difference. A corpus that wants today's persistence for a given fact
 writes `keep` where it reads that fact; a corpus that writes nothing gets
 resource-consumption semantics (linear-logic-flavored) by default.
 
-## Open questions, not defaulted
+**Every node gets an intensity.** Not an opt-in per corpus or per relation —
+uniform across domain propositions, gate nodes, everything. There's no
+`believed(p)` left to fall back to for the nodes that didn't opt in, because
+nothing opts in; presence-as-a-separate-concept is gone, not narrowed.
 
-- Does every node get an intensity (domain propositions included), or only
-  ones a corpus explicitly opts into? "we don't need believed in the engine"
-  reads as: every node, uniformly.
-- What does `-p(x)` — an explicit denial, distinct from `no p(x)`'s silence —
-  become once presence is gone?
+**`-p` is gone as a sign; two RHS ops replace its one job.** `destroy($x)`
+(unchanged, already shipped) removes a node's structure outright. Setting a
+node's intensity to `0` — the general write, not a new named primitive —
+switches it off while the node survives as structure. What used to be one
+sign covering both readings is now two RHS operations with two different
+costs, chosen explicitly rather than inferred from a `-`.
+
+---
+
+No open questions outstanding. What's left is syntax (the `keep` modifier,
+the intensity-write form) and the implementation itself, across
+`ugm/core/attention.py`, `gate.py`, `machine.py`, `rules.py`, `text.py`.
