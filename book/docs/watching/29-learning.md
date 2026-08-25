@@ -49,6 +49,22 @@ automatically. The mechanism reads and respects the tag; producing the tagged
 value is a corpus author's job, done by hand — from watching a run, from a
 transcript, from trial and error on the scoring the table (Chapter 28) uses.
 
+!!! note "Idea: gates, and an analog guard against runaways"
+    Attention already reads as a gate: a rule can't fire on an antecedent
+    member nothing has attended to, and `attend`/`unattend` are a rule's RHS
+    turning a node on or off for whatever reads it next.
+
+    That reading only needs presence — `attention(x)` holds or it doesn't.
+    Nothing forces the gate to stay binary. If a gate carried an intensity
+    instead of on/off, a rule that risks running away could maintain its own
+    guard node, raising that node's intensity by one each tick it fires, and
+    gate its own antecedent on the guard staying under a threshold —
+    self-limiting, rather than caught only by `bounded(ticks)` after the fact
+    (Chapter 34's "Loop detection").
+
+    Neither analog intensity nor a runaway guard is built. Marked here as an
+    idea, not a result.
+
 ---
 
 **Next:** the five things that genuinely could not be taught.
