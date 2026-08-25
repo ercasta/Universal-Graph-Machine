@@ -1464,15 +1464,23 @@ def circuit_breaker() -> None:
     revived, tripped again -- rather than either exhausting the tick budget on
     one runaway rule or going permanently silent after the first trip.
 
-    Firing discharges by default now (docs/design/intensity-gates.md), so
-    `brush(p($x))` -- the table era's way of putting a spent premise back --
-    is retired along with the mechanism it was for: `<flaky>`'s own
-    consequent recharges `p($x)`, the SAME node its antecedent just
-    matched (a bound variable, not a fresh ground literal -- see
-    `core/firing.py`'s own worked example for why that distinction is
-    load-bearing), so the discharge and the recharge fold to the same
-    number this tick and `p($x)` never actually goes off. That is what a
-    rule that cannot stop itself looks like now."""
+    What a rule that cannot stop itself LOOKS like changed with the
+    engine, and `<flaky>` changed with it. It used to discharge `p($x)`
+    and recharge the same node in its own consequent, so the two folded to
+    the same number and the premise never went off. Nothing discharges
+    now, and refraction fires each instantiation once -- so a fixed
+    antecedent is fired once and is not a runaway at all. What IS one is
+    MINTING: every minted node is a new instantiation and so a fresh turn.
+    `<flaky>` reads `clock($t)`, which is a fresh node every tick, and
+    mints a `beat` off it -- unbounded, bounded only by the breaker.
+
+    It must mint at a bounded RATE, which is why it joins the clock and
+    not an accumulating premise. Joined against a set that grows, every
+    re-mint of the other member hands every accumulated occasion a new
+    refraction key and they all fire again: the previous `<flaky>`, run on
+    this engine, reached 57,406 beliefs in 50 ticks. That is a real hazard
+    of minting-plus-refraction and it is what corpus discipline (erase
+    what you replace) is for; it is not what this check is about."""
     print("\n--  a circuit breaker: every rule fires whenever its own gates "
           "are on, so the trip/cooldown/revive rules need no guaranteed "
           "turn independent of the rule they watch -- and the suspension "
@@ -1485,10 +1493,8 @@ def circuit_breaker() -> None:
     # -- and triggers are retired, so watching a rule is now something the
     # watched rule says out loud rather than something done to it.
     src = """
-        fact +p(a)
-        fact +p(b)
-        rule <flaky> = implies( { +p($x), keep gate(flaky_tag) },
-                               { +q(a), +p($x), +beat(flaky_tag) } )
+        rule <flaky> = implies( { clock($t), +gate(flaky_tag) },
+                               { +q(a), +beat(flaky_tag) } )
 
         fact +gate(flaky_tag)
         fact +tries(flaky_tag, 0)
