@@ -76,7 +76,7 @@ ATTENTION_DECAY = 1
 #: SAME for a channel arrival and for a corpus being loaded: choosing that
 #: what the world said outweighs what a move wrote is the engine deciding
 #: something only a corpus can.
-ATTENTION_BRUSH = 5
+ATTENTION_BRUSH = 1
 
 #: The least a claim may fade to. Zero means it fades away entirely, which
 #: is what almost everything wants. Above zero it is PINNED: it never leaves
@@ -312,6 +312,18 @@ class Machine:
             self.DELTA, self.MISSING, self.MATCHED, self.EXTRA,
             self.ERASED,
         }
+        #  What is not worth THINKING ABOUT, which is a different question
+        # from what is not part of the world. `_bookkeeping` answers the
+        # second: `_contents` uses it so a gap does not report the apparatus
+        # as something to get rid of.
+        #
+        # An ANSWER is in the first set and not the second. It is the agent's
+        # own record that a tool said so -- not world state -- but it is also
+        # NEW BUSINESS arriving from outside any rule, and the rule waiting on
+        # it is never enabled unless it carries a token. Sharing one list made
+        # `_answer`'s own `_attend_written` call a no-op, with a comment above
+        # it saying exactly what must not happen.
+        self._incidental = self._bookkeeping - {self.ANSWERED}
 
         self.answerers: List[Answerer] = []
         self.selections = 0
@@ -636,10 +648,10 @@ class Machine:
         for prop in reversed(tuple(wrote or ())):
             # NOT the agent's own record-keeping: those are how the machinery
             # remembers what it did, not things the world is about.
-            if self.g.relation_of(prop) in self._bookkeeping:
+            if self.g.relation_of(prop) in self._incidental:
                 continue
             for node in self._nodes_of(prop, []):
-                if self.g.relation_of(node) in self._bookkeeping:
+                if self.g.relation_of(node) in self._incidental:
                     continue
                 self._push_attention(node, start, floor=floor)
 
@@ -1285,10 +1297,20 @@ class Machine:
 
     def _obey(self, trigger: "Rule", pending: List[Tuple[NodeId, str]],
               found) -> List[Tuple[NodeId, str]]:
-        """Read a trigger's conclusions as instructions about the delta."""
-        replaced: Dict[NodeId, NodeId] = {}
+        """Read a trigger's conclusions as instructions about the delta.
+
+        An instruction names its operand by SHAPE. `instead(deploy($s),
+        pending(deploy($s)))` is a pattern the trigger grounds, so the
+        `deploy(web)` inside it is a node built to say WHICH conclusion --
+        never the conclusion node itself, which the intercepted rule built.
+        Those were one node while `rel` interned, and keying on the node meant
+        the instruction silently matched nothing the moment they parted: the
+        approval corpus wrote `deploy(web)` straight out, unapproved.
+        """
+        replaced: Dict[Tuple, NodeId] = {}
         dropped: set = set()
         added: List[Tuple[NodeId, str]] = []
+        shape = self.g.shape_of
         for a in found:
             for m in trigger.consequent:
                 said = substitute(self.g, m.pattern, a.bindings)
@@ -1297,22 +1319,23 @@ class Machine:
                 rel = self.g.relation_of(said)
                 if rel is self.INSTEAD and len(self.g.members(said)) == 2:
                     old, new = self.g.members(said)
-                    replaced[old] = new
+                    replaced[shape(old)] = new
                 elif rel is self.DROP and len(self.g.members(said)) == 1:
                     (gone,) = self.g.members(said)
-                    dropped.add(gone)
+                    dropped.add(shape(gone))
                 else:
                     added.append((said, m.sign))
         if not (replaced or dropped or added):
             return pending
         out: List[Tuple[NodeId, str]] = []
         for prop, sign in pending:
-            if prop in dropped:
+            here = shape(prop)
+            if here in dropped:
                 self._rewrote(trigger, prop, None)
                 continue
-            if prop in replaced:
-                self._rewrote(trigger, prop, replaced[prop])
-                out.append((replaced[prop], sign))
+            if here in replaced:
+                self._rewrote(trigger, prop, replaced[here])
+                out.append((replaced[here], sign))
                 continue
             out.append((prop, sign))
         for prop, sign in added:

@@ -14,6 +14,11 @@ rule <late>
   +disrupted($f)
 
 # the duty of care is owed whatever the cause
+#
+# The brushes put back what this move matched on. A move consumes its premises,
+# and `<compensate>` and `<reroute>` below need the same two -- so without them
+# the first rule to reach a disruption is the only one that ever does, and
+# compensation is never asked about at all.
 rule <care>
   +disrupted($f)
   +booked($p, $f)
@@ -21,6 +26,7 @@ rule <care>
 ->
   +owed($p, meals)
   +owed($p, lodging)
+=> brush(disrupted($f)), brush(booked($p, $f))
 
 # a storm is outside the carrier's control; a crew shortage is not, and that is
 # now said by the ABSENCE of a rule rather than by one.

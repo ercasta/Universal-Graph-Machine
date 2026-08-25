@@ -409,7 +409,7 @@ def arbitration_is_total() -> None:
     m = Machine()
     kb = load(m, """
         fact +p(a)
-        rule <one> = implies( { +p($x), no q($x) }, { +q($x) } )
+        rule <one> = implies( { +p($x), no q($x) }, { +q($x) } ) => brush(p($x))
         rule <two> = implies( { +p($x), no r($x) }, { +r($x) } )
     """)
     steps = [s for s in m.run(limit=8) if s.applied]
@@ -417,7 +417,15 @@ def arbitration_is_total() -> None:
           bool(steps))
     check("§14", "and it answers by AUTHORED ORDER when nothing else separates "
                  "them", steps[0].applied.rule.name == "one")
-    check("§14", "both eventually apply -- a loser is deferred, not rejected",
+    #  The brush on `<one>` is the point of the check, not scaffolding
+    # around it. Arbitration defers rather than rejects -- but a move also
+    # spends what it matched, so the deferred rule finds its premise gone
+    # unless the winner says otherwise. Whether the loser still gets its turn
+    # is therefore a fact about what `<one>` gives back, and the two
+    # mechanisms are separable exactly here.
+    check("§14", "both eventually apply -- arbitration defers a loser rather "
+                 "than rejecting it, and it is still there to take its turn "
+                 "once the winner puts the premise back",
           m.holds(kb.term("q(a)")) and m.holds(kb.term("r(a)")))
     check("§14", "arbitrate over nothing answers None",
           arbitrate(m.rules, []) is None)
@@ -982,6 +990,19 @@ def reference_lines() -> None:
 
     m2 = Machine()
     kb2 = load(m2, corpus)
+    #  Emptied first, for the machine above's reason. Without this, loading
+    # has already attended `mary` along with everything else it wrote, so
+    # `attentioned($x)` opens for both and the check cannot tell a predicate
+    # that picks one referent out from one that lets everything through.
+    #
+    # Then TWO claims, because they answer two different questions. The
+    # occasion `happy(paul)` is what the rule's first line has to match on,
+    # and a move is only offered when a line it matched carries a token. The
+    # atom `paul` is what `attentioned($x)` asks about -- the referent, not
+    # the proposition. Attending only the atom offers the rule nothing;
+    # attending only the proposition opens the predicate for nobody.
+    m2._unattend()
+    m2._attend(kb2.term("happy(paul)"))
     m2._attend(kb2.atom("paul"))
     m2.run(limit=5)
     check("§20", "attending paul picks him out -- only the attended one is "
@@ -1524,19 +1545,24 @@ def circuit_breaker() -> None:
     either). Composes triggers, `dormant`/`due`, a lane and a cooldown --
     see the corpus's own header for why each is load-bearing.
 
-    The suspension is temporary BY DESIGN: `<flaky>` never gets fixed (this
-    fixture cannot fix it -- both `+p(a)` and `+p(b)` hold from the start),
-    so the only honest test is that it keeps cycling -- tripped, cooled
-    down, revived, tripped again -- rather than either exhausting the tick
-    budget on one runaway rule or going permanently silent after the first
-    trip."""
+    The suspension is temporary BY DESIGN: `<flaky>` never gets fixed, so the
+    only honest test is that it keeps cycling -- tripped, cooled down,
+    revived, tripped again -- rather than either exhausting the tick budget on
+    one runaway rule or going permanently silent after the first trip.
+
+    The `brush(p($x))` is what MAKES it a runaway. A move consumes what it
+    matched on, so `+p(a)` and `+p(b)` holding from the start buys two
+    firings and then silence -- and a watchdog watching a rule that stops on
+    its own is watching nothing. Putting the premise back is how a corpus
+    says *this is not the last thing that should happen to it*, and here it
+    is what a rule that cannot stop itself looks like."""
     print("\n--  a circuit breaker: a lane keeps the trip rule from being "
           "starved by what it watches, and the suspension is temporary")
     path = _corpora.path("circuit_breaker.ugm")
     src = """
         fact +p(a)
         fact +p(b)
-        rule <flaky> = implies( { +p($x) }, { +q(a) } )
+        rule <flaky> = implies( { +p($x) }, { +q(a) } ) => brush(p($x))
 
         fact +watched(<flaky>, flaky_tag)
         fact +tries(flaky_tag, 0)
