@@ -25,27 +25,27 @@ once you sit down and write rules, see [`authoring.md`](authoring.md).
 
 ## The loop
 
-Each tick: score every rule, take the first whose antecedent matches against current belief, apply it
-(write what it asserts, erase what it retracts), repeat. A run ends *quiescent* (nothing matches) or
-hits a tick limit — `--limit N`, default 400. Nothing in the loop is privileged; stopping is a rule
-spending a postcondition (`=> stop`), not an engine decision.
+Each tick: match every rule against belief as it stood at the tick's start, fire all of them, fold
+their writes together and commit once. A run ends *quiescent* (nothing matches, or everything that
+matched asked for what already held) or hits a tick limit — `--limit N`, default 400. Nothing in the
+loop is privileged; stopping is a rule spending a postcondition (`=> stop`), not an engine decision.
 
-**Lanes** run more than one such pass per round. `fact +lane(<R>, watchdog)` puts a rule in its own
-lane, guaranteed a turn every round regardless of what the default (`main`) lane selects that tick —
-how a watchdog rule stays alive even when another rule always wins `main`'s arbitration. See
-`ugm/rules/circuit_breaker.ugm`.
+Nothing ranks rules and nothing picks one, so nothing can be starved. **Lanes** existed to guarantee
+a turn under one-rule-per-tick selection and are retired; `lane(...)`/`lane_order(...)` still load
+but nothing reads them.
 
-**Triggers** (`intercepts`/`producing`/`instead`/`drop`) let a rule see what another rule is about to
-conclude, before it lands, and add beside it, replace it, or drop it:
+**Gates** are how one rule governs another. A gated rule carries `keep gate(...)` in its own
+antecedent and cannot conclude until something opens it:
 
 ```
-fact +intercepts(<hold>, after)
-rule <hold> = implies( { +producing(<request>, deploy($s)) },
-                       { +instead(deploy($s), pending(deploy($s))) } )
+rule <request> = implies( { +want(deploy($s)), keep gate(deploy($s)) },
+                          { +deploy($s) } )
 ```
 
-This is the whole of how approval-gating and starvation-breaking are built — ordinary rules, no
-engine hook per feature. See [`tools-approval.md`](tools-approval.md).
+This is the whole of how approval-gating and circuit-breaking are built — ordinary rules, no engine
+hook per feature. It replaced write-time triggers (`intercepts`/`producing`/`instead`/`drop`), which
+are retired: a gate stops the proposition being concluded at all, rather than rewriting it on its way
+out. See [`tools-approval.md`](tools-approval.md).
 
 ## Intensity, and what firing spends
 

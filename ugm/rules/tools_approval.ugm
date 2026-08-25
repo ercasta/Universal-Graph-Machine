@@ -1,18 +1,34 @@
 # Tool activation, gated by approval -- the worked example for
 # docs/tools-approval.md.
 #
-# No new engine primitive: `action` is the discoverable palette, `<hold>` is
-# an ordinary write-time trigger (`intercepts`/`producing`/`instead`, same as
-# `selftest.triggers`), and the approval itself is an ordinary tool -- a
-# Python `answerer` bound to the `pending` relation, registered by whatever
-# loads this corpus (see `ugm/probes/tools.py`). It may answer instantly, or
-# block on a real human; the corpus cannot tell the difference and does not
-# need to.
+# No new engine primitive. `action` is the discoverable palette; the
+# approval itself is an ordinary tool -- a Python `answerer` bound to the
+# `pending` relation, registered by whatever loads this corpus (see
+# `ugm/probes/tools.py`). It may answer instantly, or block on a real
+# human; the corpus cannot tell the difference and does not need to.
 #
-# The strategy lives entirely in `<hold>`: this one holds every `deploy`
-# action for approval. A different strategy is a different `<hold>` -- ask
-# only for a `production` service, auto-approve everything, always deny --
-# swapped in without touching `<request>`, `<approved>` or `<denied>`.
+# -- why a GATE, and not a write-time trigger ---------------------------
+#
+# `<hold>` used to be an `intercepts`/`producing`/`instead` trigger: it
+# watched `<request>` about to conclude `deploy($s)` and swapped the
+# pending write for `pending(deploy($s))`, so the action was never
+# believed. Triggers are retired, and consumption does NOT replace them --
+# every rule whose antecedent is on fires, so a `<hold>` that merely
+# CONSUMED `deploy($s)` would not stop a tool rule reading the same
+# occasion in the same tick. Measured, not supposed.
+#
+# A gate does it structurally instead. `<request>` carries
+# `keep gate(deploy($s))` in its own antecedent and simply cannot conclude
+# the action until something opens it. The dangerous proposition is never
+# minted rather than minted-and-rewritten, which is a stronger guarantee
+# and one a reader can see by looking at the rule.
+#
+# The strategy still lives entirely in `<hold>`: this one holds every
+# `deploy` for approval. A different strategy is a different `<hold>` --
+# ask only for a `production` service, auto-approve by opening the gate
+# outright, always deny by never opening it -- swapped in without touching
+# `<request>`, `<approved>` or `<denied>`. The gate line is the socket;
+# `<hold>` is what plugs into it.
 
 action deploy($service)
 
@@ -27,20 +43,27 @@ rule <trust>
   +trusted($ch, $p)
   +$p
 
-rule <request> = implies( { +want(deploy($s)) },
-                          { +deploy($s), -want(deploy($s)) } )
+# GATED. `keep` on the gate: it is a standing permission several requests
+# may pass through, not something the first one spends. The plain
+# `+want(...)` is what retires the want, by ordinary consumption.
+rule <request> = implies( { +want(deploy($s)), keep gate(deploy($s)) },
+                          { +deploy($s) } )
 
-fact +intercepts(<hold>, after)
-rule <hold> = implies( { +producing(<request>, deploy($s)) },
-                       { +instead(deploy($s), pending(deploy($s))) } )
+# The strategy. `asked(...)` makes this ask ONCE: without it a denial
+# erases `pending` while the want is still standing, `<hold>` re-creates
+# it, and the tool is asked the same question every tick for ever.
+rule <hold> = implies( { keep want(deploy($s)), no gate(deploy($s)),
+                         no asked(deploy($s)) },
+                       { +pending(deploy($s)), +asked(deploy($s)) } )
 
 # The two ways an answer resolves. Each consumes the record it answers, so
-# neither rule matches twice for the same request -- the same discipline
-# `docs/guide.md`'s `<pay>` example spends on `-pays(...)`.
+# neither rule matches twice for the same request.
 rule <approved> = implies( { +answered(<approve>, pending(deploy($s)), yes) },
-                           { +deploy($s), -pending(deploy($s)),
+                           { +gate(deploy($s)), -pending(deploy($s)),
                              -answered(<approve>, pending(deploy($s)), yes) } )
 
+# A denial retires the WANT as well as the record: nothing else is going to,
+# and a want nobody will ever act on is not a want.
 rule <denied> = implies( { +answered(<approve>, pending(deploy($s)), no) },
-                         { -pending(deploy($s)),
+                         { -pending(deploy($s)), -want(deploy($s)),
                            -answered(<approve>, pending(deploy($s)), no) } )

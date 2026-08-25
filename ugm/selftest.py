@@ -767,38 +767,70 @@ def tools() -> None:
           and not m.holds(kb.atom("fill")))
 
 
-def triggers() -> None:
-    print("\n§19 triggers: marking is adding, refusing is dropping, wrapping "
-          "is replacing")
-    src = """
-        fact +p(a)
-        rule <base> = implies( { +p($x) }, { +q($x) } )
-        rule <mark> = implies( { +producing(<base>, $c) }, { %s } )
-        fact +intercepts(<mark>, after)
+def triggers_are_retired() -> None:
+    """Write-time triggers, and the `after` statement, both gone
+    (docs/design/intensity-gates.md).
+
+    This is what is left of `triggers()`, which checked that a trigger saw
+    `producing(<rule>, p)` before a conclusion committed and could `drop`
+    it or put something `instead`. That mechanism was the only way to stop
+    a proposition being believed AT ALL -- and consumption does not replace
+    it: every rule whose antecedent is on fires, so a `<hold>` that merely
+    CONSUMED the dangerous occasion would not stop a tool rule reading the
+    same occasion in the same tick. The check below is that measurement,
+    kept as a check rather than a comment, because it is the whole reason
+    gating had to move into the antecedent.
     """
+    print("\n§19 triggers are retired -- gating moved into the antecedent, "
+          "where a reader can see it")
+
     m = Machine()
-    kb = load(m, src % "+noticed($c)")
-    m.run(limit=10)
-    check("§19", "a trigger sees what a rule is ABOUT to conclude, and may add "
-                 "beside it",
-          m.holds(kb.term("q(a)")) and m.holds(kb.term("noticed(q(a))")))
-    check("§19", "...and `producing` does not outlive the question, because a "
-                 "claim that did would say the rule had concluded what it has "
-                 "not", not m.holds(kb.term("producing(<base>, q(a))")))
+    refused = False
+    try:
+        load(m, "rule <base> = implies( { +p($x) }, { +q($x) } )\n"
+                "after <base> { +p($x) } => stop")
+    except ParseError as e:
+        refused = "retired" in str(e)
+    check("§19", "an `after <R> { ... } => ...` statement is a ParseError, "
+                 "not a silent no-op", refused)
 
+    check("§19", "and the machinery is gone from `Machine` outright",
+          not any(hasattr(Machine(), a) for a in
+                  ("_intercept", "_producing", "_obey", "_rewrote",
+                   "_triggers", "INTERCEPTS", "PRODUCING", "INSTEAD",
+                   "REWROTE")))
+
+    #  WHY it could not just become a consuming rule. This is the
+    # measurement that decided the port, not an illustration of it.
     m2 = Machine()
-    kb2 = load(m2, src % "+drop($c)")
-    m2.run(limit=10)
-    check("§19", "`drop` stops a conclusion landing at all",
-          not m2.holds(kb2.term("q(a)")))
+    kb2 = load(m2, """
+        fact +want(deploy(web))
+        rule <request> = implies( { +want(deploy($s)) }, { +deploy($s) } )
+        rule <hold>    = implies( { +deploy($s) }, { +pending(deploy($s)) } )
+        rule <execute> = implies( { +deploy($s) }, { +deployed($s) } )
+    """)
+    m2.run(limit=6)
+    check("§19", "a `<hold>` that merely CONSUMES the dangerous occasion "
+                 "does NOT gate it -- `<execute>` matched the same opening "
+                 "state and fired alongside, which is why interception "
+                 "could not simply become an ordinary rule",
+          m2.holds(kb2.term("pending(deploy(web))"))
+          and m2.holds(kb2.term("deployed(web)")))
 
+    #  ...and the gate that replaced it. The action is never MINTED, which
+    # is a stronger guarantee than minted-and-rewritten.
     m3 = Machine()
-    kb3 = load(m3, src % "+instead($c, r(a))")
-    m3.run(limit=10)
-    check("§19", "`instead` puts something else where it would have gone, and "
-                 "says who changed it",
-          m3.holds(kb3.term("r(a)")) and not m3.holds(kb3.term("q(a)"))
-          and any(m3.g.relation_of(p) is m3.REWROTE for p in m3.pad.believed()))
+    kb3 = load(m3, """
+        fact +want(deploy(web))
+        rule <request> = implies( { +want(deploy($s)), keep gate(deploy($s)) },
+                                  { +deploy($s) } )
+        rule <execute> = implies( { +deploy($s) }, { +deployed($s) } )
+    """)
+    m3.run(limit=6)
+    check("§19", "...while a GATE in the rule's own antecedent stops it "
+                 "being concluded at all, so nothing downstream can read it",
+          not m3.holds(kb3.term("deployed(web)"))
+          and m3.holds(kb3.term("want(deploy(web))")))
 
 
 def tool_approval() -> None:
@@ -1446,12 +1478,19 @@ def circuit_breaker() -> None:
           "turn independent of the rule they watch -- and the suspension "
           "is still temporary")
     path = _corpora.path("circuit_breaker.ugm")
+    #  `<flaky>` names its own tag now: `keep gate(flaky_tag)` is the line
+    # the breaker shuts to suspend it, and `+beat(flaky_tag)` is how it
+    # reports activity. Both used to be the breaker's business -- it read
+    # `producing(...)` off a write-time trigger and wrote `dormant(<flaky>)`
+    # -- and triggers are retired, so watching a rule is now something the
+    # watched rule says out loud rather than something done to it.
     src = """
         fact +p(a)
         fact +p(b)
-        rule <flaky> = implies( { +p($x) }, { +q(a), +p($x) } )
+        rule <flaky> = implies( { +p($x), keep gate(flaky_tag) },
+                               { +q(a), +p($x), +beat(flaky_tag) } )
 
-        fact +watched(<flaky>, flaky_tag)
+        fact +gate(flaky_tag)
         fact +tries(flaky_tag, 0)
         fact +threshold(flaky_tag, 5)
         fact +cooldown_len(flaky_tag, 3)
@@ -1754,7 +1793,7 @@ def main() -> int:
     the_boundary()
     the_bundle()
     tools()
-    triggers()
+    triggers_are_retired()
     tool_approval()
     reference_lines()
     rhs_tail()

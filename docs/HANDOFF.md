@@ -1,4 +1,4 @@
-# Handoff — 2026-08-25 (attention, focus and frames removed)
+# Handoff — 2026-08-25 (attention, focus, frames and triggers removed)
 
     python -m ugm.selftest          184 checks, 1 failing  (known red, below)
     python -m ugm.gates.vocabulary   16 checks, 2 failing  (known false positive, below)
@@ -53,6 +53,33 @@ that no intensity is nudged below zero.
 The file has held the tick loop and nothing else since the intensity commits. `machine.py`'s two
 deferred imports, `core/__init__.py`'s layering note, README, `docs/guide.md` and two book chapters
 were updated with it.
+
+## Write-time triggers retired; gating moved into the antecedent
+
+`intercepts`/`producing`/`instead`/`drop`/`rewrote` and the `after <R> { ... } => ...` statement are
+gone. The RHS tail (`=> stop`, `=> forget $hit`) survives — it shares the backend but is a different
+surface, and `dungeon_micro.ugm`/`dungeon_gut.ugm` use it.
+
+**Consumption does not replace interception.** The obvious port — make `<hold>` an ordinary rule that
+consumes the dangerous occasion — was measured and fails: every rule whose antecedent is on fires, so
+`<hold>` consuming `deploy(web)` does not stop an `<execute>` that matched the same opening state.
+Both fire. That measurement is now a check in `triggers_are_retired()` rather than a comment.
+
+A GATE is the replacement and is strictly stronger: the governed rule carries `keep gate(...)` in its
+own antecedent and cannot conclude at all until something opens it — never minted, rather than
+minted-and-rewritten. Three corpora ported:
+
+- **`tools_approval.ugm`** — `<request>` is gated; `<hold>` opens or withholds. `asked(...)` makes the
+  tool asked once (without it, a denial erases `pending` while the want stands and the question
+  repeats every tick for ever). `ugm/probes/tools.py` passes unchanged.
+- **`fs/fs_demo.ugm`** — same shape for `<propose-rename>`.
+- **`circuit_breaker.ugm`** — the bigger change. `<watchdog>` counted `producing(...)`, which cost the
+  watched rule nothing; it now counts `beat($tag)`, which the watched rule writes itself. Suspension
+  is the gate closing rather than `dormant(<R>)`, which deletes the whole tainted-rule-reference
+  hazard the corpus header used to document — no `<R>` in a fact any more, only ground tags.
+
+`standing(<r>)` is now genuinely dead. I had corrected `authoring.md` mid-session to say it was live
+because it ordered intercepting triggers; that was true then and is not now. Corrected again.
 
 ## Known red, both pre-existing
 

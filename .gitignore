@@ -10,3 +10,7 @@ build/
 
 # Third-party research corpora fetched by bench/fetch_corpora.py — NOT ours to redistribute.
 data/corpora/
+
+# Claude Code's agent worktrees live here. They are checkouts of THIS repo, so
+# `git add -A` from the top otherwise stages one as an embedded gitlink.
+.claude/

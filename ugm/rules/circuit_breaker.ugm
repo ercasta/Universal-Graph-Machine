@@ -39,45 +39,41 @@
 #
 # Why these are load-bearing, found by testing rather than reasoning:
 #
-#   A RULE REFERENCE IS TAINTED. `<watched-rule>`'s own graph node has
-#   `has_var = True` -- a rule's reification structurally contains its own
-#   antecedent/consequent variables, and `has_var` propagates. So a
-#   variable bound to a rule (`$r`) cannot be written into a NEW fact
-#   safely: a trigger's own addition containing it is silently dropped
-#   (`_obey`'s "still generic, not an instruction" check), and
-#   `no dormant($r)` silently fails to MATCH at all, guard included. Route
-#   "which rule" through a plain, untainted TAG instead
-#   (`watched(<R>, some_tag)`), and count/guard/cool down against the tag.
-#   `$r` is only ever written where the engine's own machinery requires the
-#   real node: `+dormant($r)`, `+due($r)` and `-due($r)`.
+#   SUSPENSION IS THE GATE CLOSING, not `dormant(<R>)`. The breaker used
+#   to name the watched RULE (`watched(<R>, tag)`, `+dormant($r)`), and a
+#   rule reference is TAINTED: a rule's reification structurally contains
+#   its own antecedent/consequent variables, `has_var` propagates, and a
+#   variable bound to a rule could not be written into a new fact or
+#   guarded with `no dormant($r)` at all. Routing everything through a
+#   plain TAG was the workaround. With a gate there is no rule reference
+#   left to taint -- `gate($tag)`, `beat($tag)`, `tries($tag, $n)` are all
+#   ordinary ground facts, and the watched rule names the tag itself.
 #
 #   THE COOLDOWN CANNOT BE MEASURED BY THE WATCHED RULE'S OWN ACTIVITY,
-#   because once dormant it produces nothing to count -- `<watchdog>` only
-#   ever sees `producing(...)`, and a dormant rule is never selected, so it
-#   never produces one. `<cooldown-tick>` counts TICKS instead, firing
-#   every tick `dormant_tag($tag)` holds regardless of whether the watched
-#   rule is doing anything at all.
+#   because once its gate is shut it beats nothing to count.
+#   `<cooldown-tick>` counts TICKS instead, firing every tick
+#   `cooling($tag)` holds regardless of whether the watched rule is doing
+#   anything at all.
 #
-#   REVIVING ONLY UNDOES ONE SUSPENSION. `due(<R>)` never expires on its
-#   own (§19: "`due` can be concluded by anything at all", but nothing
-#   RETRACTS it either) -- so a rule revived once and re-tripped later
-#   would find `due(<R>)` still standing from the FIRST revival and stay
-#   active regardless of the second `dormant`. `<trip>` clears `-due($r)`
-#   on every trip, which is what makes repeated cycles -- not just one --
-#   actually suspend the rule each time.
-#
-# To watch a rule: `fact +watched(<the-rule>, a-tag)`, `fact +tries(a-tag, 0)`,
+# To watch a rule: give it `keep gate(a-tag)` in its antecedent and
+# `+beat(a-tag)` in its consequent, then
+# `fact +gate(a-tag)`, `fact +tries(a-tag, 0)`,
 # `fact +threshold(a-tag, N)`, `fact +cooldown_len(a-tag, ROUNDS)`.
-# Everything below is shared by every watched rule; adding one costs four
-# facts, not a new rule.
+# Everything below is shared by every watched rule.
 
-fact +intercepts(<watchdog>, after)
+# Counts the watched rule's own BEATS. This used to be a write-time
+# trigger reading `producing($r, $c)` -- the engine offering every pending
+# conclusion to an interceptor before it committed -- and triggers are
+# retired. A beat is the watched rule saying so itself: `+beat($tag)` in
+# its consequent, one line, alongside the `keep gate($tag)` that lets the
+# breaker suspend it. That is the cost of watching a rule now, and it is
+# visible in the rule being watched rather than hidden in a hook.
 rule <watchdog> = implies(
-    { +producing($r, $c), keep watched($r, $tag), +tries($tag, $n), plus($n, 1) as $n2 },
+    { +beat($tag), keep tries($tag, $n), plus($n, 1) as $n2 },
     { -tries($tag, $n), +tries($tag, $n2) } )
 
-# `keep` on `watched`, `threshold` and `cooldown_len`: three registration
-# facts a corpus writes ONCE (`fact +watched(<r>, tag)`, and so on) and
+# `keep` on `threshold` and `cooldown_len`: registration facts a corpus
+# writes ONCE (`fact +threshold(tag, N)`, and so on) and
 # this rule reads every time it considers tripping -- plain `+` would
 # spend the registration itself on the FIRST trip, and there would be
 # nothing left to read on the second. `tries` is also `keep` here: this
@@ -86,27 +82,26 @@ rule <watchdog> = implies(
 # here would race that rewrite -- two rules spending the SAME occasion in
 # one tick over something that is supposed to persist.
 rule <trip> = implies(
-    { keep watched($r, $tag), keep tries($tag, $n), keep threshold($tag, $max),
-      at_least($n, $max) as $over, keep cooldown_len($tag, $len), no dormant_tag($tag) },
-    { +dormant($r), +dormant_tag($tag), +cooldown($tag, $len), -due($r) } )
+    { keep tries($tag, $n), keep threshold($tag, $max),
+      at_least($n, $max) as $over, keep cooldown_len($tag, $len),
+      +gate($tag), no cooling($tag) },
+    { +cooling($tag), +cooldown($tag, $len) } )
 
-# `keep dormant_tag($tag)`: read every tick cooldown is counting down, so a
+# `keep cooling($tag)`: read every tick cooldown is counting down, so a
 # plain `+` would spend the "we are cooling down" flag on the very first
 # tick and the countdown would never see a second one. `cooldown($tag, $c)`
 # itself needs no `keep` -- this rule's own `-cooldown($tag, $c)` erases
 # the exact occasion it just matched, so default consumption and the
 # explicit erase agree on the same target rather than racing it.
 rule <cooldown-tick> = implies(
-    { keep dormant_tag($tag), +cooldown($tag, $c), at_least($c, 1) as $more, minus($c, 1) as $c2 },
+    { keep cooling($tag), +cooldown($tag, $c), at_least($c, 1) as $more, minus($c, 1) as $c2 },
     { -cooldown($tag, $c), +cooldown($tag, $c2) } )
 
 # Once cooldown reaches 0: reactivate, AND reset the count -- so the rule
 # gets a full, fresh budget rather than tripping again on its first move.
-# `watched` is `keep` for the same reason `<trip>` needs it: a registration
-# fact read on every cycle, not spent by the first one. `dormant_tag`,
-# `cooldown(_, 0)` and `tries($tag, $n)` all need no `keep` -- each is
+# `cooling`, `cooldown(_, 0)` and `tries($tag, $n)` all need no `keep` -- each is
 # explicitly erased in the consequent below, at the exact node this rule
 # matched, so consumption's implicit spend and the explicit one agree.
 rule <revive> = implies(
-    { keep watched($r, $tag), +dormant_tag($tag), +cooldown($tag, 0), +tries($tag, $n) },
-    { +due($r), -dormant_tag($tag), -tries($tag, $n), +tries($tag, 0), -cooldown($tag, 0) } )
+    { +cooling($tag), +cooldown($tag, 0), +tries($tag, $n) },
+    { +gate($tag), -tries($tag, $n), +tries($tag, 0), -cooldown($tag, 0) } )

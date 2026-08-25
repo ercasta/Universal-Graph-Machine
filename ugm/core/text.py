@@ -288,11 +288,15 @@ class Parser:
             # → docs/design/text.md#the-action-palette-declared
             return Statement("action", "", "", (), (), self.member(), "", t.line)
         if t.text in ("after", "frozen", "learned", "when"):
-            # A trigger, and it stands on its own: what a rule MEANS and what
-            # experience has learned about when to reach for it are different
-            # kinds of claim, kept in different documents. A corpus loads its
-            # experience or does not.
-            return self.trigger(t)
+            raise ParseError(
+                f"line {t.line}: `{t.text}` opened a TRIGGER statement, and "
+                f"triggers are retired (docs/design/intensity-gates.md). "
+                f"A rule's own unconditional ops go in its RHS tail "
+                f"(`=> stop`, `=> destroy($x)`); a rule that should only "
+                f"fire under some condition puts that condition in its own "
+                f"antecedent, which is what a GATE is for -- see "
+                f"`ugm/rules/tools_approval.ugm`."
+            )
         if t.text == "alias":
             # A shorthand the corpus defines: `alias attacks($a, $t) = { ... }`.
             # The head is a plain term whose arguments are the variables the
@@ -457,51 +461,6 @@ class Parser:
         return (t is not None and t.kind == "punct" and t.text == a
                 and t2 is not None and t2.kind == "punct" and t2.text == b
                 and t2.line == t.line)
-
-    def trigger(self, t: Tok) -> Statement:
-        """`after <A> { ... } => destroy($x)`.
-
-        after fires when its rule applies and its query holds. frozen marks
-        what a calibration process may not touch.  when IS REFUSED, and that
-        is a change from a silent no-op.
-
-        See docs/design/text.md#trigger.
-        """
-        frozen = t.text == "frozen"
-        learned = t.text == "learned"
-        if frozen or learned:
-            nxt = self.peek()
-            if nxt is None or nxt.text not in ("after", "when"):
-                raise ParseError(
-                    f"line {t.line}: `{t.text}` marks a trigger, so it is "
-                    f"written `{t.text} after <R> ... => ...`"
-                )
-            t = self.next()
-        if t.text == "when":
-            raise ParseError(
-                f"line {t.line}: a ranking-time `when` trigger no longer reaches "
-                f"anything -- `_rerank` and the buffs it spent are retired. Hang "
-                f"the lesson off the rule that RUNS it: `after <R> {{ ... }} "
-                f"=> ...`"
-            )
-        host = ""
-        if t.text == "after":
-            name = self.next()
-            if name.kind != "rulename":
-                raise ParseError(
-                    f"line {name.line}: `after` says which rule it follows, in "
-                    f"the angle brackets a rule is named in"
-                )
-            host = name.text
-        query = self.block() if self.at("{") else ()
-        self.expect("=")
-        self.expect(">")
-        spends = [self.spend()]
-        while self.at(","):
-            self.next()
-            spends.append(self.spend())
-        return Statement("trigger", host, "", query, (), None, "", t.line,
-                         (PostClause(query, tuple(spends), frozen, learned),))
 
     def spend(self) -> Tuple["Term", int]:
         """What a postcondition spends: `stop`, or one of the graph ops.

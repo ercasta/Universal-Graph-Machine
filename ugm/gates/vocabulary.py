@@ -59,9 +59,13 @@ ROLES: Dict[str, List[str]] = {
         # cannot speak about a set. Both states exist right now, so this is a
         # diff and not a memory -- which is why it survived the chain.
         "delta", "missing", "extra", "matched", "now",
-        # Triggers: a rule the engine consults on what another rule is about to
-        # conclude, and what it may say about one.
-        "intercepts", "producing", "instead", "drop", "rewrote", "after",
+        #  `intercepts`/`producing`/`instead`/`drop`/`rewrote`/`after` were
+        # here -- write-time triggers, retired with the `after` statement
+        # (docs/design/intensity-gates.md). What replaced them is a GATE,
+        # and a gate is deliberately NOT reserved: it is an ordinary node
+        # with no engine meaning, named by whatever corpus wires it, so
+        # reserving the spelling would be the engine claiming a word it
+        # does not read.
         # Which table a name was resolved in, and that a corpus was loaded.
         "scoped", "loaded", "kb",
         # A claim of identity (`label`) -- a PREDICATE, a filter over an

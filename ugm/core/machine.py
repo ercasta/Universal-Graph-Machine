@@ -157,12 +157,6 @@ class Machine:
         self.SCOPED = self.g.atom("scoped")
 
         # -- triggers ------------------------------------------------------
-        self.INTERCEPTS = self.g.atom("intercepts")
-        self.PRODUCING = self.g.atom("producing")
-        self.AFTER = self.g.atom("after")
-        self.INSTEAD = self.g.atom("instead")
-        self.DROP = self.g.atom("drop")
-        self.REWROTE = self.g.atom("rewrote")
 
         # -- the gap between two states ------------------------------------
         # `delta(<have>, <want>, <gap>)`, and what a corpus reads off the gap
@@ -205,10 +199,6 @@ class Machine:
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "computes": self.COMPUTES, "action": self.AFFORDED,
             "loaded": self.LOADED, "scoped": self.SCOPED,
-            "intercepts": self.INTERCEPTS, "producing": self.PRODUCING,
-            "after": self.AFTER,
-            "instead": self.INSTEAD, "drop": self.DROP,
-            "rewrote": self.REWROTE,
             "delta": self.DELTA, "missing": self.MISSING,
             "matched": self.MATCHED, "extra": self.EXTRA, "now": self.NOW,
             "erased": self.ERASED,
@@ -239,7 +229,6 @@ class Machine:
             self.BOUNDED, self.CLOSE,
             self.ANSWERS, self.ANSWERED, self.COMPUTES, self.AFFORDED,
             self.LOADED, self.SCOPED,
-            self.INTERCEPTS, self.PRODUCING, self.REWROTE,
             self.DELTA, self.MISSING, self.MATCHED, self.EXTRA,
             self.ERASED, self.INTENSITY,
         }
@@ -738,7 +727,6 @@ class Machine:
                       `+kind` marks this firing mints (a fresh entity per
                       distinct mark, same as `_apply` always did)
             pending   `(node, sign)` pairs, ASSERT or ERASE, after triggers
-                      have had their say (`_intercept`, unchanged)
             values    of those, the ones that named their OWN intensity --
                       `+p(x) intensity $n` -- node -> the grounded number.
                       A node not in here that ends up in `pending` at
@@ -799,7 +787,6 @@ class Machine:
                 # follow the node it now names rather than the one it was
                 # written against.
                 values[node] = substitute(self.g, m.write, app.bindings)
-        pending = self._intercept(app, pending)
         discharge: List[NodeId] = [
             app.matched[i] for i, m in enumerate(app.rule.antecedent)
             if m.sign == ASSERT and app.matched[i] is not None
@@ -845,149 +832,6 @@ class Machine:
         return tuple(wrote)
 
     # -- triggers ----------------------------------------------------------
-
-    def _triggers(self) -> List["Rule"]:
-        """The rules a corpus has marked as triggers, in the order the table
-        would consider them: a trigger is an ordinary rule, so which one runs
-        first is decided the way everything else is."""
-        if not self.g.instances_of(self.INTERCEPTS):
-            return []
-        marked = [r for r in self.rules.rules
-                  if self._claims(self.INTERCEPTS, r.node, self.AFTER)]
-        standing = {r for r in marked
-                    if self._claims(self.STANDING, r.node)}
-        return sorted(marked, key=lambda r: (r not in standing,
-                                             self.rules.rules.index(r)))
-
-    def _intercept(self, app: Application,
-                   pending: List[Tuple[NodeId, str]]) -> List[Tuple[NodeId, str]]:
-        """Let the triggers rewrite what this application is about to write.
-
-        A trigger sees each pending conclusion as `producing(<rule>, p)` -- a
-        fact that exists only for this question, anchored for the length of it
-        and taken back afterwards, because what a rule is ABOUT to conclude is
-        not something the world holds. What a trigger concludes about one is
-        read as an instruction:
-
-            instead(p, q)   q lands where p would have
-            drop(p)         p does not land at all
-            anything else   lands as well, beside what the rule concluded
-
-        So marking is adding, refusing is dropping, and wrapping is replacing,
-        and a corpus writes all three as ordinary rules. Triggers run in table
-        order and each sees the delta the one before it left, which is what
-        makes two triggers on one conclusion answerable rather than a race.
-        """
-        triggers = self._triggers()
-        if not triggers:
-            return pending
-        for t in triggers:
-            if t is app.rule:
-                continue  # a trigger does not intercept itself
-            asked = self._producing(app, pending)
-            try:
-                found = match(self.g, self.pad, t, computes=self.rules.computes,
-                              predicates=self.rules.predicates,
-                              node_computes=self.rules.node_computes)
-            finally:
-                for node in asked:
-                    self.gate.erase(node)
-            if not found:
-                continue
-            pending = self._obey(t, pending, found)
-        return pending
-
-    def _producing(self, app: Application,
-                   pending: List[Tuple[NodeId, str]]) -> List[NodeId]:
-        """The pending conclusions, anchored for the length of the question and
-        no longer. A claim that outlived the question would be a claim that the
-        rule had concluded something it has not -- which the chain could only
-        avoid by keeping these out of the state entirely. A scratchpad can put
-        something down and pick it back up, so it does."""
-        out = []
-        for prop, _sign in pending:
-            said = self.g.rel(self.PRODUCING, app.rule.node, prop)
-            if not self.pad.holds_any(said):
-                self.gate.write(said, generic=True)
-                out.append(said)
-        return out
-
-    def _obey(self, trigger: "Rule", pending: List[Tuple[NodeId, str]],
-              found) -> List[Tuple[NodeId, str]]:
-        """Read a trigger's conclusions as instructions about the delta.
-
-        An instruction names its operand by SHAPE. `instead(deploy($s),
-        pending(deploy($s)))` is a pattern the trigger grounds, so the
-        `deploy(web)` inside it is a node built to say WHICH conclusion --
-        never the conclusion node itself, which the intercepted rule built.
-        Those were one node while `rel` interned, and keying on the node meant
-        the instruction silently matched nothing the moment they parted: the
-        approval corpus wrote `deploy(web)` straight out, unapproved.
-        """
-        replaced: Dict[Tuple, NodeId] = {}
-        dropped: set = set()
-        added: List[Tuple[NodeId, str]] = []
-        shape = self.g.shape_of
-        for a in found:
-            for m in trigger.consequent:
-                # The EXISTING node of this shape, looked up rather than
-                # minted, wherever one already exists -- `already_there`,
-                # `-p(a)`'s own resolver. A trigger's conclusion is a
-                # description built fresh from the trigger's own pattern
-                # and this application's bindings, and two DIFFERENT
-                # applications of one trigger describing the SAME thing
-                # (docs/design/intensity-gates.md: several applications can
-                # intercept the same tick now, one per firing that
-                # triggered this trigger) must resolve to the SAME node,
-                # or `added`'s own dedup below -- keyed on node identity --
-                # cannot see that they agree, and each redundant derivation
-                # mints its own twin. `circuit_breaker.ugm`'s `<watchdog>`
-                # is exactly this: re-derived once per firing it observes,
-                # and every twin it ever minted for `tries(...)` is a node
-                # its OWN antecedent matches again next tick, compounding
-                # without bound if this were not resolved here.
-                got = already_there(self.g, m.pattern, a.bindings)
-                if got is GENERIC:
-                    continue  # a description is not an instruction
-                said = got if got is not None else substitute(
-                    self.g, m.pattern, a.bindings)
-                if self.g.has_var(said):
-                    continue  # a description is not an instruction
-                rel = self.g.relation_of(said)
-                if rel is self.INSTEAD and len(self.g.members(said)) == 2:
-                    old, new = self.g.members(said)
-                    replaced[shape(old)] = new
-                elif rel is self.DROP and len(self.g.members(said)) == 1:
-                    (gone,) = self.g.members(said)
-                    dropped.add(shape(gone))
-                else:
-                    added.append((said, m.sign))
-        if not (replaced or dropped or added):
-            return pending
-        out: List[Tuple[NodeId, str]] = []
-        for prop, sign in pending:
-            here = shape(prop)
-            if here in dropped:
-                self._rewrote(trigger, prop, None)
-                continue
-            if here in replaced:
-                self._rewrote(trigger, prop, replaced[here])
-                out.append((replaced[here], sign))
-                continue
-            out.append((prop, sign))
-        for prop, sign in added:
-            if (prop, sign) not in out:
-                out.append((prop, sign))
-        return out
-
-    def _rewrote(self, trigger: "Rule", old: NodeId,
-                 new: Optional[NodeId]) -> NodeId:
-        """On the record, because a conclusion that is not what the rule said
-        it concluded has to name who changed it."""
-        return self._note_that(self.REWROTE, trigger.node, old,
-                               new if new is not None else self.DROP)
-
-    # -- asking ------------------------------------------------------------
 
     def web(self, rules=None) -> Tuple[dict, dict]:
         """For each relation name: how often it is READ (an antecedent member)

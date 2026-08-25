@@ -126,9 +126,14 @@ actually knows yet.
 - **A corpus tool may not share a request relation with the apparatus** — refused at registration,
   with a clear error, not a silent collision.
 - **Nothing is arbitrated, and nothing can be starved.** Every rule whose antecedent is on fires the
-  tick it is on. `lane(...)` and `lane_order(...)` are reserved names a corpus may still write, but
-  nothing reads them. `standing(<r>)` is NOT dead — it still orders intercepting triggers
-  (`Machine._triggers`), which is the one place a sequence is still decided.
+  tick it is on. `lane(...)`, `lane_order(...)` and `standing(<r>)` are reserved names a corpus may
+  still write, but nothing reads them. `standing` outlived the table by one step — it ordered
+  intercepting triggers — and went with them.
+- **One rule governs another through a GATE**, not a hook. Put `keep gate(...)` in the governed
+  rule's own antecedent; whatever opens the gate is the policy. `ugm/rules/tools_approval.ugm` gates
+  an action on approval, `ugm/rules/circuit_breaker.ugm` shuts one to suspend a runaway rule.
+  Consumption is NOT a substitute: every matching rule fires, so a rule that merely consumes a
+  dangerous occasion does not stop another reading it the same tick.
 - **Firing SPENDS what it matched.** A fact more than one rule needs to read is `keep`ed on each line
   that reads it, or the first firing turns it off for everyone else. `keep` is a per-line antecedent
   mode: `keep task($t)`.

@@ -19,6 +19,7 @@ page over them until they are rewritten.
 | lanes | gone — nothing needs a guaranteed turn once firing is per-rule rather than per-table: a rule fires whenever its own gates are on, so it can't be starved by another rule's schedule |
 | score / `standing` / declaration-order tie-break | gone — a rule doesn't "win" a tick against rivals; every rule whose gates are on fires |
 | gate node (learning doc, ch. 29) | an ordinary node with no domain meaning (`gate(19043)`), wiring one rule's output to another rule's input |
+| write-time TRIGGERS — `intercepts`/`producing`/`instead`/`drop`/`rewrote`, and the `after <R> { ... } => ...` statement | gone — gating moved into the governed rule's own antecedent, where a reader can see it |
 
 ## Firing
 
@@ -129,6 +130,35 @@ costs, chosen explicitly rather than inferred from a `-`.
 - **Calibration searches intensities now.** `numbers`/`mutate`
   (`ugm/learning/calibrate.py`) walked per-line scoring brackets, then
   `attend(...)` tails; both named a ranking that no longer happens.
+
+## Triggers, and why gating had to move
+
+Write-time triggers let a rule see another rule's pending conclusion as
+`producing(<rule>, p)` and `drop` it or put something `instead`. They were
+retired, and the corpora that used them — `tools_approval.ugm`,
+`circuit_breaker.ugm`, `fs/fs_demo.ugm` — moved to gates.
+
+**Consumption does not replace interception, and it is worth being exact
+about why.** The obvious port is to make `<hold>` an ordinary rule that
+consumes the dangerous occasion. It does not work: every rule whose
+antecedent is on fires, so `<hold>` consuming `deploy(web)` does not stop an
+`<execute>` rule that matched the same opening state. Both fire, and the
+action happens anyway. That is measured in `triggers_are_retired()`, not
+argued.
+
+A gate is the replacement, and it is stronger than what it replaced. The
+governed rule carries `keep gate(...)` in its own antecedent and cannot
+conclude the action at all until something opens it — never minted, rather
+than minted-and-rewritten — and the condition is visible in the rule it
+governs instead of in a hook registered elsewhere. Swapping the policy still
+never touches the governed rule: the gate line is the socket.
+
+The one thing that got more expensive is WATCHING. `circuit_breaker.ugm`
+counted a rule's activity by reading `producing(...)`, which cost the watched
+rule nothing. It now counts `beat($tag)`, which the watched rule writes
+itself — one line in the rule being watched, plus the `keep gate($tag)` the
+breaker shuts to suspend it. In exchange the whole tainted-rule-reference
+hazard disappears: there is no `<R>` in a fact any more, only ground tags.
 
 ## Known red
 

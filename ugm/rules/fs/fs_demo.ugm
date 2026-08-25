@@ -66,21 +66,34 @@ rule <flag-stale> = implies(
 # (`+rename(...)`), not a direct act. A corpus that wanted to archive
 # instead of rename changes only this rule -- `<list>`, the tools and the
 # approval gate are untouched.
+# GATED, the same shape `tools_approval.ugm` uses and for the same reason:
+# the rename is never MINTED until something opens its gate, rather than
+# minted and rewritten by a write-time trigger. Triggers are retired, and
+# consumption does not replace them -- every matching rule fires, so a
+# `<hold>` that merely consumed the rename would not stop a tool reading
+# the same occasion in the same tick.
 rule <propose-rename> = implies(
-    { +stale($dir, $name), prefixed($name) as $new },
-    { +rename($dir, $name, $new), -stale($dir, $name) } )
+    { +stale($dir, $name), prefixed($name) as $new,
+      keep gate(rename($dir, $name, $new)) },
+    { +rename($dir, $name, $new) } )
 
-fact +intercepts(<hold-rename>, after)
+# The strategy. `asked(...)` makes this ask once -- a denial erases
+# `pending` while `stale` still stands, and without the guard the tool is
+# asked the same question every tick for ever.
 rule <hold-rename> = implies(
-    { +producing(<propose-rename>, rename($dir, $old, $new)) },
-    { +instead(rename($dir, $old, $new), pending(rename($dir, $old, $new))) } )
+    { keep stale($dir, $old), prefixed($old) as $new,
+      no gate(rename($dir, $old, $new)),
+      no asked(rename($dir, $old, $new)) },
+    { +pending(rename($dir, $old, $new)), +asked(rename($dir, $old, $new)) } )
 
 rule <approved-rename> = implies(
     { +answered(<approve>, pending(rename($dir, $old, $new)), yes) },
-    { +rename($dir, $old, $new), -pending(rename($dir, $old, $new)),
+    { +gate(rename($dir, $old, $new)), -pending(rename($dir, $old, $new)),
       -answered(<approve>, pending(rename($dir, $old, $new)), yes) } )
 
+# A denial retires the STALENESS as well as the record: nothing else will,
+# and a proposal nobody will ever act on is not a proposal.
 rule <denied-rename> = implies(
     { +answered(<approve>, pending(rename($dir, $old, $new)), no) },
-    { -pending(rename($dir, $old, $new)),
+    { -pending(rename($dir, $old, $new)), -stale($dir, $old),
       -answered(<approve>, pending(rename($dir, $old, $new)), no) } )

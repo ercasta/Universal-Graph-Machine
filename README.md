@@ -38,10 +38,10 @@ approve rename(notes.txt -> stale-notes.txt)? [y/N]
 a circuit breaker watching it — none of it built into the engine, all of it ordinary `.ugm` rules
 (`harneskills/examples/fs/fs_demo.ugm`). Nothing about "showing" a directory or "cleaning up" old
 files is built into the REPL or the tools — a plain-English line means whatever an ordinary rule in
-the loaded corpus says it means, and a rename is held for approval by the same write-time trigger
-any corpus could use, not a special case in the engine.
+the loaded corpus says it means, and a rename is held for approval by the same gate any corpus could
+use, not a special case in the engine.
 
-## How it works: a loop, some lanes, and rules
+## How it works: a loop, some gates, and rules
 
 **One graph is the whole state.** Nodes with ordered members and nothing else — `on(a, b)` is a
 node, `a` and `b` are nodes, an atom and a compound are the same kind of thing. Belief is
@@ -54,19 +54,18 @@ a belief; that machinery existed once and was cut for being more than the measur
 at load, on purpose, with a message saying why: it only ever meant *lands in a later moment*, and
 there are no moments to land in.
 
-**The loop has no phases.** Each tick: score every rule, take the first whose antecedent matches
-against current belief, apply it (write what it asserts, erase what it retracts), repeat. A run ends
-*quiescent* (nothing matches any more) or hits a tick limit. Nothing in the loop is privileged —
-*stop* is a rule spending a postcondition, not an engine decision.
+**The loop has no phases, and nothing is ranked.** Each tick: match every rule against belief as it
+stood at the tick's start, fire all of them, fold their writes together and commit once. Firing order
+cannot change the end state. A run ends *quiescent* or hits a tick limit. Nothing in the loop is
+privileged — *stop* is a rule spending a postcondition, not an engine decision.
 
-**Lanes** let a corpus run more than one such pass per round. `fact +lane(<R>, watchdog)` puts a
-rule in its own lane, which gets a turn every round independent of what the default (`main`) lane
-selects that tick — the reason a rule that always wins `main`'s arbitration cannot starve out a
-watchdog meant to rein it in (see `ugm/rules/circuit_breaker.ugm`).
+**Every node carries an intensity.** "On" is above zero, firing spends what it matched, and `keep`
+opts one line out of that. Since nothing picks a winner, nothing can be starved — lanes and the
+ranked table are both retired (see `docs/design/intensity-gates.md`).
 
-**Triggers** (`intercepts`/`producing`/`instead`/`drop`) let a rule see what another rule is about
-to conclude, before it lands, and add beside it, replace it, or drop it. This is the whole of how
-approval-gating and starvation-breaking are built — ordinary rules, no engine hook per feature.
+**Gates** are how one rule governs another: a gated rule carries `keep gate(...)` in its own
+antecedent and cannot conclude until something opens it. This is the whole of how approval-gating and
+circuit-breaking are built — ordinary rules, no engine hook per feature.
 
 **Tools and channels are the seam to the world.** `kb.answerer(name, request, fn)` binds a Python
 function to a relation; writing that relation calls it, and its answer lands as `answered(<tool>,
@@ -110,7 +109,7 @@ owed(ana,money): believed
 
 ```
 ugm/
-  core/          9 modules   graph, chain, gate, machine (state, triggers), rules (match), text
+  core/          9 modules   graph, chain, gate, machine (state, tools), rules (match), text
                               (the .ugm surface), firing (the tick loop), channels, scratchpad
                               -- nothing outside `core` is needed to run an agent
   gates/         vocabulary  every reserved name classified, checked against corpora that ship
@@ -142,7 +141,7 @@ python -m ugm.probes.tools          # the approval pattern, run both approved an
 ## Documentation
 
 - **[The book](https://ercasta.github.io/Universal-Graph-Machine/)** — the tutorial, from scratch.
-- **[`docs/guide.md`](docs/guide.md)** — the surface syntax, the loop, lanes and triggers, in one page.
+- **[`docs/guide.md`](docs/guide.md)** — the surface syntax, the loop, intensity and gates, in one page.
 - **[`docs/authoring.md`](docs/authoring.md)** — what actually bites when you sit down and write a
   corpus.
 - **[`docs/tools-approval.md`](docs/tools-approval.md)** — the approval-as-a-corpus pattern the REPL
