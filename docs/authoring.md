@@ -126,8 +126,9 @@ actually knows yet.
 - **A corpus tool may not share a request relation with the apparatus** — refused at registration,
   with a clear error, not a silent collision.
 - **Nothing is arbitrated, and nothing can be starved.** Every rule whose antecedent is on fires the
-  tick it is on. `standing(<r>)`, `lane(...)` and `lane_order(...)` are reserved names a corpus may
-  still write, but nothing reads them.
+  tick it is on. `lane(...)` and `lane_order(...)` are reserved names a corpus may still write, but
+  nothing reads them. `standing(<r>)` is NOT dead — it still orders intercepting triggers
+  (`Machine._triggers`), which is the one place a sequence is still decided.
 - **Firing SPENDS what it matched.** A fact more than one rule needs to read is `keep`ed on each line
   that reads it, or the first firing turns it off for everyone else. `keep` is a per-line antecedent
   mode: `keep task($t)`.
