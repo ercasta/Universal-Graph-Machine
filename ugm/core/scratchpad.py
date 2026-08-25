@@ -38,7 +38,7 @@ what an antecedent member and `no` both ask about -- is "above zero". Nothing
 about the anchor/occasion picture above changes: intensity rides beside it,
 one float per anchor, and it is what makes `keep` (read without spending) and
 "combine by max" (docs/design/intensity-gates.md's "First-cut defaults")
-possible at the layer above this one (`Machine`/`attention.run`). The zero
+possible at the layer above this one (`Machine`/`firing.run`). The zero
 end needs no separate state at all -- an anchor AT zero and no anchor read
 the same to every rule, so "set to zero" is erasure, unchanged from today,
 and nothing here has to represent "anchored but off".
@@ -83,7 +83,7 @@ class Scratchpad:
         # scratchpad's answer rather than the graph's, because the graph holds
         # every proposition anything ever mentioned. A node the agent knew
         # about last week and holds nothing about now is not a node any rule is
-        # going to be about, and that is the half attention needs.
+        # going to be about.
         #
         # Maintained here, where belief is made, rather than scanned for: the
         # rule that what is read off a state is maintained where the state is.
@@ -228,10 +228,10 @@ class Scratchpad:
         and `proposition` unchanged when nothing does.
 
         This is where a caller holding a SHAPE meets the engine holding
-        OCCASIONS. `m._attend(kb.term("intake(e2, mary)"))` names a term from
-        outside and gets a node minted on the spot, which is attention on a
-        thing nobody believes and no rule can match -- so the claim lands
-        nowhere. It was the same node while `rel` interned, which is why
+        OCCASIONS. `kb.term("intake(e2, mary)")` names a term from outside and
+        gets a node minted on the spot, so a caller that went on to ask about
+        THAT node would be asking about a thing nobody believes and no rule
+        can match. It was the same node while `rel` interned, which is why
         nothing had to say this before.
         """
         if self.holds(proposition):

@@ -1,11 +1,18 @@
-"""Run episodes, score them, and search the attention numbers.
+"""Run episodes, score them, and search a corpus's own numbers.
+
+What the numbers ARE has changed twice. They were per-line contributions
+and attention multipliers (`[+3, attention_multiplier:1.2]`), then `attend`
+tails (`attend($x, 5, 2, 1, 9)`); both named a ranking that no longer
+happens (docs/design/intensity-gates.md). What a corpus carries now is an
+intensity: `+p(x) intensity 3` says how far ON a write turns something,
+and that is what `numbers`/`mutate` below search.
 
 The judge lives in the episode and is ordinary rules, so it is subject to
-everything else the loop does -- including attention gating. That is the one
-place this could quietly lie to itself: a calibration that starved its own
-judge would leave no verdict, and *no verdict counted as success* would score
-that as the best run of all. So the absence of a verdict is a FAILURE, and a
-judge that never got a turn is a calibration that did not work.
+everything else the loop does. That is the one place this could quietly lie
+to itself: a calibration whose judge never fired would leave no verdict, and
+*no verdict counted as success* would score that as the best run of all. So
+the absence of a verdict is a FAILURE, and a judge that never got a turn is
+a calibration that did not work.
 """
 
 import random
@@ -53,15 +60,6 @@ def run_episode(corpus: str, episode: Episode,
         # A mutation that will not parse is a failed candidate, not a crash:
         # the search is allowed to propose nonsense as long as it is told.
         return False, 0.0, f"parse: {e}"
-    # A loaded fact is background now, not something to take care of (§20),
-    # so an episode's own "starting condition" needs a spark or nothing in
-    # it is ever in play -- including the `<focus>` rule whose entire job is
-    # to unattend this and set the PRECISE thing the episode is testing.
-    # Brushed rather than pinned: `<focus>`'s own `unattend` is what
-    # actually decides what stays in mind, and this only has to survive
-    # long enough for that rule to get its one setup-lane turn.
-    for p in m.pad.believed():
-        m._attend(p, weight=1)
     m.run(limit=episode.limit)
     believed = {m.g.show(p) for p in m.pad.believed()}
     ok = SUCCEEDED in believed
@@ -77,11 +75,11 @@ def run_episode(corpus: str, episode: Episode,
 
 # -- the numbers, and only the numbers ---------------------------------------
 
-#: A bracketed line contribution: `[+3, attention_multiplier:1.2]`.
-_BRACKET = re.compile(
-    r"\[\s*([+-]?\d+)\s*(?:,\s*attention_multiplier\s*:\s*(\d+(?:\.\d+)?)\s*)?\]")
-#: An `attend` tail: `attend($x, 5, 2, 1, 9)`.
-_ATTEND = re.compile(r"(attend\(\s*[^,)]+)((?:\s*,\s*\d+)+)(\s*\))")
+#: A write's own strength: `+p(x) intensity 3`. A VARIABLE intensity
+#: (`intensity $n`) is not a number and is not matched here -- what it turns
+#: out to be is the corpus's own arithmetic, and moving a digit that is not
+#: there is not something a mutator can do.
+_INTENSITY = re.compile(r"(intensity\s+)(\d+(?:\.\d+)?)")
 
 
 def numbers(text: str) -> List[Tuple[int, int, str]]:
@@ -92,26 +90,15 @@ def numbers(text: str) -> List[Tuple[int, int, str]]:
     the file through a parser would hand back something the author did not
     write and could not diff.
     """
-    out = []
-    for got in _BRACKET.finditer(text):
-        out.append((got.start(1), got.end(1), "contribution"))
-        if got.group(2) is not None:
-            out.append((got.start(2), got.end(2), "multiplier"))
-    for got in _ATTEND.finditer(text):
-        for num in re.finditer(r"\d+", got.group(2)):
-            base = got.start(2)
-            out.append((base + num.start(), base + num.end(), "attend"))
-    return sorted(out)
+    return sorted((got.start(2), got.end(2), "intensity")
+                  for got in _INTENSITY.finditer(text))
 
 
 def _nudge(value: str, kind: str, rng: random.Random) -> str:
-    if kind == "multiplier":
-        got = max(0.0, float(value) + rng.choice((-0.5, -0.2, 0.2, 0.5)))
-        return f"{got:g}"
-    got = int(value) + rng.choice((-2, -1, 1, 2))
-    if kind == "attend":
-        got = max(0, got)          # a lifespan below zero is not a claim
-    return str(got)
+    #  Floored at zero, never below: an intensity of 0 is OFF, and there is
+    # nothing further down for a mutator to reach.
+    got = max(0.0, float(value) + rng.choice((-2, -1, 1, 2)))
+    return f"{got:g}"
 
 
 def mutate(text: str, rng: random.Random, n: int = 1) -> str:

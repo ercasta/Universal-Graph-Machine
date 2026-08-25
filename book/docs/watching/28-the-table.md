@@ -328,7 +328,7 @@ And the method behind it is worth as much as the loop itself:
 > **Subtract, do not rewrite.** Each definition that moves out of the host
 > language gets a gate; when the gate is green, its Python goes.
 
-`python -m ugm.core.attention` runs the worked examples above and keeps the
+`python -m ugm.core.firing` runs the worked examples above and keeps the
 checks that hold this chapter's claims honest.
 
 ---

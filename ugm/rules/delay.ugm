@@ -4,11 +4,10 @@
 #
 # A disruption is NEWS -- it happens to a schedule that was otherwise going
 # to run -- so it arrives on a channel rather than sitting as a loaded
-# `fact`: attention is *taking care of something*, and a loaded fact is
-# background nobody has been asked to take care of (§20). `<trust>` is the
-# whole of the crossing, generic over the relation (`$p` binds the WHOLE
-# said thing, `guide.md`'s `$p($x)` idiom one level up) because this
-# corpus has exactly one channel and nothing adversarial to filter.
+# `fact`. `<trust>` is the whole of the crossing, generic over the relation
+# (`$p` binds the WHOLE said thing, `guide.md`'s `$p($x)` idiom one level
+# up) because this corpus has exactly one channel and nothing adversarial
+# to filter.
 rule <trust>
   +says($ch, $p)
   no trusted($ch, $p)
@@ -16,26 +15,12 @@ rule <trust>
   +trusted($ch, $p)
   +$p
 
-# `<intake>` (the bundle's own crossing) writes `says(...)` as an ordinary
-# move's ordinary conclusion, so it fades at a brush's one tick like
-# anything else a rule happens to write. Two flights land in the same
-# batch of arrivals, so `<trust>` has more than one saying to catch, and a
-# brush's one tick is not enough runway for the second to survive being
-# the sibling that lost this round. `after` re-attends the REAL believed
-# node (a match, never a rebuild -- `$sp` binds what `<intake>` this
-# application actually wrote) at the same strength the arrival itself
-# carries in (§20). The same hop happens again one rule later --
-# `<trust>`'s own `+$p` is again an ordinary write -- so `<cancel>`,
-# `<weather>` and the rest each get the same runway to find their premise,
-# rather than `<weather>` losing its one tick to whichever of `<cancel>`/
-# `<late>`/`<compensate>` the table happens to score higher that round.
-# `<compensate>` reading `no extraordinary($f)` before `<weather>` ever
-# ran is exactly the corpus's own "raj is compensated for a storm" failure
-# mode, and it is an ATTENTION race, not a declared-order one: a rule
-# scored higher by `_pull` is tried FIRST regardless of authored order,
-# and authored order only breaks a TIE.
-after <intake> { $sp = says($channel, $said) } => attend($sp, 5, 1, 1)
-after <trust> { $tp = $p } => attend($tp, 5, 1, 1)
+# Four `after <R> { ... } => attend(...)` hops used to sit here and below.
+# They kept a just-written `says(...)`/`disrupted(...)` in the focus pool
+# one more tick, so a second flight's crossing did not lose its only turn
+# to a rule the table scored higher. Both halves of that are gone: there
+# is no table picking one rule per tick, and no focus pool to be held in.
+# Every rule whose antecedent is on fires the tick it is on.
 
 rule <cancel>
   +cancelled($f)
@@ -47,25 +32,12 @@ rule <late>
   no disrupted($f)
 ->
   +disrupted($f)
-# ...and one hop further still: `<care>`/`<compensate>`/`<reroute>` all
-# read `disrupted($f)`, and with TWO flights disrupted there are two of
-# them to catch. Same fix, same reason -- see the header comment above.
-after <cancel> { $dp = disrupted($f) } => attend($dp, 5, 1, 1)
-after <late> { $dp = disrupted($f) } => attend($dp, 5, 1, 1)
-
 # the duty of care is owed whatever the cause
 #
-# A move consumes its premises, and `<compensate>` and `<reroute>` below
-# need the same two -- so without putting them back, the first rule to
-# reach a disruption is the only one that ever does, and compensation is
-# never asked about at all.
-#
-# `brush(disrupted($f))` on the tail was tried here and does NOT do that:
-# `$f` is an ARGUMENT this rule bound, and the tail rebuilds `disrupted($f)`
-# from it by substitution -- which MINTS a twin (`rel` does not intern),
-# never the node this rule actually matched. `after` reaches the real one
-# because its query is a MATCH, not a rebuild -- the same reason the
-# `<intake>`/`<trust>` hops above use it rather than a tail `brush(...)`.
+# `<care>`, `<compensate>` and `<reroute>` all read `disrupted($f)` and
+# `booked($p, $f)` with a plain `+`, so all three discharge them -- and all
+# three still get them, because they match the SAME tick's opening state
+# and fire together. Nothing has to put anything back.
 rule <care>
   +disrupted($f)
   +booked($p, $f)
@@ -73,8 +45,6 @@ rule <care>
 ->
   +owed($p, meals)
   +owed($p, lodging)
-after <care> { $dp = disrupted($f), $bp = booked($p, $f) }
-  => attend($dp, 5, 1, 1), attend($bp, 5, 1, 1)
 
 # a storm is outside the carrier's control; a crew shortage is not, and that is
 # now said by the ABSENCE of a rule rather than by one.
@@ -101,9 +71,8 @@ rule <weather>
 # The old engine had a stratification pass that computed exactly that order and
 # refused a corpus whose negations had no such order; it belonged to the second
 # matcher, and it went when the second matcher did. So `<weather>` is authored
-# ABOVE this rule deliberately: authored order is the arbitration tiebreak, so
-# a storm is recognised before compensation is asked about. Written the other
-# way round, raj is compensated for a storm -- measured, not supposed.
+# ABOVE this rule deliberately -- written the other way round, raj is
+# compensated for a storm.
 rule <compensate>
   +disrupted($f)
   +booked($p, $f)
@@ -111,9 +80,6 @@ rule <compensate>
   no owed($p, money)
 ->
   +owed($p, money)
-# `<reroute>` further down still needs both, so the relay continues.
-after <compensate> { $dp = disrupted($f), $bp = booked($p, $f) }
-  => attend($dp, 5, 1, 1), attend($bp, 5, 1, 1)
 
 # the amount depends on how far the passenger was going
 #

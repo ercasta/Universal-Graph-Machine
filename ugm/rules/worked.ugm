@@ -47,15 +47,6 @@ rule <trust_user>
 ->
   +likely($p)
 
-# §20, not in the document: `<intake>` writes `says(...)` as an ordinary
-# move's ordinary conclusion, so under decay it is worth one tick like
-# anything else a rule happens to write -- and `<boil>`/`<weather>` below
-# compete for the same tick, scored higher once something is attending
-# their own premises. `after` re-attends the REAL believed node (a match,
-# never a rebuild) rather than let `<trust_user>` lose the race to read
-# what the channel said.
-after <intake> { $sp = says($channel, $said) } => attend($sp, 5, 1, 1)
-
 fact +liquid(kettle)
 fact +heat(anna, kettle)
 fact +water(kettle)

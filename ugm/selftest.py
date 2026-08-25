@@ -417,7 +417,6 @@ def arbitration_is_total() -> None:
         rule <one> = implies( { keep p($x), no q($x) }, { +q($x) } )
         rule <two> = implies( { keep p($x), no r($x) }, { +r($x) } )
     """)
-    m._attend(kb.term("p(a)"))
     steps = [s for s in m.run(limit=8) if s.applied]
     check("§14", "two rules matching one tick's opening state both fire "
                  "that tick -- neither is deferred, because nothing is "
@@ -458,7 +457,6 @@ def applying() -> None:
         rule <off>  = implies( { +heat($a, $w), +cold($w) },
                                { +boiling($w), -heat($a, $w) } )
     """)
-    m._attend(kb.term("heat(stove, kettle)"))
     steps = m.run(limit=20)
     names = [a.rule.name for s in steps for a in s.applied]
     check("§16", "a `+` consequent anchors what the rule concluded",
@@ -492,7 +490,6 @@ def applying() -> None:
         rule <boil> = implies( { +heat($a, $w) }, { +boiling($w) } )
         rule <off>  = implies( { +boiling($w), +cold($w) }, { -boiling($w) } )
     """)
-    osc._attend(osc_kb.term("heat(stove, kettle)"))
     osc_steps = osc.run(limit=12)
     check("§16", "a corpus whose rules answer each other still reaches "
                  "quiescence -- consumption is what used to need writing by "
@@ -515,7 +512,6 @@ def applying() -> None:
         fact +p(a)
         rule <one> = implies( { +p($x) }, { +q($x) } )
     """)
-    m2._attend(kb2.term("p(a)"))
     steps2 = m2.run(limit=20)
     check("§6", "a rule fires once against a plain fact and then has nothing "
                 "left to match -- quiescent well under the tick limit, with "
@@ -531,7 +527,6 @@ def applying() -> None:
         fact +p(a)
         rule <one> = implies( { keep p($x), no q($x) }, { +q($x) } )
     """)
-    m2b._attend(kb2b.term("p(a)"))
     steps2b = m2b.run(limit=20)
     check("§6", "...`keep` gets today's persistence back -- p(a) survives, "
                 "and the rule still settles because its OWN `no q($x)` "
@@ -549,7 +544,6 @@ def applying() -> None:
         fact +may(hero)
         rule <act> = implies( { +may(hero) }, { +acted(hero) } )
     """)
-    m2c._attend(kb2c.term("may(hero)"))
     steps2c = m2c.run(limit=20)
     check("§6", "spending the premise stops the rule too, and it is now the "
                 "DEFAULT rather than an explicit `-may(hero)` a corpus had "
@@ -593,8 +587,6 @@ def mint_markers() -> None:
         rule <meet> = implies( { +seen($p), no met($p) },
                                { +met($p), +person(+k), +named(+k, $p) } )
     """)
-    m._attend(kb.term("seen(alice)"))
-    m._attend(kb.term("seen(bob)"))
     m.run(limit=20)
     people = [p for p in m.pad.believed()
               if m.g.relation_of(p) is kb.atoms["person"]]
@@ -625,7 +617,6 @@ def computators() -> None:
     # table, which is why a computator hands back a value rather than a node:
     # a node built with `g.atom` would be a TWIN of the one the corpus writes.
     kb.computator("minus", lambda a, b: int(a) - int(b))
-    m._attend(kb.term("purse(ana, 7)"))
     m.run(limit=20)
     check("§12", "arithmetic is a condition on the binding that claims nothing",
           m.holds(kb.term("after(ana, 4)")))
@@ -655,7 +646,6 @@ def computators() -> None:
                            { +reported(missed) })
     """)
     kb3.computator("beats", lambda a, b: kb3.atom("yes") if int(a) > int(b) else None)
-    m3._attend(kb3.term("hit(2)"))
     m3.run(limit=5)
     check("§12", "...and `no beats(2, 9)` -- 2 does NOT beat 9 -- matches, "
                  "the computator's own decline (`None`) being the right "
@@ -788,7 +778,6 @@ def triggers() -> None:
     """
     m = Machine()
     kb = load(m, src % "+noticed($c)")
-    m._attend(kb.term("p(a)"))
     m.run(limit=10)
     check("§19", "a trigger sees what a rule is ABOUT to conclude, and may add "
                  "beside it",
@@ -799,14 +788,12 @@ def triggers() -> None:
 
     m2 = Machine()
     kb2 = load(m2, src % "+drop($c)")
-    m2._attend(kb2.term("p(a)"))
     m2.run(limit=10)
     check("§19", "`drop` stops a conclusion landing at all",
           not m2.holds(kb2.term("q(a)")))
 
     m3 = Machine()
     kb3 = load(m3, src % "+instead($c, r(a))")
-    m3._attend(kb3.term("p(a)"))
     m3.run(limit=10)
     check("§19", "`instead` puts something else where it would have gone, and "
                  "says who changed it",
@@ -848,154 +835,24 @@ def tool_approval() -> None:
           not m2.holds(kb2.term("pending(deploy(web))")))
 
 
-# -- attention --------------------------------------------------------------
-
-
-def attention() -> None:
-    print("\n§20 attention: a queue, and engine state rather than a belief")
-    m = Machine()
-    kb = load(m, "fact +p(a)\nfact +p(b)")
-    m._attend(kb.atom("a"))
-    check("§20", "attending is frame-scoped ENGINE state, not a proposition "
-                 "the graph believes -- attention is control, not world "
-                 "knowledge, and `attentioned($x)` is how a rule asks "
-                 "without it being one",
-          kb.atom("a") in m._lane_state()[2]
-          and not m.holds(m.g.rel(m.ATTENTION, kb.atom("a"))))
-    m._attend(kb.atom("b"))
-    check("§20", "the queue is newest first -- position is the gradient",
-          m._attended()[:2] == [kb.atom("b"), kb.atom("a")])
-    m._attend(kb.atom("a"))
-    check("§20", "re-attending MOVES it up rather than adding it twice",
-          m._attended()[:2] == [kb.atom("a"), kb.atom("b")]
-          and [n for n, _w in m._attention].count(kb.atom("a")) == 1)
-    dropped = m._unattend()
-    check("§20", "unattending clears both the queue and the standing "
-                 "weights -- a plain dict/list clear now, not an erase loop, "
-                 "because there is no belief left to erase",
-          dropped >= 2 and not m._lane_state()[2]
-          and not m._attention)
-
-    #  The queue is bounded by TIME, not by length.
-    m2 = Machine()
-    kb2 = load(m2, "")
-    for n in ("x", "y", "z"):
-        m2._attend(kb2.atom(n))
-    held = len(m2._attention)
-    for _ in range(12):
-        m2._fade_attention()
-    check("§20", "the queue is bounded by TIME rather than by length: a claim "
-                 "lasts as long as its strength and then it is gone, and being "
-                 "third in line is not a reason to forget anything",
-          held == 3 and not m2._attention)
-
-    #  A strong claim outlives a busy move, which a span could not promise.
-    m3 = Machine()
-    kb3 = load(m3, "")
-    m3._attend(kb3.atom("folder"), weight=5)
-    for i in range(9):          # nine incidental touches, as one move makes
-        m3._push_attention(kb3.atom("noise%d" % i))
-    m3._fade_attention(); m3._fade_attention()
-    kept = dict((m3.g.show(n), w) for n, w in m3._attention)
-    check("§20", "and the claim survives the bookkeeping of its own move -- "
-                 "nine incidental touches no longer push a deliberate one out",
-          kept.get("folder") == 4 and not any(k.startswith("noise") for k in kept))
-
-    #  Bringing something up again is worth what it was worth.
-    m4 = Machine()
-    kb4 = load(m4, "")
-    m4._attend(kb4.atom("folder"), weight=5)
-    for _ in range(8):
-        m4._fade_attention()
-    faded = not m4._attention
-    m4._push_attention(kb4.atom("folder"))      # merely MENTIONED, no weight
-    back = dict((m4.g.show(n), w) for n, w in m4._attention)
-    check("§20", "a claim that faded away and is mentioned again comes back at "
-                 "what it was WORTH, not at a brush's 1 -- fading forgets the "
-                 "thing, never how much it mattered, or bringing something up "
-                 "could not outrank whatever was said more recently",
-          faded and back.get("folder") == 5)
-
-    #  A min pins a claim; a max caps how far a refresh may raise it.
-    m5 = Machine()
-    kb5 = load(m5, "")
-    m5._attend(kb5.atom("pinned"), weight=3, floor=1)
-    m5._attend(kb5.atom("capped"), weight=9, ceiling=2)
-    at_first = dict((m5.g.show(n), w) for n, w in m5._attention)
-    for _ in range(20):
-        m5._fade_attention()
-    after = dict((m5.g.show(n), w) for n, w in m5._attention)
-    check("§20", "a max caps what a claim is refreshed to, so a thing named "
-                 "over and over cannot grow until it is the only thing the "
-                 "lane is about",
-          at_first.get("capped") == 2 and at_first.get("pinned") == 3)
-    check("§20", "a min PINS: it fades to the floor and stops there, so a "
-                 "lane with a pinned claim always has a subject however long "
-                 "nothing happens",
-          after.get("pinned") == 1 and "capped" not in after)
-
-    #  Retired (docs/design/intensity-gates.md), and deliberately not
-    # ported: this used to be three checks about attention PICKING which of
-    # several matched applications a rule's one selection per tick spent --
-    # per-line scoring (`[+1, attention_multiplier:9]`) deciding which of a
-    # rule's several bindings was taken, the stronger of two claims winning
-    # a tie regardless of queue position, and a shortlist that stayed
-    # `unattended` rather than `quiescent` while a full match sat
-    # unoffered. All three are questions about a PICK, and there is no pick
-    # any more -- every application any rule finds fires the tick it is
-    # found, so "which application does attention prefer" is not a
-    # question the loop still asks. The bracket syntax these checks wrote
-    # is refused at load now (see `text.py`'s `member`), and `unattended` as
-    # a run-ending state is gone with the shortlist it described.
-    #
-    # What is NOT retired -- attention as *what the agent is thinking
-    # about* -- is everything above this comment in this function, and it
-    # still holds unchanged.
+# -- reference lines and the RHS tail ---------------------------------------
 
 
 def reference_lines() -> None:
-    """`attentioned($x)` and a label test -- PREDICATES (`new_substrate.md`):
-    filters over an already-bound node, never matched, never bound to."""
-    print("\n§20 reference lines -- attentioned($x) is deixis (which one), "
-          "not a relevance gate")
-    corpus = ("fact +happy(paul)\nfact +happy(mary)\n"
-              "rule <r1> = implies({+happy($x), attentioned($x)}, "
-              "{+noticed($x)})")
+    """`label($x, the-kettle)` -- a PREDICATE (`new_substrate.md`): a filter
+    over an already-bound node, never matched, never bound to.
 
-    m = Machine()
-    kb = load(m, corpus)
-    # Emptied on purpose: loading attends what it wrote, so "nothing
-    # attended" is a state that now has to be arranged rather than assumed.
-    m._unattend()
-    m.run(limit=5)
-    check("§20", "with nothing attended, the predicate never opens -- it "
-                 "filters a reference, it does not gate on relevance out of "
-                 "nothing",
-          not m.holds(m.g.rel(kb.atom("noticed"), kb.atom("paul")))
-          and not m.holds(m.g.rel(kb.atom("noticed"), kb.atom("mary"))))
-
-    m2 = Machine()
-    kb2 = load(m2, corpus)
-    #  Emptied first, for the machine above's reason. Without this, loading
-    # has already attended `mary` along with everything else it wrote, so
-    # `attentioned($x)` opens for both and the check cannot tell a predicate
-    # that picks one referent out from one that lets everything through.
-    #
-    # Then TWO claims, because they answer two different questions. The
-    # occasion `happy(paul)` is what the rule's first line has to match on,
-    # and a move is only offered when a line it matched carries a token. The
-    # atom `paul` is what `attentioned($x)` asks about -- the referent, not
-    # the proposition. Attending only the atom offers the rule nothing;
-    # attending only the proposition opens the predicate for nobody.
-    m2._unattend()
-    m2._attend(kb2.term("happy(paul)"))
-    m2._attend(kb2.atom("paul"))
-    m2.run(limit=5)
-    check("§20", "attending paul picks him out -- only the attended one is "
-                 "noticed, the other stays merely happy",
-          m2.holds(m2.g.rel(kb2.atom("noticed"), kb2.atom("paul")))
-          and not m2.holds(m2.g.rel(kb2.atom("noticed"), kb2.atom("mary"))))
-
+    `attentioned($x)` was the other one and is retired with the focus pool
+    it asked about (docs/design/intensity-gates.md); its three checks are
+    in `focus_is_retired()` now, as *this surface is gone* rather than
+    *this surface works*. It picked a REFERENT out of what the agent was
+    thinking about -- deixis, not a relevance gate -- and there is nothing
+    left to pick a referent out of. A corpus that wants "the one in play"
+    reads an ordinary claim about it, which is what `dungeon_gut.ugm`'s
+    `eyeing(hero, $e)` became.
+    """
+    print("\n§20 reference lines -- label($x, the-kettle) filters an "
+          "already-bound node, it does not match or bind one")
     #  `label`, built directly (no corpus surface for `Graph.label` yet).
     #  `atom` never interns (§3 -- naming is local), so LABEL, the-kettle
     #  and not-it are each minted ONCE and reused, exactly the discipline a
@@ -1034,52 +891,48 @@ def reference_lines() -> None:
 
 
 def rhs_tail() -> None:
-    """The RHS's ordered tail (`new_substrate.md`) -- `attend`/`stop` written
-    directly on the rule, unconditional, no separate `after` statement.
+    """The RHS's ordered tail (`new_substrate.md`) -- an op written directly
+    on the rule, unconditional, no separate `after` statement.
 
     Reuses the trigger BACKEND (`m.rules.triggers`, keyed on empty query) --
     RHS supersedes the no-query case of triggers rather than duplicating it,
-    which is why no executor code is new here, only the front door."""
-    print("\n§20 the RHS's ordered tail -- attend/stop written on the rule "
-          "itself, no separate trigger statement")
+    which is why no executor code is new here, only the front door.
+
+    The tail's original tenant was `attend($x, 3)` -- three checks about a
+    learned weight, a control with no tail, and a negative weight read by
+    magnitude. All three are retired with the focus pool
+    (docs/design/intensity-gates.md); what they were really demonstrating,
+    that the tail names the HOST RULE's own variable rather than a fresh
+    one, is checked below with an op that survived.
+    """
+    print("\n§20 the RHS's ordered tail -- an op written on the rule itself, "
+          "no separate trigger statement")
     m = Machine()
     kb = load(m, "fact +happy(paul)\n"
                  "rule <r1> = implies({+happy($x)}, {+noticed($x)}) "
-                 "=> attend($x, 3)")
-    m._attend(kb.term("happy(paul)"))
+                 "=> destroy($x)")
+    paul = kb.atom("paul")
     m.run(limit=3)
-    check("§20", "the tail's `attend($x, 3)` names the rule's OWN $x, at the "
-                 "learned weight, with no separate `after <r1> => ...` "
-                 "statement anywhere in this corpus",
-          (kb.atom("paul"), 3) in m._attention)
+    #  `show` is what `delete` changes for every node kind, atom included
+    #  -- see `rhs_graph_ops`'s own note on why `relation_of` cannot answer
+    #  this for a bare atom.
+    check("§20", "the tail's `destroy($x)` names the rule's OWN $x -- the "
+                 "node this application bound, with no separate "
+                 "`after <r1> => ...` statement anywhere in this corpus",
+          m.g.show(paul) == f"#{paul}(erased)")
 
     m2 = Machine()
     kb2 = load(m2, "fact +happy(paul)\n"
                    "rule <r1> = implies({+happy($x)}, {+noticed($x)})")
-    m2._attend(kb2.term("happy(paul)"))
+    paul2 = kb2.atom("paul")
     m2.run(limit=3)
-    check("§20", "...and a rule with no tail attends nothing beyond what the "
-                 "loop attends on its own -- control",
-          (kb2.atom("paul"), 3) not in m2._attention)
-
-    m1b = Machine()
-    kb1b = load(m1b, "fact +bad(x)\n"
-                     "rule <r1> = implies({+bad($z)}, {+seen($z)}) "
-                     "=> attend($z, -5)")
-    m1b._attend(kb1b.term("bad(x)"))
-    m1b.run(limit=3)
-    check("§20", "a NEGATIVE weight parses too -- *a reason not to think "
-                 "about that*, read by magnitude on the standing side and "
-                 "never reaching the queue position (`_push_attention` "
-                 "floors it at 1)",
-          m1b._lane_state()[2].get(kb1b.atom("x")) == -5
-          and dict(m1b._attention).get(kb1b.atom("x"), 0) >= 1)
+    check("§20", "...and the same rule with no tail leaves it alone -- "
+                 "control",
+          m2.g.show(paul2) == "paul")
 
     m3 = Machine()
     kb3 = load(m3, "fact +happy(paul)\nfact +happy(mary)\n"
                    "rule <r1> = implies({+happy($x)}, {+noticed($x)}) => stop")
-    m3._attend(kb3.term("happy(paul)"))
-    m3._attend(kb3.term("happy(mary)"))
     steps = m3.run(limit=10)
     noticed = sum(1 for n in ("paul", "mary")
                   if m3.holds(kb3.term(f"noticed({n})")))
@@ -1105,7 +958,6 @@ def rhs_graph_ops() -> None:
     kb = load(m, "fact +sameas(loves, adores)\n"
                  "rule <r1> = implies({+sameas($a, $b)}, {+seen($a)}) "
                  "=> merge($a, $b)")
-    m._attend(kb.term("sameas(loves, adores)"))
     m.run(limit=5)
     check("§20", "merge($a, $b) in the tail merges the rule's OWN bindings",
           m.g.identity_of(kb.atom("adores")) == kb.atom("loves"))
@@ -1117,8 +969,6 @@ def rhs_graph_ops() -> None:
                    "rule <r1> = implies({+sameas($x, $y), "
                    "no processed($x, $y)}, {+processed($x, $y)}) "
                    "=> merge($x, $y)")
-    m2._attend(kb2.term("sameas(a, b)"))
-    m2._attend(kb2.term("sameas(a, c)"))
     m2.run(limit=10)
     a2, b2, c2 = kb2.atom("a"), kb2.atom("b"), kb2.atom("c")
     check("§20", "...and a guarded rule applies it across every pair, not "
@@ -1129,7 +979,6 @@ def rhs_graph_ops() -> None:
     kb3 = load(m3, "fact +wants_label(kettle, the-kettle)\n"
                    "rule <r1> = implies({+wants_label($x, $t)}, {+seen($x)}) "
                    "=> label($x, $t)")
-    m3._attend(kb3.term("wants_label(kettle, the-kettle)"))
     m3.run(limit=5)
     check("§20", "label($x, $t) reaches `Graph.label` from a rule",
           "the-kettle" in m3.g.labels_of(kb3.atom("kettle")))
@@ -1145,7 +994,6 @@ def rhs_graph_ops() -> None:
                    "rule <r2> = implies({+labelled($x, $t), "
                    "no unlabelled($x, $t)}, {+unlabelled($x, $t)}) "
                    "=> unlabel($x, $t)")
-    m4._attend(kb4.term("wants_label(kettle, the-kettle)"))
     m4.run(limit=1)
     check("§20", "...between the two, the label really is there",
           "the-kettle" in m4.g.labels_of(kb4.atom("kettle")))
@@ -1163,7 +1011,6 @@ def rhs_graph_ops() -> None:
     kb5 = load(m5, "fact +junk(trash)\n"
                    "rule <r1> = implies({+junk($x)}, {+seen($x)}) "
                    "=> destroy($x)")
-    m5._attend(kb5.term("junk(trash)"))
     m5.run(limit=5)
     trash = kb5.atom("trash")
     #  `trash` is a bare ATOM: `relation_of` on one is None by construction,
@@ -1181,8 +1028,6 @@ def rhs_graph_ops() -> None:
                    "rule <r1> = implies({+sameas($x, $y), "
                    "no processed($x, $y)}, {+processed($x, $y)}) "
                    "=> merge($x, $y)")
-    m6._attend(kb6.term("sameas(a, b)"))
-    m6._attend(kb6.term("sameas(a, c)"))
     m6.run(limit=10)
     a6, b6, c6 = kb6.atom("a"), kb6.atom("b"), kb6.atom("c")
     #  The OLDER of the two merges, read off the record rather than named:
@@ -1209,7 +1054,6 @@ def rhs_graph_ops() -> None:
                    "rule <wound> = implies("
                    "{$hit = answered(<dice>, roll(d20, hit($a, $d)), $n)},"
                    "{+seen($a)}) => forget $hit", scope="s7")
-    m7._attend(kb7.term("need(roll(d20, hit(hero, orc)))"))
     m7.run(limit=10)
     check("§20", "forget $hit erases the answer AND, structurally, the "
                  "request it names -- an occasion consumed as one "
@@ -1222,7 +1066,6 @@ def rhs_graph_ops() -> None:
     kb8 = load(m8, "fact +junk(x)\n"
                    "rule <bad> = implies({$j = junk($x)}, {+seen($x)}) "
                    "=> forget $j")
-    m8._attend(kb8.term("junk(x)"))
     threw = False
     try:
         m8.run(limit=5)
@@ -1250,7 +1093,6 @@ def prefix_binding() -> None:
     )
     m = Machine()
     kb = load(m, corpus)
-    m._attend(kb.term("want(color(ball, red))"))
     m.run(limit=5)
     check("§8", "a judger generic over the RELATION -- one rule, not one "
                 "per relation -- reports the wanted value missing and the "
@@ -1260,7 +1102,6 @@ def prefix_binding() -> None:
 
     m2 = Machine()
     kb2 = load(m2, corpus.replace("+color(ball, blue)", "+color(ball, red)"))
-    m2._attend(kb2.term("want(color(ball, red))"))
     m2.run(limit=5)
     check("§8", "...and stays silent once the want is satisfied -- control",
           not m2.holds(kb2.term("missing(color(ball, red))")))
@@ -1298,7 +1139,6 @@ def alt_branches() -> None:
     m = Machine()
     kb = load(m, corpus + "\nfact +intends(hero, attack(goblin1), 1)\n"
                           "fact +present(goblin1)")
-    m._attend(kb.term("turn(hero)"))
     m.run(limit=5)
     check("§8", "branch 1 -- the declared target is present, attacked "
                 "directly",
@@ -1307,7 +1147,6 @@ def alt_branches() -> None:
     m2 = Machine()
     kb2 = load(m2, corpus + "\nfact +intends(hero, attack(goblin1), 1)\n"
                            "fact +monster(goblin2)\nfact +present(goblin2)")
-    m2._attend(kb2.term("turn(hero)"))
     m2.run(limit=5)
     check("§8", "branch 2 -- the declared target is down (no `present`), "
                 "switches to another monster present -- the SAME rule name, "
@@ -1352,9 +1191,9 @@ def line_form() -> None:
              "rule <boil>\n  +heat($a, $w)\n  +water($w)\n  no boiling($w)\n"
              "->\n  +boiling($w)\n  -liquid($w)\n")
     m1 = Machine(); kb1 = load(m1, braced)
-    m1._attend(kb1.term("heat(anna, kettle)")); m1.run(limit=5)
+    m1.run(limit=5)
     m2 = Machine(); kb2 = load(m2, lined)
-    m2._attend(kb2.term("heat(anna, kettle)")); m2.run(limit=5)
+    m2.run(limit=5)
     check("§8", "the line form reaches the same belief as the brace form it "
                 "reshapes -- one grammar, two surfaces",
           m2.holds(kb2.term("boiling(kettle)"))
@@ -1368,7 +1207,6 @@ def line_form() -> None:
                    "->\n  +disrupted($f)\n"
                    "rule <late>\n  +delayed($f, long)\n  no disrupted($f)\n"
                    "->\n  +disrupted($f)\n")
-    m3._attend(kb3.term("cancelled(bl204)"))
     m3.run(limit=5)
     names3 = [r.name for r in m3.rules.rules]
     check("§8", "two line-form rules back to back, no blank line between -- "
@@ -1389,7 +1227,6 @@ def line_form() -> None:
                    "alt\n  $intent = intends(hero, attack($d), $r)\n"
                    "  no present($d)\n  +monster($t)\n  +present($t)\n"
                    "->\n  -may(hero)\n  -$intent\n  +attack(hero, $t)\n")
-    m4._attend(kb4.term("turn(hero)"))
     m4.run(limit=5)
     names4 = [r.name for r in m4.rules.rules]
     check("§8", "`alt` in line form compiles to one Rule per branch, same "
@@ -1407,7 +1244,6 @@ def line_form() -> None:
                    "  $hit = answered(<dice>, roll(d20, hit($a, $d)), $n)\n"
                    "->\n  +seen($a)\n"
                    "=> forget $hit\n", scope="s5")
-    m5._attend(kb5.term("need(roll(d20, hit(hero, orc)))"))
     m5.run(limit=10)
     check("§8", "`=> forget $hit` in line form erases the answer and its "
                 "request together, exactly as the brace form's tail does",
@@ -1475,35 +1311,69 @@ def string_literals() -> None:
           threw)
 
 
-def frames() -> None:
-    print("\n§20 frames: the attention stack and the consultation stack are "
-          "one construct")
+def focus_is_retired() -> None:
+    """The focus pool and the frame stack, both gone (docs/design/
+    intensity-gates.md).
+
+    This function is what is left of `attention()` and `frames()`, which
+    between them held sixteen checks: a queue bounded by time rather than
+    length, a claim outliving its own move's bookkeeping, a faded claim
+    coming back at what it was worth, `floor`/`ceiling` as pin and cap,
+    `push` opening a frame and `pop` returning one node to the frame below,
+    a re-push of the same nodes declined as a loop, and the popped frame's
+    standing weights going with the frame.
+
+    All sixteen answered *which of the things it could work on does the
+    agent work on next*, and nothing asks that any more: a rule fires
+    whenever its own antecedent is on. What survives of the question is
+    ON/OFF itself, which is `firing.py`'s own worked examples and the
+    `keep`/discharge checks in `applying()`. What is checked here is only
+    that the vocabulary is gone rather than quietly ignored -- a corpus
+    written against the old surface must fail to load, not load and do
+    nothing.
+    """
+    print("\n§20 the focus pool and the frame stack are retired -- their "
+          "surface is refused at load rather than accepted and ignored")
+    for src, what in (("rule <r> = implies({+p($x)}, {+q($x)}) => attend($x, 3)",
+                       "attend"),
+                      ("rule <r> = implies({+p($x)}, {+q($x)}) => brush($x)",
+                       "brush"),
+                      ("rule <r> = implies({+p($x)}, {+q($x)}) => unattend",
+                       "unattend"),
+                      ("rule <r> = implies({+p($x)}, {+q($x)}) => push($x)",
+                       "push"),
+                      ("rule <r> = implies({+p($x)}, {+q($x)}) => pop($x)",
+                       "pop")):
+        try:
+            load(Machine(), src)
+            refused = False
+        except ParseError:
+            refused = True
+        check("§20", f"`{what}` as a postcondition is a ParseError, not a "
+                     f"silent no-op", refused)
+
     m = Machine()
-    kb = load(m, "fact +p(a)")
-    depth = len(m._frames)
-    m._push_frame([kb.atom("a")])
-    check("§20", "a push opens a frame and attends what it is about",
-          len(m._frames) == depth + 1
-          and m._attended()[:1] == [kb.atom("a")])
-    check("§20", "and it is on the record", m.holds(m.g.rel(m.PUSHED, kb.atom("a"))))
-    m._push_frame([kb.atom("a")])
-    check("§20", "the same line of work on the same nodes is a LOOP, declined "
-                 "on the record rather than entered",
-          len(m._frames) == depth + 1
-          and any(m.g.relation_of(p) is m.DECLINED for p in m.pad.believed()))
-    m._pop_frame(kb.atom("answer"))
-    check("§20", "a pop returns to the frame below", len(m._frames) == depth)
-    check("§20", "...and the popped frame's own standing weights are GONE "
-                 "with it -- discarded along with the Frame object, not "
-                 "erased from a belief -- or a suspension would leak the "
-                 "thing it exists to put away",
-          kb.atom("a") not in m._lane_state()[2])
-    check("§20", "...while the node it carried back IS attended, which is "
-                 "the attention-level analogue of a return value",
-          kb.atom("answer") in m._lane_state()[2])
-    m._pop_frame()
-    check("§20", "the root is not popped; it is declined",
-          len(m._frames) == depth)
+    try:
+        load(m, "fact +happy(paul)\n"
+                "rule <r> = implies({+happy($x), attentioned($x)}, "
+                "{+noticed($x)})")
+        m.run(limit=3)
+        # It loads -- `attentioned` is an ordinary name now, so this is an
+        # ordinary MEMBER nothing anchors rather than a predicate. What must
+        # not happen is it opening on its own.
+        opened = m.holds(m.g.rel(m.g.atom("noticed"), m.g.atom("paul")))
+    except ParseError:
+        opened = False
+    check("§20", "`attentioned($x)` is no longer a predicate the engine "
+                 "answers -- a rule asking it gets nothing, rather than a "
+                 "filter over a pool that is not there", not opened)
+
+    check("§20", "and the machinery it drove is gone from `Machine` "
+                 "outright, not left dormant",
+          not any(hasattr(Machine(), a) for a in
+                  ("_attend", "_attended", "_unattend", "_fade_attention",
+                   "_push_attention", "_attend_written", "_consume",
+                   "_frames", "_push_frame", "_pop_frame", "_lane_state")))
 
 
 def lanes() -> None:
@@ -1537,7 +1407,6 @@ def lanes() -> None:
     kb2 = load(m2, "fact +p(a)\n"
                    "rule <one> = implies({+p($x), no q($x)}, {+q($x)})\n"
                    "rule <two> = implies({+q($x), no r($x)}, {+r($x)})")
-    m2._attend(kb2.term("p(a)"))
     m2.run(limit=5)
     check("§20", "a chain of two rules still reaches the end of the chain -- "
                 "one more tick than the lane era's same-round visibility "
@@ -1568,7 +1437,7 @@ def circuit_breaker() -> None:
     is retired along with the mechanism it was for: `<flaky>`'s own
     consequent recharges `p($x)`, the SAME node its antecedent just
     matched (a bound variable, not a fresh ground literal -- see
-    `core/attention.py`'s own worked example for why that distinction is
+    `core/firing.py`'s own worked example for why that distinction is
     load-bearing), so the discharge and the recharge fold to the same
     number this tick and `p($x)` never actually goes off. That is what a
     rule that cannot stop itself looks like now."""
@@ -1594,8 +1463,6 @@ def circuit_breaker() -> None:
     ldr.computator("at_least", lambda a, b: "yes" if int(a) >= int(b) else None)
     kb = load(m, src, scope="cb")
     load_file(m, path, scope="cb")
-    for name in ("a", "b"):
-        m._attend(kb.term(f"p({name})"), weight=3, floor=1)
     #  531 ticks -- the same budget `book/docs/watching/28-the-table.md`
     # measured the table-era breaker against (31 clean cycles there). Both
     # bindings of `<flaky>` fire every tick they can now rather than one
@@ -1655,10 +1522,10 @@ def surface() -> None:
     #  The twin trap: a reserved name written in a corpus must be the SAME
     # node the machinery writes, or the rule is well formed and matches nothing.
     m4 = Machine()
-    kb4 = load(m4, "fact +attention(thing)")
+    kb4 = load(m4, "fact +dormant(thing)")
     check("§22", "a reserved name in a corpus resolves to the machinery's own "
                  "node, not a twin with the same spelling",
-          m4.g.relation_of(kb4.term("attention(thing)")) is m4.ATTENTION)
+          m4.g.relation_of(kb4.term("dormant(thing)")) is m4.DORMANT)
 
 
 def the_web() -> None:
@@ -1680,35 +1547,42 @@ def the_web() -> None:
 def calibration() -> None:
     """Search the numbers, never the rules.
 
-    Most of what this used to demonstrate is retired along with per-line
-    scoring (docs/design/intensity-gates.md): the corpus this searched,
-    `pick_the_event.ugm`, existed to show a search finding WHICH of a
-    rule's several matched applications an `attention_multiplier` bracket
-    should favour -- and there is no picking among applications any more
-    (every one a rule finds fires), so the bracket syntax itself is refused
-    at load now (`text.py`'s `member`) and the episode's premise -- that
-    only the numbers decide which of `e1`/`e2` gets picked -- is not a
-    question this engine still asks. What survives is the mechanical half:
-    `numbers`/`mutate` still walk a corpus's `attend(...)` tails (the
-    bracket regex simply never matches any more, and finds nothing to
-    move), and the judge-starvation guard below is a claim about the LOOP,
-    not about scoring, so it still holds.
+    What the numbers ARE has moved twice. Per-line scoring's own episode
+    (`pick_the_event.ugm`) went with the pick it demonstrated: it existed to
+    show a search finding which of a rule's several matched applications an
+    `attention_multiplier` bracket should favour, and every application a
+    rule finds fires now. `attend(...)` tails went with the focus pool one
+    step later. What a corpus carries that a search can move is an
+    INTENSITY -- how far ON a write turns something -- so that is what
+    `numbers`/`mutate` walk (`ugm/learning/calibrate.py`). The
+    judge-starvation guard below is a claim about the LOOP, not about
+    scoring, and holds through all of it.
     """
     from .learning import Episode, mutate, numbers, run_episode
     import random
 
-    print("\n--  calibration: per-line scoring's own episode retired with "
-          "it; what is left is the mechanical half (`numbers`/`mutate` "
-          "over `attend(...)` tails) and the judge-starvation guard")
+    print("\n--  calibration: search the numbers, never the rules -- and "
+          "the numbers are intensities now")
     corpus = ("fact +happy(paul)\n"
-              "rule <r1> = implies({+happy($x)}, {+noticed($x)}) "
-              "=> attend($x, 3, 2, 1, 9)\n")
+              "rule <r1> = implies({+happy($x)}, {+noticed($x) intensity 3})\n")
+
+    check("--", "an `intensity` write is what a mutator can see -- one "
+                "number in this corpus, and it is that one",
+          [corpus[a:b] for a, b, _k in numbers(corpus)] == ["3"])
 
     rng = random.Random(3)
     many = {mutate(corpus, rng, 2) for _ in range(40)}
-    check("--", "a mutator only ever moves an `attend(...)` tail's numbers "
-                "-- no candidate in forty is a different rule",
-          all(len(numbers(c)) == len(numbers(corpus)) for c in many))
+    check("--", "a mutator only ever moves an intensity -- no candidate in "
+                "forty is a different rule",
+          len(many) > 1
+          and all(len(numbers(c)) == len(numbers(corpus)) for c in many))
+    check("--", "...and every candidate still LOADS -- a search that "
+                "proposed unparseable text would be scoring nonsense",
+          all(load(Machine(), c) is not None for c in many))
+    check("--", "an intensity is never nudged below zero: zero is OFF, and "
+                "there is nothing further down to reach",
+          all(float(c[a:b]) >= 0
+              for c in many for a, b, _k in numbers(c)))
 
     ep = Episode(_corpora.path("episodes/pick_the_event.ugm"))
     check("--", "a judge that never got a turn is a FAILURE, not a pass -- "
@@ -1724,14 +1598,10 @@ def worked_corpora() -> None:
     print("\n--  the shipped corpora run")
     m = Machine()
     kb = load_file(m, _corpora.path("worked.ugm"))
-    # `worked.ugm` is printed verbatim from the design document (its own
-    # header says so), so the kickoff lives here rather than in the corpus:
-    # `<boil>`/`<weather>` read background `fact`s nothing has arrived to
-    # ask about (§20), and giving them one here -- the same way
-    # `circuit_breaker()` below already does -- keeps the file itself an
-    # exact transcript.
-    m._attend(kb.term("heat(anna, kettle)"))
-    m._attend(kb.term("cloudy(monday, morning)"))
+    #  No kickoff needed any more. A `m._attend(...)` pair sat here while a
+    # rule had to be thought about before it could be offered, so a corpus
+    # whose start was purely loaded `fact`s did nothing at all. A rule
+    # fires whenever its own antecedent is ON, and a loaded fact is on.
     steps = m.run(limit=100)
     check("--", "the design document's worked rules reach quiescence",
           steps[-1].state == "quiescent")
@@ -1803,11 +1673,11 @@ def todo_stack() -> None:
     """, scope="host")
     steps = m.run(limit=100)
 
-    check("--", "loading the file alone pins `internal_todo` -- always "
-                "attentioned, whether or not the host corpus ever says "
-                "anything",
-          kb.term("internal_todo") in [n for n, _w in m._attention]
-          or m._lane_state()[2].get(kb.term("internal_todo")) is not None)
+    check("--", "loading the file alone claims `pinned(internal_todo)` -- "
+                "the anchor stands whether or not the host corpus ever says "
+                "anything, off `todo.ugm`'s OWN arrival rather than the "
+                "host's",
+          m.holds(kb.term("pinned(internal_todo)")))
     tasks = [p for p in m.pad.believed() if m.g.relation_of(p) is kb.atom("task")]
     check("--", "two arrivals landing together are both opened as tasks, not "
                 "just the one that wins the first tick -- the same starvation "
@@ -1815,8 +1685,9 @@ def todo_stack() -> None:
           len(tasks) == 2)
     completed = [p for p in m.pad.believed()
                 if m.g.relation_of(p) is kb.atom("completed")]
-    check("--", "the host corpus's own judge-lane rule closes both, brushed "
-                "into staying reachable long enough for it to",
+    check("--", "the host corpus's own judge rule closes both -- `keep` on "
+                "`believed($said)` is what leaves the belief standing for "
+                "the second to read after the first has fired",
           len(completed) == 2
           and m.holds(kb2.term("believed(raining(here))"))
           and m.holds(kb2.term("believed(snowing(there))")))
@@ -1844,9 +1715,13 @@ def todo_stack() -> None:
                 "pushes in one tick race for the stack pointer, see the "
                 "comment above",
           len(top) == 1 and m.g.member(top[0], 1) == kb.term("internal_todo"))
-    check("--", "a closed task is unpinned and fades, rather than sitting "
-                "in mind at the same floor an open one gets",
-          all(m._lane_state()[2].get(t) is None for t in tasks))
+    #  `tasks` holds the `task($t)` PROPOSITIONS; `$t` is member 0. The
+    # check this replaced read the focus pool and was handed the same list,
+    # where every lookup missed and the `all(...)` passed vacuously.
+    check("--", "a closed task is marked retired, so a rule can tell one "
+                "the stack is done with from one still open",
+          all(m.holds(m.g.rel(kb.atom("retired"), m.g.member(t, 0)))
+              for t in tasks))
 
 
 def determinism() -> None:
@@ -1881,7 +1756,6 @@ def main() -> int:
     tools()
     triggers()
     tool_approval()
-    attention()
     reference_lines()
     rhs_tail()
     rhs_graph_ops()
@@ -1889,7 +1763,7 @@ def main() -> int:
     alt_branches()
     line_form()
     string_literals()
-    frames()
+    focus_is_retired()
     lanes()
     calibration()
     circuit_breaker()

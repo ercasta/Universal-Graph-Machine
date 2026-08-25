@@ -4,17 +4,14 @@ Shipped, not a proposal. `ugm/rules/todo.ugm` is the corpus; `todo_stack()` in `
 
 ## The pattern
 
-A standing anchor, `internal_todo`, always attentioned. Tasks are pushed onto it and popped off it as
-a stack. Three pieces, no new engine primitive:
+A standing anchor, `internal_todo`, with tasks pushed onto it and popped off it as a stack. Two
+pieces, no new engine primitive:
 
 - **A channel arrival opens a task.** System-wide: whatever arrives, answering it becomes an open
   task (`task($t)`, `about($t, $said)`).
-- **A `brush` lane keeps the top task in mind.** One rule, its own lane, re-attends the current top
-  task every round — so a corpus's own rules keep getting a reason to consider it, however many times
-  they match without yet closing it.
-- **A `judge` lane closes it.** `todo.ugm` writes no closing rule of its own — deciding a task is done
+- **A judge rule closes it.** `todo.ugm` writes no closing rule of its own — deciding a task is done
   is the host corpus's business, the same reason `bundle.ugm` carries no policy either. A host corpus
-  writes an ordinary rule that concludes `completed($t)`, in the `judge` lane.
+  writes an ordinary rule that concludes `completed($t)`.
 
 ```
 say ops: +cancelled(bl204)
@@ -28,13 +25,14 @@ rule <trust>
 
 rule <task-answered>
   +about($t, $said)
-  +says($channel, $said)
-  +believed($said)
+  keep believed($said)
   no completed($t)
 ->
   +completed($t)
-fact +lane(<task-answered>, judge)
 ```
+
+`keep` on `believed($said)`: firing spends what it matched, and this judge is not the rule that
+should retire the belief — only the one reading it to decide a task is answered.
 
 Load it alongside your own corpus with the **same `scope=`**, the same discipline
 [`tools-approval.md`](tools-approval.md) needs — `task(...)` in each file mints a twin nobody's rules
@@ -48,21 +46,18 @@ task marked `completed` does not have to be the current top to be closed — clo
 is ordinary business — but the stack only answers for what's on top, skipping over anything already
 closed the moment it's reached.
 
-## Attention, restored
+## Keeping a task open
 
-Decay is live (`ugm/core/attention.py`): a claim fades on its own clock rather than sitting at full
-strength forever. Two consequences this corpus leans on:
+There used to be a third piece: a `brush` lane whose one rule re-attended the top open task every
+round, so the same application kept surviving the per-tick pick instead of being consumed once and
+never seen again. Both halves of that are gone — no pick, no focus pool — and what replaces it is
+smaller:
 
-- **A loaded `fact` gets no attention.** Attending is *taking care of something*; background nobody
-  has been asked to take care of stays background. `internal_todo`'s own pin comes from an arrival
-  this file delivers itself (`say todo: +boot`), not from being loaded.
-- **Several ground things landing together can starve each other.** The engine re-attends a matched
-  sibling that lost its turn (a genuine revisit, never downgrading a stronger claim), but a rule
-  writing something an ordinary write only holds for one tick — `<intake>`'s own `says(...)`, this
-  file's own `task(...)` — can still lose a race to a busy round. `<open-task>` gets its own lane for
-  exactly this reason (`todo.ugm`'s own header spells out the measurement); a host corpus's `<trust>`
-  rule may need the same `after <intake> { $sp = says($channel, $said) } => attend($sp, 5, 1, 1)` hop
-  `delay.ugm` needed once its own facts stopped being loaded pre-attended.
+- **`keep` on `top(internal_todo, $t)` and `task($t)`** — read without spending, so the stack's own
+  pointer and its own record stay on.
+- **Every rule that matches fires.** A corpus's own rules answering `about($t, $said)` get a reason to
+  consider `$t` on every tick it is open, for free, however many times they match without yet closing
+  it.
 
 ## What's out of scope here
 

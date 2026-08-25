@@ -67,74 +67,6 @@ class Answerer(NamedTuple):
     fn: object  # fn(machine, proposition) -> NodeId | None
 
 
-#: What `attend($x)` is worth when nobody says -- the MEDIUM. A corpus that
-#: cares says a number; one that merely means *this one* should not have to
-#: invent a scale to say so.
-ATTENTION_START = 5
-
-#: What a claim loses per tick when nobody says.
-ATTENTION_DECAY = 1
-
-#: What an incidental touch is worth -- what `_attend_written` gives a node
-#: no one ever claimed. One tick, and then it is somebody else's turn. The
-#: SAME for a channel arrival and for a corpus being loaded: choosing that
-#: what the world said outweighs what a move wrote is the engine deciding
-#: something only a corpus can.
-ATTENTION_BRUSH = 1
-
-#: The least a claim may fade to. Zero means it fades away entirely, which
-#: is what almost everything wants. Above zero it is PINNED: it never leaves
-#: the pool, so there is always something to be about.
-ATTENTION_FLOOR = 0
-
-
-#: How deep the attention stack may go. A backstop against a corpus that pushes
-#: its way down for ever on ever-changing nodes, which the cycle test cannot
-#: see -- the nodes are different every time.
-FRAME_DEPTH = 8
-
-
-class Frame:
-    """One turn of attention: a queue of nodes, and what was pushed to open it.
-
-    `push` suspends a line of work for another and `pop` returns to it. A
-    frame is not only a queue of nodes: it is everything a sub-line of work
-    has that the line above it must not lose.
-
-    The graph is untouched by push and pop. This is not a transaction, there is
-    no rollback, and nothing derived inside a frame stops existing when it is
-    popped. Attention management is the whole of this. The one thing a pop does
-    take back is the frame's own STANDING weights, and it does so simply by
-    being discarded with the frame -- there is nothing to erase separately.
-    """
-
-    __slots__ = ("queue", "spec", "weights", "on")
-
-    def __init__(self, on=()) -> None:
-        # ONE pool, shared by every lane. It was briefly per-lane, on the
-        # argument that what a reflex is about is not what the main line is
-        # about -- but lanes that each remember something different are
-        # lanes that can DIVERGE, and then which lane ran last decides what
-        # the agent is thinking about. There is one agent.
-        self.queue: List[Tuple[NodeId, int]] = []
-        # node -> (start, decay, min, max).
-        self.spec: Dict[NodeId, Tuple[int, int, int, int]] = {}
-        self.on: Tuple[NodeId, ...] = tuple(on)
-        # STANDING attention, by MAGNITUDE rather than position -- what
-        # `attend($x, n)` means beside pushing `$x` onto `queue`. This used to
-        # be a believed `attention(x, n)` proposition, argued for on the
-        # ground that *dropping a Python set is not readable by any rule and
-        # cannot be argued with*. It is engine state instead: attention is
-        # control, not world knowledge, the same category error the RHS/
-        # trigger split exists to keep out of a rule's declarative side
-        # (`new_substrate.md`), and the "not readable" objection is answered
-        # differently now -- `attentioned($x)` (a PREDICATE, not a belief)
-        # lets a rule ask without the engine's scheduling state living in the
-        # graph. Popped for free: this dict goes with the Frame object, no
-        # erase loop needed.
-        self.weights: Dict[NodeId, int] = {}
-
-
 class Machine:
     BUNDLE = _corpora.path("bundle.ugm")
 
@@ -197,21 +129,13 @@ class Machine:
         # decided, so a corpus can settle it.
         self.CLOSE = self.g.atom("close")
 
-        # -- attention -----------------------------------------------------
-        self.ATTENTION = self.g.atom("attention")
-        self.SPAN = self.g.atom("attention_span")
-        self.DEPTH = self.g.atom("frame_depth")
-        self.PUSHED = self.g.atom("pushed")
-        self.POPPED = self.g.atom("popped")
-        self.DECLINED = self.g.atom("declined")
-        self.UNATTENDED = self.g.atom("unattended")
         # -- reference lines (`new_substrate.md`) --------------------------
-        # `attentioned($x)` -- which one, not a relevance gate (the 08-22
-        # finding is about ORDERING moves and does not apply to picking a
-        # referent). `label($x, paul)` -- does $x carry this label. Both are
-        # PREDICATES (see `rules.match`): filters over an already-bound node,
-        # never matched, never bound to.
-        self.ATTENTIONED = self.g.atom("attentioned")
+        # `label($x, paul)` -- does $x carry this label. A PREDICATE (see
+        # `rules.match`): a filter over an already-bound node, never
+        # matched, never bound to. `attentioned($x)` was the other one and
+        # is gone with the focus queue it asked about -- a rule that wants
+        # to know whether something is in play asks whether it is ON, which
+        # is what an ordinary member already does.
         self.LABEL = self.g.atom("label")
         # -- intensity (docs/design/intensity-gates.md) --------------------
         # `intensity($x) as $n` -- a NODE-COMPUTATOR (see `rules.match`):
@@ -219,7 +143,7 @@ class Machine:
         # rather than filtering or matching it. The one read half of "read
         # the current intensity, write a new one" needs; the write half is
         # an ordinary consequent member's `intensity $n` clause
-        # (`text.py`'s `member`), applied by `attention.run`'s per-tick
+        # (`text.py`'s `member`), applied by `firing.run`'s per-tick
         # commit rather than by anything registered here.
         self.INTENSITY = self.g.atom("intensity")
 
@@ -276,12 +200,7 @@ class Machine:
             "lane": self.LANE, "lane_order": self.LANE_ORDER,
             "bounded": self.BOUNDED, "ticks": self.TICKS,
             "close": self.CLOSE,
-            "attention": self.ATTENTION,
-            "attention_span": self.SPAN,
-            "frame_depth": self.DEPTH,
-            "pushed": self.PUSHED, "popped": self.POPPED,
-            "declined": self.DECLINED, "unattended": self.UNATTENDED,
-            "attentioned": self.ATTENTIONED, "label": self.LABEL,
+            "label": self.LABEL,
             "intensity": self.INTENSITY,
             "answers": self.ANSWERS, "answered": self.ANSWERED,
             "computes": self.COMPUTES, "action": self.AFFORDED,
@@ -310,42 +229,20 @@ class Machine:
             self._numeral(i)
 
         # What the machinery keeps ABOUT its own conduct, as opposed to what
-        # the world is about. A queue full of these is a queue that says
-        # nothing about the situation, so `_attend_written` skips them.
+        # the world is about -- `_contents` uses it so a gap does not report
+        # the apparatus as something to get rid of.
         self._bookkeeping = {
             self.RULE, self.ANT, self.CON, self.NAMES,
             self.COUNT, self.COUNTED, self.RECALL, self.RECALLED,
             self.DORMANT, self.DUE, self.STANDING,
             self.LANE, self.LANE_ORDER,
             self.BOUNDED, self.CLOSE,
-            self.ATTENTION, self.SPAN, self.DEPTH,
-            self.PUSHED, self.POPPED, self.DECLINED,
             self.ANSWERS, self.ANSWERED, self.COMPUTES, self.AFFORDED,
             self.LOADED, self.SCOPED,
             self.INTERCEPTS, self.PRODUCING, self.REWROTE,
             self.DELTA, self.MISSING, self.MATCHED, self.EXTRA,
             self.ERASED, self.INTENSITY,
         }
-        #  What is not worth THINKING ABOUT, which is a different question
-        # from what is not part of the world. `_bookkeeping` answers the
-        # second: `_contents` uses it so a gap does not report the apparatus
-        # as something to get rid of.
-        #
-        # An ANSWER is in the first set and not the second. It is the agent's
-        # own record that a tool said so -- not world state -- but it is also
-        # NEW BUSINESS arriving from outside any rule, and the rule waiting on
-        # it is never enabled unless it carries a token. Sharing one list made
-        # `_answer`'s own `_attend_written` call a no-op, with a comment above
-        # it saying exactly what must not happen.
-        #
-        # A DOUBT is the same shape one layer up: `close(...)` is still not
-        # world state (`_contents` must keep excluding it), but it is what a
-        # settling rule waits on, and a settling rule unattended is a
-        # settling rule `_attended_first` throws away regardless of its table
-        # score. Invisible while attention never decayed -- whatever was
-        # already in the pool kept overlapping by accident -- and load-
-        # bearing the moment it does (`attention.run`'s doubt branch).
-        self._incidental = self._bookkeeping - {self.ANSWERED, self.CLOSE}
 
         self.answerers: List[Answerer] = []
         self.selections = 0
@@ -354,23 +251,8 @@ class Machine:
         self.considered = 0
         self._reified: set = set()
         self._marker_cache: Dict[NodeId, Tuple[NodeId, ...]] = {}
-        
-        self._evicted: set = set()
-        self._readmitted = 0
-        # Which lane is being run right now. The loop sets it per lane pass;
-        # everything that reads or writes attention resolves through it, so
-        # a reflex rule's `attend` lands in the reflex lane's own queue and
-        # `attentioned($x)` asks about the lane doing the asking.
-        self._lane = "main"
-        # Attended since the last fade. A claim keeps its full strength
-        # through the tick AFTER the one that made it -- otherwise
-        # `_attend_written`, whose whole job is to lift the next tick,
-        # would be faded to nothing before that tick ever matched.
-        self._fresh_attention: set = set()
-        self._frames: List[Frame] = [Frame()]
-        self._floor = 0
         # Recorded by a firing's `stop` postcondition, obeyed by
-        # `attention.run`'s own tick loop -- see that file's `_spend_one`.
+        # `firing.run`'s own tick loop -- see that file's `_spend_one`.
         self._stopped: Optional[str] = None
         self._authoring_source: Optional[NodeId] = None
         self._saying_scope: Optional[str] = None
@@ -386,8 +268,6 @@ class Machine:
         #  Not corpus-registered, the way a `<dice>` computator is -- these
         # are language, not a tool: every corpus gets them, the way every
         # corpus gets `no`.
-        self.rules.predicates[self.ATTENTIONED] = (
-            lambda x: x in self._attended())
         self.rules.predicates[self.LABEL] = (
             lambda x, text: self.g.show(text) in self.g.labels_of(x))
         # `intensity($x) as $n` -- read `$x`'s CURRENT number. `$x` is a
@@ -564,343 +444,6 @@ class Machine:
         """
         return self.pad.holds_any(proposition)
 
-    # -- the attention stack -----------------------------------------------
-
-    def _lane_state(self, lane=None):
-        """`(queue, spec, weights)` on the top frame. `lane` is accepted and
-        ignored -- attention is shared, so every lane reads the one pool."""
-        f = self._frames[-1]
-        return (f.queue, f.spec, f.weights)
-
-    @property
-    def _attention(self) -> List[Tuple[NodeId, int]]:
-        """The top frame's queue, which is what every reader of it wants."""
-        return self._frames[-1].queue
-
-    @_attention.setter
-    def _attention(self, queue) -> None:
-        self._frames[-1].queue = list(queue)
-
-    def _push_frame(self, nodes):
-        """Suspend what the agent was doing and open a frame on `nodes`.
-
-        This is a call: `push($a, $b)` suspends the current line of work and
-        opens a new one about the nodes named. What it runs there is whatever
-        the table finds -- picking is attention's job, not push's.
-
-        Returns None if the push did not happen, and that is RECORDED: a
-        consultation that returned nothing and one that was never opened are
-        two different things.
-        """
-        nodes = [n for n in nodes if n is not None and not self.g.has_var(n)]
-        if not nodes:
-            # Ground only, and silently so. A frame about no one is not a frame.
-            return None
-        key = frozenset(nodes)
-        if any(frozenset(f.on) == key for f in self._frames):
-            # `A -> B -> A` about something NEW is ordinary recursion and must
-            # stay allowed; the same nodes again is the loop.
-            self._declined_frame(self.PUSHED, nodes[0], "already_open")
-            return None
-        if len(self._frames) >= (self._knob(self.DEPTH, FRAME_DEPTH)
-                                 or FRAME_DEPTH):
-            self._declined_frame(self.PUSHED, nodes[0], "too_deep")
-            return None
-        frame = Frame(nodes)
-        self._frames.append(frame)
-        # Reversed, so the FIRST node named ends up at the front of the new
-        # queue: `push($a, $b)` reads left to right and position is the
-        # gradient, so the leftmost has to lift hardest.
-        for node in reversed(nodes):
-            self._attend(node)
-        for node in nodes:
-            self._note_that(self.PUSHED, node)
-        return frame
-
-    def _pop_frame(self, node: Optional[NodeId] = None) -> bool:
-        """Return to the frame below, attending `node` on it.
-
-        `pop($x)` carries one node back: the attention-level analogue of a
-        return value.
-
-        The frame's own standing weights go with it, and nothing else is
-        touched. Everything the frame concluded stands -- popping a set of
-        graph changes is a different feature, it does not exist, and it is not
-        wanted. Gone rather than left standing, because a weight the frame set
-        would go on lifting rules from the bottom of `_attended()` for the
-        rest of the run, and the suspension would leak the very thing it exists
-        to put away.
-        """
-        if len(self._frames) - 1 <= self._floor:
-            # The root is not popped. A pop with nothing to return to is
-            # declined on the record rather than raised, because a corpus that
-            # pops too often is arguing with itself and that is its business.
-            self._declined_frame(self.POPPED, node, "at_root")
-            return False
-        self._frames.pop()
-        if node is not None and not self.g.has_var(node):
-            self._attend(node)
-            self._note_that(self.POPPED, node)
-        return True
-
-    def _declined_frame(self, what: NodeId, node, why: str) -> None:
-        """A push or a pop that did not happen, on the record.
-
-        Never silent: a stack that quietly did nothing would be
-        indistinguishable from one that had nothing to do.
-        """
-        if node is None:
-            return
-        self._note_that(self.DECLINED, what, node, self.g.atom(why))
-
-    def _attend(self, node: NodeId, weight=None, decay=None,
-                floor=None, ceiling=None) -> bool:
-        """*Think about this one.* -- what a postcondition spends when it
-        attends, and an ordinary claim when it lands. Engine state, scoped to
-        the frame -- see `Frame.weights`'s own comment for why this is not a
-        believed proposition. True if this changed the standing weight."""
-        if weight is None:
-            weight = ATTENTION_START
-        #  The OCCASION, not the description. A caller naming a term --
-        # `attend(intake($e, $who), 3)` on a right-hand side, or a probe
-        # asking in Python -- hands a node built for the naming, and attention
-        # on a node nobody believes is a claim no rule can be lifted by.
-        node = self.pad.occasion(node)
-        self._push_attention(node, weight, decay, floor=floor, ceiling=ceiling)
-        _q, _s, weights = self._lane_state()
-        if weights.get(node) == weight:
-            return False
-        weights[node] = weight
-        return True
-
-    def _attend_written(self, wrote, start=None, floor=None) -> None:
-        """What a move just wrote goes on the queue, at weight 1.
-
-        Everything one move writes arrives at the same depth, so the queue
-        alone cannot tell those nodes apart -- and a queue permanently full of
-        undifferentiated nodes made the agent chase its own tail and quiesce 30
-        moves early. A claimed `attention($x, 3)` outweighs them: weight 1 is
-        *this is what just happened*, a multiplier is *and something says this
-        part mattered*.
-        """
-        for prop in reversed(tuple(wrote or ())):
-            # NOT the agent's own record-keeping: those are how the machinery
-            # remembers what it did, not things the world is about.
-            if self.g.relation_of(prop) in self._incidental:
-                continue
-            for node in self._nodes_of(prop, []):
-                if self.g.relation_of(node) in self._incidental:
-                    continue
-                self._push_attention(node, start, floor=floor)
-
-    def _nodes_of(self, node: NodeId, out: List[NodeId]) -> List[NodeId]:
-        """A proposition, decomposed into every node it is made of."""
-        if node in out:
-            return out
-        out.append(node)
-        rel = self.g.relation_of(node)
-        if rel is not None:
-            self._nodes_of(rel, out)
-        for m in self.g.members(node):
-            self._nodes_of(m, out)
-        return out
-
-    def _push_attention(self, node: NodeId, start=None, decay=None,
-                        lane=None, floor=None, ceiling=None) -> None:
-        """To the top, at its strength. Nothing falls off the bottom.
-
-        Re-attending something already in the queue MOVES it up rather than
-        adding it twice: a thing thought about twice is one thing thought about
-        recently, and a queue that held duplicates would let one node crowd out
-        everything else the agent knows it is doing.
-        """
-        queue, spec, _w = self._lane_state(lane)
-        if node in self._evicted:
-            # The number the stack has to justify itself against: a node that
-            # fell off the bottom and is wanted AGAIN is an outer focus a
-            # sub-line evicted while it was still live.
-            self._readmitted += 1
-            self._evicted.discard(node)
-        # `start is None` is a REVISIT: the right-hand side of some rule
-        # touched this node without saying anything about how much it
-        # matters. That RESTORES the claim to its own start -- it does not
-        # restate it at the toucher's strength. `_attend_written` brushes
-        # every node a move wrote, and a deliberate `attend($dir, 5)` names a
-        # folder the very move that named it also writes to; restating would
-        # let the move's own bookkeeping demote the claim it was making, in
-        # the tick it was made. Touched again is *not forgotten yet*, and a
-        # node no one ever claimed is worth a brush and no more.
-        held = spec.get(node)
-        if start is None:
-            # A revisit keeps every field: nothing was said, so nothing
-            # changes except that the claim is fresh again.
-            start, decay, floor, ceiling = held or (
-                ATTENTION_BRUSH, ATTENTION_DECAY, ATTENTION_FLOOR, None)
-        else:
-            start = max(1, start)
-            # Each field falls back to what the node already had, so a rule
-            # may change ONE of them by restating the ones before it -- the
-            # price of a positional surface, and the reason `attend($x)`
-            # alone means *just refresh it*.
-            prev = held or (start, ATTENTION_DECAY, ATTENTION_FLOOR, None)
-            decay = prev[1] if decay is None else max(1, decay)
-            floor = prev[2] if floor is None else max(0, floor)
-            ceiling = prev[3] if ceiling is None else max(1, ceiling)
-        spec[node] = (start, decay, floor, ceiling)
-        queue[:] = [(n, w) for n, w in queue if n != node]
-        # Refreshed UP TO the ceiling and no further: a node named over and
-        # over is not thereby the only thing the lane is about. NO ceiling
-        # unless something asked for one -- an incidental brush must not set
-        # one, or the brush a move gives a node it happened to write would
-        # cap the deliberate claim the same move was making.
-        queue.insert(0, (node, start if ceiling is None else min(start, ceiling)))
-        self._fresh_attention.add(node)
-        # NOTHING is dropped here. The queue used to be truncated to a span,
-        # which asked only WHEN a thing arrived and never how much it was
-        # said to matter -- so a deliberate `attend($dir, 5)` could be shoved
-        # out by the seven nodes its own move incidentally wrote, in the tick
-        # it was made. Length is the wrong bound. The only way out is
-        # `_fade_attention`: a claim lasts as long as its strength and then
-        # it is gone, and being third in line is not a reason for anything.
-
-    def _fade_attention(self) -> int:
-        """One tick of forgetting: every claim loses a point, and a claim at
-        zero is not a claim. Returns how many fell out.
-
-        Attention is a QUEUE whose strength is a NUMBER OF TICKS, not a
-        position in a list of fixed length. `attend($x, 5)` means *this
-        matters for five ticks*, and after five it is gone without anything
-        having to say so. That is what replaced the span outright rather than
-        merely backing it up: what a move incidentally wrote arrives at
-        strength 1 and is gone by the tick after next, so the details of one
-        move stop crowding out a standing claim made three moves ago -- which
-        they did,
-        because eviction only ever asked WHEN a thing arrived and never HOW
-        MUCH it was said to matter.
-
-        Nothing attended since the last fade is touched. A node pushed during
-        tick N is meant to lift tick N+1; decrementing it at the top of N+1
-        would delete it unmatched, and `_attend_written`'s weight of 1 would
-        mean *never seen* rather than *seen once*.
-        """
-        queue, spec, _w = self._lane_state()
-        before = len(queue)
-        faded = []
-        for n, w in queue:
-            if n in self._fresh_attention:
-                faded.append((n, w))
-                continue
-            rec = spec.get(n, (1, ATTENTION_DECAY, ATTENTION_FLOOR, None))
-            faded.append((n, max(rec[2], w - rec[1])))
-        kept = [(n, w) for n, w in faded if w > 0]
-        alive = {n for n, _w in kept}
-        for node, _w in faded:
-            if node not in alive:
-                # The claim goes; what it was WORTH stays. Discarding the
-                # spec here throws away the one fact that makes a later
-                # mention mean anything: a folder attended at 5, faded out,
-                # and then named again came back at a brush's 1 -- so
-                # bringing something up again could never outrank whatever
-                # had been said more recently, however deliberate the
-                # original claim. Forgetting a thing is not the same as
-                # forgetting how much it mattered, and only the first of
-                # those is what fading is for.
-                self._evicted.add(node)
-        queue[:] = kept
-        self._fresh_attention.clear()
-        return before - len(kept)
-
-    def _consume(self, nodes) -> int:
-        """Spend the attention on what a move used. Globally: one occasion,
-        one use. Returns how many were on the list."""
-        queue, spec, weights = self._lane_state()
-        # The PROPOSITIONS matched, not the atoms they are made of. Spending
-        # `kettle` because a rule used `heat(stove, kettle)` would strip
-        # attention from everything else that mentions the kettle, which is
-        # not what was used.
-        gone = set(nodes)
-        before = len(queue)
-        queue[:] = [(n, w) for n, w in queue if n not in gone]
-        for n in gone:
-            spec.pop(n, None)
-            weights.pop(n, None)
-        return before - len(queue)
-
-    def _unattend(self) -> int:
-        """Stop thinking about whatever it was -- `reset`, for attention.
-
-        Both the queue and the standing weights, cleared -- something must say
-        it, or attention accumulates and attention that names everything
-        narrows nothing. Plain dict/list clears now, not an erase loop: this
-        is frame-scoped engine state (`Frame.weights`'s own comment), not a
-        belief a corpus could be reading.
-        """
-        dropped = len(self._attended())
-        queue, spec, weights = self._lane_state()
-        queue[:] = []
-        spec.clear()
-        weights.clear()
-        return dropped
-
-    def _attended(self) -> List[NodeId]:
-        """What the agent is thinking ABOUT: the nodes it claims `attention` of.
-
-        The QUEUE first, then any standing weight not in it. ORDER IS NOT A
-        SIGNAL: nothing reads position any more. Under decay the strength is
-        the recency -- a claim made three ticks ago has had three taken off
-        it -- so `_attended_first` and `_pull` rank by the number and by
-        nothing else.
-
-        It used to be a signal, and the bug that cost was this: `weights` is
-        a dict in insertion order, so iterating it plainly put the node
-        attended FIRST nearest the top, and a `len(attended) - i` gradient
-        then handed the OLDEST claim the larger multiplier. The tail is still
-        appended newest-first, which is now merely tidy rather than
-        load-bearing.
-        """
-        out: List[NodeId] = [n for n, _w in self._attention]
-        for node in reversed(list(self._lane_state()[2])):
-            if node not in out:
-                out.append(node)
-        return out
-
-    def _attention_asked(self) -> List[NodeId]:
-        """Only what something CLAIMED attention of.
-
-        The line is claimed vs derived, not weighted vs plain. Someone saying
-        *attend to this* is a reason to bring rules to mind; the machinery
-        noticing *this just happened* is not, and conflating them starved the
-        shortlist -- an agent quiesced 32 moves early because a queue full of
-        the last move's nodes decided which rules were matched at all.
-
-        CLAIM order for the tail, never a set: which standing claim lifts
-        hardest must not be decided by how many atoms the machinery happened
-        to mint before the corpus was loaded -- and it no longer is, now that
-        the claim order is `weights`'s own insertion order rather than a scan
-        over the graph in mint order, which is what this docstring used to
-        have to rule out rather than simply not produce.
-        """
-        claimed = list(self._lane_state()[2])
-        want = set(claimed)
-        out = [n for n, _w in self._attention if n in want]
-        for n in claimed:
-            if n not in out:
-                out.append(n)
-        return out
-
-    def _attention_weights(self) -> dict:
-        """Node -> its multiplier, for the lift. The STRONGER of the two, never
-        the sum: a node both queued and claimed is not twice as salient, and
-        adding them would make the weight a popularity count."""
-        out = {n: w for n, w in self._attention}
-        for node, weight in self._lane_state()[2].items():
-            # By MAGNITUDE, not by value: a claimed `-5` is a stronger signal
-            # than a queued `+1`, and comparing by value would let any lift at
-            # all bury something that says *not this*.
-            if abs(weight) > abs(out.get(node, 0)):
-                out[node] = weight
-        return out
-
     def _knob(self, relation: NodeId, default):
         """A knob a corpus can turn, read from the graph.
 
@@ -979,14 +522,6 @@ class Machine:
                 continue
             answered = self.g.rel(self.ANSWERED, a.node, proposition, said)
             self.gate.write(answered, generic=True)
-            # An answer is NEW BUSINESS. It comes from outside any rule's
-            # consequent, so it is in no `wrote` list and would carry no
-            # attention -- and then the rule waiting for it is never enabled
-            # and the request hangs answered but unread. Measured: the
-            # approval corpus reaching `unattended` with
-            # `answered(approve, pending(deploy(web)), yes)` believed and
-            # `<approved>` never offered.
-            self._attend_written((answered,))
 
     def _count(self, proposition: NodeId) -> None:
         """Answer *how many ground matches does this pattern have?*
@@ -1054,8 +589,8 @@ class Machine:
         `state(at(work), holds(p1, key1))`.
 
         The apparatus's own records are not part of the world: the scratchpad
-        holds `answers(...)` and `attention(...)` too, and a gap computed
-        against them reports the machinery as something to be got rid of.
+        holds `answers(...)` and `rule(...)` too, and a gap computed against
+        them reports the machinery as something to be got rid of.
         """
         if root == self.NOW:
             return {p for p in self.pad.believed()
@@ -1137,36 +672,6 @@ class Machine:
         """
         node = self.g.rel(self.ARRIVED, a.channel, a.proposition)
         self.gate.write(node)
-        # And it is now what the agent is thinking about. Not via
-        # `_attend_written`: an arrival whose proposition is ALREADY believed
-        # writes nothing, so saying the same words a second time would move
-        # nothing at all -- which is exactly the case a rule wants to notice,
-        # because an utterance is identified by its content here and the
-        # repetition is otherwise invisible. Attention is the one part of the
-        # machine that can tell *said again* from *still true*: the claim is
-        # restored to its start whether or not the belief changed, and fades
-        # from there. The queue only -- `_push_attention` rather than
-        # `_attend` -- because a standing weight never fades, and every
-        # sentence ever typed keeping a permanent multiplier is not a memory
-        # of anything.
-        # ...and it is attended at the STARTING strength, not a brush's.
-        # This used to match what a move's own incidental write gets, on the
-        # ground that ranking arrival above write is the engine deciding for
-        # the corpus -- but a loaded `fact` no longer gets a token AT ALL
-        # (§20: background is not something to take care of), and a channel
-        # is where "take care of this" now comes from BY DEFAULT. A brush's
-        # one tick is enough runway for a rule that was already in play to
-        # notice something changed; it is not enough for the crossing itself
-        # to survive being one of several arrivals delivered in the same
-        # batch (`m2.holds` needing the SECOND `say` in a corpus to still be
-        # reachable a few ticks later). Still queue-only, still fades, still
-        # no permanent multiplier -- `start` is a lifetime, not a `floor`.
-        # The ARRIVAL, not only what arrived. `<intake>` reads
-        # `arrived($channel, $said)`, and a token on the sentence is not a
-        # token on the fact that it turned up -- with the gate asking about a
-        # line's own node, attending the parts and not the whole left the
-        # crossing rule unenabled and the run silent.
-        self._attend_written((node,), start=ATTENTION_START)
 
 
     # -- the loop ----------------------------------------------------------
@@ -1181,17 +686,17 @@ class Machine:
         different mechanisms the way the table era's `tick`/`run` split
         needed to be.
         """
-        from .attention import run as _table_run
+        from .firing import run as _run
 
-        steps = _table_run(self, limit=1).steps
+        steps = _run(self, limit=1).steps
         return steps[0] if steps else Step(0, 0, (), (), "quiescent")
 
     def run(self, limit: int = 100) -> List[Step]:
         """Bounded, and it returns a result *and* a state -- because a search
         that stopped is not a search that found nothing (§9, §15)."""
-        from .attention import run as _table_run
+        from .firing import run as _run
 
-        return _table_run(self, limit=limit).steps
+        return _run(self, limit=limit).steps
 
     # -- applying ----------------------------------------------------------
 
@@ -1250,7 +755,7 @@ class Machine:
                       one place they part company).
 
         and leaves turning them into a single set of writes, and applying
-        those, to the caller -- which is `attention.run`, over every
+        those, to the caller -- which is `firing.run`, over every
         application that fired this tick at once.
         """
         # A rule may introduce a thing that did not exist. One node per

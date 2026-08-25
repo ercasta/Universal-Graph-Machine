@@ -16,9 +16,8 @@
 
 action deploy($service)
 
-# A want is new business, not background -- it arrives, the same as
-# anything else the agent is asked to take care of (§20), rather than
-# sitting as a loaded `fact` nothing has been asked to attend to.
+# A want is new business, not background -- it arrives rather than sitting
+# as a loaded `fact`.
 say ops: +want(deploy(web))
 
 rule <trust>

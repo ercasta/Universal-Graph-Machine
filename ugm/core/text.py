@@ -12,9 +12,8 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .graph import NodeId
 from .machine import Machine
-from .machine import ATTENTION_BRUSH
-from .rules import (ABSENT, ASSERT, ERASE, IMPLIES, KEEP, STOP, UNATTEND, Attend,
-                    Destroy, Forget, Label, Member, Merge, Pop, Push, Unlabel,
+from .rules import (ABSENT, ASSERT, ERASE, IMPLIES, KEEP, STOP,
+                    Destroy, Forget, Label, Member, Merge, Unlabel,
                     Unmerge)
 
 # The two modes the surface writes. `?` is gone: absence is ignorance, so
@@ -212,7 +211,7 @@ class PostClause(NamedTuple):
     """A postcondition, as written: a query, and what it spends if it holds.
 
     rule <classify> = implies( { +asked($x) }, { +considered($x) } ) after {
-    +penguin($x) } => attend($x, 3) frozen after => unattend The query is an
+    +penguin($x) } => destroy($x) frozen after => stop The query is an
     ordinary antecedent -- no new notation, and the same matcher -- and it is
     matched with the rule's OWN bindings already in hand, so $x above is the $x
     the rule bound.
@@ -372,7 +371,7 @@ class Parser:
             alts = tuple(branches)
         con = self.block()
         self.expect(")")
-        # An optional ordered tail -- `=> attend($x, 3), push($a)` -- the
+        # An optional ordered tail -- `=> destroy($x), stop` -- the
         # rule's OWN unconditional ops, in the rule's own scope, with no
         # separate `after <R> => ...` statement and no query indirection.
         # Built as a `PostClause` with an empty query, which is exactly the
@@ -392,9 +391,9 @@ class Parser:
 
     # -- the line form: `rule <name>` / one member per line / `->` --------
     #
-    # `new_substrate.md`'s own sketch, with no scoring brackets or attention
-    # multipliers built yet (those stay undesigned -- see the doc's own
-    # "Working notes"). What IS built: the shape. A block ends at a physical
+    # `new_substrate.md`'s own sketch, minus the scoring brackets it drew
+    # (retired -- there is no rule-picking left for a score to decide
+    # between). What IS built: the shape. A block ends at a physical
     # line gap (a blank line, or a comment line -- comments belong between
     # rules in this form, not inside one), at `alt`/`->`/`=>`, at the next
     # top-level statement, or at end of input. There is no comma to lean on,
@@ -460,7 +459,7 @@ class Parser:
                 and t2.line == t.line)
 
     def trigger(self, t: Tok) -> Statement:
-        """`after <A> { ... } => attend($x, 3)`.
+        """`after <A> { ... } => destroy($x)`.
 
         after fires when its rule applies and its query holds. frozen marks
         what a calibration process may not touch.  when IS REFUSED, and that
@@ -482,8 +481,8 @@ class Parser:
             raise ParseError(
                 f"line {t.line}: a ranking-time `when` trigger no longer reaches "
                 f"anything -- `_rerank` and the buffs it spent are retired. Hang "
-                f"the lesson off the rule that RUNS it: `after <R> {{ ... }} => "
-                f"attend($x, n)`"
+                f"the lesson off the rule that RUNS it: `after <R> {{ ... }} "
+                f"=> ...`"
             )
         host = ""
         if t.text == "after":
@@ -505,128 +504,28 @@ class Parser:
                          (PostClause(query, tuple(spends), frozen, learned),))
 
     def spend(self) -> Tuple["Term", int]:
-        """What a postcondition spends: `attend`, `unattend`, `stop`, `push`
-        or `pop`.
+        """What a postcondition spends: `stop`, or one of the graph ops.
 
-         **`boost(<R>, n)` AND `damp(<R>, n)` ARE GONE, AND SO IS `reset`.**
-        They named a RULE, which is what the whole retirement is about: a rule
-        id goes stale the moment a rule is adopted, composed or renamed, and a
-        corpus of experience written in them stops loading rather than going
-        quietly wrong. `attend($x, n)` names a NODE the move itself bound.
+         **`attend(...)`, `brush(...)`, `unattend`, `push(...)` and `pop(...)`
+        ARE GONE**, with the focus queue and the frame stack they drove
+        (docs/design/intensity-gates.md). A node's INTENSITY is what "in
+        play" means now, and every rule whose antecedent is on fires -- so
+        there is nothing left for a separate what-is-the-agent-thinking-about
+        pool to order, nothing for `brush` to put back (`keep` is the read
+        that does not spend), and no sub-line to suspend on a stack of its
+        own. `boost(<R>, n)`/`damp(<R>, n)`/`reset` went earlier, for naming
+        a RULE rather than a node.
 
          The delta in the return type is now always 0 and is kept only so the
-        three surviving spends share one shape. Nothing reads it.
+        surviving spends share one shape. Nothing reads it.
         """
         t = self.next()
         if t.kind == "name" and t.text == "stop":
             # *Done is the output of a rule that checks against the goal* --
             # which the table loop's own design says, and had no way to obey.
             # A rule concludes that here is over; its postcondition is what
-            # ends the run. The loop still knows nothing about goals: it knows
-            # a rule spent attention by saying stop.
+            # ends the run.
             return (STOP, 0)
-        if t.kind == "name" and t.text == "unattend":
-            # `reset` for attention: the agent stops thinking about what it was
-            # thinking about. A denial rather than a forgetting, so it stays
-            # readable and arguable -- and something has to say it, or attention
-            # accumulates until it names everything.
-            return (UNATTEND, 0)
-        if t.kind == "name" and t.text == "brush":
-            # `brush($x)` -- PUT IT BACK. A move consumes what it matched on,
-            # globally, so a rule that is not the last thing which should
-            # happen to a thing says so here. `<trust-user>` knows perfectly
-            # well that turning a saying into a belief is not the end of that
-            # saying's business, and the right-hand side is where it can say
-            # so -- a line marking could not, because whether others still
-            # want it is a fact about the move rather than about the line.
-            #
-            # It is `attend` at an incidental worth: back on the list, not
-            # promoted to the thing most in mind.
-            self.expect("(")
-            target = self.term()
-            self.expect(")")
-            return (Attend(target, ATTENTION_BRUSH), 0)
-        if t.kind == "name" and t.text == "attend":
-            # **The learnable one.** `attend($x)` says *think about what
-            # this move just bound to `$x`* -- and `$x` is the HOST RULE's own
-            # variable, because the loader seeds a trigger's scope from the rule
-            # it hangs off. So the lesson is anchored to the move that produced
-            # it without naming any individual.
-            self.expect("(")
-            target = self.term()
-            weight = None
-            extra = []
-            if self.at(","):
-                # The learned buff, and it weighs a NODE rather than a rule.
-                # `attend($x, 3)` says *of what this move touched, that one
-                # matters* -- a multiplier on its place in the attention queue.
-                self.next()
-                sign = 1
-                if self.at("-"):
-                    # A NEGATIVE weight -- *this is a reason not to think about
-                    # that*, read by magnitude at the standing side and never
-                    # reaching the queue (`_push_attention` floors it at 1;
-                    # only `Frame.weights` sees the sign). It cannot push a
-                    # rule out -- a lift orders and never removes, and that is
-                    # `dormant`'s job.
-                    self.next()
-                    sign = -1
-                n = self.next()
-                if not n.text.isdigit():
-                    raise ParseError(
-                        f"line {n.line}: how much to attend is a numeral")
-                weight = sign * int(n.text)
-                # `attend($x, 5, 2, 1, 9)` -- start, decay, min, max. Each
-                # optional, each a different claim, and one number cannot
-                # make them: *a lot but briefly* and *mildly but for a
-                # while* differ in decay; *never let this go* is min; *do
-                # not let this grow to own the lane* is max.
-                tail = [("how fast to forget", "decay"),
-                        ("the least this may fade to", "min"),
-                        ("the most it may be refreshed to", "max")]
-                for what, _name in tail:
-                    if not self.at(","):
-                        break
-                    self.next()
-                    d = self.next()
-                    if not d.text.isdigit():
-                        raise ParseError(
-                            f"line {d.line}: {what} is a numeral")
-                    extra.append(int(d.text))
-            self.expect(")")
-            decay, floor, ceiling = (extra + [None, None, None])[:3]
-            return (Attend(target, weight, decay, floor, ceiling), 0)
-        if t.kind == "name" and t.text == "push":
-            # **A frame, not a filter.** Three fixes for the queue's
-            # forgetting were tried here and all three were filters on a flat
-            # queue of fixed length -- claimed vs derived, excluding
-            # bookkeeping, a learned weight. None could help, because at a
-            # span of 7 a long enough sub-line evicted anything however well
-            # chosen. The span is gone now (a claim fades on its own clock
-            # instead, `Machine._fade_attention`), which answers the crowding
-            # but NOT this: a sub-line that runs long enough still lets the
-            # outer focus fade, and *suspended* is a different claim from
-            # *forgotten slowly*. `push` suspends: the outer frame is off the
-            # queue entirely, on a clock of its own that is not ticking.
-            #
-            #  It names NODES, variadically, and the leftmost lifts hardest --
-            # `attend($x)` is the precedent, and the variables are the HOST
-            # rule's own, bound by the move that spent it.
-            self.expect("(")
-            terms = [self.term()]
-            while self.at(","):
-                self.next()
-                terms.append(self.term())
-            self.expect(")")
-            return (Push(terms), 0)
-        if t.kind == "name" and t.text == "pop":
-            # `pop($x)` attends $x on the RESTORED frame: the attention-level
-            # analogue of a return value. Without it the agent returns from a
-            # sub-line with no idea it concluded anything.
-            self.expect("(")
-            target = self.term()
-            self.expect(")")
-            return (Pop(target), 0)
         if t.kind == "name" and t.text in ("merge", "unmerge"):
             # `merge($a, $b)` / `unmerge($a, $b)` -- identity, the doc's own
             # strongest argument for a microprogram: an effect `+`/`-`
@@ -666,10 +565,10 @@ class Parser:
             target = self.term()
             return (Forget(target), 0)
         raise ParseError(
-            f"line {t.line}: a postcondition spends attention or the graph, "
-            f"so it says `attend(...)`, `unattend`, `stop`, `push(...)`, "
-            f"`pop(...)`, `merge(...)`, `unmerge(...)`, `destroy(...)`, "
-            f"`label(...)`, `unlabel(...)` or `forget ...`, not {t.text!r}"
+            f"line {t.line}: a postcondition ends the run or reaches the "
+            f"graph, so it says `stop`, `merge(...)`, `unmerge(...)`, "
+            f"`destroy(...)`, `label(...)`, `unlabel(...)` or `forget ...`, "
+            f"not {t.text!r}"
         )
 
     def block(self) -> Tuple[RuleMember, ...]:
@@ -1078,16 +977,13 @@ class Loader:
     def _build_spends(self, raw_spends, scope: Dict[str, NodeId]):
         """Ops as written -> ops as built, in one scope.
 
-        `STOP` and `UNATTEND` are not terms, so neither goes through `build`.
-        Everything else IS one, built in the SAME scope as the host rule's
-        own antecedent and consequent -- which is what makes `attend($x)`
-        *that* `$x`, and `merge($a, $b)` those two, not fresh ones.
+        `STOP` is not a term, so it does not go through `build`. Everything
+        else IS one, built in the SAME scope as the host rule's own
+        antecedent and consequent -- which is what makes `merge($a, $b)`
+        those two nodes, not fresh ones.
         """
         return tuple(
-            (t if t is STOP or t is UNATTEND
-             else Push(tuple(self.build(x, scope) for x in t.terms))
-             if isinstance(t, Push)
-             else Pop(self.build(t.term, scope)) if isinstance(t, Pop)
+            (t if t is STOP
              else Merge(self.build(t.keep, scope), self.build(t.drop, scope))
              if isinstance(t, Merge)
              else Unmerge(self.build(t.keep, scope), self.build(t.drop, scope))
@@ -1097,8 +993,7 @@ class Loader:
              if isinstance(t, Label)
              else Unlabel(self.build(t.term, scope), self.build(t.text, scope))
              if isinstance(t, Unlabel)
-             else Forget(self.build(t.term, scope)) if isinstance(t, Forget)
-             else Attend(self.build(t.term, scope), t.weight), delta)
+             else Forget(self.build(t.term, scope)), delta)
             for t, delta in raw_spends
         )
 
@@ -1738,18 +1633,6 @@ class Loader:
             self.m.gate.erase(prop)
         else:
             self.m.gate.write(prop, generic=generic)
-            # A loaded `fact` is BACKGROUND -- read when a rule about it is
-            # already in play, never a reason on its own to bring one to
-            # mind. Attending is *taking care of something*, and nothing has
-            # asked the agent to take care of a fact merely for existing.
-            # That is what a CHANNEL is for: `<one thing arrived, this is
-            # new business>` vs `<the world as it stands, unremarked>`. A
-            # corpus with nothing arriving and no `attend(...)` of its own
-            # does nothing, on purpose -- see `_attended_first`'s own
-            # docstring, "there is no exception for an empty pool". This
-            # used to attend every loaded fact so a corpus never started
-            # cold; the corpus says what it wants attended now, the same way
-            # it says everything else.
 
     # `_maybe_precedence` was here: it read `overrides(A, B)` off a statement as
     # the loader parsed it and seeded §14's precedence table. It is gone, and

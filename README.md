@@ -110,9 +110,9 @@ owed(ana,money): believed
 
 ```
 ugm/
-  core/          9 modules   graph, chain, gate, machine (the loop, lanes, triggers), rules
-                              (match/arbitrate), text (the .ugm surface), attention, channels,
-                              scratchpad -- nothing outside `core` is needed to run an agent
+  core/          9 modules   graph, chain, gate, machine (state, triggers), rules (match), text
+                              (the .ugm surface), firing (the tick loop), channels, scratchpad
+                              -- nothing outside `core` is needed to run an agent
   gates/         vocabulary  every reserved name classified, checked against corpora that ship
   probes/        5 modules   worked examples and measured comparisons -- dungeon fights, the
                               approval pattern, REPL autocorrect

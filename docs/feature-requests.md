@@ -79,10 +79,11 @@ these may since have shipped.
 
 ## Learning
 
-- **Calibration policy for attention weights** — the mechanism (`Frame.weights` → `_pull` → per-rule
-  lift → `Table.order`) is built, but no corpus-side policy reads a reward signal and revises
-  `attend(...)` weights; credit assignment is left open. Raised in three sources.
-  (`HANDOFF.md`, `feature-request.md`, `observations.md`)
+- **Calibration policy for the numbers a corpus carries** — the mechanism is built
+  (`numbers`/`mutate` walk `intensity` writes, `run_episode` scores them), but no corpus-side policy
+  reads a reward signal and revises those numbers; credit assignment is left open. Raised in three
+  sources, back when the numbers were attention weights. (`HANDOFF.md`, `feature-request.md`,
+  `observations.md`)
 - **Goal-as-commitment vs. goal-as-belief** — retiring a goal on pursuit (rather than leaving it
   standing) works with no engine change but breaks credit-tracking and commits before success is
   known. Measured, two known interaction bugs, not merged. (`HANDOFF.md`)
@@ -105,7 +106,6 @@ these may since have shipped.
 - Retracting a contradicted expectation — precedence stops a defeated rule applying but doesn't
   retract what it already concluded.
 - Backtracking: who decides to reconsider a binding (currently keyed on `quiet`) is unresolved.
-- Seat discipline across parallel frames — unspecified.
 - Span normalisation by chain order rather than member order — unspecified.
 - Calendar-term resolution — who computes it, against whose clock.
 - Arrival-as-moment representation — unresolved.

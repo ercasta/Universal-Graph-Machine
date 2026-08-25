@@ -12,7 +12,7 @@ once you sit down and write rules, see [`authoring.md`](authoring.md).
   something" here. No confidence numbers, no provenance trail on a belief.
 - **A member has one of three signs**: `+` (assert), `-` (erase), `no` (absence — *nothing claims
   this*). Belief is a flat set of occasions — asserting mints a proposition into it, erasing removes
-  one. Asserting twice is two occasions, each with its own attention token.
+  one. Asserting twice is two occasions, each with its own intensity.
   - `+`/`-` are **consequent-only**. A rule cannot use `-` as a premise — there is no "denied" entry
     left to match against; a premise can only ask *is this currently believed* (`+`) or *is nothing
     currently believed about it* (`no`). Writing `-p` in an antecedent is refused at load with a
@@ -47,24 +47,30 @@ rule <hold> = implies( { +producing(<request>, deploy($s)) },
 This is the whole of how approval-gating and starvation-breaking are built — ordinary rules, no
 engine hook per feature. See [`tools-approval.md`](tools-approval.md).
 
-## Attention
+## Intensity, and what firing spends
 
-A rule only matches things the agent is attending to, and attention decays — a claim fades on its own
-clock rather than sitting at full strength forever. What that means for a corpus:
+Every node carries an intensity — a number. "On" is above zero, and that is the whole of what an
+antecedent member and `no` ask about. What that means for a corpus:
 
-- **A loaded `fact` gets no attention.** Attending is *taking care of something*; a `say` arrival is
-  new business and gets a real token, a loaded fact is background nobody has been asked to take care
-  of. A corpus that starts from `fact`s alone needs its own kickoff — an `attend(...)` postcondition,
-  or deliver the starting condition as an arrival instead.
-- **What a rule writes fades in one tick by default.** Long enough for the next rule in a chain to
-  catch it, not long enough to survive losing a tie. A rule several OTHER things need to read again
-  later — `delay.ugm`'s `disrupted($f)`, read by three separate rules — says so explicitly:
-  `after <R> { $x = p(...) } => attend($x, 5, 1, 1)` re-attends the REAL believed node (a match, never
-  a rebuild — `brush(p($x))` on the same rule's own tail rebuilds by substitution and mints a twin
-  unless `$x` was bound to the whole line in the antecedent).
-- **`ugm/rules/todo.ugm`** is the standing pattern for "keep something in mind until it's
-  answered" — a task stack, a lane that keeps the top task attended, a `judge` lane a host corpus
-  closes tasks from. See [`todo-stack.md`](todo-stack.md).
+- **A rule fires whenever its own antecedent is on.** Nothing ranks rules, nothing picks one per
+  tick, nothing can starve anything. A tick matches every rule against the state as it stood at the
+  tick's start, folds all their writes together, and commits once — so firing order cannot change
+  the end state.
+- **Firing SPENDS what it matched.** Every antecedent member a rule matched goes back to off unless
+  something recharges it. This is why a guarded rule no longer has to be written to avoid
+  re-deriving what it already derived.
+- **`keep p($x)` opts one line out** — read without spending. Use it wherever a fact is meant to be
+  read by more than one rule, or read again later: `delay.ugm`'s `owed($p, money)`, `todo.ugm`'s
+  `task($t)` and `top(...)`.
+- **A consequent can name its own strength**: `+p(x) intensity 3`. An antecedent reads the current
+  number with `intensity($x) as $n`. Same-node writes in one tick combine by taking the max, so a
+  rule's own consequent can outbid the discharge its own antecedent just requested — that is the
+  runaway guard.
+- **`ugm/rules/todo.ugm`** is the standing pattern for "keep something open until it's answered" — a
+  task stack, closed by a `judge` rule a host corpus supplies. See [`todo-stack.md`](todo-stack.md).
+
+See [`design/intensity-gates.md`](design/intensity-gates.md), and `python -m ugm.core.firing`
+for the worked demonstration of each claim above.
 
 ## The surface
 
@@ -90,8 +96,8 @@ say user: +checked_in(ana)
 - **`$x`** is a variable, scoped to the one statement it appears in. **`$p($x)`** — a variable in
   relation position — lets one rule apply an ability named by data rather than needing a rule per
   ability.
-- **Postconditions** — a rule's own unconditional ops after its consequent: `=> attend($x, 3)`,
-  `stop`, `unattend`, `push(...)`, `pop(...)`, `merge($a, $b)`, `destroy($x)`, `label($x, name)`,
+- **Postconditions** — a rule's own unconditional ops after its consequent: `=> stop`,
+  `merge($a, $b)`, `unmerge($a, $b)`, `destroy($x)`, `label($x, name)`, `unlabel($x, name)`,
   `forget $x`.
 - **`as`** binds what a member matched: `+on($x, $y) as $t`. Two members hoping to co-refer without
   it do **not** link.

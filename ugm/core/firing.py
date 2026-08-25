@@ -21,25 +21,25 @@ Firing order not mattering is not a claim taken on faith: `run` computes
 every application against the tick's OPENING state, folds every write with
 Python's own `max`, and only then commits -- so there is no step at which
 "which application ran first" is a question with an answer to depend on.
-`python -m ugm.core.attention` is this file's own worked demonstration of
+`python -m ugm.core.firing` is this file's own worked demonstration of
 that, and of discharge/`keep`/the general intensity write, the same way
 `book/docs/watching/28-the-table.md` used to point at this file for the table
 loop's.
 
-What did NOT change, and is not this file's business: the FOCUS system --
-`Machine._attend`/`_attended`/`_fade_attention`/`_push_frame`/`_pop_frame`,
-`attend(...)`/`unattend`/`push(...)`/`pop(...)` as postconditions,
-`attentioned($x)` as a predicate. That is a different question --
-*what is the agent thinking about* -- answered by a decaying queue that
-lives on `Machine`, and it is untouched here: a postcondition still spends
-it, a rule can still read it, and this file still runs it once per tick
-(`_fade_attention`) for the reason it always did -- a claim written this
-tick must still be there when the NEXT tick asks. Dormancy (`dormant`/`due`)
-is untouched too, for a reason the design doc's task list is explicit about:
-it is a rule-level kill switch, attributable and readable, orthogonal to
-lanes -- lanes are what starvation needed and lanes are gone; dormancy
-stays, and `ugm/rules/circuit_breaker.ugm` still uses it (its own header,
-rewritten, explains what it no longer needs).
+The FOCUS system went with the table, one step later: `Machine._attend`/
+`_attended`/`_fade_attention`, the frame stack (`_push_frame`/`_pop_frame`,
+`Frame` and its standing weights), `attend(...)`/`brush(...)`/`unattend`/
+`push(...)`/`pop(...)` as postconditions, and `attentioned($x)` as a
+predicate. It answered *what is the agent thinking about* with a decaying
+queue beside the graph, and intensity answers it in the graph instead --
+a node is in play when it is ON, which is the same question an antecedent
+member already asks. Nothing here schedules by it, so there was nothing
+left for it to be for.
+
+Dormancy (`dormant`/`due`) stays: it is a rule-level kill switch,
+attributable and readable, orthogonal to both lanes and focus, and
+`ugm/rules/circuit_breaker.ugm` still uses it (its own header, rewritten,
+explains what it no longer needs).
 """
 
 import time
@@ -106,17 +106,7 @@ def run(m: Machine, limit: int = 400, watch=None) -> Report:
     # calls this repeatedly, and a `stop` two calls ago must not silently
     # end a run that never asked for it.
     m._stopped = None
-    # The frame this run serves, and the floor it may not pop past -- table
-    # era behaviour, unchanged: a nested run (a tool, a supposition) starts
-    # on whatever frame its caller was in, and popping the caller's frame
-    # out from under it would be a structure that looks like a stack and is
-    # not one.
-    prev_floor = m._floor
-    m._floor = len(m._frames) - 1
-    try:
-        tried = _tick_loop(m, limit, watch, applied, steps)
-    finally:
-        m._floor = prev_floor
+    tried = _tick_loop(m, limit, watch, applied, steps)
 
     return Report(len(applied), applied, time.time() - t0, tried, _state(m), steps)
 
@@ -131,12 +121,6 @@ def _tick_loop(m: Machine, limit: int, watch, applied: List[str],
         # Not a phase: the world may have spoken since the last tick, and a
         # rule reads the same channel the same way every time (§13/§16).
         arrivals = m.channels.since_last_tick() or 0
-        # The FOCUS queue's own clock -- see this module's own docstring for
-        # why this file still runs it. Before matching, not after: a claim
-        # written THIS tick must still be at full strength when the tick
-        # that follows asks about it, and fading here rather than at the end
-        # is what buys that one tick of grace.
-        m._fade_attention()
 
         applications: List[Application] = []
         for r in m.rules.rules:
@@ -214,7 +198,6 @@ def _tick_loop(m: Machine, limit: int, watch, applied: List[str],
         # made above, by the fold, before any of this runs.
         stopped = False
         for app, _pending in fired:
-            m._consume(_matched_nodes(app))
             _spend_posts(m, app, tick)
             applied.append(app.rule.name or "?")
             if watch is not None:
@@ -228,7 +211,6 @@ def _tick_loop(m: Machine, limit: int, watch, applied: List[str],
                 # happens.
                 stopped = True
                 break
-        m._attend_written(wrote)
         steps.append(Step(arrivals, len(applications), tuple(a for a, _ in fired),
                           wrote, "stopped" if stopped else "applied"))
         if stopped:
@@ -241,13 +223,6 @@ def _tick_loop(m: Machine, limit: int, watch, applied: List[str],
         m._note_that(m.BOUNDED, m.TICKS)
 
     return tried
-
-
-def _matched_nodes(a: Application) -> List[NodeId]:
-    """Every node an application's antecedent lines bound -- what its own
-    firing may have discharged, for the FOCUS queue's `_consume` (a
-    different ledger from intensity's; see this module's docstring)."""
-    return [n for n in a.matched if n is not None]
 
 
 def _spend_posts(m: Machine, chosen: Application, tick: int) -> None:
@@ -290,33 +265,15 @@ def _ground(m: Machine, term, bindings):
 
 
 def _spend_one(m: Machine, tick: int, by: str, spends, bindings) -> None:
-    """Spend one postcondition -- the focus queue, a frame, an identity op,
-    or `stop`. Unchanged from the table era: none of this is about
-    intensity, and none of it needed to move for intensity to exist.
+    """Spend one postcondition -- an identity op, a structural one, or
+    `stop`. What is NOT here any more is the focus half (`attend`, `brush`,
+    `unattend`, `push`, `pop`): a node being in play is its intensity now,
+    which is state in the graph rather than a queue beside it, so there is
+    nothing for a postcondition to put on that queue.
     """
-    from .rules import (STOP, UNATTEND, Attend, Destroy, Forget, Label, Merge,
-                        Pop, Push, Unlabel, Unmerge)
+    from .rules import (STOP, Destroy, Forget, Label, Merge, Unlabel, Unmerge)
 
     for target, _delta in spends:
-        if isinstance(target, Attend):
-            node = _ground(m, target.term, bindings)
-            if node is not None and not m.g.has_var(node):
-                m._attend(node, weight=target.weight, decay=target.decay,
-                          floor=target.floor, ceiling=target.ceiling)
-            continue
-        if isinstance(target, Push):
-            nodes = []
-            for term in target.terms:
-                node = _ground(m, term, bindings)
-                if node is not None and not m.g.has_var(node):
-                    nodes.append(node)
-            m._push_frame(nodes)
-            continue
-        if isinstance(target, Pop):
-            node = _ground(m, target.term, bindings)
-            m._pop_frame(node if node is not None and not m.g.has_var(node)
-                         else None)
-            continue
         if isinstance(target, (Merge, Unmerge)):
             keep = _ground(m, target.keep, bindings)
             drop = _ground(m, target.drop, bindings)
@@ -352,9 +309,6 @@ def _spend_one(m: Machine, tick: int, by: str, spends, bindings) -> None:
                 m.gate.erase(m.g.member(node, 1))
                 m.gate.erase(node)
             continue
-        if target is UNATTEND:
-            m._unattend()
-            continue
         if target is STOP:
             # `stop` still ends a RUN -- but there is no table to record it
             # on any more, so this file just breaks out of its own loop the
@@ -373,7 +327,7 @@ def _state(m: Machine) -> set:
 
 # -- worked examples, run as this file's own checks --------------------------
 #
-# `python -m ugm.core.attention` -- the convention `book/docs/watching/
+# `python -m ugm.core.firing` -- the convention `book/docs/watching/
 # 28-the-table.md` pointed at this file for, kept for the file that replaced
 # what that chapter described. Every claim in docs/design/intensity-gates.md's
 # "Firing" and "RHS" sections gets one small, direct, runnable demonstration

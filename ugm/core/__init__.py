@@ -1,4 +1,4 @@
-"""The engine: the transitive closure of `machine`, `attention` and `text`.
+"""The engine: the transitive closure of `machine`, `firing` and `text`.
 
 Eight modules, and nothing outside this package is needed to run an agent.
 They layer, and the layering is checked by nothing but this note:
@@ -8,10 +8,10 @@ They layer, and the layering is checked by nothing but this note:
     gate, rules             -> graph, scratchpad
     machine                 -> channels, gate, graph, rules, scratchpad
     text                    -> graph, machine, rules
-    attention               -> the above
+    firing                  -> the above
 
 Three pairs are genuinely circular and are broken by imports INSIDE functions
-rather than at module level: `machine`/`text`, `machine`/`attention`,
+rather than at module level: `machine`/`text`, `machine`/`firing`,
 `rules`/`text`. Moving the files into a package did not create that and does
 not fix it. It is named here so the layering above is read as what is TRUE at
 module level rather than as a claim about the whole package.

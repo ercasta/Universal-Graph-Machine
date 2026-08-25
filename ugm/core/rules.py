@@ -64,81 +64,6 @@ class _Stop:
 STOP = _Stop()
 
 
-class Attend:
-    """`attend $x` -- put a node at the front of what the agent is thinking
-    about. A post rather than a member: it changes what is considered next, and
-    claims nothing about the world."""
-
-    def __init__(self, term, weight=None, decay=None,
-                 floor=None, ceiling=None) -> None:
-        self.term = term
-        # The weight rides along: `attend($x, 3)` says this node matters more
-        # than whatever else lands in the queue at the same depth -- a
-        # calibration that names a NODE rather than a rule, which is what makes
-        # it survive a rule being renamed or rewritten.
-        #
-        # It is also a LIFESPAN: the strength a claim starts at and is restored
-        # to when a move touches it again, losing `decay` a tick until it is
-        # gone. None for either means *no opinion* -- `Machine` supplies the
-        # medium, because a corpus that does not care how long should not have
-        # to name a number to say so.
-        self.weight = weight
-        self.decay = decay
-        # `floor` is the least it may fade to -- above zero it never fades
-        # away at all, which is how a lane keeps a subject when nothing is
-        # happening. `ceiling` is the most a refresh may raise it to, so a
-        # thing mentioned over and over cannot grow until it is the only
-        # thing the lane is about.
-        self.floor = floor
-        self.ceiling = ceiling
-
-    def __repr__(self) -> str:
-        return (f"attend({self.term}, {self.weight}, {self.decay}, "
-                f"{self.floor}, {self.ceiling})")
-
-
-class _Unattend:
-    """`unattend` -- drop what is being attended to.
-
-    attend deposits a claim, unattend denies one, and this stops. There
-    is no third construct here: it is the same post list, one more row.
-    """
-
-    def __repr__(self) -> str:
-        return "unattend"
-
-
-UNATTEND = _Unattend()
-
-
-class Push:
-    """`push $x, $y` -- open a frame whose queue is these nodes.
-
-    A frame is a sub-line of work: what it attends to is its own, and what it
-    concludes lands in the same one graph as everything else.
-    """
-
-    def __init__(self, terms) -> None:
-        self.terms = list(terms)
-
-    def __repr__(self) -> str:
-        return f"push({self.terms})"
-
-
-class Pop:
-    """`pop $x` -- close the innermost frame, carrying one node back.
-
-    `pop` is `stop` scoped to a frame, and it is a row beside it rather than a
-    mechanism of its own.
-    """
-
-    def __init__(self, term) -> None:
-        self.term = term
-
-    def __repr__(self) -> str:
-        return f"pop({self.term})"
-
-
 class Merge:
     """`merge($a, $b)` -- `$b` counts as `$a` from here on (`Graph.merge`).
 
@@ -317,9 +242,9 @@ class Application(NamedTuple):
     `substitute(pattern, bindings)` handed back the very node the line matched
     -- rebuilding a proposition and finding it were the same act. They are not
     any more: a rebuild MINTS, so a caller asking *what did this line bind*
-    got a node nobody believed, nobody attended, and nobody else would ever
-    see. Attention reads this, and attention deciding what a move spends is
-    the whole of the token line.
+    got a node nobody believed and nobody else would ever see. The firing
+    loop reads this to know what an application DISCHARGED
+    (docs/design/intensity-gates.md), which is the whole of consumption.
     """
 
     rule: Rule
@@ -362,8 +287,8 @@ class RuleSet:
         self.computes: Dict[NodeId, Callable] = {}
         # Relations that are FILTERED rather than matched -- a computator's
         # cousin, over nodes rather than shown strings, answering a bool
-        # rather than a value (`new_substrate.md`'s `attentioned($x)` and a
-        # label test). Also set by the Machine.
+        # rather than a value (`new_substrate.md`'s label test; `attentioned`
+        # was the other and is retired). Also set by the Machine.
         self.predicates: Dict[NodeId, Callable] = {}
         # A third cousin: BINDS, like a computator, but over the node itself
         # rather than its shown text -- `intensity($x) as $n`
@@ -767,11 +692,12 @@ def match(
 
     `predicates` is a computator's cousin: evaluated, not matched, arguments
     ground by now, and the arguments are NODES rather than `computes`'s
-    strings -- a predicate is a question about identity (is this node in the
-    attention pool, does this node carry that label) that a shown-and-rebuilt
-    string cannot answer honestly. It returns a bool rather than a value: a
-    predicate line filters, it does not bind (`new_substrate.md`'s
-    `attentioned($x)` and a label test are the two this shipped for).
+    strings -- a predicate is a question about identity (does this node carry
+    that label) that a shown-and-rebuilt string cannot answer honestly. It
+    returns a bool rather than a value: a predicate line filters, it does not
+    bind. `label($x, ...)` is what is left of the two this shipped for;
+    `attentioned($x)` was the other, retired with the focus pool it asked
+    about.
     """
     computes = computes or {}
     predicates = predicates or {}
@@ -898,7 +824,7 @@ def match(
                 if want.sign == ABSENT:
                     # ⚠ The sign is READ here, and this branch returns before
                     # the `sign == ABSENT` arm below ever sees the member. It
-                    # did not use to be, so `no attentioned($x)` parsed, was
+                    # did not use to be, so `no <predicate>($x)` parsed, was
                     # evaluated as though the `no` were absent, and therefore
                     # meant its own opposite -- silently, with no error at
                     # load and none at match. A predicate answers a question;

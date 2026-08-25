@@ -125,19 +125,18 @@ actually knows yet.
   Numerals are excluded from the report, since sharing the numeral the machinery uses is correct.
 - **A corpus tool may not share a request relation with the apparatus** — refused at registration,
   with a clear error, not a silent collision.
-- **Arbitration is scheduling, not decision.** A rule that loses is *deferred*, not rejected — a run
-  to quiescence applies it eventually unless something forgoes or forbids it.
-- **`standing(<r>)` is what stops a rule being starved.** Two rules oscillating never let a third
-  referee take a turn unless the referee is marked `standing`.
-- **A loaded `fact` starts with no attention, and nothing matches without some** (§20). A corpus whose
-  starting condition is `fact`s alone needs its own kickoff — `attend(...)` on a bootstrap rule, or
-  delivering it as a `say` instead. `ugm/rules/circuit_breaker.ugm`'s own selftest fixture and
-  `ugm/rules/todo.ugm` show both.
-- **`brush($x)` (and any RHS `attend($x, ...)`) rebuilds `$x` by substitution if it names a compound
-  built from the rule's OWN bound arguments** — `brush(p($x))` where the antecedent only bound `$x`,
-  not the whole line, mints a twin nobody believes rather than re-attending what actually matched.
-  Bind the whole line first (`$p = p($x)`) and brush `$p`, or use `after <R> { $p = p($x) } =>
-  attend($p, ...)`, which reaches the real node because its query is a MATCH, not a rebuild.
+- **Nothing is arbitrated, and nothing can be starved.** Every rule whose antecedent is on fires the
+  tick it is on. `standing(<r>)`, `lane(...)` and `lane_order(...)` are reserved names a corpus may
+  still write, but nothing reads them.
+- **Firing SPENDS what it matched.** A fact more than one rule needs to read is `keep`ed on each line
+  that reads it, or the first firing turns it off for everyone else. `keep` is a per-line antecedent
+  mode: `keep task($t)`.
+  - Two rules that both read a fact with a plain `+` in the SAME tick are fine — they match one
+    opening state and fire together. The hazard is a reader in a LATER tick.
+- **A rule's own consequent can recharge what its antecedent just spent**, because same-tick writes to
+  one node combine by max: bind the whole line (`keep $g = count(a)`), read it (`intensity($g) as
+  $n`), write it back (`+$g intensity $n2`). Naming the shape rather than the bound node mints a twin
+  — `rel` does not intern.
 - **A comment on its own line inside a line-form rule body reads as the blank line that ends one** —
   the tokenizer strips comments to nothing, so two comment lines between two members look like a
   paragraph break. Put the comment above the rule, or use the brace form.

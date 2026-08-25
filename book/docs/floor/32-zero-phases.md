@@ -12,7 +12,7 @@ It prints **zero**.
 
 The step is: score → take the first rule in the window whose antecedent
 matches → apply it → spend its postconditions. Plus widening when the window
-runs dry, and ending when a rule spent `stop`. `ugm/core/attention.py` states
+runs dry, and ending when a rule spent `stop`. `ugm/core/firing.py` states
 this as its own opening line, almost word for word: *"a table over rules, take
 the first that matches, then spend."*
 

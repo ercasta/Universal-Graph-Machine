@@ -361,7 +361,7 @@ class Graph:
         This used to intern -- `on(a, b)` named one node however often it was
         written -- and interning was the substrate deciding that saying a thing
         twice is saying it once. That is a claim about occasions, and it is not
-        the substrate's to make: an occasion is what attention is spent on, and
+        the substrate's to make: an occasion carries its own intensity, and
         two occasions cannot be told apart while structure is identity.
 
         So the write policy moved up. Whoever wants the node that is already

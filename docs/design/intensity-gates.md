@@ -1,9 +1,12 @@
-# Intensity gates — experimental substrate redesign
+# Intensity gates — the substrate
 
-Status: exploratory, nothing below is implemented. Branch: `intensity-gates`.
+Status: **built.** `python -m ugm.core.firing` is one runnable
+demonstration per claim in "Firing" and "RHS" below; `python -m ugm.selftest`
+covers the rest.
 
-This is not a shipped-docs page (`book/docs/...`) — those claims are backed by
-a runnable check. This one isn't, yet.
+`book/docs/...` has NOT been ported — those chapters still describe the ranked
+table, the focus queue and the frame stack, all of which are gone. Read this
+page over them until they are rewritten.
 
 ## What replaces what
 
@@ -11,6 +14,8 @@ a runnable check. This one isn't, yet.
 |---|---|
 | `believed(p)` / `erase` — presence, kept as an occasion stack | every node, uniformly, carries an intensity (a number); "on" = above a threshold; `erase`'s job is now setting it to `0` |
 | `attention(x)` — a separate lift/pick layer over the table | gone — an antecedent member reads a node's intensity directly |
+| the FOCUS system — `attend`/`brush`/`unattend` as postconditions, `attentioned($x)` as a predicate, a decaying queue on `Machine` | gone — *in play* is *on*, which is what an ordinary member already asks |
+| FRAMES — `push`/`pop`, a stack of sub-lines of work, each with its own attention queue and standing weights | gone — there is no queue to suspend, and nothing schedules, so there is no line of work to put away |
 | lanes | gone — nothing needs a guaranteed turn once firing is per-rule rather than per-table: a rule fires whenever its own gates are on, so it can't be starved by another rule's schedule |
 | score / `standing` / declaration-order tie-break | gone — a rule doesn't "win" a tick against rivals; every rule whose gates are on fires |
 | gate node (learning doc, ch. 29) | an ordinary node with no domain meaning (`gate(19043)`), wiring one rule's output to another rule's input |
@@ -66,11 +71,12 @@ decay bookkeeping of its own. Sum was the alternative and was set aside for
 now: it would make the result depend on *how many* rules fired, not just on
 what they said, and it needs a decay policy to keep from saturating.
 
-**Occasions survive.** Belief today keeps more than presence — the same
-proposition can be believed more than once (an occasion stack), and push/pop
-frames (ch. 25) rest on that. First cut: a node keeps its occasion stack, and
-each occasion carries its own intensity, rather than intensity collapsing
-occasions into one number.
+**Occasions survive.** Belief keeps more than presence — the same proposition
+can be believed more than once (an occasion stack). A node keeps its occasion
+stack, and each occasion carries its own intensity, rather than intensity
+collapsing occasions into one number. Push/pop FRAMES (ch. 25) used to rest on
+this too, and are retired: a frame was a suspended attention queue, and there
+is no queue.
 
 **No ambient time-decay.** A node's intensity doesn't erode on its own each
 tick just for existing. The only two things that move it are consumption
@@ -106,8 +112,32 @@ switches it off while the node survives as structure. What used to be one
 sign covering both readings is now two RHS operations with two different
 costs, chosen explicitly rather than inferred from a `-`.
 
----
+## What it turned out to cost
 
-No open questions outstanding. What's left is syntax (the `keep` modifier,
-the intensity-write form) and the implementation itself, across
-`ugm/core/attention.py`, `gate.py`, `machine.py`, `rules.py`, `text.py`.
+- **`keep` and `intensity` are the settled syntax.** `keep p($x)` is the
+  antecedent read that does not spend; `+p(x) intensity $n` is the consequent
+  write that names its own strength; `intensity($x) as $n` is the antecedent
+  read of a bound node's current number.
+- **Lanes went with the table.** Starvation was a fact about one selection per
+  tick. `lane`/`lane_order`/`standing` stay reserved names so an old corpus
+  still loads, but nothing reads them.
+- **The focus system and frames went one step later.** Nothing scheduled by
+  them once every matching rule fired, so they were bookkeeping with no
+  reader. `attentioned($x)`'s job — *which one is in play* — is an ordinary
+  claim a corpus writes and can argue with: `dungeon_gut.ugm`'s
+  `eyeing(hero, $e)` is the worked case.
+- **Calibration searches intensities now.** `numbers`/`mutate`
+  (`ugm/learning/calibrate.py`) walked per-line scoring brackets, then
+  `attend(...)` tails; both named a ranking that no longer happens.
+
+## Known red
+
+`todo.ugm`'s stack pointer races itself. `<push-task>` reads the current top
+and writes the new one in one firing, and two tasks opened in the same tick
+both read the same stale `$prev` — so the stack ends with two tops rather than
+one stacked on the other. The table era's one-selection-per-tick serialised
+this for free. A stack's push is inherently sequential and nothing about
+order-independent firing can make two order-dependent writes to one pointer
+agree; fixing it means restructuring `todo.ugm`, not patching the engine.
+`todo_stack()` in `selftest.py` carries the failing check rather than a
+green one.

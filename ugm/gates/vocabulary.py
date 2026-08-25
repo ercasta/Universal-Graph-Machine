@@ -36,7 +36,10 @@ ROLES: Dict[str, List[str]] = {
     # `entry_of`, `rests_on`, `licensed_by`, `time` and the rest -- was the
     # CHAIN, and a census that still listed it would be listing vocabulary the
     # agent has and cannot use.
-    "belief": ["believed", "erased"],
+    #  `intensity` is here rather than in "the agent's deliberation": how
+    # far ON a node is IS what believing it comes to now
+    # (docs/design/intensity-gates.md), not a second opinion beside it.
+    "belief": ["believed", "erased", "intensity"],
     # R3/R4: rules are subjects, and rules are askable.
     #  `action` joins `computes` rather than "the seam to a world": it is a
     # claim ABOUT a pattern the agent may deliberately produce, deposited the
@@ -52,12 +55,6 @@ ROLES: Dict[str, List[str]] = {
         # *how many* is the machinery's to answer -- and it is the one thing
         # `no` cannot do, because a consequent may carry an unbound variable.
         "count", "counted",
-        # `attention` is a claim about a NODE -- *think about this one*.
-        "attention", "attention_span",
-        # The attention STACK: `push` and `pop` are the agent suspending one
-        # line of work for another, so a frame is deliberation in exactly the
-        # sense `attention` is, one construct up.
-        "pushed", "popped", "frame_depth", "declined", "unattended",
         # The gap between two states, which a rule cannot compute because it
         # cannot speak about a set. Both states exist right now, so this is a
         # diff and not a memory -- which is why it survived the chain.
@@ -67,10 +64,11 @@ ROLES: Dict[str, List[str]] = {
         "intercepts", "producing", "instead", "drop", "rewrote", "after",
         # Which table a name was resolved in, and that a corpus was loaded.
         "scoped", "loaded", "kb",
-        # Deixis (`attentioned($x)` -- WHICH ONE) and a claim of identity
-        # (`label`) -- both PREDICATES, filters over an already-bound node,
-        # never matched, never bound to (`new_substrate.md`).
-        "attentioned", "label",
+        # A claim of identity (`label`) -- a PREDICATE, a filter over an
+        # already-bound node, never matched, never bound to
+        # (`new_substrate.md`). `attentioned($x)` was the other one, and is
+        # gone with the focus pool it asked about.
+        "label",
         # A second pass per round, and which one runs first when two are
         # otherwise tied -- competence about competence, the same register
         # `standing` and `dormant` already live in.

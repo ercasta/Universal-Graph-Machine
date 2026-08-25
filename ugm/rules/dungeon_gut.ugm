@@ -5,9 +5,9 @@
 # `judge` notices two things about the situation nothing else here reads:
 # hero's own hp running low, and an enemy in the room who outweighs hero on
 # hp. Each writes a gut-feeling node -- `fear(hero, $v)`, `wary(hero, $e)`.
-# `reflex` reads those and auto-attends what they are about, once the
-# magnitude clears a threshold -- `startled(hero)` only at the DESPERATE
-# band (hp <= 3), `eyeing(hero, $e)` for any enemy that outweighs hero.
+# `reflex` reads those and marks what they are about, once the magnitude
+# clears a threshold -- `startled(hero)` only at the DESPERATE band
+# (hp <= 3), `eyeing(hero, $e)` for any enemy that outweighs hero.
 # Both lanes run every round, after `main`, against the SAME frame, so a
 # reflex rule sees a gut feeling `judge` deposited a moment earlier in that
 # same round.
@@ -15,8 +15,9 @@
 # The two new main-lane rules read those beliefs back:
 #
 #   <hero-targets-threat>  wary of an enemy -> attacks THAT one instead of
-#                           whatever the player declared, once it is the
-#                           attended one -- overrides the plan, not the turn.
+#                           whatever the player declared, once the reflex
+#                           layer is eyeing it -- overrides the plan, not
+#                           the turn.
 #   <hero-flees>            startled (desperate, not merely worried) ->
 #                           leaves the fight outright, `over(hero_fled)`
 #                           rather than `hero_falls` -- a survived retreat,
@@ -216,25 +217,28 @@ fact +lane(<sense-threat>, judge)
 
 # -- the reflexes (reflex lane) ------------------------------------------
 
-# Loud enough to notice: attends hero, so whatever the loop reaches for
-# next is lifted by having hero at the front of the queue.
+# Loud enough to notice. `attend(hero, 5)` rode along on the tail here,
+# lifting hero to the front of the focus queue so whatever the loop
+# reached for next was about hero; the queue is gone and `startled(hero)`
+# -- an ordinary claim `<hero-flees>` reads -- is the whole of it.
 rule <startle>
   +fear(hero, $v)
   scary($v)
   no startled(hero)
 ->
   +startled(hero)
-=> attend(hero, 5)
 fact +lane(<startle>, reflex)
 
-# The threat itself gets attended, not just hero -- the reflex-layer
-# analogue of a glance.
+# The threat itself is marked, not just hero -- the reflex-layer analogue
+# of a glance, and what `<hero-targets-threat>` reads to know WHICH enemy
+# the gut layer is on. That used to be `attentioned($e)` over an
+# `attend($e, 5)` this rule spent; `eyeing(hero, $e)` says the same thing
+# as a claim the corpus owns and can argue with.
 rule <eye-the-threat>
   +wary(hero, $e)
   no eyeing(hero, $e)
 ->
   +eyeing(hero, $e)
-=> attend($e, 5)
 fact +lane(<eye-the-threat>, reflex)
 
 fact +lane_order(judge, 1)
@@ -251,7 +255,7 @@ rule <hero-targets-threat>
   +present(hero)
   +wary(hero, $e)
   +present($e)
-  attentioned($e)
+  keep eyeing(hero, $e)
   no startled(hero)
 ->
   -may(hero)
