@@ -369,7 +369,9 @@ class Machine:
         self._fresh_attention: set = set()
         self._frames: List[Frame] = [Frame()]
         self._floor = 0
-        self._step_table = None
+        # Recorded by a firing's `stop` postcondition, obeyed by
+        # `attention.run`'s own tick loop -- see that file's `_spend_one`.
+        self._stopped: Optional[str] = None
         self._authoring_source: Optional[NodeId] = None
         self._saying_scope: Optional[str] = None
         # The bundle is not something the agent was TOLD -- it is what it reads
@@ -1172,15 +1174,17 @@ class Machine:
     def tick(self) -> Step:
         """One move of the loop, for a caller that wants to step and look.
 
-        The table PERSISTS across calls, or a caller stepping by hand would be
-        measuring a different agent each time.
+        There is no table left to persist across calls (docs/design/
+        intensity-gates.md): a tick matches every rule against whatever the
+        graph holds right now, so stepping by hand and running straight
+        through are the same loop at two different limits, not two
+        different mechanisms the way the table era's `tick`/`run` split
+        needed to be.
         """
-        from .attention import Table, _standing, run as _table_run
+        from .attention import run as _table_run
 
-        if self._step_table is None:
-            self._step_table = Table(self.g, self.rules.rules, _standing(self))
-        steps = _table_run(self, limit=1, table=self._step_table).steps
-        return steps[0] if steps else Step(0, 0, 0, None, (), "quiescent")
+        steps = _table_run(self, limit=1).steps
+        return steps[0] if steps else Step(0, 0, (), (), "quiescent")
 
     def run(self, limit: int = 100) -> List[Step]:
         """Bounded, and it returns a result *and* a state -- because a search
@@ -1319,9 +1323,20 @@ class Machine:
                 if self.gate.erase(node):
                     wrote.append(node)
                 continue
+            # A CHANGE, not merely a touch: `<loud>` in `book/docs/watching/
+            # 28-the-table.md`'s own example matches every tick forever and
+            # writes the same `shouted` back at the same strength every
+            # time -- and that is not new business, it is the fixpoint
+            # `run`'s own quiescence check is watching for. Comparing
+            # against the anchor's CURRENT number (0.0 if it has none) is
+            # what tells "this tick re-affirmed what already held" from
+            # "this tick actually moved something".
+            anchor = self.pad.anchor(node)
+            before = self.pad.intensity(anchor) if anchor is not None else 0.0
             self.gate.write(node, generic=(node in generic or self.g.has_var(node)),
                             intensity=value)
-            wrote.append(node)
+            if value != before:
+                wrote.append(node)
         return tuple(wrote)
 
     # -- triggers ----------------------------------------------------------

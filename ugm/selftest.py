@@ -405,32 +405,30 @@ def matching() -> None:
 
 
 def arbitration_is_total() -> None:
-    print("\n§14 arbitration")
+    print("\n§14 firing is not arbitrated any more (docs/design/"
+          "intensity-gates.md) -- every rule whose gates are on fires, so "
+          "there is no winner to pick and nothing for one rule to defer to "
+          "another. `arbitrate` itself survives as a generic utility (a "
+          "caller that wants ONE application from several still has "
+          "something total to call), but the LOOP does not call it.")
     m = Machine()
     kb = load(m, """
         fact +p(a)
-        rule <one> = implies( { +p($x), no q($x) }, { +q($x) } ) => brush(p($x))
-        rule <two> = implies( { +p($x), no r($x) }, { +r($x) } )
+        rule <one> = implies( { keep p($x), no q($x) }, { +q($x) } )
+        rule <two> = implies( { keep p($x), no r($x) }, { +r($x) } )
     """)
-    # A loaded fact is background, not something to take care of (§20) -- a
-    # rule has to be given a reason to consider `p(a)`, the same as a real
-    # corpus would with a `say` or its own `attend(...)`.
     m._attend(kb.term("p(a)"))
     steps = [s for s in m.run(limit=8) if s.applied]
-    check("§14", "with two rules matching, arbitration answers",
-          bool(steps))
-    check("§14", "and it answers by AUTHORED ORDER when nothing else separates "
-                 "them", steps[0].applied.rule.name == "one")
-    #  The brush on `<one>` is the point of the check, not scaffolding
-    # around it. Arbitration defers rather than rejects -- but a move also
-    # spends what it matched, so the deferred rule finds its premise gone
-    # unless the winner says otherwise. Whether the loser still gets its turn
-    # is therefore a fact about what `<one>` gives back, and the two
-    # mechanisms are separable exactly here.
-    check("§14", "both eventually apply -- arbitration defers a loser rather "
-                 "than rejecting it, and it is still there to take its turn "
-                 "once the winner puts the premise back",
-          m.holds(kb.term("q(a)")) and m.holds(kb.term("r(a)")))
+    check("§14", "two rules matching one tick's opening state both fire "
+                 "that tick -- neither is deferred, because nothing is "
+                 "choosing between them",
+          bool(steps) and
+          {a.rule.name for a in steps[0].applied} == {"one", "two"})
+    check("§14", "...and both conclusions land -- `keep` is what let both "
+                 "rules read `p(a)` without either's firing spending the "
+                 "other's premise",
+          m.holds(kb.term("q(a)")) and m.holds(kb.term("r(a)"))
+          and m.holds(kb.term("p(a)")))
     check("§14", "arbitrate over nothing answers None",
           arbitrate(m.rules, []) is None)
 
@@ -462,24 +460,31 @@ def applying() -> None:
     """)
     m._attend(kb.term("heat(stove, kettle)"))
     steps = m.run(limit=20)
-    names = [s.applied.rule.name for s in steps if s.applied]
+    names = [a.rule.name for s in steps for a in s.applied]
     check("§16", "a `+` consequent anchors what the rule concluded",
           "off" in names and m.holds(kb.term("boiling(kettle)")))
     check("§16", "a `-` consequent ERASES, which is the un-claim an "
                  "append-only chain could never express -- back to nothing, "
                  "with no scar",
           not m.holds(kb.term("heat(stove, kettle)")))
-    check("§16", "an erasure is counted at the gate", m.gate.erasures == 1)
+    check("§16", "TWO erasures land at the gate, and only one of them is "
+                 "the rule's own explicit `-heat` -- `<off>`'s antecedent "
+                 "also plainly matches `cold($w)`, and default consumption "
+                 "spends that occasion too even though nothing in the "
+                 "consequent ever mentions it", m.gate.erasures == 2)
     check("§16", "...and the rule guarded by `no cold` never applied, so "
                  "absence gated a conclusion rather than denying one",
           "boil" not in names)
 
-    #  A CONSEQUENCE, not a defect, and it is worth a check because it is
-    # the price of the architecture: an assert and an erase that answer each
-    # other never settle. Under a chain the second claim merely outvoted the
-    # first and the pair went quiet; here each move really does undo the other,
-    # and nothing remembers that it has happened before. A corpus that wants to
-    # stop has to say so.
+    #  Firing discharges by default (docs/design/intensity-gates.md) -- and
+    # this is exactly the "guarded rule doesn't re-derive" pattern
+    # (watching/25-own-state.md) becoming the SUBSTRATE's default instead
+    # of something a corpus writes by hand. Two rules that answer each
+    # other -- `<boil>` derives `boiling`, `<off>` retracts it -- used to
+    # need a guard of their own or oscillate forever; here `<boil>` cannot
+    # re-match once its own `heat` premise is spent, and `<off>` cannot
+    # re-match once ITS `boiling` premise is spent, so the pair settles on
+    # its own with no guard written anywhere in the corpus.
     osc = Machine()
     osc_kb = load(osc, """
         fact +heat(stove, kettle)
@@ -488,16 +493,23 @@ def applying() -> None:
         rule <off>  = implies( { +boiling($w), +cold($w) }, { -boiling($w) } )
     """)
     osc._attend(osc_kb.term("heat(stove, kettle)"))
-    check("§16", "a corpus whose rules answer each other stops, and the loop "
-                 "says WHY: `unattended`, not `quiescent`. The pair really "
-                 "does undo each other and nothing remembers it -- but each "
-                 "still MATCHES, so calling that a finished search would be "
-                 "the loop stating a falsehood about its own silence",
-          osc.run(limit=12)[-1].state == "unattended")
+    osc_steps = osc.run(limit=12)
+    check("§16", "a corpus whose rules answer each other still reaches "
+                 "quiescence -- consumption is what used to need writing by "
+                 "hand (§25's guard) and does not any more",
+          osc_steps[-1].state == "quiescent")
+    check("§16", "...and the LAST thing to hold the floor is `<off>`'s own "
+                 "erasure: `boiling` fired, then was retracted, and nothing "
+                 "is left to re-derive it because `heat` is spent too",
+          not osc.holds(osc_kb.term("boiling(kettle)"))
+          and not osc.holds(osc_kb.term("heat(stove, kettle)")))
 
-    #  There is no inert set. A rule whose conclusion is already anchored
-    # applies again, and the engine does not stop it -- deciding a rule has
-    # nothing further to give is the corpus's judgement.
+    #  There is no inert set EITHER -- but there does not need to be one any
+    # more. A rule whose premise firing just spent cannot match again
+    # without something recharging it, so "a rule that already gave what it
+    # has costs nothing to re-offer" (the old inert-set argument) is now
+    # true for a different, cheaper reason: there is nothing left to offer
+    # it against.
     m2 = Machine()
     kb2 = load(m2, """
         fact +p(a)
@@ -505,41 +517,46 @@ def applying() -> None:
     """)
     m2._attend(kb2.term("p(a)"))
     steps2 = m2.run(limit=20)
-    check("§6", "a rule whose conclusion is already anchored is still OFFERED "
-                "again -- there is no inert set, and deciding a rule has "
-                "nothing further to give is not the engine's judgement -- but "
-                "it runs out of SUBJECT rather than out of ticks, and the run "
-                "ends `unattended` because the match is still there",
-          steps2[-1].state == "unattended" and len(steps2) < 20)
+    check("§6", "a rule fires once against a plain fact and then has nothing "
+                "left to match -- quiescent well under the tick limit, with "
+                "no guard (`no q($x)`) written anywhere",
+          steps2[-1].state == "quiescent" and len(steps2) < 20
+          and m2.holds(kb2.term("q(a)")) and not m2.holds(kb2.term("p(a)")))
 
-    #  ...and the corpus stops it, by asking for the absence of what it
-    # wrote. An ordinary premise, readable and overridable, where the inert set
-    # was a verdict no rule could reach.
+    #  A corpus that wants today's persistence writes `keep` where it reads
+    # the fact -- the escape hatch, and this is the direct comparison: same
+    # rule, `keep` added, and `p(a)` survives its own firing.
     m2b = Machine()
     kb2b = load(m2b, """
         fact +p(a)
-        rule <one> = implies( { +p($x), no q($x) }, { +q($x) } )
+        rule <one> = implies( { keep p($x), no q($x) }, { +q($x) } )
     """)
     m2b._attend(kb2b.term("p(a)"))
     steps2b = m2b.run(limit=20)
-    check("§6", "...and a corpus that guards its own rule settles, because the "
-                "premise it needs is gone once it has written it",
-          steps2b[-1].state == "quiescent")
+    check("§6", "...`keep` gets today's persistence back -- p(a) survives, "
+                "and the rule still settles because its OWN `no q($x)` "
+                "guard is what stops the re-derivation this time, not "
+                "spending the premise",
+          steps2b[-1].state == "quiescent"
+          and m2b.holds(kb2b.term("p(a)")) and m2b.holds(kb2b.term("q(a)")))
 
     #  The other guard, and the one the dungeon used for its whole turn
-    # order: SPEND what you matched. An occasion is consumed, a fact is not.
+    # order: SPEND what you matched. An occasion is consumed, a fact is not
+    # -- and this used to be something `-may(hero)` had to say explicitly.
+    # It is now what a bare `+may(hero)` already does.
     m2c = Machine()
     kb2c = load(m2c, """
         fact +may(hero)
-        rule <act> = implies( { +may(hero) }, { -may(hero), +acted(hero) } )
+        rule <act> = implies( { +may(hero) }, { +acted(hero) } )
     """)
     m2c._attend(kb2c.term("may(hero)"))
     steps2c = m2c.run(limit=20)
-    check("§6", "spending the premise stops the rule too, and it is the same "
-                "mechanism a right-to-act already used",
+    check("§6", "spending the premise stops the rule too, and it is now the "
+                "DEFAULT rather than an explicit `-may(hero)` a corpus had "
+                "to remember to write",
           steps2c[-1].state == "quiescent"
-          and m2c.holds(m2c.g.rel(m2c.g.atom("acted"), m2c.g.atom("hero")))
-          is not True or steps2c[-1].state == "quiescent")
+          and m2c.holds(kb2c.term("acted(hero)"))
+          and not m2c.holds(kb2c.term("may(hero)")))
 
 
 
@@ -917,70 +934,23 @@ def attention() -> None:
                  "nothing happens",
           after.get("pinned") == 1 and "capped" not in after)
 
-    #  Per-line scoring: which line the multiplier hangs on decides.
-    def _pick(on_event):
-        ev = "[+1, attention_multiplier:9]" if on_event else "[+1, attention_multiplier:0]"
-        pa = "[+1, attention_multiplier:0]" if on_event else "[+1, attention_multiplier:9]"
-        mm = Machine()
-        k = load(mm, "fact +person(paul)\nfact +person(mary)\n"
-                     "fact +intake(e1, paul)\nfact +intake(e2, mary)\n"
-                     "rule <pick> = implies( { $z = intake($e, $who) " + ev +
-                     ", $w = person($who) " + pa + " }, { +picked($e) } )")
-        mm._unattend()
-        mm._attend(k.term("intake(e2, mary)"), weight=9)
-        mm._attend(k.term("person(paul)"), weight=9)
-        mm.run(limit=1)
-        return [mm.g.show(p) for p in mm.pad.believed()
-                if mm.g.show(p).startswith("picked")]
-
-    check("§20", "a line carries its own contribution and its own attention "
-                 "multiplier, and WHICH LINE it hangs on decides: the same "
-                 "rule over the same facts picks the attended EVENT or the "
-                 "attended PARTICIPANT depending on nothing but that",
-          _pick(True) == ["picked(e2)"] and _pick(False) == ["picked(e1)"])
-
-    check("§20", "...and all lines still have to match -- a bracket is a "
-                 "score, never a filter",
-          len(_pick(True)) == 1)
-
-    #  Position is not a signal: strength alone, because decay already aged it.
-    def _stronger_or_newer(strong_first):
-        mm = Machine()
-        k = load(mm, "fact +person(paul)\nfact +person(mary)\n"
-                     "rule <one> = implies( { $w = person($who), no chosen }, "
-                     "{ +took($who), +chosen } )")
-        mm._unattend()
-        order = ("paul", "mary") if strong_first else ("mary", "paul")
-        for name in order:
-            mm._attend(k.term("person(%s)" % name),
-                       weight=9 if name == "paul" else 2)
-        mm.run(limit=1)
-        return [mm.g.show(p) for p in mm.pad.believed()
-                if mm.g.show(p).startswith("took")]
-
-    #  A silence with work still in it is not a finished search.
-    mz = Machine()
-    kz = load_file(mz, _corpora.path("worked.ugm"))
-    zsteps = mz.run(limit=100)
-    from .core.rules import match as _match
-    took = {s.applied.rule.name for s in zsteps if s.applied is not None}
-    outstanding = [r.name for r in mz.rules.rules
-                   if r.name not in took
-                   and _match(mz.g, mz.pad, r, computes=mz.rules.computes,
-                              predicates=mz.rules.predicates)]
-    check("§20", "a run that stops holding a FULL match it never offered says "
-                 "`unattended` rather than `quiescent` -- the facts are all "
-                 "still believed and the rule still matches, so what faded "
-                 "was not the knowledge but the grip on there being something "
-                 "left to do about it",
-          not outstanding or zsteps[-1].state == "unattended")
-
-    check("§20", "the STRONGER claim wins whether it was made first or last "
-                 "-- queue position is not a signal, because under decay the "
-                 "strength already is the recency and reading both counted "
-                 "the same fact twice",
-          _stronger_or_newer(True) == ["took(paul)"]
-          and _stronger_or_newer(False) == ["took(paul)"])
+    #  Retired (docs/design/intensity-gates.md), and deliberately not
+    # ported: this used to be three checks about attention PICKING which of
+    # several matched applications a rule's one selection per tick spent --
+    # per-line scoring (`[+1, attention_multiplier:9]`) deciding which of a
+    # rule's several bindings was taken, the stronger of two claims winning
+    # a tie regardless of queue position, and a shortlist that stayed
+    # `unattended` rather than `quiescent` while a full match sat
+    # unoffered. All three are questions about a PICK, and there is no pick
+    # any more -- every application any rule finds fires the tick it is
+    # found, so "which application does attention prefer" is not a
+    # question the loop still asks. The bracket syntax these checks wrote
+    # is refused at load now (see `text.py`'s `member`), and `unattended` as
+    # a run-ending state is gone with the shortlist it described.
+    #
+    # What is NOT retired -- attention as *what the agent is thinking
+    # about* -- is everything above this comment in this function, and it
+    # still holds unchanged.
 
 
 def reference_lines() -> None:
@@ -1112,11 +1082,14 @@ def rhs_tail() -> None:
     m3._attend(kb3.term("happy(mary)"))
     steps = m3.run(limit=10)
     noticed = sum(1 for n in ("paul", "mary")
-                  if m3.holds(m3.g.rel(kb3.atom("noticed"), kb3.atom(n))))
-    check("§20", "`stop` in the tail ends the run after ONE application, "
-                 "with a second `happy` still unread -- the ordinary loop "
-                 "would have applied both",
-          steps[-1].state == "stopped" and noticed == 1)
+                  if m3.holds(kb3.term(f"noticed({n})")))
+    check("§20", "`stop` ends the RUN, not one application -- both bindings "
+                 "of `<r1>` matched the SAME tick's opening state and both "
+                 "fired together (docs/design/intensity-gates.md: firing "
+                 "order inside a tick cannot matter, so there is no "
+                 "'partway through this tick' left for `stop` to cut at), "
+                 "and `stopped` is what ends the tick AFTER",
+          steps[-1].state == "stopped" and noticed == 2)
 
 
 def rhs_graph_ops() -> None:
@@ -1534,26 +1507,31 @@ def frames() -> None:
 
 
 def lanes() -> None:
-    print("\n§20 lanes: a generic mechanism, not a special case for judges")
+    print("\n§20 lanes are retired (docs/design/intensity-gates.md) -- "
+          "starvation was a fact about ONE selection per tick, and there is "
+          "no selection any more")
+    # `lane(...)`/`lane_order(...)` are gone: nothing interprets them now
+    # (the atoms stay reserved so a corpus that still writes them loads
+    # rather than erroring, but they do nothing -- see `machine.py`'s
+    # comment on `STANDING`/`LANE`/`LANE_ORDER`). The scenario lanes existed
+    # to solve -- book/docs/watching/28-the-table.md's `<loud>`/`<watch>` --
+    # is this function's replacement: a rule that matches every tick and
+    # never stops matching used to starve any rule ranked with or below it,
+    # because only one rule was picked per tick. Nothing picks now, so
+    # `<watch>` needs no lane of its own to get a turn -- it just fires
+    # whenever ITS OWN gates are on, the same tick as `<loud>` or any other.
     m = Machine()
     kb = load(m, """
-        fact +p(a)
-        rule <regular> = implies( { +p($x), no q($x) }, { +q($x) } )
-        rule <feel> = implies( { +q($x), no liked($x) }, { +liked($x) } )
-        fact +lane(<feel>, judge)
-        fact +lane_order(judge, 1)
+        fact +running
+        rule <loud>  = implies( { keep running }, { +shouted } )
+        rule <watch> = implies( { keep running, no watched }, { +watched } )
     """)
-    m._attend(kb.term("p(a)"))
-    steps = m.run(limit=4)
-    check("§20", "the main lane's rule and the judge lane's rule both apply "
-                "in the same ROUND -- same tick number, one shared frame",
-          steps[0].applied.rule.name == "regular"
-          and steps[1].applied.rule.name == "feel"
-          and steps[0].applied is not None
-          and steps[1].applied is not None)
-    check("§20", "...because the judge rule sees what the main rule just "
-                "wrote, in the same round, not a tick later",
-          m.holds(kb.term("q(a)")) and m.holds(kb.term("liked(a)")))
+    m.run(limit=3)
+    check("§20", "the never-yielding rule and the rule that only needs one "
+                "turn both fire -- no lane, no starvation, because there "
+                "was never a single per-tick slot to starve `<watch>` out "
+                "of",
+          m.holds(kb.term("shouted")) and m.holds(kb.term("watched")))
 
     m2 = Machine()
     kb2 = load(m2, "fact +p(a)\n"
@@ -1561,25 +1539,15 @@ def lanes() -> None:
                    "rule <two> = implies({+q($x), no r($x)}, {+r($x)})")
     m2._attend(kb2.term("p(a)"))
     m2.run(limit=5)
-    check("§20", "a corpus that never claims lane(...) runs one lane, exactly "
-                "as before lanes existed",
-          m2.holds(kb2.term("q(a)")) and m2.holds(kb2.term("r(a)")))
-
-    m3 = Machine()
-    kb3 = load(m3, """
-        fact +p(a)
-        rule <second> = implies( { +p($x), no seen($x) }, { +seen($x) } )
-        rule <first>  = implies( { +p($x), no seen($x) }, { +noted($x) } )
-        fact +lane(<second>, later)
-        fact +lane(<first>, sooner)
-        fact +lane_order(sooner, 0)
-        fact +lane_order(later, 1)
-    """)
-    m3._attend(kb3.term("p(a)"))
-    m3.run(limit=4)
-    check("§20", "lane order is a CLAIM, and it decides which lane goes "
-                "first when both would otherwise be tied",
-          m3.holds(kb3.term("noted(a)")))
+    check("§20", "a chain of two rules still reaches the end of the chain -- "
+                "one more tick than the lane era's same-round visibility "
+                "bought it (a tick matches the state as it STARTS, so "
+                "`<two>` sees `q(a)` the tick after `<one>` writes it, not "
+                "the same one), but it gets there. `q(a)` itself is spent "
+                "by the time it does -- `<two>`'s own plain `+q($x)` "
+                "discharges it on the very firing that reads it, which is "
+                "this file's other running theme and not a lane question",
+          not m2.holds(kb2.term("q(a)")) and m2.holds(kb2.term("r(a)")))
 
 
 def circuit_breaker() -> None:
@@ -1708,46 +1676,39 @@ def the_web() -> None:
 
 
 def calibration() -> None:
-    """Search the numbers, never the rules."""
-    from .learning import Episode, calibrate, mutate, numbers, run_episode
+    """Search the numbers, never the rules.
+
+    Most of what this used to demonstrate is retired along with per-line
+    scoring (docs/design/intensity-gates.md): the corpus this searched,
+    `pick_the_event.ugm`, existed to show a search finding WHICH of a
+    rule's several matched applications an `attention_multiplier` bracket
+    should favour -- and there is no picking among applications any more
+    (every one a rule finds fires), so the bracket syntax itself is refused
+    at load now (`text.py`'s `member`) and the episode's premise -- that
+    only the numbers decide which of `e1`/`e2` gets picked -- is not a
+    question this engine still asks. What survives is the mechanical half:
+    `numbers`/`mutate` still walk a corpus's `attend(...)` tails (the
+    bracket regex simply never matches any more, and finds nothing to
+    move), and the judge-starvation guard below is a claim about the LOOP,
+    not about scoring, so it still holds.
+    """
+    from .learning import Episode, mutate, numbers, run_episode
     import random
 
-    print("\n--  calibration: an episode is a file, and only numbers move")
-    corpus = ("rule <pick> = implies(\n"
-              "    { $z = intake($e, $who) [+1, attention_multiplier:0],\n"
-              "      $w = person($who) [+1, attention_multiplier:9],\n"
-              "      no chosen },\n"
-              "    { +picked($e), +chosen } )\n")
-    ep = Episode(_corpora.path("episodes/pick_the_event.ugm"))
-
-    check("--", "an episode is one file -- the starting condition, what is in "
-                "mind, and the judge -- and the corpus as authored FAILS it, "
-                "so there is something to search for",
-          run_episode(corpus, ep)[0] is False)
-
-    hand = corpus.replace("intake($e, $who) [+1, attention_multiplier:0]",
-                          "intake($e, $who) [+1, attention_multiplier:9]") \
-                 .replace("person($who) [+1, attention_multiplier:9]",
-                          "person($who) [+1, attention_multiplier:0]")
-    check("--", "...and moving the multiplier from the participant's line to "
-                "the event's passes it, which is the whole claim of per-line "
-                "scoring stated as an episode",
-          run_episode(hand, ep)[0] is True)
-
-    best, fit, history = calibrate(corpus, [ep], rounds=12, population=6, seed=7)
-    check("--", "the search finds a calibration the author did not write",
-          history[0] == 0.0 and fit > 0.0)
-    check("--", "...and it is the ORIGINAL corpus with different numbers: "
-                "every rule, every line and every variable is untouched",
-          [w for w in best.split() if not any(c.isdigit() for c in w)]
-          == [w for w in corpus.split() if not any(c.isdigit() for c in w)])
+    print("\n--  calibration: per-line scoring's own episode retired with "
+          "it; what is left is the mechanical half (`numbers`/`mutate` "
+          "over `attend(...)` tails) and the judge-starvation guard")
+    corpus = ("fact +happy(paul)\n"
+              "rule <r1> = implies({+happy($x)}, {+noticed($x)}) "
+              "=> attend($x, 3, 2, 1, 9)\n")
 
     rng = random.Random(3)
     many = {mutate(corpus, rng, 2) for _ in range(40)}
-    check("--", "a mutator only ever moves a bracket or an attend tail -- no "
-                "candidate in forty is a different rule",
+    check("--", "a mutator only ever moves an `attend(...)` tail's numbers "
+                "-- no candidate in forty is a different rule",
           all(len(numbers(c)) == len(numbers(corpus)) for c in many))
 
+    ep = Episode(_corpora.path("episodes/pick_the_event.ugm"))
     check("--", "a judge that never got a turn is a FAILURE, not a pass -- "
                 "the judge is ordinary rules in the same machine, so a "
                 "calibration could otherwise starve the thing scoring it",
