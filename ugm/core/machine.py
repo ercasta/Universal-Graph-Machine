@@ -80,6 +80,12 @@ class Machine:
         # -- the boundary --------------------------------------------------
         self.SAYS = self.g.atom("says")
         self.ARRIVED = self.g.atom("arrived")
+        # The engine's own clock (`core/firing.py`). Minted HERE and handed
+        # to the surface through `reserved` below, because `atom` does not
+        # intern either -- a second `g.atom("clock")` is a different node no
+        # rule could match, which is the name-identity trap this table
+        # exists to close.
+        self.CLOCK = self.g.atom("clock")
         # §9's denial as a TERM. There is no denying sign any more, so this is
         # the only way to say no -- which is the simplification the collapse
         # bought: `+not(p)` is an ordinary claim about an ordinary node, and
@@ -184,6 +190,7 @@ class Machine:
         # simply did not fire.
         self.reserved = {
             "says": self.SAYS, "arrived": self.ARRIVED, "kb": self.KB,
+            "clock": self.CLOCK,
             "not": self.NOT,
             "rule": self.RULE, "ant": self.ANT, "con": self.CON,
             "names": self.NAMES,

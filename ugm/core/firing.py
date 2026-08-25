@@ -117,10 +117,29 @@ def _tick_loop(m: Machine, limit: int, watch, applied: List[str],
     wrap it in the floor's try/finally without the indentation swallowing
     the whole loop. Returns the number of rule/tick pairs matched."""
     tried = 0
+    # REFRACTION, and it lives on the MACHINE rather than on the run. A
+    # caller stepping one line at a time -- a REPL -- calls `run` once per
+    # line, so a run-scoped memory forgets every instantiation between
+    # calls and the whole history fires again. (Measured. The opposite
+    # lifetime to `_stopped` above, which must reset per run.)
+    fired_keys = m.__dict__.setdefault("_fired_keys", set())
+    clock = m.CLOCK
     for tick in range(limit):
         # Not a phase: the world may have spoken since the last tick, and a
         # rule reads the same channel the same way every time (§13/§16).
         arrivals = m.channels.since_last_tick() or 0
+
+        # THE CLOCK -- the one change this engine makes unprompted, and it
+        # has to be the engine's because nothing else can be. A rule fires
+        # when an input CHANGED; a corpus oscillator would need something
+        # to tick IT, which is the same problem one level down. Erase last
+        # tick's occasion, mint a fresh one: minting is minting, so the new
+        # node IS the change. A rule that never reads `clock` never sees
+        # it, so time is opt-in and costs the rest of the machine nothing.
+        for old in [q for q in m.pad.believed()
+                    if m.g.relation_of(q) is clock]:
+            m.gate.erase(old)
+        m.gate.write(m.g.rel(clock, m._numeral(tick)))
 
         applications: List[Application] = []
         for r in m.rules.rules:
@@ -132,8 +151,16 @@ def _tick_loop(m: Machine, limit: int, watch, applied: List[str],
                       predicates=m.rules.predicates,
                       node_computes=m.rules.node_computes))
 
-        if not applications:
-            steps.append(Step(arrivals, 0, (), (), "quiescent"))
+        # An application already fired is not new business. The key is the
+        # rule plus the nodes it MATCHED: because minting is minting, a
+        # proposition rewritten is a different node, so "the input changed"
+        # and "this key is new" are the same statement and edge-triggering
+        # needs no diff of its own.
+        fresh = [a for a in applications
+                 if (a.rule.node, tuple(a.matched)) not in fired_keys]
+
+        if not fresh:
+            steps.append(Step(arrivals, len(applications), (), (), "quiescent"))
             break
 
         # -- fold: every firing application's writes, combined by MAX -----
@@ -148,23 +175,11 @@ def _tick_loop(m: Machine, limit: int, watch, applied: List[str],
         writes: Dict[NodeId, float] = {}
         generic_nodes: set = set()
         fired: List[Tuple[Application, List[Tuple[NodeId, str]]]] = []
-        for app in applications:
-            app, pending, values, discharge = m._pending(app)
+        for app in fresh:
+            app, pending, values, _discharge = m._pending(app)
             fired.append((app, pending))
             if app.rule.mentions:
                 generic_nodes.update(n for n, _s in pending)
-            for node in discharge:
-                # The default: firing SPENDS what it matched. `0` here is a
-                # REQUEST, not yet a write -- if this same node is also
-                # recharged (by this application's own consequent, or by
-                # another application that fired alongside it this tick),
-                # the fold below takes the higher number, which is the
-                # runaway guard's whole mechanism (docs/design/
-                # intensity-gates.md's RHS section): the guard's own
-                # antecedent discharges it, and its own consequent's `+1`
-                # outbids that discharge in the same fold.
-                prev = writes.get(node)
-                writes[node] = 0.0 if prev is None else max(prev, 0.0)
             for node, sign in pending:
                 if sign == ERASE:
                     val = 0.0
@@ -180,7 +195,8 @@ def _tick_loop(m: Machine, limit: int, watch, applied: List[str],
                 writes[node] = val if prev is None else max(prev, val)
 
         wrote = m._commit(writes, generic_nodes)
-        if not wrote:
+        fired_keys.update((a.rule.node, tuple(a.matched)) for a in fresh)
+        if not wrote and not fired:
             # Every application that matched asked for exactly what already
             # held -- a FIXPOINT, and the honest reading of "nothing left to
             # do" once picking a winner is no longer a thing that happens.

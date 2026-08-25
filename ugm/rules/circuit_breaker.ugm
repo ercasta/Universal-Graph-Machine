@@ -1,107 +1,76 @@
 # A generic circuit breaker: watch any rule, at a threshold of its own,
 # without editing the rule being watched -- and the suspension is
-# TEMPORARY, not a permanent kill. A rule dormant forever is starved of its
-# own future legitimate work; the point is to stop it from starving
-# EVERYTHING ELSE, not to silence it for good.
+# TEMPORARY, not a permanent kill. A rule whose gate is shut for ever is
+# starved of its own future legitimate work; the point is to stop it
+# burning the tick budget, not to silence it for good.
 #
-# Rewritten for docs/design/intensity-gates.md. Lanes are the one piece of
-# the old four that is GONE, and the reason is structural rather than a
-# local fix: starvation was a fact about ONE rule winning ONE selection per
-# tick, and there is no selection any more -- every rule whose gates are on
-# fires, every tick, whatever else also fires. `<trip>`/`<cooldown-tick>`/
-# `<revive>` do not need a guaranteed turn independent of the watched rule
-# because nothing is competing with them for a turn to begin with. What
-# stays, and why:
+# Rewritten for the edge-triggered engine (`core/firing.py`). What that
+# engine changed, and what each change cost this corpus:
 #
-#   `dormant`/`due`   still the disable switch (`core/attention.py:_dormant`)
-#                     -- unrelated to lanes, and the design doc's own task
-#                     list does not retire it. A rule claimed dormant is
-#                     skipped before matching is even attempted, this tick
-#                     and every tick until something claims it `due`.
-#   triggers          still see every SELECTION of a rule, even a no-op
-#                     reselection -- `_intercept` runs inside `Machine.
-#                     _pending`, before anything is committed.
-#   a plain counter   the same computator-driven mutable-cell idiom as the
-#                     purse transfer in `docs/guide.md`'s arithmetic
-#                     chapter, and it is UNCHANGED: `tries`/`cooldown` are
-#                     rewritten by erasing the old numeral-tagged fact and
-#                     writing a new one, never by an intensity write on one
-#                     node, so consumption's "same node, same tick, take
-#                     the max" has nothing to do with how this counts.
-#   `keep`            new, and the reason a fourth of this file's lines
-#                     changed: firing discharges what it matches by
-#                     default now (docs/design/intensity-gates.md), and a
-#                     registration fact (`watched`, `threshold`,
-#                     `cooldown_len`) or a counter read alongside its OWN
-#                     explicit rewrite (`tries`, `cooldown`, `dormant_tag`)
-#                     both need to survive being read -- see each rule
-#                     below for which and why.
+#   NOTHING IS CONSUMED.  Reading no longer spends. `<trip>` used to shut
+#                     the gate by READING it -- consumption did the
+#                     shutting -- and now says `-gate($tag)` out loud.
+#                     Every place this corpus relied on a read to clear
+#                     something is now an explicit erase, and there is
+#                     no `keep` anywhere because there is nothing to opt
+#                     out of.
 #
-# Why these are load-bearing, found by testing rather than reasoning:
+#   REFRACTION.       A rule fires once per instantiation. That is why no
+#                     rule here carries a "have I done this already"
+#                     guard: firing once is the engine's job now.
 #
-#   SUSPENSION IS THE GATE CLOSING, not `dormant(<R>)`. The breaker used
-#   to name the watched RULE (`watched(<R>, tag)`, `+dormant($r)`), and a
-#   rule reference is TAINTED: a rule's reification structurally contains
-#   its own antecedent/consequent variables, `has_var` propagates, and a
-#   variable bound to a rule could not be written into a new fact or
-#   guarded with `no dormant($r)` at all. Routing everything through a
-#   plain TAG was the workaround. With a gate there is no rule reference
-#   left to taint -- `gate($tag)`, `beat($tag)`, `tries($tag, $n)` are all
-#   ordinary ground facts, and the watched rule names the tag itself.
+#   THE CLOCK.        `<cooldown-tick>` counts TICKS, and a rule with no
+#                     changing input of its own never fires -- so it reads
+#                     `clock($t)`, which is what opts a rule into time.
+#                     Without it the countdown simply never gets a turn.
 #
-#   THE COOLDOWN CANNOT BE MEASURED BY THE WATCHED RULE'S OWN ACTIVITY,
-#   because once its gate is shut it beats nothing to count.
-#   `<cooldown-tick>` counts TICKS instead, firing every tick
-#   `cooling($tag)` holds regardless of whether the watched rule is doing
-#   anything at all.
+#   WHAT A RUNAWAY IS NOW.  This is the real change, and it retires most
+#                     of what this file used to argue. Starvation is gone
+#                     (nothing schedules, so nothing can be starved) and
+#                     so is the rule that fires for ever on a fixed
+#                     antecedent (refraction fires it once). The ONLY
+#                     runaway left is a rule that keeps MINTING: every
+#                     mint is a new node, a new instantiation, and so a
+#                     fresh turn. Counting mints is therefore the whole
+#                     job, and `beat($tag)` -- minted by the watched rule
+#                     once per firing -- is exactly a mint counter.
 #
-# To watch a rule: give it `keep gate(a-tag)` in its antecedent and
+# To watch a rule: give it `gate(a-tag)` in its antecedent and
 # `+beat(a-tag)` in its consequent, then
 # `fact +gate(a-tag)`, `fact +tries(a-tag, 0)`,
 # `fact +threshold(a-tag, N)`, `fact +cooldown_len(a-tag, ROUNDS)`.
-# Everything below is shared by every watched rule.
 
-# Counts the watched rule's own BEATS. This used to be a write-time
-# trigger reading `producing($r, $c)` -- the engine offering every pending
-# conclusion to an interceptor before it committed -- and triggers are
-# retired. A beat is the watched rule saying so itself: `+beat($tag)` in
-# its consequent, one line, alongside the `keep gate($tag)` that lets the
-# breaker suspend it. That is the cost of watching a rule now, and it is
-# visible in the rule being watched rather than hidden in a hook.
+# Counts the watched rule's own beats. Each `+beat($tag)` the watched rule
+# mints is a distinct node, so each is a distinct instantiation here and
+# gets counted exactly once. The beat is erased as it is counted: nothing
+# else reads it, and leaving spent beats standing would grow the match
+# space for no reader.
 rule <watchdog> = implies(
-    { +beat($tag), keep tries($tag, $n), plus($n, 1) as $n2 },
-    { -tries($tag, $n), +tries($tag, $n2) } )
+    { +beat($tag), +tries($tag, $n), plus($n, 1) as $n2 },
+    { -beat($tag), -tries($tag, $n), +tries($tag, $n2) } )
 
-# `keep` on `threshold` and `cooldown_len`: registration facts a corpus
-# writes ONCE (`fact +threshold(tag, N)`, and so on) and
-# this rule reads every time it considers tripping -- plain `+` would
-# spend the registration itself on the FIRST trip, and there would be
-# nothing left to read on the second. `tries` is also `keep` here: this
-# rule only READS the count to compare it against the threshold; deciding
-# a new one is `<watchdog>`'s job, above, and a plain `+tries($tag, $n)`
-# here would race that rewrite -- two rules spending the SAME occasion in
-# one tick over something that is supposed to persist.
+# Over threshold: shut the gate. `-gate($tag)` is the suspension, and it
+# is said explicitly because reading no longer spends. `no cooling($tag)`
+# keeps this from tripping again while a cooldown is already running.
 rule <trip> = implies(
-    { keep tries($tag, $n), keep threshold($tag, $max),
-      at_least($n, $max) as $over, keep cooldown_len($tag, $len),
-      +gate($tag), no cooling($tag) },
-    { +cooling($tag), +cooldown($tag, $len) } )
+    { +tries($tag, $n), +threshold($tag, $max), at_least($n, $max) as $over,
+      +cooldown_len($tag, $len), +gate($tag), no cooling($tag) },
+    { +cooling($tag), +cooldown($tag, $len), -gate($tag) } )
 
-# `keep cooling($tag)`: read every tick cooldown is counting down, so a
-# plain `+` would spend the "we are cooling down" flag on the very first
-# tick and the countdown would never see a second one. `cooldown($tag, $c)`
-# itself needs no `keep` -- this rule's own `-cooldown($tag, $c)` erases
-# the exact occasion it just matched, so default consumption and the
-# explicit erase agree on the same target rather than racing it.
+# The countdown, and the one rule here that is driven by TIME rather than
+# by something the machine did. It cannot be measured by the watched
+# rule's own activity -- with its gate shut it beats nothing to count --
+# so `clock($t)` is what gives it a turn, once per tick, whatever else is
+# or is not happening.
 rule <cooldown-tick> = implies(
-    { keep cooling($tag), +cooldown($tag, $c), at_least($c, 1) as $more, minus($c, 1) as $c2 },
+    { clock($t), +cooling($tag), +cooldown($tag, $c),
+      at_least($c, 1) as $more, minus($c, 1) as $c2 },
     { -cooldown($tag, $c), +cooldown($tag, $c2) } )
 
-# Once cooldown reaches 0: reactivate, AND reset the count -- so the rule
-# gets a full, fresh budget rather than tripping again on its first move.
-# `cooling`, `cooldown(_, 0)` and `tries($tag, $n)` all need no `keep` -- each is
-# explicitly erased in the consequent below, at the exact node this rule
-# matched, so consumption's implicit spend and the explicit one agree.
+# Once the cooldown reaches 0: reopen the gate, and reset the count so the
+# rule gets a full fresh budget rather than tripping again on its first
+# move. Every fact this consumed in the old sense is now erased by name.
 rule <revive> = implies(
     { +cooling($tag), +cooldown($tag, 0), +tries($tag, $n) },
-    { +gate($tag), -tries($tag, $n), +tries($tag, 0), -cooldown($tag, 0) } )
+    { +gate($tag), -cooling($tag), -cooldown($tag, 0),
+      -tries($tag, $n), +tries($tag, 0) } )
