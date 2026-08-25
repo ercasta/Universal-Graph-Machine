@@ -116,15 +116,22 @@ after <compensate> { $dp = disrupted($f), $bp = booked($p, $f) }
   => attend($dp, 5, 1, 1), attend($bp, 5, 1, 1)
 
 # the amount depends on how far the passenger was going
+#
+# `keep` on `owed($p, money)`: this reads the entitlement to compute an
+# amount alongside it, and does not retire the entitlement itself -- a
+# plain `+` would DISCHARGE it (docs/design/intensity-gates.md's default),
+# and the corpus's own final verdict ("is `$p` owed money") is read off
+# this same proposition afterward. Nothing else here spends it, so `keep`
+# is the whole fix.
 rule <far>
-  +owed($p, money)
+  keep owed($p, money)
   +flying($p, $f)
   +distance($f, long)
   no amount($p, 600)
 ->
   +amount($p, 600)
 rule <near>
-  +owed($p, money)
+  keep owed($p, money)
   +flying($p, $f)
   +distance($f, short)
   no amount($p, 250)

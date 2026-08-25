@@ -89,8 +89,15 @@ after <intake> { $sp = says($channel, $said) } => attend($sp, 5, 1, 1)
 # cannot be attended from the rule that minted it (a postcondition sees
 # only the antecedent's own bindings), so pinning happens one tick later,
 # off the ordinary belief `task($t)` becomes.
+# `keep task($t)` here and everywhere else this file reads it below:
+# firing discharges what it matches by default now (docs/design/
+# intensity-gates.md), and `task($t)` is a durable record several rules
+# read across many ticks -- `<push-task>`, `<brush-top-task>`,
+# `<retire-completed-task>`, and this file's own `selftest.py` caller,
+# which still expects `task($t)` believed at the end of a run. A plain
+# `+` would retire it the first time ANY one of them matched it.
 rule <notice-new-task>
-  +task($t)
+  keep task($t)
   no noticed($t)
 ->
   +noticed($t)
@@ -105,7 +112,7 @@ fact +lane(<notice-new-task>, todo)
 # pushing the very first task and popping the very last are the same code
 # as every push and pop between them, no separate empty/non-empty branch.
 rule <push-task>
-  +task($t)
+  keep task($t)
   no under($t, internal_todo)
   +top(internal_todo, $prev)
 ->
@@ -121,9 +128,14 @@ fact +lane(<push-task>, todo)
 # top is completed, this pops to what is beneath it, and does so again on
 # the next tick if THAT is already completed too: a task closed while
 # buried is skipped the moment it is reached, not compacted eagerly.
+#
+# `keep completed($t)`: read here AND by `<retire-completed-task>` below,
+# neither of which is the rule that CONCLUDES it (the host corpus's own
+# judge is) -- a plain `+` on either would race the other for the one
+# occasion the judge wrote, and whichever lost would never see it.
 rule <skip-completed-top>
   +top(internal_todo, $t)
-  +completed($t)
+  keep completed($t)
   +beneath($t, $prev)
 ->
   -top(internal_todo, $t)
@@ -133,8 +145,8 @@ fact +lane(<skip-completed-top>, todo)
 # Unpin a closed task so it fades (§20) rather than sitting in mind
 # forever at the same floor an open task gets.
 rule <retire-completed-task>
-  +completed($t)
-  +task($t)
+  keep completed($t)
+  keep task($t)
   no retired($t)
 ->
   +retired($t)
@@ -152,9 +164,17 @@ fact +lane(<retire-completed-task>, todo)
 # `about($t, $said)` keep getting a reason to consider $t, for as long as
 # it takes them to conclude `completed($t)`, however many times they
 # match and fail to close it in between.
+#
+# `_attended_first`'s overlap filter is gone (docs/design/
+# intensity-gates.md): every rule that matches fires, so nothing here is
+# defending against a pick any more, and the `brush(...)`/`attend(...)`
+# tail below is vestigial -- harmless FOCUS bookkeeping, not load-bearing.
+# What IS still load-bearing is `keep` on both lines: `top(...)` and
+# `task($t)` are the stack's own pointer and its own record, read here
+# without being the rule that should ever retire either.
 rule <brush-top-task>
-  $topline = top(internal_todo, $t)
-  $taskline = task($t)
+  keep $topline = top(internal_todo, $t)
+  keep $taskline = task($t)
   no completed($t)
 ->
   -brushed($t)

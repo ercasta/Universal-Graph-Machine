@@ -1789,9 +1789,13 @@ def todo_stack() -> None:
 
         # The judge: todo.ugm ships no rule that concludes `completed(...)`
         # -- that is the host corpus's own business (its header says so).
+        # `keep believed($said)`: firing discharges what it matches by
+        # default now (docs/design/intensity-gates.md), and this judge is
+        # not the rule that should retire a belief -- only the one that
+        # reads it to decide a task is answered.
         rule <task-answered>
           +about($t, $said)
-          +believed($said)
+          keep believed($said)
           no completed($t)
         ->
           +completed($t)
@@ -1816,9 +1820,29 @@ def todo_stack() -> None:
           len(completed) == 2
           and m.holds(kb2.term("believed(raining(here))"))
           and m.holds(kb2.term("believed(snowing(there))")))
+    #  LEFT RED, deliberately, rather than patched into a false green:
+    # `<push-task>` reads the CURRENT top and writes the new one in the
+    # same firing -- a read-modify-write -- and the two tasks this test
+    # opens both become pushable in the SAME tick. Under the table era's
+    # one-selection-per-tick arbitration that serialised them for free:
+    # one push won the tick, the other's `$prev` was stale next tick, and
+    # it re-read the fresh top and pushed correctly above it. Under this
+    # design every application matches the tick's OPENING state and
+    # firing order cannot matter (docs/design/intensity-gates.md) -- which
+    # is exactly what removes the serialisation `<push-task>` was leaning
+    # on: both pushes read the SAME stale `$prev` and both write a new
+    # top, so the stack ends up with two simultaneous tops rather than one
+    # stacked on the other. A stack's push is inherently sequential, and
+    # nothing about "several rules fire together, order-independently" can
+    # make two order-dependent writes to one pointer agree -- `todo.ugm`
+    # would need restructuring (a push that only admits one task per tick,
+    # or a stack that tolerates -- or is not modelled as -- concurrent
+    # arrivals) to fix this honestly, which is out of this pass's scope.
     top = [p for p in m.g.instances_of(kb.atom("top")) if m.pad.holds(p)]
     check("--", "both popped -- the stack is back at its own sentinel, "
-                "empty rather than merely quiet",
+                "empty rather than merely quiet -- KNOWN RED: concurrent "
+                "pushes in one tick race for the stack pointer, see the "
+                "comment above",
           len(top) == 1 and m.g.member(top[0], 1) == kb.term("internal_todo"))
     check("--", "a closed task is unpinned and fades, rather than sitting "
                 "in mind at the same floor an open one gets",
