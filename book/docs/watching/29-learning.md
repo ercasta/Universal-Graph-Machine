@@ -62,8 +62,19 @@ transcript, from trial and error on the scoring the table (Chapter 28) uses.
     self-limiting, rather than caught only by `bounded(ticks)` after the fact
     (Chapter 34's "Loop detection").
 
-    Neither analog intensity nor a runaway guard is built. Marked here as an
-    idea, not a result.
+    Picking among rival rules doesn't need the engine's attention mechanism
+    at all — the same gate pattern, run entirely in the corpus. Mint an
+    anonymous node per rule to bias (`gate(19043)`, a numeral carrying no
+    meaning of its own), add it to that rule's antecedent, and let a
+    separate rule's consequent be the only thing that asserts or denies it.
+    A "style" is then learned by wiring gate members onto existing rules'
+    antecedents — additively, the same as any other clause — without ever
+    naming the rule being steered. That keeps the same property `attend($x)`
+    already has: the thing doing the steering never has to cite the rule it
+    steers.
+
+    None of analog intensity, a runaway guard, or corpus-level gating like
+    this is built. Marked here as an idea, not a result.
 
 ---
 
