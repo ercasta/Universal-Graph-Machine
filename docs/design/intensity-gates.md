@@ -23,16 +23,22 @@ a runnable check. This one isn't, yet.
   every one of them is — the AND does the synchronizing; nothing schedules,
   nothing picks.
 - Firing order within a tick must not change the end state.
-- **A rule consumes its inputs by default.** Firing discharges the antecedent
-  nodes it matched — they go back to "off" — unless the rule's own RHS
-  recharges them. This is Petri-net firing semantics (consume from input
-  places, produce to output places) applied to an analog value instead of a
-  token count; the runaway guard is the RHS reading its own discharged value
-  and writing back `+1` instead of leaving it spent. It also means the
+- **A rule consumes its inputs by default.** Firing discharges every
+  antecedent node it matched — each goes back to "off" — unless the rule's
+  own RHS recharges it. This is Petri-net firing semantics (consume from
+  input places, produce to output places) applied to an analog value instead
+  of a token count; the runaway guard is the RHS reading its own discharged
+  value and writing back `+1` instead of leaving it spent. It also means the
   "guarded rule doesn't re-derive what it already derived" pattern
   (watching/25-own-state.md) stops being something a corpus has to write by
   hand — consumption is what would make re-matching the same input
   impossible without something recharging it first.
+- **A member can opt out, per line.** A modifier on one antecedent member
+  reads it without discharging it — a non-consuming check, same as a Petri
+  net's test arc. Strawman syntax, not settled: `keep enemy($x)` inside the
+  antecedent, discharge being what a plain `+enemy($x)` still does. This is
+  the escape hatch for a fact meant to be read by more than one rule without
+  every reader having to recharge it back.
 
 ## RHS
 
@@ -73,6 +79,14 @@ intensity, write a new one — syntax not yet chosen.
 **Ticks stay discrete.** What changes is that a tick can fire more than one
 rule, not exactly one.
 
+**Discharge is universal, not gate-only, with a per-line opt-out.** Every
+matched antecedent member is spent by default — a plain fact like
+`enemy($x)` goes the same way a gate node does — because that's what makes
+the opt-out (`keep`, above) a real choice rather than a distinction without
+a difference. A corpus that wants today's persistence for a given fact
+writes `keep` where it reads that fact; a corpus that writes nothing gets
+resource-consumption semantics (linear-logic-flavored) by default.
+
 ## Open questions, not defaulted
 
 - Does every node get an intensity (domain propositions included), or only
@@ -80,11 +94,3 @@ rule, not exactly one.
   reads as: every node, uniformly.
 - What does `-p(x)` — an explicit denial, distinct from `no p(x)`'s silence —
   become once presence is gone?
-- **Does discharge-on-fire apply to every matched antecedent member, or only
-  to nodes in a gate role?** If it's every member, an ordinary fact like
-  `enemy($x)` is spent the first time any rule reads it, and a corpus has to
-  recharge anything it wants a second rule to see — a resource-consumption
-  authoring model (linear-logic-flavored) rather than today's "silence means
-  unchanged" persistence. If it's gate-role nodes only, ordinary facts keep
-  today's persistence and only the wiring layer is consumable. Changes what
-  a corpus author has to think about on every rule, not just the plumbing.
