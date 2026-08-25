@@ -23,6 +23,16 @@ a runnable check. This one isn't, yet.
   every one of them is — the AND does the synchronizing; nothing schedules,
   nothing picks.
 - Firing order within a tick must not change the end state.
+- **A rule consumes its inputs by default.** Firing discharges the antecedent
+  nodes it matched — they go back to "off" — unless the rule's own RHS
+  recharges them. This is Petri-net firing semantics (consume from input
+  places, produce to output places) applied to an analog value instead of a
+  token count; the runaway guard is the RHS reading its own discharged value
+  and writing back `+1` instead of leaving it spent. It also means the
+  "guarded rule doesn't re-derive what it already derived" pattern
+  (watching/25-own-state.md) stops being something a corpus has to write by
+  hand — consumption is what would make re-matching the same input
+  impossible without something recharging it first.
 
 ## RHS
 
@@ -49,10 +59,11 @@ frames (ch. 25) rest on that. First cut: a node keeps its occasion stack, and
 each occasion carries its own intensity, rather than intensity collapsing
 occasions into one number.
 
-**Intensity only changes when an RHS sets it.** No automatic decay per tick.
-The runaway guard's "+1 each tick it fires" is the corpus doing that by hand,
-not the substrate doing it for free. A decay primitive is a plausible later
-addition, not assumed here.
+**No ambient time-decay.** A node's intensity doesn't erode on its own each
+tick just for existing. The only two things that move it are consumption
+(discharge on firing, above) and an RHS explicitly setting it — the runaway
+guard's "+1 each tick it fires" is the corpus writing that increment, not the
+substrate leaking it for free.
 
 **Surface syntax stays close to today's.** `+p(x)` in an antecedent still
 reads as "p(x) is on"; `no p(x)` still reads as "not on." A new form exposes
@@ -69,3 +80,11 @@ rule, not exactly one.
   reads as: every node, uniformly.
 - What does `-p(x)` — an explicit denial, distinct from `no p(x)`'s silence —
   become once presence is gone?
+- **Does discharge-on-fire apply to every matched antecedent member, or only
+  to nodes in a gate role?** If it's every member, an ordinary fact like
+  `enemy($x)` is spent the first time any rule reads it, and a corpus has to
+  recharge anything it wants a second rule to see — a resource-consumption
+  authoring model (linear-logic-flavored) rather than today's "silence means
+  unchanged" persistence. If it's gate-role nodes only, ordinary facts keep
+  today's persistence and only the wiring layer is consumable. Changes what
+  a corpus author has to think about on every rule, not just the plumbing.
