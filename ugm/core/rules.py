@@ -294,15 +294,24 @@ class Rule:
 
 
 class Application(NamedTuple):
-    """What match found: a rule and what it bound.
+    """What match found: a rule, what it bound, and what each line matched.
 
-    There was a third field, `consumed` -- the entries the match ate, kept as
-    half the derivation trail. The trail went with the chain, and nothing in
-    the loop read `consumed` for any other purpose.
+    `matched` is one entry per antecedent member, in authored order: the node
+    that member bound, or None for an `absent` member, which bound nothing
+    because there was nothing there.
+
+    It is back because nothing else can reconstruct it. While `rel` interned,
+    `substitute(pattern, bindings)` handed back the very node the line matched
+    -- rebuilding a proposition and finding it were the same act. They are not
+    any more: a rebuild MINTS, so a caller asking *what did this line bind*
+    got a node nobody believed, nobody attended, and nobody else would ever
+    see. Attention reads this, and attention deciding what a move spends is
+    the whole of the token line.
     """
 
     rule: Rule
     bindings: Dict[NodeId, NodeId]
+    matched: Tuple[Optional[NodeId], ...] = ()
 
 
 class RuleSet:
@@ -370,12 +379,12 @@ class RuleSet:
         so `{+p} => {+q}` and `{+p} => {-q}` are the same node -- one rule,
         silently.
 
-        Nothing here interns. A rule is an authored statement, not an idea: two
-        rules that happen to say the same thing are still two rules, with
-        different authors and different provenance.
+        Two rules that happen to say the same thing are still two rules, with
+        different authors and different provenance -- which is now what the
+        substrate does anyway, and used to need saying because `rel` did not.
         """
         if node is None:
-            node = self.g.instance(
+            node = self.g.rel(
                 self.IMPLIES, self._side(antecedent), self._side(consequent)
             )
         r = Rule(node, antecedent, consequent, name)
@@ -398,10 +407,10 @@ class RuleSet:
         stays a query over the consequent's members.
         """
         made = [
-            self.g.instance(self.MEMBER, m.pattern, self.MODE[m.sign])
+            self.g.rel(self.MEMBER, m.pattern, self.MODE[m.sign])
             for m in members
         ]
-        return self.g.instance(self.SIDE, *made)
+        return self.g.rel(self.SIDE, *made)
 
 
 # -- unification ------------------------------------------------------------
@@ -427,7 +436,7 @@ def unify(
         # An atom against an atom that is not the same atom, once identity has
         # been followed. Through identity, so a fact written with one
         # vocabulary matches a member written with another after a merge.
-        if g._merges and g.identity_of(pattern) == g.identity_of(node):
+        if g._identity and g.identity_of(pattern) == g.identity_of(node):
             return bindings
         return None
     cur: Optional[Dict[NodeId, NodeId]] = bindings
@@ -436,7 +445,7 @@ def unify(
             cur = unify(g, pr, nr, cur)
             if cur is None:
                 return None
-        elif not (g._merges and g.identity_of(pr) == g.identity_of(nr)):
+        elif not (g._identity and g.identity_of(pr) == g.identity_of(nr)):
             return None
     pm, nm = g.members(pattern), g.members(node)
     if len(pm) != len(nm):
@@ -555,8 +564,8 @@ def ground(g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]) -> NodeId:
     """Apply a two-sided substitution, following variable chains.
 
     A subterm nothing changed passes through untouched, for `substitute`'s
-    reason: interning a rebuilt copy of something minted un-interned makes a
-    twin."""
+    reason: rebuilding it mints a second node saying the same thing, and a
+    caller grounding a pattern wants the parts it was given."""
     p = walk(g, pattern, bindings)
     if g.is_var(p) or not g.members(p):
         return p
@@ -622,9 +631,16 @@ GENERIC = _Generic()
 def already_there(
     g: Graph, pattern: NodeId, bindings: Dict[NodeId, NodeId]
 ) -> Optional[NodeId]:
-    """The node `substitute` WOULD produce, if it already exists. Never mints.
+    """The node `substitute` WOULD produce, if one of that shape exists.
+    Never mints.
 
-    `substitute` interns, so asking with it changes the answer.
+    `substitute` MINTS, so asking with it does not answer the question -- it
+    manufactures a yes. This resolves the pattern against the bindings and
+    looks the result up instead, and it is what an `absent` member and a `-`
+    consequent both ask with.
+
+    Three answers, not two: a node, `None` for *ground and nothing says it*,
+    and `GENERIC` for *still open*.
     """
     if g.is_var(pattern):
         got = bindings.get(pattern)
@@ -643,8 +659,9 @@ def already_there(
         if got is GENERIC:
             return GENERIC
         if got is None:
-            # A subterm that is ground and not interned: the whole cannot be
-            # interned either, so this is new without looking further.
+            # A ground subterm nothing in the graph has: nothing can have the
+            # whole either, since a member is a node. New without looking
+            # further.
             return None
         new.append(got)
     return g.find_rel(rel, *new)
@@ -686,7 +703,7 @@ def candidates(
         # the index cost of allowing one, stated here rather than discovered on
         # a workload.
         return pad.believed()
-    if g._merges:
+    if g._identity:
         rel = g.identity_of(rel)
     pool = None
     if bindings:
@@ -744,14 +761,17 @@ def match(
     def run(pivot: Optional[int]) -> None:
         order = rule.walk_order(pivot)
 
-        def step(j: int, bindings: Dict[NodeId, NodeId]) -> None:
+        def step(j: int, bindings: Dict[NodeId, NodeId],
+                 matched: Dict[int, NodeId]) -> None:
             if j == width:
                 if pivot is not None:
                     k = (rule.node, frozenset(bindings.items()))
                     if k in seen:
                         return
                     seen.add(k)
-                results.append(Application(rule, bindings))
+                results.append(Application(
+                    rule, bindings,
+                    tuple(matched.get(x) for x in range(width))))
                 return
             i = order[j]
             want = rule.antecedent[i]
@@ -787,7 +807,7 @@ def match(
                         grounded = substitute(g, want.pattern, bindings)
                         b = unify(g, want.binds, grounded, bindings)
                     if b is not None:
-                        step(j + 1, b)
+                        step(j + 1, b, matched)
                     return
                 if got is None:
                     return
@@ -800,7 +820,7 @@ def match(
                 if want.binds is not None:
                     b = unify(g, want.binds, got, bindings)
                 if b is not None:
-                    step(j + 1, b)
+                    step(j + 1, b, matched)
                 return
             pfn = predicates.get(rel)
             if pfn is not None:
@@ -827,7 +847,7 @@ def match(
                     # `no` asks the other one.
                     ok = not ok
                 if ok:
-                    step(j + 1, bindings)
+                    step(j + 1, bindings, matched)
                 return
             if want.sign == ABSENT:
                 # Absence, asked rather than matched: holds when nothing
@@ -836,20 +856,32 @@ def match(
                 # member does not bind, and the walk order keeps authored
                 # relative order, so an open pattern here is a bug upstream,
                 # answered with nothing rather than with everything.
-                grounded = substitute(g, want.pattern, bindings)
-                if g.has_var(grounded):
+                #  `already_there`, not `substitute`. Rebuilding the
+                # proposition to ask about it MINTS one, so asking *is nothing
+                # believed here* left an unbelieved occasion of exactly that
+                # shape behind -- once per member per candidate, in the index
+                # every later match walks. This resolves the pattern against
+                # the bindings and looks the node up instead.
+                grounded = already_there(g, want.pattern, bindings)
+                if grounded is GENERIC:
                     return
-                if pad.holds_any(grounded):
-                    #  `holds_any`, not `holds`. A relationship may be an
-                    # ENTITY, so `instance` can mint a second `p(x)` beside the
-                    # one `rel` returns, and asking the canonical node alone
-                    # reports *nothing says it* while something does.
+                if grounded is not None and pad.holds_any(grounded):
+                    #  `holds_any`, not `holds`. `p(x)` said twice is two
+                    # nodes, and asking one of them reports *nothing says it*
+                    # while the other sits believed.
                     return  # something anchors it: the absence fails
                 b = bindings
                 if want.binds is not None:
+                    # A name for what is NOT there. Nothing of that shape
+                    # exists to name, so this is the one place the absence
+                    # branch has to build.
+                    if grounded is None:
+                        grounded = substitute(g, want.pattern, bindings)
+                        if g.has_var(grounded):
+                            return
                     b = unify(g, want.binds, grounded, bindings)
                 if b is not None:
-                    step(j + 1, b)
+                    step(j + 1, b, matched)
                 return
             pool = (fresh if i == pivot and fresh is not None
                     else candidates(g, pad, want, bindings))
@@ -859,9 +891,9 @@ def match(
                     # ...and what it says, as a whole, under a name.
                     b = unify(g, want.binds, node, b)
                 if b is not None:
-                    step(j + 1, b)
+                    step(j + 1, b, {**matched, i: node})
 
-        step(0, {})
+        step(0, {}, {})
 
     if fresh is None:
         run(None)

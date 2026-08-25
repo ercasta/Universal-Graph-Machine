@@ -11,8 +11,8 @@ once you sit down and write rules, see [`authoring.md`](authoring.md).
 - **Belief is presence.** `believed(p)` holds or it doesn't — that's the entirety of "believing
   something" here. No confidence numbers, no provenance trail on a belief.
 - **A member has one of three signs**: `+` (assert), `-` (erase), `no` (absence — *nothing claims
-  this*). Belief is a flat, interned set — asserting mints a proposition into it, erasing removes it,
-  asserting twice is a no-op.
+  this*). Belief is a flat set of occasions — asserting mints a proposition into it, erasing removes
+  one. Asserting twice is two occasions, each with its own attention token.
   - `+`/`-` are **consequent-only**. A rule cannot use `-` as a premise — there is no "denied" entry
     left to match against; a premise can only ask *is this currently believed* (`+`) or *is nothing
     currently believed about it* (`no`). Writing `-p` in an antecedent is refused at load with a

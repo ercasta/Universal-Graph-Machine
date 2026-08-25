@@ -20,9 +20,11 @@ everything after Part 1 is written against its answer.
 holds(p) = anchor(p) is not None
 ```
 
-One dictionary lookup, because the anchor is interned: a proposition has at
-most one anchor, ever, so there is exactly one place to look and at most one
-thing to find. It's worth dwelling on how much this is *not* doing:
+One dictionary lookup: a proposition has at most one anchor, ever, so there is
+exactly one place to look and at most one thing to find. (Say the same thing
+twice and you get two propositions, each with its own anchor — what cannot
+happen is two anchors on one of them.) It's worth dwelling on how much this is
+*not* doing:
 
 - It does not walk anything.
 - It does not compare two claims to see which is newer.
@@ -75,12 +77,11 @@ pointless — that judgement belongs to the corpus, every time.
 !!! note "Deep dive: a relationship can be more than one thing"
     `holds` asks about one node — right when the node names the *subject*, an
     entity other facts get to be about. Absence isn't that question. `no
-    p($x)` asks whether *anything at all* claims `p(x)`, and there's a second
-    way to build a proposition, `instance`, that mints a fresh node rather
-    than reusing the interned one — for a relationship that is itself an
-    entity two people can independently claim. `no` has to check every one of
-    those, or a second unbelieved claim sitting beside the first would let
-    `no p(x)` answer *nothing says this* while something plainly does.
+    p($x)` asks whether *anything at all* claims `p(x)`, and building `p(x)`
+    twice gives two nodes: a relationship can itself be an entity, and two
+    people claiming it are two things. `no` has to check every node of that
+    shape, or a second claim sitting beside the first would let `no p(x)`
+    answer *nothing says this* while something plainly does.
 
 ## The scoring
 

@@ -44,10 +44,15 @@ def substrate() -> None:
     g = Graph()
     on, a, b = g.atom("on"), g.atom("a"), g.atom("b")
     p1, p2 = g.rel(on, a, b), g.rel(on, a, b)
-    check("§3", "a proposition has one identity however often it is built",
-          p1 == p2)
+    check("§3", "`on(a, b)` built twice is TWO nodes -- the substrate does not "
+                "decide that saying a thing twice is saying it once",
+          p1 != p2)
+    check("§3", "...and both are the same proposition, which is the question "
+                "`like` answers and the one absence asks",
+          g.like(p1) == (p1, p2))
     check("§3", "members are ordered", g.members(p1) == (a, b))
-    check("§3", "on(a,b) and on(b,a) are different nodes", p1 != g.rel(on, b, a))
+    ba = g.rel(on, b, a)
+    check("§3", "on(a,b) and on(b,a) are different nodes", p1 != ba)
     x = g.var("$x")
     check("§3", "a pattern containing a variable is generic",
           g.has_var(g.rel(on, x, b)))
@@ -59,15 +64,24 @@ def substrate() -> None:
     #  `find_rel` asks without answering itself, which is the whole of how
     # belief can be a question about presence.
     q = g.rel(on, b, a)
-    check("§3", "`find_rel` finds what exists", g.find_rel(on, a, b) == p1)
+    check("§3", "`find_rel` finds what exists, oldest first",
+          g.find_rel(on, a, b) == p1 and g.find_rel(on, b, a) == ba)
     g.delete(q)
-    check("§3", "...and finds nothing once it is deleted",
+    check("§3", "...and still finds the other node of that shape",
+          g.find_rel(on, b, a) == ba)
+    g.delete(ba)
+    check("§3", "...and finds nothing once every node of that shape is gone",
           g.find_rel(on, b, a) is None)
+    g.delete(p1)
+    check("§3", "...and finds the SURVIVOR while one of two twins is deleted, "
+                "which the intern table could not: it named one node per "
+                "shape and answered `nothing says that` beside a node saying it",
+          g.find_rel(on, a, b) == p2)
     check("§3", "a deleted node reads as erased rather than raising",
           g.show(q).endswith("(erased)") and g.relation_of(q) is None)
     check("§3", "and the node it was ABOUT is untouched -- deletion does not "
                 "cascade, which is what makes an anchor the only safe target",
-          g.show(a) == "a" and g.find_rel(on, a, b) == p1)
+          g.show(a) == "a" and g.find_rel(on, a, b) == p2)
 
 
 def labels() -> None:
@@ -92,9 +106,11 @@ def labels() -> None:
           g.labels_of(loves) == ("loves", "adores"))
     check("§3", "both labels resolve to the one node",
           g.labelled("loves") == loves and g.labelled("adores") == loves)
-    check("§3", "so `adores(x, z)` IS `loves(x, z)` -- aliasing needs no "
-                "change to the interning key, because the key is in identities",
-          g.rel(g.labelled("adores"), x, z) == inst)
+    check("§3", "so `adores(x, z)` IS `loves(x, z)` -- not one node, but one "
+                "proposition: the lookup widens to the class the label merged "
+                "them into",
+          g.find_rel(g.labelled("adores"), x, z) == inst
+          and inst in g.like(g.rel(adores, x, z)))
 
     g.label(loves, "cherishes")
     check("§3", "aliases compose", g.labels_of(loves)
@@ -133,36 +149,41 @@ def unmerging() -> None:
     paulb = g.atom("paul-b")
     r1 = g.rel(loves, paulb, mary)   # built off the SECOND name, before any merge
 
-    moved = g.merge(paul, paulb)
-    check("§3", "merging re-keys the relation built off the dropped name",
-          moved == 1 and g.find_rel(loves, paul, mary) == r1)
+    g.merge(paul, paulb)
+    check("§3", "the relation built off the dropped name is findable under "
+                "the kept one -- and NOTHING moved to make that true: the "
+                "lookup widened to the class instead of the node changing key",
+          g.find_rel(loves, paul, mary) == r1
+          and g.counts_as(paul) == (paul, paulb))
 
-    reverted = g.unmerge(paul, paulb)
+    g.unmerge(paul, paulb)
     check("§3", "unmerging puts the identity back",
-          reverted == 1 and g.identity_of(paulb) == paulb)
+          g.identity_of(paulb) == paulb and g.counts_as(paul) == (paul,))
     check("§3", "...and every index the merge touched, not just identity -- "
                 "the relation is findable under the ORIGINAL name again and "
                 "not under the merged one",
           g.find_rel(loves, paulb, mary) == r1
           and g.find_rel(loves, paul, mary) is None)
 
-    #  A CASCADE: merging `a` into `c` makes `loves(a, b)` and `loves(c, b)`
-    # collapse onto one node. That is a decision `merge` made on its own --
-    # which of two claims survives -- and `unmerge` refuses to guess it back.
+    #  NO CASCADE. `loves(a, b)` and `loves(c, b)` say one thing once `a`
+    # and `c` are one, and they stay TWO NODES saying it -- two occasions of a
+    # proposition, which is now the ordinary case. Nothing collapses, so there
+    # is no decision `merge` made on its own and nothing for `unmerge` to
+    # refuse.
     a, b, c = g.atom("a"), g.atom("b"), g.atom("c")
     r_ab = g.rel(loves, a, b)
     r_cb = g.rel(loves, c, b)
     g.merge(a, c)
-    check("§3", "a merge that collapses two OTHER nodes together is a cascade",
-          g.find_rel(loves, a, b) == g.find_rel(loves, c, b))
-    threw = False
-    try:
-        g.unmerge(a, c)
-    except ValueError:
-        threw = True
-    check("§3", "...and unmerging it is refused, loudly, rather than guessing "
-                "which claim the collapsed node still stands for",
-          threw)
+    check("§3", "a merge collapses no other node: two ways of writing one "
+                "proposition stay two occasions of it",
+          r_ab != r_cb and set(g.like(r_ab)) == {r_ab, r_cb})
+    check("§3", "...and both are reachable under either name, which is the "
+                "congruence the cascade used to buy",
+          set(g.instances_with(loves, 0, a)) == {r_ab, r_cb}
+          and set(g.instances_with(loves, 0, c)) == {r_ab, r_cb})
+    g.unmerge(a, c)
+    check("§3", "...so unmerging it is ordinary, not refused",
+          g.identity_of(c) == c and g.like(r_ab) == (r_ab,))
 
     #  NOT THE TOP. A later merge may already rest on an earlier one.
     p, q, s, t = g.atom("p"), g.atom("q"), g.atom("s"), g.atom("t")
@@ -190,45 +211,48 @@ def unmerging() -> None:
 
 
 def relationships_are_entities() -> None:
-    """`rel` interns; `instance` does not. Both are the same proposition."""
-    print("\n§3  a relationship may be an entity -- interning is a write "
-          "policy, not a law")
+    """Two `loves(x, z)` are two things, and one proposition."""
+    print("\n§3  a relationship may be an entity -- two occasions of one "
+          "proposition")
     g = Graph()
     pad = Scratchpad(g)
     loves, x, z = g.atom("loves"), g.atom("x"), g.atom("z")
-    canon = g.rel(loves, x, z)
-    one = g.instance(loves, x, z)
-    two = g.instance(loves, x, z)
+    one = g.rel(loves, x, z)
+    two = g.rel(loves, x, z)
+    three = g.rel(loves, x, z)
 
-    check("§3", "`rel` returns one node however often it is built, and "
-                "`instance` mints a distinct one each time -- two loves "
-                "between the same pair are two things",
-          g.rel(loves, x, z) == canon and len({canon, one, two}) == 3)
-    check("§3", "every instance is in the argument index, so a rule reaches "
-                "all of them and not just the canonical one",
-          g.instances_with(loves, 0, x) == [canon, one, two])
-    check("§3", "`like` collects the instances of one key, canonical first",
-          g.like(one) == (canon, one, two))
+    check("§3", "`rel` mints a distinct node each time -- two loves between "
+                "the same pair are two things, and there is no third node "
+                "that is the canonical one",
+          len({one, two, three}) == 3)
+    check("§3", "every one is in the argument index, so a rule reaches all of "
+                "them",
+          g.instances_with(loves, 0, x) == [one, two, three])
+    check("§3", "`like` collects the nodes of one shape, oldest first",
+          g.like(two) == (one, two, three))
 
-    pad.note(one)
+    pad.note(two)
     check("§3", "belief is per ENTITY: anchoring one does not anchor another "
                 "that happens to say the same thing",
-          pad.holds(one) and not pad.holds(canon) and not pad.holds(two))
+          pad.holds(two) and not pad.holds(one) and not pad.holds(three))
+    check("§3", "...and it anchors ONCE -- noting again returns the anchor "
+                "already there rather than minting a second one for a belief "
+                "`erase` deletes singly",
+          pad.note(two) == pad.anchor(two)
+          and len(g.like(pad.anchor(two))) == 1)
 
-    #  The defect this index exists to close. Absence is a question about
-    # the PROPOSITION, so asking the canonical node alone answers *nothing says
-    # it* while `one` sits believed.
-    check("§3", "...but ABSENCE is a question about the proposition, so it is "
-                "asked of every instance",
-          pad.holds_any(canon) and not pad.holds(canon))
+    #  Absence is a question about the PROPOSITION, so asking one node
+    # alone answers *nothing says it* while another sits believed.
+    check("§3", "so absence is asked of every node of the shape",
+          pad.holds_any(one) and not pad.holds(one))
 
     v = g.var("$v")
     absent = Rule(g.atom("<probe>"),
                   [Member(ABSENT, g.rel(loves, x, z))], [], "probe")
-    check("§3", "so a rule's `no loves(x, z)` does not match while a "
-                "non-canonical instance of it is believed",
+    check("§3", "a rule's `no loves(x, z)` does not match while any occasion "
+                "of it is believed",
           match(g, pad, absent) == [])
-    pad.erase(one)
+    pad.erase(two)
     check("§3", "...and matches once nothing says it at all",
           len(match(g, pad, absent)) == 1)
 
@@ -236,13 +260,17 @@ def relationships_are_entities() -> None:
                    [Member(ASSERT, g.rel(loves, x, v))], [], "probe2")
     pad.note(one)
     pad.note(two)
-    check("§3", "a positive premise binds each believed instance separately, "
+    check("§3", "a positive premise binds each believed occasion separately, "
                 "because each is a different thing to be about",
           len(match(g, pad, present)) == 2)
 
-    g.delete(two)
-    check("§3", "deleting an instance takes it out of the key index",
-          g.like(canon) == (canon, one))
+    #  `g.like(one)` also holds the pattern `no loves(x, z)` was built
+    # from -- a rule MENTIONS a proposition and nothing anchors it, so it is a
+    # node of that shape sitting in the index and believed by nobody. That was
+    # true before interning went too; there was simply only ever one of them.
+    g.delete(three)
+    check("§3", "deleting one takes it out of the shape index",
+          three not in g.like(one) and {one, two} <= set(g.like(one)))
 
 
 # -- §4, §5 the scratchpad --------------------------------------------------
@@ -363,10 +391,15 @@ def matching() -> None:
                   Member(ABSENT, g.rel(heavy, x))],
                  [Member(ASSERT, g.rel(g.atom("light"), x))], "r2")
     check("§12", "`no p` holds while nothing anchors p", len(match(g, pad, r2)) == 1)
-    pad.note(g.rel(heavy, a))
+    #  ONE node, held on to. `g.rel` mints, so erasing what a second
+    # `g.rel(heavy, a)` returns would erase an occasion nobody ever believed
+    # and leave this one standing. `Gate.erase` is where a caller that only
+    # has the shape is met halfway; the scratchpad takes the occasion.
+    heavy_a = g.rel(heavy, a)
+    pad.note(heavy_a)
     check("§12", "...and stops holding the moment something does",
           match(g, pad, r2) == [])
-    pad.erase(g.rel(heavy, a))
+    pad.erase(heavy_a)
     check("§12", "...and holds again once it is erased, which an append-only "
                  "chain could never get back to", len(match(g, pad, r2)) == 1)
 
@@ -1129,15 +1162,20 @@ def rhs_graph_ops() -> None:
                    "=> merge($x, $y)")
     m6.run(limit=10)
     a6, b6, c6 = kb6.atom("a"), kb6.atom("b"), kb6.atom("c")
+    #  The OLDER of the two merges, read off the record rather than named:
+    # which of `(a, b)` and `(a, c)` the rule reaches first is a tie the table
+    # breaks, and this check is about the record's shape, not about that tie.
+    older = m6.g._merge_log[0]
     threw = False
     try:
-        m6.g.unmerge(a6, b6)  # the OLDER merge -- (a, c) is the record's top
+        m6.g.unmerge(older["keep"], older["drop"])
     except ValueError:
         threw = True
     check("§20", "`unmerge` in Python still refuses a non-top merge reached "
                  "THROUGH the RHS the same way it refuses one built by hand "
                  "-- one engine, not two",
-          threw and m6.g.identity_of(b6) == a6)
+          threw and len(m6.g._merge_log) == 2
+          and m6.g.identity_of(b6) == a6 and m6.g.identity_of(c6) == a6)
 
     m7 = Machine()
     pre7 = load(m7, "", scope="s7")
@@ -1532,10 +1570,16 @@ def circuit_breaker() -> None:
     check("--", "and every trip is followed by a revival -- the suspension "
                 "actually lifts, it does not just accumulate",
           revives == trips)
+    #  Reported, not raised. `revive` never firing is the check above
+    # already failing, and an IndexError here took the whole runner down with
+    # it -- so every section after this one went unrun, and a red check hid
+    # the rest of the suite instead of counting as one failure.
+    after = (names[names.index("revive") + 1:names.index("revive") + 2]
+             if "revive" in names else [])
     check("--", "each cycle resets to a fresh budget: a revival is "
                 "followed by the watched rule actually running again, not "
                 "an immediate re-trip",
-          names[names.index("revive") + 1] == "flaky")
+          after == ["flaky"])
 
 
 # -- the surface ------------------------------------------------------------

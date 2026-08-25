@@ -119,8 +119,8 @@ ant(<R>, pattern, mode, i)      con(<R>, pattern, mode, i)
 one `ant`/`con` per member, `mode` one of `assert`/`erase`/`absent`, `i` the
 member's position. Both the **position** and the **mode** are recorded, and
 leaving either out makes a rule read back out of the graph a *different* rule:
-position matters because a side is a sequence and relation instances intern —
-a rule with two identical members would silently lose one; mode matters
+position matters because a side is a sequence — a rule read back without it
+could not say which member came first; mode matters
 because `{+p} ⟹ {+q}` and `{+p} ⟹ {−q}` would otherwise be the same node, and
 a claim about one of them would silently be a claim about the other.
 

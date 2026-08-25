@@ -203,8 +203,8 @@ def _dormant(m: Machine, r: Rule) -> bool:
     it is dated, attributable, deniable, and readable by rules, and `due` can be
     concluded by anything at all.
     """
-    return (m._claims(m.g.rel(m.DORMANT, r.node))
-            and not m._claims(m.g.rel(m.DUE, r.node)))
+    return (m._claims(m.DORMANT, r.node)
+            and not m._claims(m.DUE, r.node))
 
 
 def _standing(m: Machine) -> set:
@@ -213,7 +213,7 @@ def _standing(m: Machine) -> set:
     out = set()
     for node in m.g.instances_of(m.STANDING):
         members = m.g.members(node)
-        if len(members) == 1 and m._claims(node):
+        if len(members) == 1 and m.pad.holds(node):
             out.add(members[0])
     return out
 
@@ -229,7 +229,7 @@ def _lane_of(m: Machine, r: Rule) -> str:
         members = m.g.members(node)
         if len(members) != 2 or members[0] is not r.node:
             continue
-        if not m._claims(node):
+        if not m.pad.holds(node):
             continue
         return m.g.show(members[1])
     return "main"
@@ -247,7 +247,7 @@ def _lane_order(m: Machine) -> List[str]:
     ranked: Dict[str, int] = {}
     for node in m.g.instances_of(m.LANE_ORDER):
         members = m.g.members(node)
-        if len(members) != 2 or not m._claims(node):
+        if len(members) != 2 or not m.pad.holds(node):
             continue
         digits = m.g.show(members[1])
         if digits.isdigit():
@@ -255,7 +255,7 @@ def _lane_order(m: Machine) -> List[str]:
     seen: List[str] = ["main"]
     for node in m.g.instances_of(m.LANE):
         members = m.g.members(node)
-        if len(members) != 2 or not m._claims(node):
+        if len(members) != 2 or not m.pad.holds(node):
             continue
         name = m.g.show(members[1])
         if name not in seen:
@@ -379,13 +379,15 @@ def _attended_first(found: List[Application], attended: Sequence[NodeId],
         """
         total = 0.0
         overlaps = False
-        for member in rule_antecedent:
+        for i, member in enumerate(rule_antecedent):
             att = 0
             if member.sign != ABSENT:
-                try:
-                    node = substitute(g, member.pattern, a.bindings)
-                except Exception:
-                    node = None
+                #  What the line MATCHED, from the match itself. It used to
+                # be rebuilt with `substitute`, which was the same node back
+                # while `rel` interned and is a freshly minted one now -- so
+                # every line scored zero, nothing overlapped attention, and
+                # every application in the suite was discarded as unattended.
+                node = a.matched[i] if i < len(a.matched) else None
                 if node is not None:
                     # WHAT THE LINE BOUND, not everything it is made of.
                     # `$z=intake($x, $y)` binds the event; taking the max over
@@ -595,9 +597,8 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
                 # reacted to.
                 fresh = False
                 for rival in window[1:]:
-                    node = m.g.rel(m.CLOSE, chosen.rule.node, rival.rule.node)
-                    if not m.pad.holds(node):
-                        m._note(node)
+                    if not m._claims(m.CLOSE, chosen.rule.node, rival.rule.node):
+                        m._note_that(m.CLOSE, chosen.rule.node, rival.rule.node)
                         fresh = True
                 if fresh:
                     # Depositing IS the move. A settling rule -- the default
@@ -667,7 +668,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
             # `quiescent` with <boil> and <weather> both fully matched and
             # neither ever offered.
             if unattended:
-                m._note(m.g.rel(m.UNATTENDED, m.g.atom(str(unattended))))
+                m._note_that(m.UNATTENDED, m.g.atom(str(unattended)))
                 steps.append(Step(arrivals, 0, tried, None, (), "unattended"))
             else:
                 steps.append(Step(arrivals, 0, tried, None, (), "quiescent"))
@@ -677,7 +678,7 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
     m._floor = prev_floor
     if steps and steps[-1].state == "applied":
         m.exhausted += 1
-        m._note(m.g.rel(m.BOUNDED, m.TICKS))
+        m._note_that(m.BOUNDED, m.TICKS)
     scanned = {}
     for k, v in m.g.scans.items():
         was = scans0.get(k, [0, 0])
@@ -695,22 +696,16 @@ def run(m: Machine, posts: Sequence[Post] = (), limit: int = 400,
 
 
 def _matched_nodes(m: Machine, a: Application) -> "List[NodeId]":
-    """Every grounded antecedent line of an application.
+    """Every node an application's antecedent lines bound.
 
     An `absent` member matched by NOT being there consumes nothing: there was
-    no occasion to spend.
+    no occasion to spend, and `match` records None for it.
+
+    Read off the application rather than rebuilt. What a move CONSUMES has to
+    be the occasion it actually matched -- rebuilding the proposition mints a
+    second one, and spending that spends nothing.
     """
-    out = []
-    for member in a.rule.antecedent:
-        if member.sign == ABSENT:
-            continue
-        try:
-            node = substitute(m.g, member.pattern, a.bindings)
-        except Exception:
-            continue
-        if node is not None:
-            out.append(node)
-    return out
+    return [n for n in a.matched if n is not None]
 
 
 def _ground(m: Machine, table: Table, term, bindings):

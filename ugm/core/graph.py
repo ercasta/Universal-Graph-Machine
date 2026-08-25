@@ -21,9 +21,9 @@ class Graph:
         # -- labels ---------------------------------------------------------
         # A label is a NAME THAT PICKS OUT A NODE, and a node may have several.
         # Several labels on one node means those labels are aliases: `loves` and
-        # `adores` name one relation, so `adores(x, z)` interns to the node
-        # `loves(x, z)` already made, through `_key`'s identities. Nothing in
-        # the interning key changes to get that.
+        # `adores` name one relation, so `adores(x, z)` is `loves(x, z)` -- not
+        # because the two build one node, but because every lookup widens to
+        # the class the label merged them into (`counts_as`).
         #
         # This is what `_name` is NOT. `_name` is display -- a rule minted as
         # ninety characters of its own structure prints as `<boil>` -- and the
@@ -51,64 +51,52 @@ class Graph:
         # Leaves only, and the default is the node itself.
         # → docs/design/graph.md#identity-coreference
         self._identity: Dict[NodeId, NodeId] = {}
-        # The key each node is INDEXED under, so a merge knows what to move and
-        # does not have to recompute the world to find out.
-        self._keyed: Dict[NodeId, Tuple] = {}
-        # `identity -> nodes whose key mentions it`. This is what
-        # makes a merge cost the upward CLOSURE of the merged things rather than
-        # a scan of the graph -- and the closure is the number that decides
-        # whether this is affordable.
-        self._mentions: Dict[NodeId, List[NodeId]] = {}
-        # Whether ANY merge has happened in this graph. The fast path is a
-        # single boolean test rather than a dict get per member per `rel`, and
-        # `rel` is the hottest call in the engine.
-        self._merges = 0
-        # Whether `_keyed`/`_mentions` have started being maintained -- set
-        # once, by `_index_for_merge`, and NEVER by `unmerge`. This is
-        # deliberately not the same question as `self._merges`, which
-        # `unmerge` can put back to zero: a node minted while merges happen to
-        # be at zero (between an unmerge and the next merge) still has to be
-        # indexed, because a LATER merge needs `_mentions` to find it. Keying
-        # that on the live count instead of on *has indexing ever started* is
-        # exactly the bug `unmerge` exposed -- a node minted in that window
-        # went missing from the very index the next merge's cascade depends
-        # on, and the cascade silently under-reported.
-        self._merge_indexed = False
+        # The inverse: a representative, and everything that counts as it,
+        # representative first.
+        #
+        # This is what replaced re-keying. While `rel` interned, a merge had to
+        # MOVE every node whose key mentioned the merged one, because the key
+        # was identity and two nodes could collapse onto one. Nothing interns
+        # now, so a key is just the members as written and a merge moves
+        # nothing: the indexes stay where they were and a LOOKUP widens to the
+        # class instead. A merge is a dict write again.
+        self._class: Dict[NodeId, List[NodeId]] = {}
         # One entry per `merge()` call, in order -- *a merge is a claim and the
         # chain is the record of the order the claims were made in*
         # (`identity_of`'s own docstring). This is what lets `unmerge` ask
-        # *is this the top of the record* instead of guessing. Each entry
-        # carries enough to invert the DIRECT pair's re-keying; a cascaded
-        # merge carries `None` there instead, because splitting two collapsed
-        # claims back apart is a decision the engine does not get to make.
+        # *is this the top of the record* instead of guessing.
         self._merge_log: List[dict] = []
 
-        # One index, over what was asserted rather than over what was derived
-        # (§12): relation instances keyed by (rel, members) so the same
-        # proposition is one node however often it is spoken of.
-        self._interned: Dict[
-            Tuple[Optional[NodeId], Tuple[NodeId, ...]], NodeId
-        ] = {}
-        # A second index over what was asserted, not over what was derived (§16):
+        # An index over what was asserted, not over what was derived (§16):
         # instances by relation. A rule whose antecedent names a relation has to
         # start somewhere, and scanning every node is the alternative.
         self._by_rel: Dict[NodeId, List[NodeId]] = {}
-        # ...and a third, over the same instances by WHAT SITS IN EACH ARGUMENT
+        # ...and a second, over the same instances by WHAT SITS IN EACH ARGUMENT
         # POSITION.
         # → docs/design/graph.md#and-a-third-over-the-same-instances-by-what
         self._by_arg: Dict[Tuple[NodeId, int, NodeId], List[NodeId]] = {}
-        # ...and a fourth: every instance sharing one key, canonical first.
+        # ...and a third: every instance sharing one shape, mint order.
         #
-        # `_interned` says which node `rel(on, a, b)` RETURNS. It does not say
-        # that node is the only one: `instance` mints a distinct node for the
-        # same relation over the same members, because a relationship may be an
-        # ENTITY and two of them are two things. Interning is therefore the
-        # write policy of `rel`, not a law of the substrate.
+        # Nothing interns the same proposition into one node any more, so
+        # `p(a)` said twice is two nodes and this is the index that still calls
+        # them the same proposition. Absence is the question that needs it:
+        # `no p($x)` asks whether ANYTHING says `p(x)`, which is a question
+        # about the shape and not about one of the nodes that has it.
         #
-        # This index is what keeps ABSENCE honest under that. `no p($x)` asks
-        # whether anything says `p(x)`, and asking the canonical node alone
-        # answers about one entity while another sits believed beside it.
+        # Keyed on the shape ALL THE WAY DOWN, not on the members as ids. One
+        # level was enough while `rel` interned, because then a member id WAS
+        # its shape: `raining(here)` was one node, so `arrived(user,
+        # raining(here))` had one key. Rebuilt now, the inner node is a new id
+        # and the outer key no longer matches -- which is `m.holds(kb.term(
+        # "arrived(user, raining(here))"))` answering *no* about something
+        # believed.
         self._by_key: Dict[Tuple, List[NodeId]] = {}
+        # A node's shape, memoised: its own id if it is a leaf, and
+        # `(shape of relation, shapes of members)` if it is not. Immutable for
+        # `_has_var`'s reason -- what a node is made of is fixed when it is
+        # built. Sub-shapes are shared tuples, so this is a pointer per node
+        # rather than a copy of the structure.
+        self._shape: Dict[NodeId, Tuple] = {}
         # Which variables are in a node, memoised. Immutable for `_has_var`'s
         # reason -- a node's relation and members are fixed when it is built.
         #  It lives HERE and not beside its one reader, because a node id means
@@ -126,7 +114,7 @@ class Graph:
         compression, because a merge is a claim and the chain is the record of
         the order the claims were made in.
         """
-        if not self._merges:
+        if not self._identity:
             return n
         seen = 0
         while True:
@@ -138,108 +126,69 @@ class Graph:
             if seen > len(self._identity):  # a cycle nothing should be able to build
                 return n
 
-    def _key(self, relation: Optional[NodeId], members: Tuple[NodeId, ...]):
-        """The interning key, in identities rather than in nodes.
+    def counts_as(self, n: NodeId) -> Tuple[NodeId, ...]:
+        """Every node that counts as `n` does, `n`'s own representative first.
 
-        With no merge anywhere this is the members tuple itself, so the key is
-        the one the engine used before identity existed and the dict lookup is
-        unchanged. That equality is what makes this free for every corpus that
-        never corefers, and it is checked rather than asserted.
+        The half of identity a LOOKUP needs. `identity_of` narrows -- many
+        nodes to the one they stand for -- and every index here is keyed on the
+        node as written, so narrowing alone would ask `_by_arg` about `paul`
+        and miss the instance built off `paul-b`. This widens instead.
+
+        A single-element tuple for anything nothing merged, which is every node
+        in a corpus that never corefers, so the widening costs one dict get.
         """
-        if not self._merges:
-            return relation, members
-        return (
-            None if relation is None else self.identity_of(relation),
-            tuple(self.identity_of(m) for m in members),
-        )
-
+        if not self._identity:
+            return (n,)
+        return tuple(self._class.get(self.identity_of(n), (n,)))
 
     def merge(self, keep: NodeId, drop: NodeId) -> int:
         """`drop` counts as `keep` from here on. Returns nodes repointed.
 
-        Congruence, and it is why this cannot be two dict writes. Without
-        the repoint, everything said before the merge is LOST.
+        One dict write, plus the labels. It used to be a cascade: while `rel`
+        interned, the interning key was in IDENTITIES, so a merge could make
+        two nodes collide onto one key and the engine had to decide which
+        survived -- a decision it makes nowhere else. Nothing interns now, two
+        nodes of one shape are two occasions, and there is nothing to collide.
+        Congruence moved to the read side, where `counts_as` widens a lookup to
+        the class and `unify` compares through `identity_of`.
+
+        Returns 0: nothing moves any more. Kept as a return rather than dropped
+        so a caller that measured the cascade sees it go to zero instead of
+        seeing the call change shape.
 
         See docs/design/graph.md#merge.
         """
-        self._index_for_merge()
-        moved = 0
-        work = [(keep, drop)]
-        # The DIRECT pair is the first thing popped. Everything pushed after
-        # that is a cascade -- a key collision `merge` decided on its own,
-        # never the caller's claim -- and `unmerge` refuses to touch it.
-        direct_seen = False
-        cascaded = False
-        direct_labels: List[str] = []
-        direct_nodes: List[Tuple[NodeId, object, object, object, object]] = []
-        while work:
-            x, y = work.pop()
-            if x == y:
-                continue
-            is_direct = not direct_seen
-            direct_seen = True
-            if not is_direct:
-                cascaded = True
-            self._identity[y] = x
-            self._merges += 1
-            # Labels follow identity: everything `y` answered to, `x` answers
-            # to now. That is what makes two labels on one node aliases.
-            for text in self._labels.pop(y, ()):
-                if text not in self._labels.setdefault(x, []):
-                    self._labels[x].append(text)
-                self._by_label[text] = x
-                if is_direct:
-                    direct_labels.append(text)
-            # Everything whose key mentioned `y` now keys on `x` instead.
-            for n in list(self._mentions.get(y, ())):
-                old = self._keyed.get(n)
-                if old is None:
-                    continue
-                kr, km = self._key(self._rel[n], self._members[n])
-                if (kr, km) == old:
-                    continue
-                okr, okm = old
-                self._drop_from_index(n, okr, okm)
-                already = self._interned.get((kr, km))
-                if already is not None and already != n:
-                    # Two nodes have collapsed onto one key. The older one wins,
-                    # for the reason mint order always wins here: it is the one
-                    # anything else already points at.
-                    lo, hi = (already, n) if already < n else (n, already)
-                    work.append((lo, hi))
-                    if is_direct:
-                        cascaded = True
-                else:
-                    self._interned[(kr, km)] = n
-                    self._by_rel.setdefault(kr, []).append(n)
-                    self._by_key.setdefault((kr, km), []).append(n)
-                    for i, mm in enumerate(km):
-                        self._by_arg.setdefault((kr, i, mm), []).append(n)
-                    self._keyed[n] = (kr, km)
-                    for c in (kr,) + tuple(km):
-                        self._mentions.setdefault(c, []).append(n)
-                    if is_direct:
-                        direct_nodes.append((n, okr, okm, kr, km))
-                moved += 1
-        self._merge_log.append({
-            "keep": keep, "drop": drop, "cascaded": cascaded,
-            "labels": direct_labels, "nodes": direct_nodes,
-        })
-        return moved
+        keep, drop = self.identity_of(keep), self.identity_of(drop)
+        if keep == drop:
+            return 0
+        self._identity[drop] = keep
+        kin = self._class.setdefault(keep, [keep])
+        for x in self._class.pop(drop, [drop]):
+            if x not in kin:
+                kin.append(x)
+        # Labels follow identity: everything `drop` answered to, `keep` answers
+        # to now. That is what makes two labels on one node aliases.
+        moved_labels: List[str] = []
+        for text in self._labels.pop(drop, ()):
+            if text not in self._labels.setdefault(keep, []):
+                self._labels[keep].append(text)
+            self._by_label[text] = keep
+            moved_labels.append(text)
+        self._merge_log.append({"keep": keep, "drop": drop,
+                                "labels": moved_labels})
+        return 0
 
     def unmerge(self, keep: NodeId, drop: NodeId) -> int:
         """Undo `merge(keep, drop)`, if it is the record's own top.
 
-        Reversible only when it is the MOST RECENT merge and it caused no
-        cascade -- *a merge is a claim and the chain is the record of the
-        order the claims were made in* (`identity_of`), so undoing anything
-        but the top rests a later claim on a premise this call would remove.
-        A cascade means some OTHER pair of nodes collapsed into one as a
-        consequence of this merge; splitting that back apart means deciding
-        which of two claims a now-single node stands for, and the engine's
-        rule everywhere else is that it computes a consequence, it does not
-        make the choice (`merge`'s own docstring says the same of merging
-        itself). So a cascaded merge is refused rather than guessed at.
+        Reversible only when it is the MOST RECENT merge -- *a merge is a claim
+        and the chain is the record of the order the claims were made in*
+        (`identity_of`), so undoing anything but the top rests a later claim on
+        a premise this call would remove.
+
+        There is no longer a cascade to refuse: a merge collapses no other pair
+        of nodes together, so the only thing to put back is the identity and
+        the labels that travelled with it.
 
         Refuses loudly -- `ValueError`, naming which condition failed -- on
         the same argument as the loader's refusals: doing nothing silently
@@ -254,52 +203,24 @@ class Graph:
                 f"merge({self.show(top['keep'])}, {self.show(top['drop'])}); "
                 f"a later merge may rest on this one"
             )
-        entry = self._merge_log[-1]
-        if entry["cascaded"]:
-            raise ValueError(
-                f"merge({self.show(keep)}, {self.show(drop)}) collapsed other "
-                "nodes together as a side effect; unmerging it would mean "
-                "deciding which claim the collapsed node still stands for, "
-                "which this engine leaves to whoever wrote the claim"
-            )
-        self._merge_log.pop()
-        moved = 0
-        for n, okr, okm, nkr, nkm in entry["nodes"]:
-            self._drop_from_index(n, nkr, nkm)
-            self._interned[(okr, okm)] = n
-            self._by_rel.setdefault(okr, []).append(n)
-            self._by_key.setdefault((okr, okm), []).append(n)
-            for i, mm in enumerate(okm):
-                self._by_arg.setdefault((okr, i, mm), []).append(n)
-            self._keyed[n] = (okr, okm)
-            moved += 1
+        entry = self._merge_log.pop()
         for text in entry["labels"]:
             if text in self._labels.get(keep, ()):
                 self._labels[keep].remove(text)
             self._labels.setdefault(drop, []).append(text)
             self._by_label[text] = drop
         del self._identity[drop]
-        self._merges -= 1
-        return moved
-
-    def _index_for_merge(self) -> None:
-        """Build `_keyed` and `_mentions`, once, at the first merge.
-
-        Everything a merge needs to find is derivable from what is already
-        stored, so the choice is *maintain it always* or *build it when it is
-        first wanted*. Maintaining it always taxed every corpus that never
-        corefers; this pays O(nodes) once, for the corpus that does.
-        """
-        if self._merge_indexed:
-            return
-        for n, r in self._rel.items():
-            if r is None:
-                continue
-            kr, km = self._key(r, self._members[n])
-            self._keyed[n] = (kr, km)
-            for x in (kr,) + tuple(km):
-                self._mentions.setdefault(x, []).append(n)
-        self._merge_indexed = True
+        kin = self._class.get(keep)
+        if kin is not None:
+            back = [x for x in kin
+                    if x == drop or self.identity_of(x) == drop]
+            for x in back:
+                kin.remove(x)
+            if len(kin) <= 1:
+                self._class.pop(keep, None)
+            if len(back) > 1:
+                self._class[drop] = back
+        return 0
 
     def delete(self, n: NodeId) -> None:
         """Take `n` out of the graph. The scratchpad's erase.
@@ -318,10 +239,8 @@ class Graph:
         """
         rel, members = self._rel.get(n), self._members.get(n, ())
         if rel is not None:
-            kr, km = ((rel, members) if not self._merges
-                      else self._key(rel, members))
-            self._drop_from_index(n, kr, km)
-            self._keyed.pop(n, None)
+            self._drop_from_index(n, rel, members)
+        self._shape.pop(n, None)
         for text in self._labels.pop(n, ()):
             if self._by_label.get(text) == n:
                 del self._by_label[text]
@@ -330,13 +249,11 @@ class Graph:
             d.pop(n, None)
 
     def _drop_from_index(self, n: NodeId, kr, km) -> None:
-        """Take `n` out of every index it is in under `(kr, km)`."""
-        if self._interned.get((kr, km)) == n:
-            del self._interned[(kr, km)]
+        """Take `n` out of every index it is in."""
         b = self._by_rel.get(kr)
         if b and n in b:
             b.remove(n)
-        b = self._by_key.get((kr, km))
+        b = self._by_key.get(self._shape.get(n))
         if b and n in b:
             b.remove(n)
         for i, mm in enumerate(km):
@@ -439,35 +356,36 @@ class Graph:
         return n
 
     def rel(self, relation: NodeId, *members: NodeId) -> NodeId:
-        """A relation instance, interned: `on(a, b)` names one node however many
-        times it is built."""
-        members = tuple(members)
-        found = self._interned_lookup(relation, members)
-        if found is not None:
-            return found
-        n = self._mint(relation, members, None)
-        if self._merges:
-            relation, members = self._key(relation, members)
-        self._interned[(relation, members)] = n
-        return n
+        """A relation instance: a distinct node every time it is built.
+
+        This used to intern -- `on(a, b)` named one node however often it was
+        written -- and interning was the substrate deciding that saying a thing
+        twice is saying it once. That is a claim about occasions, and it is not
+        the substrate's to make: an occasion is what attention is spent on, and
+        two occasions cannot be told apart while structure is identity.
+
+        So the write policy moved up. Whoever wants the node that is already
+        there asks for it, with `find_rel`, and mints only when there is none
+        -- which is what `Scratchpad.note` does to keep one anchor per belief,
+        and what `Machine._note_that` does for the machinery's own record.
+        """
+        return self._mint(relation, tuple(members), None)
 
     def find_rel(self, relation: NodeId, *members: NodeId) -> Optional[NodeId]:
-        """The interned instance if it exists, without creating one.
+        """An instance with this shape if one exists, without creating one.
 
          `rel` cannot answer this: asking would build the thing asked about.
         That is harmless for a proposition and not harmless for the skeleton,
-        where existing IS the fact -- so §6's quiescence needs a question it can
-        put without answering it. See `rules.already_there`.
-        """
-        return self._interned_lookup(relation, tuple(members))
+        where existing IS the fact.
 
-    def _interned_lookup(
-        self, relation: Optional[NodeId], members: Tuple[NodeId, ...]
-    ) -> Optional[NodeId]:
-        """The interned node for this key, or None. One dict get."""
-        if self._merges:
-            relation, members = self._key(relation, members)
-        return self._interned.get((relation, members))
+        Answered from `_by_key` -- the index over EVERY instance sharing a key
+        -- rather than from the intern table, which names one node per key and
+        so answers *nothing has that shape* while a twin sits beside it. The
+        two agree for anything only ever built through `rel`; they part where
+        `instance` has minted.
+        """
+        got = self._same_shape(relation, tuple(members))
+        return got[0] if got else None
 
     def like(self, n: NodeId) -> Tuple[NodeId, ...]:
         """Every instance sharing `n`'s key -- itself included, canonical first.
@@ -480,20 +398,48 @@ class Graph:
         rel = self._rel.get(n)
         if rel is None:
             return (n,)
-        kr, km = ((rel, self._members[n]) if not self._merges
-                  else self._key(rel, self._members[n]))
-        return tuple(self._by_key.get((kr, km), (n,)))
+        got = self._same_shape(rel, self._members[n])
+        return got if got else (n,)
 
-    def instance(self, relation: NodeId, *members: NodeId) -> NodeId:
-        """A relation instance that is *not* interned: a distinct node every time.
+    def _same_shape(
+        self, relation: Optional[NodeId], members: Tuple[NodeId, ...]
+    ) -> Tuple[NodeId, ...]:
+        """Every live node of this shape, mint order. One dict get, normally.
 
-        Propositions intern, because `on(a, b)` is one idea however often it is
-        spoken. Entries must not, because an entry is an act of claiming -- two
-        claims about the same proposition at the same locus are two events, and
-        §5 needs each to be a node other facts can be about. Interning them would
-        make `mistaken(<e>)` land on both at once.
+        With nothing merged the shape is the key and this is `_by_key` read
+        straight. With something merged, one shape can have been written under
+        any node of each leaf's class -- `loves(paul-b, mary)` IS `loves(paul,
+        mary)` once the two names are one -- so the buckets to read are the
+        product of the classes, `_shapes_of` below. That product is one entry
+        wide until a merge touches a leaf the term uses, which is what makes
+        the widening affordable: it is paid by the corpus that corefers.
         """
-        return self._mint(relation, tuple(members), None)
+        key = (self.shape_of(relation), tuple(self.shape_of(m) for m in members))
+        if not self._identity:
+            return tuple(self._by_key.get(key, ()))
+        out: List[NodeId] = []
+        for k in self._shapes_of(relation, members):
+            out.extend(self._by_key.get(k, ()))
+        return tuple(sorted(set(out)))
+
+    def _shapes_of(
+        self, relation: Optional[NodeId], members: Tuple[NodeId, ...]
+    ) -> List[Tuple]:
+        """Every shape this term could have been written under, once identity
+        is allowed to stand in at any leaf."""
+        out: List[Tuple] = [()]
+        for part in (relation,) + tuple(members):
+            here = self._leaf_shapes(part)
+            out = [k + (x,) for k in out for x in here]
+        return [(k[0], k[1:]) for k in out]
+
+    def _leaf_shapes(self, n: Optional[NodeId]) -> List:
+        if n is None:
+            return [None]
+        rel = self._rel.get(n)
+        if rel is None:
+            return list(self.counts_as(n))
+        return self._shapes_of(rel, self._members[n])
 
     def _mint(
         self, relation: Optional[NodeId], members: Tuple[NodeId, ...],
@@ -512,29 +458,23 @@ class Graph:
         if name is not None:
             self._name[n] = name
         if relation is not None:
-            kr, km = ((relation, members) if not self._merges
-                      else self._key(relation, members))
-            self._by_rel.setdefault(kr, []).append(n)
-            self._by_key.setdefault((kr, km), []).append(n)
-            for i, mm in enumerate(km):
-                self._by_arg.setdefault((kr, i, mm), []).append(n)
-            #  **Only once something has merged.** Maintaining these at
-            # every mint cost the suite 9% -- 8.25s to 9.01s -- for corpora that
-            # never corefer and never will, which is the one thing this layer
-            # promised not to do. They are built by a single scan at the first
-            # merge instead (`_index_for_merge`), and maintained from then on.
-            # Measured rather than reasoned about: the fast path in `_key` was
-            # already free, and this was the half that was not.
-            #
-            # `_merge_indexed`, not `self._merges` -- a node minted while
-            # `unmerge` has put the live count back to zero still needs to be
-            # here for the NEXT merge's cascade to find. See the field's own
-            # comment.
-            if self._merge_indexed:
-                self._keyed[n] = (kr, km)
-                for x in (kr,) + tuple(km):
-                    self._mentions.setdefault(x, []).append(n)
+            self._shape[n] = shape = (self.shape_of(relation),
+                                      tuple(self.shape_of(m) for m in members))
+            self._by_rel.setdefault(relation, []).append(n)
+            self._by_key.setdefault(shape, []).append(n)
+            for i, mm in enumerate(members):
+                self._by_arg.setdefault((relation, i, mm), []).append(n)
         return n
+
+    def shape_of(self, n: NodeId) -> Tuple:
+        """What `n` is made of, all the way down. Its own id if it is a leaf.
+
+        Two nodes are the same PROPOSITION when their shapes are equal, which
+        is the question `like`, `find_rel` and absence all ask. It was node
+        identity while `rel` interned; it is this now.
+        """
+        got = self._shape.get(n)
+        return n if got is None else got
 
     # -- reading ----------------------------------------------------------
 
@@ -587,17 +527,43 @@ class Graph:
 
     def instances_of(self, relation: NodeId) -> List[NodeId]:
         """Every instance of a relation, in mint order. Insertion-ordered, so a
-        derivation that ends in a tie breaks it the same way on every run."""
-        return list(self._by_rel.get(relation, ()))
+        derivation that ends in a tie breaks it the same way on every run.
+
+        Widened to the relation's class, so a merge that made `adores` and
+        `loves` one name reaches what was written under either. Mint order is
+        node order, which is what makes the widened read still deterministic.
+        """
+        if not self._identity:
+            return list(self._by_rel.get(relation, ()))
+        kin = self.counts_as(relation)
+        if len(kin) == 1:
+            return list(self._by_rel.get(kin[0], ()))
+        out: List[NodeId] = []
+        for r in kin:
+            out.extend(self._by_rel.get(r, ()))
+        return sorted(set(out))
 
     def instances_with(self, relation: NodeId, pos: int, member: NodeId) -> List[NodeId]:
         """Every instance of a relation with this node in this argument position.
         The narrow form of `instances_of`, and the same guarantee: mint order.
 
-         The list is the index's OWN and must not be mutated -- a caller that
-        edited it would edit every later read.
+        Widened for `instances_of`'s reason, over both the relation's class and
+        the member's: `loves($a, mary)` has to reach the instance written as
+        `loves(paul-b, mary)` once `paul-b` counts as `paul`.
+
+         With nothing merged the list is the index's OWN and must not be
+        mutated -- a caller that edited it would edit every later read.
         """
-        return self._by_arg.get((relation, pos, member), [])
+        if not self._identity:
+            return self._by_arg.get((relation, pos, member), [])
+        rk, mk = self.counts_as(relation), self.counts_as(member)
+        if len(rk) == 1 and len(mk) == 1:
+            return self._by_arg.get((rk[0], pos, mk[0]), [])
+        out: List[NodeId] = []
+        for r in rk:
+            for x in mk:
+                out.extend(self._by_arg.get((r, pos, x), ()))
+        return sorted(set(out))
 
     def count(self) -> int:
         return self._next

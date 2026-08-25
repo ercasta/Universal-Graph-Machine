@@ -1,72 +1,86 @@
-# Handoff — 2026-08-24 (attention as tokens)
+# Handoff — 2026-08-25 (never intern)
 
-    python -m ugm.selftest    193 checks, 10 failing    <- RED, deliberately
+    python -m ugm.selftest    198 checks, 10 failing
 
-Red is the state, not an accident. `tokens` (0ecc7d4) is a checkpoint of a
-migration in progress, with the known bugs listed below.
+Still red, and the same red. Measured against the previous commit with its
+crash guarded (see below), the baseline was **193 checks, 13 failing**. Three
+of those thirteen now pass and none of the ten is new.
 
-## The line this session took
+## What went
 
-Attention stopped being a decaying score and became a consumable.
+`Graph.rel` interned; it does not. A relation instance is a distinct node
+every time it is built, and `instance` is gone because it had become the same
+function.
 
-- a move **consumes** what it matched on, globally. One occasion, one use.
-- what a move writes is new business and gets a token.
-- `brush($x)` on the RHS puts one back. Whether others still want a thing is
-  a fact about the move, not about the line — `<trust-user>` knows believing
-  you is not the end of what you said.
-- no decay, no lifespan. Attention is not memory; it is what is still to do.
+- `p(a)` said twice is **two occasions**, each with its own anchor and its own
+  attention token. That is the point: attention is spent per occasion, and
+  occasions cannot be distinct while structure is identity.
+- What is one node and what is one proposition came apart. `_by_key` indexes
+  every node by its **shape** — structural, all the way down, because a member
+  id stopped being its own shape the moment nesting could be rebuilt.
+- `merge` stopped re-keying. It is a dict write and the labels; congruence
+  moved to the read side, where `counts_as` widens a lookup to the class and
+  `unify` compares through `identity_of`. No cascade, so `unmerge` has nothing
+  to refuse but a non-top claim. `_key`, `_keyed`, `_mentions`,
+  `_merge_indexed`, `_index_for_merge` and `_merges` are all gone.
 
-Fixed by construction, after five configurations of a decay constant could
-not fix them by tuning:
+Three of the four faces of the old interning bug came from **building a node
+in order to ask about one**. Nothing does that any more:
 
-- `worked.ugm` — `<boil>` and `<weather>` both fire.
-- an oscillating corpus terminates instead of running to the tick bound.
-- harneskills works with **one** brush, on `<trust-user>`.
+- `Machine._claims(rel, *members)` and `_note_that(rel, *members)` take the
+  parts and look up; they never mint to ask.
+- An `absent` member and a `-` consequent both resolve through `already_there`
+  — which was dead code and is now the load-bearing question.
+- `Application.matched` carries the node each antecedent line bound. It is
+  back because nothing else can reconstruct it: rebuilding with `substitute`
+  used to hand back the very node matched and now mints a stranger. Attention
+  reads it, and attention deciding what a move spends is the whole token line.
+- `Scratchpad.occasion(p)` is where a caller holding a *shape* meets an engine
+  holding *occasions* — `Gate.erase` and `Machine._attend` both go through it.
 
-## Known bugs (most of the 10)
+Cost, on `worked.ugm`: 195 nodes against 194, same ticks, same quiescence,
+same beliefs. Suite runtime unchanged.
 
-- `_attend_written` re-attends what a move **erased**, so a rule that
-  consumes and erases the same proposition puts the token straight back.
-  `want(deploy(web))` stays attended after `<request>` matched and erased it.
-- a tool's answer lands **no token**. `answered(approve, ...)` is believed and
-  absent from the pool, so `<approved>` is never enabled.
-- `unattended` now fires as the ordinary terminal state — spent occasions are
-  what ending looks like. Its checks want revisiting.
+## Surface change
 
-## Next: never intern
+`fact +p(a)` twice now believes it twice. `docs/guide.md` and four book
+chapters said the opposite and were rewritten.
 
-`Graph.rel` interns; it should not. RHS decides when to create a node and
-when to intern.
+## The two token bugs
 
-This sits **underneath** the token work: a token is per occasion, and
-occasions cannot be distinct while structure is identity. It is the same
-root as "a sentence said twice writes nothing".
+Both named in the last handoff, both fixed by this, neither aimed at:
 
-Smaller than it looks:
+- a tool's answer landing **no token** — the approval corpus reaches
+  quiescence and consumes its pending record now.
+- `_attend_written` re-attending what a move **erased** — the erase path no
+  longer manufactures the node it is erasing.
 
-- `-p(a)` is not a thing. The RHS destroys nodes the LHS **bound**, so
-  erasure needs no structural search.
-- absence is already structural — the matcher asks `pad.holds_any`, written
-  because `instance` could already mint a second `p(x)` beside the interned
-  one. Un-interning makes that the normal case.
-- what remains: sites that **build** a node then ask `holds` (they want
-  `holds_any`), `_merges`/`_key` retiring with the intern table, and
-  confirming `candidates()` never assumes one node per shape.
+The `denied` half of approval is still red.
 
-Suggested order: the two token bugs first (independent, cheap), then this as
-its own line — query layer before the graph stops helping.
+## Still failing (10)
 
-## Also built
+Seven were failing before this line started: arbitration's deferred loser,
+`denied` reaching quiescence, the attention claim surviving its own move,
+`attentioned($x)` picking paul out, `forget $hit` in both spellings, and the
+circuit breaker tripping more than once.
 
-- **per-line scoring** — `$z = intake($x, $y) [+3, attention_multiplier:1.2]`.
-  A bracket is a score, never a filter; all lines still match. The multiplier
-  hangs on **what the line bound**, so a rule can say attention on the event
-  matters and attention on the participants does not.
-- **calibration** (`ugm/learning/`) — an episode is one `.ugm` file: starting
-  condition, what is in mind, and the judge. Mutators move numbers only. A
-  missing verdict is a failure, because a judge is ordinary rules and a
-  calibration could otherwise starve the thing scoring it. No held-out set,
-  so a result is a claim about those episodes.
-- **gates**, tracked in `mutate`'s docstring and not built: a synthetic
-  proposition threaded RHS to LHS, for where a data dependency does not order
-  two rules. Structural, so out of the numbers-only phase.
+Three more were never *reached* before: the runner died on an `IndexError` in
+`circuit_breaker` — a red check's own fallout — and took every section after
+it down. It reports rather than raises now, which is what makes the 193/198
+comparison possible at all. The two entitlements failures behind it match
+`ugm/gates/vocabulary.py`, which fails the same two against the old commit.
+
+## Next
+
+- **`_by_key` and `_by_arg` never shrink on erasure** — only on `delete`. A
+  long run accumulates spent occasions in the buckets the matcher walks. Not
+  visible at this size (largest bucket on `worked.ugm`: 2) and it is the
+  obvious first place to look when it is.
+- **`Gate.erase` picks the OLDEST occasion** when handed a shape rather than a
+  node. That is a choice the engine makes, and this repo does not usually make
+  choices. A ground `-p(a)` has no binding to carry an occasion, so something
+  had to give; worth revisiting rather than inheriting.
+- **`attention.py`'s spend path still builds** — `_ground` and the after-query
+  probe substitute patterns into fresh nodes. Correct, because they are
+  matched structurally, but they leave nodes behind.
+- The remaining seven failures, which the token line owns.

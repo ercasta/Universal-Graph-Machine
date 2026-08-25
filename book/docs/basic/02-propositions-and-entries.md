@@ -36,10 +36,10 @@ What a claim says, it says by an **act**: asserting mints this node, erasing
 deletes it. There is nothing stored on the anchor beyond its presence —
 Chapter 3 is the full account of what that buys.
 
-## Asserting twice is not two things
+## Saying it twice is saying it twice
 
-Believing is a set membership test, and the anchor is **interned** — the same
-proposition always gets the same anchor. Assert it twice and nothing doubles:
+Believing is a set membership test, and the set holds **occasions**. Assert
+the same thing twice and you get two:
 
 ```
 fact +poisoned(a)
@@ -49,16 +49,25 @@ fact +poisoned(a)
 ```
 what it believes, newest first:
   poisoned(a)
+  poisoned(a)
 ```
 
-One line, not two. There was nowhere for the second assertion to go: it asked
-whether `poisoned(a)` was believed, found that it already was, and had nothing
-left to do. This is not a deduplication step bolted on afterwards — it falls
-straight out of interning, the same mechanism that makes `on(a, b)` one node
-however many times a rule mentions it.
+Two lines. Each `fact` is a separate act of claiming, so each gets its own
+node and its own anchor — and, once attention enters the picture, its own
+token to be spent. What cannot happen is two anchors on *one* occasion:
+asserting the same node again finds the anchor already there.
 
-It matters practically, too: a rule whose consequent restates something
-already true does not create a second act of claiming it. Chapter 0 already
+This used to go the other way. The substrate interned, so `poisoned(a)` was
+one node however often it was written, and a second claim had nowhere to land.
+That made the substrate decide something it had no business deciding — whether
+two sayings are one saying — and it made occasions impossible to tell apart,
+which is the thing attention has to count.
+
+Erasing takes one occasion. `no poisoned(a)` holds when none is left.
+
+It matters practically: a rule whose consequent restates something already
+true *does* create a second act of claiming it, and what stops the rule
+re-deriving for ever is that it spends what it matched. Chapter 0 already
 leaned on the flip side of this — a rule that could *keep* matching has to be
 the one that stops itself, because the machine will not decide on your behalf
 that reapplying it would be pointless.
@@ -122,11 +131,11 @@ record, something a corpus can write about an anchor while it still exists.
 
 ## Two rules that say the same thing are still two rules
 
-Propositions have one identity however many times you build them: write
-`on(a, b)` twice and you get the same node both times, and an anchor for it
-interns the same way. **Rules do not work that way.** A rule is an authored
-statement, not an idea — two rules that happen to conclude the same thing are
-still two different nodes, with different authors, provenance and standing.
+Write `on(a, b)` twice and you get two nodes saying one thing — same shape,
+different occasions, and `no on(a, b)` asks about the shape. **Rules are not
+even that.** A rule is an authored statement, not an idea: two rules that
+happen to conclude the same thing are different nodes with different authors,
+provenance and standing, and nothing anywhere treats them as one.
 `dormant(<R1>)` never accidentally reaches `<R2>` because the two look alike.
 
 ## Variables belong to the statement that wrote them

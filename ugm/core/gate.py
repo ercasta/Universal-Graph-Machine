@@ -69,7 +69,20 @@ class Gate:
         as structure, which is correct, because rules mention it and a rule
         that lost the node it names would stop matching for a reason nothing
         could state.
+
+        Handed a node nothing anchors, this erases the OLDEST occasion of the
+        same shape. A caller that matched its node -- `-$hit`, `-p($x)` -- hands
+        the occasion it means and this never fires. A caller that WROTE one to
+        say which proposition -- a ground `-p(a)`, where there is no binding to
+        carry an occasion -- means *stop believing p(a)*, and the shape is all
+        it said. Oldest first because it is the one thing here that is not a
+        choice: it is the occasion everything else already saw.
+
+        One occasion, not all of them, because `write` writes one. `p(a)`
+        believed twice is two occasions and a single `-p(a)` spends a single
+        one.
         """
+        proposition = self.pad.occasion(proposition)
         if not self.pad.erase(proposition):
             return False
         self.erasures += 1

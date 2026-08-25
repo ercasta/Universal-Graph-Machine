@@ -20,10 +20,12 @@ from .rules import (
     ABSENT,
     ASSERT,
     ERASE,
+    GENERIC,
     Application,
     Member,
     Rule,
     RuleSet,
+    already_there,
     match,
     substitute,
     _left_open,
@@ -471,23 +473,46 @@ class Machine:
 
     # -- believing ---------------------------------------------------------
 
-    def _note(self, proposition: NodeId) -> None:
+    def _note_that(self, relation: NodeId, *members: NodeId) -> NodeId:
         """Record that the machinery did something a rule may care about.
 
         A decision nobody can override still has to be legible, and the way to
         make it legible here is to put it in the same graph as everything else.
-        """
-        if self.pad.holds(proposition):
-            return
-        self.gate.write(proposition, generic=True)
 
-    def _claims(self, proposition: NodeId) -> bool:
-        return self.pad.holds(proposition)
+        Takes the PARTS, not the node, for `_claims`'s reason: this used to be
+        `_note(g.rel(REL, ...))`, and the caller built a node whether or not
+        the claim was already there. Returns the node the claim is on.
+        """
+        node = self.g.find_rel(relation, *members)
+        if node is None:
+            node = self.g.rel(relation, *members)
+        elif self.pad.holds_any(node):
+            return node
+        self.gate.write(node, generic=True)
+        return node
+
+    def _claims(self, relation: NodeId, *members: NodeId) -> bool:
+        """Is anything of this shape claimed? Builds nothing.
+
+        Every caller used to be `self._claims(self.g.rel(REL, ...))`: a node
+        minted for the asking and dropped. That is free only while `rel`
+        interns. A node minted to ask a question is an occasion nobody
+        claimed, and it stays in the relation and argument indexes the matcher
+        walks -- so asking a question would slow down every later question.
+        """
+        p = self.g.find_rel(relation, *members)
+        return p is not None and self.pad.holds_any(p)
 
     def holds(self, proposition: NodeId) -> bool:
-        """Does the agent believe this? Presence of the anchor, and nothing
-        else -- there is no last-claim-wins and no walk over a history."""
-        return self.pad.holds(proposition)
+        """Does the agent believe this? Presence of an anchor, and nothing
+        else -- there is no last-claim-wins and no walk over a history.
+
+        `holds_any` for `_claims`'s reason: callers reach this with
+        `m.holds(kb.term("fled(hero)"))`, a node built from text to ask with.
+        A caller holding a node it MATCHED, and asking about that node rather
+        than about its shape, wants `pad.holds` directly.
+        """
+        return self.pad.holds_any(proposition)
 
     # -- the attention stack -----------------------------------------------
 
@@ -539,7 +564,7 @@ class Machine:
         for node in reversed(nodes):
             self._attend(node)
         for node in nodes:
-            self._note(self.g.rel(self.PUSHED, node))
+            self._note_that(self.PUSHED, node)
         return frame
 
     def _pop_frame(self, node: Optional[NodeId] = None) -> bool:
@@ -565,7 +590,7 @@ class Machine:
         self._frames.pop()
         if node is not None and not self.g.has_var(node):
             self._attend(node)
-            self._note(self.g.rel(self.POPPED, node))
+            self._note_that(self.POPPED, node)
         return True
 
     def _declined_frame(self, what: NodeId, node, why: str) -> None:
@@ -576,7 +601,7 @@ class Machine:
         """
         if node is None:
             return
-        self._note(self.g.rel(self.DECLINED, what, node, self.g.atom(why)))
+        self._note_that(self.DECLINED, what, node, self.g.atom(why))
 
     def _attend(self, node: NodeId, weight=None, decay=None,
                 floor=None, ceiling=None) -> bool:
@@ -586,6 +611,11 @@ class Machine:
         believed proposition. True if this changed the standing weight."""
         if weight is None:
             weight = ATTENTION_START
+        #  The OCCASION, not the description. A caller naming a term --
+        # `attend(intake($e, $who), 3)` on a right-hand side, or a probe
+        # asking in Python -- hands a node built for the naming, and attention
+        # on a node nobody believes is a claim no rule can be lifted by.
+        node = self.pad.occasion(node)
         self._push_attention(node, weight, decay, floor=floor, ceiling=ceiling)
         _q, _s, weights = self._lane_state()
         if weights.get(node) == weight:
@@ -829,7 +859,7 @@ class Machine:
         """
         best = None
         for node in self.g.instances_of(relation):
-            if not self._claims(node):
+            if not self.pad.holds(node):
                 continue
             members = self.g.members(node)
             if not members:
@@ -892,7 +922,7 @@ class Machine:
         for a in self.answerers:
             if a.request is not rel:
                 continue
-            if not self._claims(self.g.rel(self.ANSWERS, a.node, a.request)):
+            if not self._claims(self.ANSWERS, a.node, a.request):
                 continue
             said = a.fn(self, proposition)
             if said is None:
@@ -957,9 +987,8 @@ class Machine:
     def _answer_recall(self, about: NodeId) -> None:
         candidates = self.rules.by_conclusion.get(self.g.relation_of(about), ())
         for r in candidates:
-            if self._claims(self.g.rel(self.DORMANT, r.node)) and not self._claims(
-                self.g.rel(self.DUE, r.node)
-            ):
+            if (self._claims(self.DORMANT, r.node)
+                    and not self._claims(self.DUE, r.node)):
                 continue
             self.gate.write(self.g.rel(self.RECALLED, r.node, about),
                             generic=True)
@@ -1001,39 +1030,49 @@ class Machine:
         if len(members) != 3:
             return None
         have, want, gap = members
-        held, wanted = self._contents(have), self._contents(want)
+        #  By SHAPE, not by node. A difference between two states is a
+        # difference between what they SAY, and the wanted state's `at(work)`
+        # is a node the corpus built while the held one's is a node a rule
+        # wrote. Those were one node while `rel` interned, so subtracting the
+        # sets of ids answered the question by accident; subtracting them now
+        # reports every proposition as both missing and extra.
+        shape = self.g.shape_of
+        held = {shape(p): p for p in self._contents(have)}
+        wanted = {shape(p): p for p in self._contents(want)}
+        absent = {k: wanted[k] for k in wanted.keys() - held.keys()}
+        spare = {k: held[k] for k in held.keys() - wanted.keys()}
         # A gap asked again is asked about NOW, so a difference that has closed
         # since the last answer is ERASED rather than left standing. Under the
         # chain this took a denial and the records accumulated -- the water
         # arrives, the want is met, and `missing(<gap>, water(kettle))` still
         # read `+`. Here the stale difference simply stops being there.
-        for rel, still in ((self.MISSING, wanted - held),
-                           (self.EXTRA, held - wanted)):
+        for rel, still in ((self.MISSING, absent), (self.EXTRA, spare)):
             for node in list(self.g.instances_of(rel)):
                 mm = self.g.members(node)
                 if len(mm) != 2 or mm[0] != gap:
                     continue
-                if mm[1] not in still:
+                if shape(mm[1]) not in still:
                     self.gate.erase(node)
         differed = False
-        for props, rel in ((wanted - held, self.MISSING),
-                           (held - wanted, self.EXTRA)):
-            for p in sorted(props):
+        for props, rel in ((absent, self.MISSING), (spare, self.EXTRA)):
+            for p in sorted(props.values()):
                 if self.g.has_var(p):
                     # A description is not a difference: `at($x)` says which
                     # states would count, not that one of them is absent.
                     continue
                 differed = True
-                self.gate.write(self.g.rel(rel, gap, p), generic=True)
-        matched = self.g.rel(self.MATCHED, gap)
+                if not self._claims(rel, gap, p):
+                    self.gate.write(self.g.rel(rel, gap, p), generic=True)
+        matched = self.g.find_rel(self.MATCHED, gap)
         if differed:
-            self.gate.erase(matched)
+            if matched is not None:
+                self.gate.erase(matched)
         else:
             # The empty gap, said outright. A rule can read every difference
             # one at a time and still not be able to say there were none: that
             # is a claim about the whole set, and the tool is the only party
             # here that has seen the whole set.
-            self.gate.write(matched, generic=True)
+            self._note_that(self.MATCHED, gap)
         return gap
 
     # -- the boundary ------------------------------------------------------
@@ -1142,9 +1181,23 @@ class Machine:
             })
         # What the rule concluded, before anything is written -- which is the
         # one moment a trigger can speak about it.
-        pending = [(substitute(self.g, m.pattern, app.bindings), m.sign)
-                   for m in app.rule.consequent
-                   if not _left_open(self.g, m.pattern, app.bindings)]
+        pending: List[Tuple[NodeId, str]] = []
+        for m in app.rule.consequent:
+            if _left_open(self.g, m.pattern, app.bindings):
+                continue
+            if m.sign == ERASE:
+                #  Looked up, never built. A `-` names an occasion that is
+                # already there, and building one to name it mints a node
+                # nothing anchors -- which is `-p(a)` erasing nothing while
+                # `p(a)` sits believed. Nothing of the shape means nothing to
+                # stop believing, so the member drops out here rather than
+                # travelling to the gate as a no-op a trigger could see.
+                got = already_there(self.g, m.pattern, app.bindings)
+                if got is None or got is GENERIC:
+                    continue
+                pending.append((got, ERASE))
+                continue
+            pending.append((substitute(self.g, m.pattern, app.bindings), m.sign))
         pending = self._intercept(app, pending)
         generic = app.rule.mentions
         wrote: List[NodeId] = []
@@ -1153,8 +1206,12 @@ class Machine:
                 if self.gate.erase(grounded):
                     wrote.append(grounded)
                 continue
-            if self.pad.holds(grounded):
-                continue  # already believed: there is nowhere for a second act to go
+            #  There is NO *already believed, so write nothing* here any
+            # more. It was the one place the engine still said that a thing
+            # said twice was said once, and that is the claim interning made
+            # in the substrate: a second derivation is a second occasion, with
+            # a token of its own for attention to spend. What stops a rule
+            # re-deriving for ever is that it consumed what it matched on.
             self.gate.write(grounded, generic=generic or self.g.has_var(grounded))
             wrote.append(grounded)
         return tuple(wrote)
@@ -1168,9 +1225,9 @@ class Machine:
         if not self.g.instances_of(self.INTERCEPTS):
             return []
         marked = [r for r in self.rules.rules
-                  if self._claims(self.g.rel(self.INTERCEPTS, r.node, self.AFTER))]
+                  if self._claims(self.INTERCEPTS, r.node, self.AFTER)]
         standing = {r for r in marked
-                    if self._claims(self.g.rel(self.STANDING, r.node))}
+                    if self._claims(self.STANDING, r.node)}
         return sorted(marked, key=lambda r: (r not in standing,
                                              self.rules.rules.index(r)))
 
@@ -1221,7 +1278,7 @@ class Machine:
         out = []
         for prop, _sign in pending:
             said = self.g.rel(self.PRODUCING, app.rule.node, prop)
-            if not self.pad.holds(said):
+            if not self.pad.holds_any(said):
                 self.gate.write(said, generic=True)
                 out.append(said)
         return out
@@ -1267,10 +1324,8 @@ class Machine:
                  new: Optional[NodeId]) -> NodeId:
         """On the record, because a conclusion that is not what the rule said
         it concluded has to name who changed it."""
-        said = self.g.rel(self.REWROTE, trigger.node, old,
-                          new if new is not None else self.DROP)
-        self._note(said)
-        return said
+        return self._note_that(self.REWROTE, trigger.node, old,
+                               new if new is not None else self.DROP)
 
     # -- asking ------------------------------------------------------------
 

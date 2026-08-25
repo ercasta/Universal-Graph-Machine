@@ -1171,11 +1171,24 @@ class Loader:
             # by. That is the whole reason this is a mark and not a keyword:
             # `ugm.vocabulary` counts every name the engine takes, and `new` is
             # too ordinary a word to spend.
-            return self.m.g.rel(self.m.NEW, self.build(t._replace(mint=False), scope))
+            #
+            # Scoped to the statement, exactly as a variable is, and for the
+            # same reason: `+person(+k), +named(+k, $p)` is one new thing said
+            # twice about. Interning used to make the two `new(k)` one node by
+            # accident of the substrate; `_markers` then found one marker and
+            # minted one entity. It mints per node, so `+k` written twice has
+            # to BE one node, and here is where a rule's names are made one.
+            key = f"+{t.head}"
+            got = scope.get(key)
+            if got is None:
+                got = self.m.g.rel(
+                    self.m.NEW, self.build(t._replace(mint=False), scope))
+                scope[key] = got
+            return got
         if t.fn is not None:
-            # The relation slot holds a term. `g.rel` interns on
-            # (relation, members) as always, so `a(b)(c)` is one node however
-            # often it is written, and a different one from `a(b(c))`.
+            # The relation slot holds a term, so `a(b)(c)` is a node whose
+            # relation is `a(b)` -- a different SHAPE from `a(b(c))`, which is
+            # what tells the two apart now that neither is one node.
             return self.m.g.rel(
                 self.build(t.fn, scope), *[self.build(a, scope) for a in t.args]
             )
@@ -1420,7 +1433,7 @@ class Loader:
         assert s.member is not None
         scope: Dict[str, NodeId] = {}
         term = self.build(s.member.term, scope)
-        self.m._note(self.m.g.rel(self.m.AFFORDED, term))
+        self.m._note_that(self.m.AFFORDED, term)
 
     def _name(self, s: Statement) -> None:
         """Build a named fact's proposition ONCE, and register the name.

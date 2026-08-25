@@ -109,16 +109,15 @@ nothing new:
 > **An application that changes nothing is offered again.** A shape's own
 > recursion has to stop itself; nothing else will.
 
-!!! note "Deep dive: the interning trap has four faces"
-    A stretch built as `stretch($f, $s, $a)` or a turns-relation built as
-    `turns($n, $m, $a, $b)` is **interned**: the same relation over the same
-    arguments is the same node, every time. That is what makes the `no`
-    guard work at all — asking *is this already concluded* is asking about
-    one fixed node, not re-deriving a fresh one that never matches its
-    earlier self.
+!!! note "Deep dive: what the `no` guard is actually asking"
+    Building `turns($n, $m, $a, $b)` twice gives two nodes. They are the same
+    **shape**, and that is what `no` asks about: *does anything believed say
+    this*, not *is this particular node believed*. So the guard still works —
+    it just is not resting on the substrate handing back one fixed node.
 
-    Interning is also this project's single most expensive recurring bug,
-    failing in four distinct ways worth naming:
+    It used to. Relation instances were interned, and asking *is this already
+    concluded* meant asking about one node. That was the project's single most
+    expensive recurring bug, failing in four ways worth naming:
 
     - **never fires** — the node already existed, so nothing looked new;
     - **always fires** — a fresh node every time, so no fixed point;
@@ -126,9 +125,9 @@ nothing new:
       counted, so the facts were right and the fixpoint never came;
     - **not pure** — asking the question changed some other answer.
 
-    A `turns(...)` node survives all four because nothing enumerates
-    `turns` nodes to notice they exist — the only way in is a match, and a
-    match against an anchored proposition is exactly what belief already is.
+    Three of the four came from *building* a node in order to ask about one.
+    Nothing builds to ask any more: a question about a shape is looked up, and
+    what a rule matched is carried forward rather than reconstructed.
 
 ## Bounds are facts about the shape
 

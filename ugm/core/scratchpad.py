@@ -24,9 +24,13 @@ Three consequences, and they are the whole of why the chain went:
     ignorance  absence. *Never considered* and *considered and dropped* are the
                same state, and that is honest: nothing here remembers.
 
-The anchor is INTERNED, so a proposition has at most one anchor and belief is a
-dict lookup. Asserting something already believed is not a second act; there is
-nowhere for a second act to go.
+A proposition has at most one anchor -- `note` looks before it mints, which is
+where that invariant lives now that the graph interns nothing. Asserting
+something already believed is not a second act; there is nowhere for a second
+act to go.
+
+`p(a)` said twice is two propositions and so two anchors, which is the point:
+two occasions. What cannot happen is two anchors on ONE proposition.
 
 See docs/design/scratchpad.md.
 """
@@ -69,10 +73,13 @@ class Scratchpad:
         Callers should not reach this directly: `Gate.write` is the one place a
         belief enters, because that is where the hooks are.
         """
-        if self.holds(proposition):
-            # Already believed. There is nowhere for a second act to go, which
-            # is what interning the anchor buys: asserting twice is asserting.
-            return self.g.rel(self.BELIEVED, proposition)
+        got = self.anchor(proposition)
+        if got is not None:
+            # Already believed. There is nowhere for a second act to go -- and
+            # the EXISTING anchor is returned rather than one built to say so,
+            # because `rel` mints now. Minting here would put a second anchor
+            # on one belief, and `erase` deletes one anchor.
+            return got
         self.writes += 1
         self._mention(proposition, +1)
         return self.g.rel(self.BELIEVED, proposition)
@@ -104,7 +111,7 @@ class Scratchpad:
         rel = self.g.relation_of(proposition)
         if rel is None:
             return
-        if self.g._merges:
+        if self.g._identity:
             rel = self.g.identity_of(rel)
         for m in self.g.members(proposition):
             held = self._rels.setdefault(m, {})
@@ -129,11 +136,17 @@ class Scratchpad:
     def anchor(self, proposition: NodeId) -> Optional[NodeId]:
         """This proposition's anchor if it has one, without making it.
 
-        `note` cannot answer this: asking would answer itself. `find_rel` is
-        the substrate's question that does not mint, and it exists for exactly
-        this shape of question.
+        `note` cannot answer this: asking would answer itself.
+
+        The ARGUMENT index, not `find_rel`. `find_rel` asks about a shape, and
+        `believed(p)` and `believed(q)` have one shape whenever `p` and `q` do
+        -- so asking it here reports one occasion believed because another one
+        is. Belief is per node, which is the whole of *two loves between the
+        same pair are two things*, and the argument index is the one keyed on
+        the node rather than on what it is made of.
         """
-        return self.g.find_rel(self.BELIEVED, proposition)
+        got = self.g.instances_with(self.BELIEVED, 0, proposition)
+        return got[0] if got else None
 
     def holds(self, proposition: NodeId) -> bool:
         """Is this believed? One dict lookup, and it is the whole of belief."""
@@ -149,6 +162,27 @@ class Scratchpad:
         canonical one makes it say so.
         """
         return any(self.anchor(p) is not None for p in self.g.like(proposition))
+
+    def occasion(self, proposition: NodeId) -> NodeId:
+        """The believed node of this shape, given one that may only describe it.
+
+        `proposition` itself when it is believed, which is every caller that
+        matched its node. Otherwise the oldest occasion saying the same thing,
+        and `proposition` unchanged when nothing does.
+
+        This is where a caller holding a SHAPE meets the engine holding
+        OCCASIONS. `m._attend(kb.term("intake(e2, mary)"))` names a term from
+        outside and gets a node minted on the spot, which is attention on a
+        thing nobody believes and no rule can match -- so the claim lands
+        nowhere. It was the same node while `rel` interned, which is why
+        nothing had to say this before.
+        """
+        if self.holds(proposition):
+            return proposition
+        for other in self.g.like(proposition):
+            if self.holds(other):
+                return other
+        return proposition
 
     def believed(self) -> List[NodeId]:
         """Every believed proposition, newest first.
