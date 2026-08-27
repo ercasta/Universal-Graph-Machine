@@ -1,160 +1,82 @@
-# UGM — Universal Graph Machine
+# UGM
 
-**An agent that plans, acts and explains itself — where almost nothing about reality is built into
-the engine.**
+**An entity-component world, a loop that runs systems over it, and one
+thread to run a session on.**
 
-> **New here? Start with the [illustrated tutorial](https://ercasta.github.io/Universal-Graph-Machine/)**
-> — a plain-language, mobile-friendly book that teaches the machine from scratch, with live pages
-> that run the real engine in your browser. The rest of this README is the technical overview; the
-> full argument (some of it now aspirational — see below) is
-> [`docs/rules-design.md`](docs/rules-design.md).
-
-UGM is a self-contained Python library with no dependencies.
-
-```bash
-python -m ugm.selftest                              # 203 checks, 0 failing
-python -m ugm ugm/rules/delay.ugm --ask "owed(ana,money)"
-```
-
-## Try it: HarneSkills is the door onto this engine
-
-This repo is the engine only. The REPL — talk to it, one `.ugm` line at a time, typo-correction
-against the loaded corpus's own vocabulary, a plain-English fallback for a line that isn't `.ugm`
-syntax — has moved to **[HarneSkills](https://github.com/ercasta/harneskills)**, a small separate
-repo that depends on this one rather than duplicating it:
-
-```bash
-pip install -e .              # this repo, editable
-pip install -e ../harneskills # or wherever your checkout lives
-harneskills-fs
-```
-
-```
-harneskills> cleanup "C:\Users\you\Documents" 7
-approve rename(notes.txt -> stale-notes.txt)? [y/N]
-```
-
-`harneskills-fs` is HarneSkills' own worked example — three file tools, a rename held for approval,
-a circuit breaker watching it — none of it built into the engine, all of it ordinary `.ugm` rules
-(`harneskills/examples/fs/fs_demo.ugm`). Nothing about "showing" a directory or "cleaning up" old
-files is built into the REPL or the tools — a plain-English line means whatever an ordinary rule in
-the loaded corpus says it means, and a rename is held for approval by the same gate any corpus could
-use, not a special case in the engine.
-
-## How it works: a loop, some gates, and rules
-
-**One graph is the whole state.** Nodes with ordered members and nothing else — `on(a, b)` is a
-node, `a` and `b` are nodes, an atom and a compound are the same kind of thing. Belief is
-presence: `believed(p)` holds or it doesn't, and that is the entirety of what "believing something"
-means here. A member of a rule is signed `+` (assert), `-` (erase) or `no` (absence — *nothing
-claims this*, told apart from a denial). There is no fourth sign and no provenance trail attached to
-a belief; that machinery existed once and was cut for being more than the measured wins justified.
-
-**One connective.** `rule <name> = implies( { antecedent }, { consequent } )` — `causes` is refused
-at load, on purpose, with a message saying why: it only ever meant *lands in a later moment*, and
-there are no moments to land in.
-
-**The loop has no phases, and nothing is ranked.** Each tick: match every rule against belief as it
-stood at the tick's start, fire all of them, fold their writes together and commit once. Firing order
-cannot change the end state. A run ends *quiescent* or hits a tick limit. Nothing in the loop is
-privileged — *stop* is a rule spending a postcondition, not an engine decision.
-
-**Every node carries an intensity.** "On" is above zero, firing spends what it matched, and `keep`
-opts one line out of that. Since nothing picks a winner, nothing can be starved — lanes and the
-ranked table are both retired (see `docs/design/intensity-gates.md`).
-
-**Gates** are how one rule governs another: a gated rule carries `keep gate(...)` in its own
-antecedent and cannot conclude until something opens it. This is the whole of how approval-gating and
-circuit-breaking are built — ordinary rules, no engine hook per feature.
-
-**Tools and channels are the seam to the world.** `kb.answerer(name, request, fn)` binds a Python
-function to a relation; writing that relation calls it, and its answer lands as `answered(<tool>,
-req, result)` — a record the corpus may believe or not, never a conclusion the tool makes for it.
-`say user: +p` delivers an arrival (`arrived`/`says`), and an ordinary trust rule — the REPL loads
-one for `user`, unconditional — is what turns an arrival into a belief. Nothing is trusted by
-default.
-
-**A rule is a node.** `overrides(<a>, <b>)` is defeat (the loser never applies), `standing(<r>)`
-lifts a rule's priority, `dormant`/`due` suspend and resume it — all ordinary facts a corpus writes
-and a rule can ask about.
-
-## What it looks like
-
-```
-rule <cancel>     = implies( { +cancelled($f) }, { +disrupted($f) } )
-rule <crewing>    = implies( { +cause($f, crew) }, { -extraordinary($f) } )
-rule <compensate> = implies(
-    { +disrupted($f), +booked($p, $f), -extraordinary($f) },
-    { +owed($p, money) } )
-
-fact +cancelled(bl204)
-fact +cause(bl204, crew)
-fact +booked(ana, bl204)
-```
-
-```
-$ python -m ugm ugm/rules/delay.ugm --ask "owed(ana,money)"
-ugm/rules/delay.ugm: 25 ticks, ended quiescent
-
-what it believes, newest first:
-  rerouted(ana, zr9)
-  amount(ana, 600)
-  owed(ana, money)
-  ...
-
-owed(ana,money): believed
-```
-
-## Layout
+An *entity* is an identity with no data — `#7`. A *component* is data
+with no identity — `Size(bytes=4300)`. A *system* is a Python function of
+one `World` that asks for the entities carrying a set of components and
+walks them. The *loop* calls every system, in order, over and over,
+until a whole pass changes nothing, and that is when the world has
+something to say. The *engine* is one thread that owns that loop and
+routes what it says to however many channels are attached to it.
 
 ```
 ugm/
-  core/          9 modules   graph, chain, gate, machine (state, tools), rules (match), text
-                              (the .ugm surface), firing (the tick loop), channels, scratchpad
-                              -- nothing outside `core` is needed to run an agent
-  gates/         vocabulary  every reserved name classified, checked against corpora that ship
-  probes/        5 modules   worked examples and measured comparisons -- dungeon fights, the
-                              approval pattern, REPL autocorrect
-  rules/                     shipped corpora (`worked.ugm`, `delay.ugm`, the dungeon fixtures,
-                              `tools_approval.ugm`, `circuit_breaker.ugm` -- a generic, temporary
-                              rule-suspension pattern any corpus can watch a rule with -- and
-                              `todo.ugm`, a standing task stack any corpus can load alongside its
-                              own)
-  corpora.py                 one accessor for a shipped corpus's path, used throughout
-  repl.py, repl_fs.py, fs_repl.py    superseded by HarneSkills (still here, still tested; not
-                              the door a new user should walk through -- see Try It, above)
-  selftest.py                the one test runner
+  world.py     entities, components, and the queries systems ask
+  loop.py      every system, in order, until nothing changes
+  engine.py    one thread, the world, and the channels attached to it
+  save.py      the world as JSON: entities are ints, components are values
+tests/
+  test_world.py    identity, values, and the intersection of the two
+  test_loop.py     order, settling, the budget, a system that raises
+  test_engine.py   one world, several channels, a broadcast reply
+  test_save.py     the same world, ids and all, next time
 ```
 
-## Verification
-
-Not pytest. One runner that prints every check's named observations and counts any `False` as a
-failure:
+## Try it
 
 ```bash
-python -m ugm.selftest              # 179 checks, 0 failing
-./tools_sweep.sh                    # every module with a main(), found on disk (not a fixed list)
-python -m ugm.gates.vocabulary      # every reserved name classified exactly once
-python -m ugm.probes.tools          # the approval pattern, run both approved and denied
+pip install -e .
+python3 -c "
+from ugm import Loop
+from ugm.world import Reply, Said
+
+loop = Loop()
+
+@loop.system
+def greet(w):
+    for e, said in w.each(Said):
+        w.destroy(e)
+        w.spawn(Reply('user', 'hi, %s' % said.text))
+
+loop.world.spawn(Said('user', 'world'))
+loop.run()
+for e, r in loop.world.each(Reply):
+    print(r.text)
+"
 ```
 
-## Documentation
+## Scope
 
-- **[The book](https://ercasta.github.io/Universal-Graph-Machine/)** — the tutorial, from scratch.
-- **[`docs/guide.md`](docs/guide.md)** — the surface syntax, the loop, intensity and gates, in one page.
-- **[`docs/authoring.md`](docs/authoring.md)** — what actually bites when you sit down and write a
-  corpus.
-- **[`docs/tools-approval.md`](docs/tools-approval.md)** — the approval-as-a-corpus pattern the REPL
-  demo is built on.
-- **[`docs/feature-requests.md`](docs/feature-requests.md)** — ideas raised along the way that never
-  got built; not a roadmap.
+**No domain, no channel, no transport.** `world.py`, `loop.py`,
+`engine.py` and `save.py` ship no systems, no components beyond `Said`
+and `Reply` (the shapes `Engine.drain` and `Engine._do` route by), no
+vocabulary, and no knowledge of files, sockets, or terminals. `Engine`
+wants anything with `.name`, `.deliver(message)`, and optionally
+`.start(engine)` / `.close()` — no base class, no import required to be
+one.
 
-## House rules
+**`harneskills`, a separate repo built on this one, is the worked door
+onto it** — a `Terminal` channel, a WebSocket `Listener` and `client`, a
+config-file format for naming domains, and `harneskills.examples.fs`, a
+domain built on `World` and `Loop` alone. None of that is imported here;
+this package does not know `harneskills` exists.
 
-> **A claim with no measurement behind it is an opinion, and it is marked as one.**
+## History
 
-> **No feature is novel until something falsifies the claim.**
+This is `ugm` a second time. The first `universal-graph-machine` was a
+graph substrate `harneskills` was a terminal onto — a corpus format, a
+loader, attention and arbitration over a graph of facts. That dependency
+was dropped and replaced with `loop.py`: a system is a Python function
+of one `World`, not a rule matched against a graph, and the loop calls
+every one of them in registration order until a pass changes nothing.
+This package is that replacement, carved back out of `harneskills` once
+its own split between "the engine" and "the doors onto it" had already
+drawn the line the old dependency used to sit on.
 
-## Licence
-
-MIT. See [`LICENSE`](LICENSE).
+`book/`, alongside this file, is the design documentation for the FIRST
+`ugm` — the graph substrate, its corpus format, attention and arbitration
+— left in place rather than deleted. It describes a codebase this one
+does not carry forward; nothing under `ugm/` or `tests/` here implements
+what it documents.

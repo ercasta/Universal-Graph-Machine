@@ -3,29 +3,27 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "universal-graph-machine"
-version = "0.4.0"
-description = "An agent that plans, acts, observes and explains itself, on one graph substrate — see docs/rules-design.md"
-readme = { text = "Universal Graph Machine", content-type = "text/markdown" }
+name = "ugm"
+version = "0.1.0"
+description = "An entity-component world, a loop of systems over it, and one thread to run a session on"
+readme = { text = "UGM", content-type = "text/markdown" }
 requires-python = ">=3.9"
 license = { text = "MIT" }
-keywords = ["graph", "reasoning", "knowledge-representation", "planning", "agent"]
+keywords = ["ecs", "entity-component", "game-loop", "world-model"]
+
+# No dependencies, and that is the whole of it. This is the substrate
+# `harneskills` is built on -- a world, a loop, an engine to run one on --
+# and it ships no domain, no channel and no transport, so nothing above
+# it is baked in here.
 dependencies = []
 
-# Verification is `python -m ugm.selftest`, not pytest: a single runner that prints every check's
-# named observations and counts any False as a failure.
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
 
-#  Subpackages listed explicitly: `packages = ["ugm"]` alone ships ugm/*.py
-# and silently drops core/, gates/ and probes/ from the wheel -- an install
-# that imports nothing, found in the release sweep. `ugm.learning` was listed
-# here too until an editable install broke on it: no such directory existed
-# on disk. It does again -- calibration searches a corpus's numbers against
-# episodes -- so it is listed, and the note stays as the reason to check
-# rather than assume.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = [".venv", "__pycache__", ".git", "*.egg-info"]
+
 [tool.setuptools]
-packages = ["ugm", "ugm.core", "ugm.gates", "ugm.learning", "ugm.probes"]
-
-#  `rules/*.ugm` does not reach `rules/episodes/`, and a glob that silently
-# drops a subdirectory is the same failure as the packages list above.
-[tool.setuptools.package-data]
-ugm = ["rules/*.ugm", "rules/episodes/*.ugm"]
+py-modules = []
+packages = ["ugm"]

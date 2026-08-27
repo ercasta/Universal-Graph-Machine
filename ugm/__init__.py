@@ -1,40 +1,34 @@
-"""An agent that reasons on one graph substrate. The design is
-`docs/rules-design.md`; every module here cites it. `docs/guide.md` is the
-practical one: how to write a corpus and run it.
+"""UGM -- Universal Graph Machine: an entity-component world, a loop that
+runs systems over it, and one thread to run a session on.
 
-There is ONE graph and it is the state -- a scratchpad. What the agent believes
-is what is anchored in it right now; a retraction is a deletion rather than a
-later claim that outvotes an earlier one, and nothing anywhere remembers what
-was believed before. That is the whole architecture, and most of what used to
-be here went with the chain it replaced: entries, moments, signs, licences,
-support trails, goal management, vetoes, expectations, the premise economy, and
-credit assignment.
+    from ugm import Engine, Loop, World
 
-The engine is `ugm.core`; nothing outside it is needed to run an agent.
-`ugm.gates` are release criteria and `ugm.probes` are measured questions.
-Learning is deliberately absent, and will come back on a memory system rather
-than on a history the engine keeps by accident.
+* `ugm.world` -- entities (identity, no data) and components (data, no
+  identity). Everything anything knows.
+* `ugm.loop` -- call every system, in order, until a whole pass changes
+  nothing. A system is a function of one `World`.
+* `ugm.engine` -- ONE thread that runs the loop, and the channels
+  attached to it. `Said(name, "...")` in from whichever channel it
+  arrived on; `Reply(user, "...")` out to every channel there is.
+* `ugm.save` -- the world as plain data, and back.
+
+UGM ships no domain, no channel and no transport. `Engine.attach` wants
+anything with `.name`, `.deliver(message)`, and optionally `.start(engine)`
+/ `.close()` -- a terminal, a WebSocket, a test double, all the same
+shape. `harneskills` is the worked door onto this: `harneskills.repl`,
+`harneskills.serve` and `harneskills.client` are channels built on top of
+`Engine`, and `harneskills.examples.fs` is a domain built on top of
+`World` and `Loop` -- neither of which this package knows exists.
 """
 
-from .core.channels import Channels
-from .core.gate import Gate
-from .core.graph import Graph
-from .core.machine import Machine, Step
-from .core.rules import ABSENT, ASSERT, ERASE, IMPLIES, Member, Rule, RuleSet
-from .core.scratchpad import Scratchpad
+from __future__ import annotations
 
-__all__ = [
-    "Channels",
-    "Gate",
-    "Graph",
-    "Machine",
-    "Member",
-    "Rule",
-    "RuleSet",
-    "Scratchpad",
-    "Step",
-    "ABSENT",
-    "ASSERT",
-    "ERASE",
-    "IMPLIES",
-]
+from . import engine, loop, save, world
+from .engine import Engine
+from .loop import Loop
+from .world import World
+
+__version__ = "0.1.0"
+
+__all__ = ["Engine", "Loop", "World", "engine", "loop", "save", "world",
+          "__version__"]
